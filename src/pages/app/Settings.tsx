@@ -113,6 +113,8 @@ const Settings = () => {
     .filter(Boolean)
     .join('، ');
 
+  const previewRef = useRef<HTMLDivElement>(null);
+
   return (
     <div>
       <PageHeader
