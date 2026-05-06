@@ -38,6 +38,8 @@ interface InvoiceConfig {
   showTaxNumber: boolean;
   terms: string;
   footer: string;
+  logoUrl?: string;
+  stampUrl?: string;
 }
 
 interface ClientInfo {
