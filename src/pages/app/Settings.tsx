@@ -40,6 +40,13 @@ interface InvoiceConfig {
   footer: string;
 }
 
+interface ClientInfo {
+  name: string;
+  email: string;
+  address: string;
+  taxNumber: string;
+}
+
 const CURRENCIES = [
   { code: 'SAR', symbol: 'ر.س', name: 'ريال سعودي' },
   { code: 'AED', symbol: 'د.إ', name: 'درهم إماراتي' },
@@ -78,8 +85,28 @@ const Settings = () => {
     footer: 'شكراً لتعاملكم معنا',
   });
 
+  const [client, setClient] = useState<ClientInfo>({
+    name: 'شركة العميل التجريبية',
+    email: 'client@example.com',
+    address: 'جدة، حي الروضة',
+    taxNumber: '310987654300003',
+  });
+  const [clientErrors, setClientErrors] = useState<Partial<Record<keyof ClientInfo, string>>>({});
+
   const setP = (patch: Partial<CompanyProfile>) => setProfile(p => ({ ...p, ...patch }));
   const setI = (patch: Partial<InvoiceConfig>) => setInvoiceCfg(c => ({ ...c, ...patch }));
+  const setC = (patch: Partial<ClientInfo>) => {
+    setClient(c => ({ ...c, ...patch }));
+    const key = Object.keys(patch)[0] as keyof ClientInfo;
+    const val = (patch[key] ?? '').toString().trim();
+    let err = '';
+    if (key === 'name' && !val) err = 'الاسم مطلوب';
+    if (key === 'name' && val.length > 100) err = 'الاسم طويل جداً';
+    if (key === 'email' && val && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)) err = 'بريد غير صالح';
+    if (key === 'taxNumber' && val && !/^\d{5,20}$/.test(val)) err = 'الرقم الضريبي غير صالح';
+    if (key === 'address' && val.length > 200) err = 'العنوان طويل جداً';
+    setClientErrors(p => ({ ...p, [key]: err || undefined }));
+  };
 
   const onCurrencyChange = (code: string) => {
     const c = CURRENCIES.find(x => x.code === code);
@@ -107,7 +134,7 @@ const Settings = () => {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [profile, invoiceCfg]);
+  }, [profile, invoiceCfg, client]);
 
   const fullAddress = [profile.street, profile.district, profile.city, profile.country, profile.postalCode]
     .filter(Boolean)
@@ -127,6 +154,7 @@ const Settings = () => {
           <TabsTrigger value="company">بيانات الشركة</TabsTrigger>
           <TabsTrigger value="address">العنوان</TabsTrigger>
           <TabsTrigger value="invoice">الفاتورة والعملة</TabsTrigger>
+          <TabsTrigger value="client">بيانات العميل</TabsTrigger>
         </TabsList>
 
         <TabsContent value="company" className="mt-4">
@@ -208,8 +236,42 @@ const Settings = () => {
                 <DownloadPdfButton targetRef={previewRef} fileName={`${invoiceCfg.prefix}-preview.pdf`} />
               </div>
               <div ref={previewRef}>
-                <InvoicePreview profile={profile} cfg={invoiceCfg} address={fullAddress} />
+                <InvoicePreview profile={profile} cfg={invoiceCfg} address={fullAddress} client={client} />
               </div>
+            </div>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="client" className="mt-4">
+          <div className="grid lg:grid-cols-5 gap-5">
+            <Card className="p-6 border-border/60 lg:col-span-2 space-y-4 h-fit">
+              <div className="space-y-3">
+                <div>
+                  <Label>اسم العميل</Label>
+                  <Input className="mt-1.5" maxLength={100} value={client.name} onChange={e => setC({ name: e.target.value })} />
+                  {clientErrors.name && <p className="text-xs text-destructive mt-1">{clientErrors.name}</p>}
+                </div>
+                <div>
+                  <Label>البريد الإلكتروني</Label>
+                  <Input className="mt-1.5" type="email" maxLength={255} value={client.email} onChange={e => setC({ email: e.target.value })} />
+                  {clientErrors.email && <p className="text-xs text-destructive mt-1">{clientErrors.email}</p>}
+                </div>
+                <div>
+                  <Label>العنوان</Label>
+                  <Textarea rows={2} className="mt-1.5" maxLength={200} value={client.address} onChange={e => setC({ address: e.target.value })} />
+                  {clientErrors.address && <p className="text-xs text-destructive mt-1">{clientErrors.address}</p>}
+                </div>
+                <div>
+                  <Label>الرقم الضريبي</Label>
+                  <Input className="mt-1.5" maxLength={20} value={client.taxNumber} onChange={e => setC({ taxNumber: e.target.value.replace(/\D/g, '') })} />
+                  {clientErrors.taxNumber && <p className="text-xs text-destructive mt-1">{clientErrors.taxNumber}</p>}
+                </div>
+              </div>
+              <SaveIndicator status={saveStatus} className="w-full justify-center" />
+            </Card>
+            <div className="lg:col-span-3">
+              <div className="text-sm text-muted-foreground mb-2">معاينة مباشرة</div>
+              <InvoicePreview profile={profile} cfg={invoiceCfg} address={fullAddress} client={client} />
             </div>
           </div>
         </TabsContent>
@@ -224,7 +286,7 @@ const sampleItems = [
   { name: 'تدريب فريق المبيعات', qty: 3, price: 600 },
 ];
 
-const InvoicePreview = ({ profile, cfg, address }: { profile: CompanyProfile; cfg: InvoiceConfig; address: string }) => {
+const InvoicePreview = ({ profile, cfg, address, client }: { profile: CompanyProfile; cfg: InvoiceConfig; address: string; client: ClientInfo }) => {
   const subtotal = sampleItems.reduce((s, i) => s + i.qty * i.price, 0);
   const tax = +(subtotal * (cfg.taxRate / 100)).toFixed(2);
   const total = subtotal + tax;
@@ -271,8 +333,10 @@ const InvoicePreview = ({ profile, cfg, address }: { profile: CompanyProfile; cf
       <div className="p-6 grid grid-cols-2 gap-4 text-sm border-b border-slate-200">
         <div>
           <div className="text-slate-500 text-xs mb-1">فاتورة إلى</div>
-          <div className="font-semibold">شركة العميل التجريبية</div>
-          <div className="text-slate-600 text-xs">جدة، حي الروضة</div>
+          <div className="font-semibold">{client.name || '—'}</div>
+          {client.address && <div className="text-slate-600 text-xs">{client.address}</div>}
+          {client.email && <div className="text-slate-600 text-xs">{client.email}</div>}
+          {client.taxNumber && <div className="text-slate-600 text-xs">الرقم الضريبي: {client.taxNumber}</div>}
         </div>
         <div className="text-left">
           <div className="text-slate-500 text-xs">تاريخ الإصدار: <span className="text-slate-900">06/05/2026</span></div>
