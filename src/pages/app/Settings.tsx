@@ -83,7 +83,28 @@ const Settings = () => {
     if (c) setI({ currency: c.code, currencySymbol: c.symbol });
   };
 
-  const save = () => toast.success('تم حفظ الإعدادات');
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const isFirstRun = useRef(true);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (isFirstRun.current) {
+      isFirstRun.current = false;
+      return;
+    }
+    setSaveStatus('saving');
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+    debounceRef.current = setTimeout(() => {
+      setSaveStatus('saved');
+      toast.success('تم حفظ التغييرات تلقائياً');
+      savedTimerRef.current = setTimeout(() => setSaveStatus('idle'), 2000);
+    }, 800);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [profile, invoiceCfg]);
 
   const fullAddress = [profile.street, profile.district, profile.city, profile.country, profile.postalCode]
     .filter(Boolean)
