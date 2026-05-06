@@ -1,0 +1,80 @@
+import { useState } from 'react';
+import { PageHeader } from '@/components/common/PageHeader';
+import { DataTable, Column } from '@/components/common/DataTable';
+import { Button } from '@/components/ui/button';
+import { Plus, Pencil, Trash2 } from 'lucide-react';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { clients as initialClients } from '@/data/mock';
+import type { Client } from '@/types';
+import { toast } from 'sonner';
+import { formatDateShort } from '@/lib/format';
+
+const empty: Client = { id: '', companyId: 'co-1', name: '', phone: '', email: '', address: '', taxNumber: '', createdAt: new Date().toISOString() };
+
+const Clients = () => {
+  const [list, setList] = useState<Client[]>(initialClients);
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<Client>(empty);
+
+  const openNew = () => { setEditing({ ...empty, id: `cl-${Date.now()}` }); setOpen(true); };
+  const openEdit = (c: Client) => { setEditing(c); setOpen(true); };
+  const save = () => {
+    if (!editing.name || !editing.phone) return toast.error('الاسم والهاتف مطلوبان');
+    setList(prev => {
+      const exists = prev.find(x => x.id === editing.id);
+      return exists ? prev.map(x => x.id === editing.id ? editing : x) : [editing, ...prev];
+    });
+    setOpen(false);
+    toast.success('تم الحفظ');
+  };
+  const remove = (id: string) => { setList(prev => prev.filter(x => x.id !== id)); toast.success('تم الحذف'); };
+
+  const columns: Column<Client>[] = [
+    { key: 'name', header: 'الاسم', cell: r => <span className="font-medium">{r.name}</span> },
+    { key: 'phone', header: 'الهاتف', cell: r => <span dir="ltr" className="text-sm">{r.phone}</span> },
+    { key: 'email', header: 'البريد', cell: r => <span className="text-sm text-muted-foreground">{r.email || '—'}</span> },
+    { key: 'address', header: 'العنوان', cell: r => <span className="text-sm text-muted-foreground">{r.address || '—'}</span> },
+    { key: 'tax', header: 'الرقم الضريبي', cell: r => <span className="text-sm">{r.taxNumber || '—'}</span> },
+    { key: 'created', header: 'تاريخ الإضافة', cell: r => <span className="text-xs text-muted-foreground">{formatDateShort(r.createdAt)}</span> },
+    { key: 'actions', header: '', cell: r => (
+      <div className="flex justify-end gap-1">
+        <Button variant="ghost" size="icon" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>
+        <Button variant="ghost" size="icon" onClick={() => remove(r.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+      </div>
+    )},
+  ];
+
+  return (
+    <div>
+      <PageHeader title="العملاء" description="إدارة قاعدة عملائك"
+        actions={<Button onClick={openNew}><Plus className="h-4 w-4 ml-1" /> عميل جديد</Button>} />
+
+      <DataTable data={list} columns={columns} searchKeys={['name','phone','email']} searchPlaceholder="ابحث باسم العميل أو رقمه..." />
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle>{editing.name ? 'تعديل عميل' : 'إضافة عميل جديد'}</DialogTitle></DialogHeader>
+          <div className="grid sm:grid-cols-2 gap-4">
+            <Field label="الاسم *" value={editing.name} onChange={v => setEditing(e => ({ ...e, name: v }))} />
+            <Field label="رقم الهاتف *" value={editing.phone} onChange={v => setEditing(e => ({ ...e, phone: v }))} />
+            <Field label="البريد الإلكتروني" value={editing.email ?? ''} onChange={v => setEditing(e => ({ ...e, email: v }))} />
+            <Field label="الرقم الضريبي" value={editing.taxNumber ?? ''} onChange={v => setEditing(e => ({ ...e, taxNumber: v }))} />
+            <div className="sm:col-span-2"><Field label="العنوان" value={editing.address ?? ''} onChange={v => setEditing(e => ({ ...e, address: v }))} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>إلغاء</Button>
+            <Button onClick={save}>حفظ</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+};
+
+const Field = ({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) => (
+  <div><Label>{label}</Label><Input value={value} onChange={e => onChange(e.target.value)} className="mt-1.5" /></div>
+);
+
+export default Clients;

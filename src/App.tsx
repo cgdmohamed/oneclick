@@ -3,8 +3,44 @@ import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import Index from "./pages/Index.tsx";
-import NotFound from "./pages/NotFound.tsx";
+import { AuthProvider } from "@/lib/auth";
+
+import PublicLayout from "./layouts/PublicLayout";
+import AppLayout from "./layouts/AppLayout";
+
+import Home from "./pages/public/Home";
+import Features from "./pages/public/Features";
+import Pricing from "./pages/public/Pricing";
+import About from "./pages/public/About";
+import Contact from "./pages/public/Contact";
+import Login from "./pages/public/Login";
+import Register from "./pages/public/Register";
+import PublicInvoice from "./pages/public/PublicInvoice";
+
+import Overview from "./pages/app/Overview";
+import Clients from "./pages/app/Clients";
+import Invoices from "./pages/app/Invoices";
+import NewInvoice from "./pages/app/NewInvoice";
+import InvoiceDetails from "./pages/app/InvoiceDetails";
+import Payments from "./pages/app/Payments";
+import Accounts from "./pages/app/Accounts";
+import Products from "./pages/app/Products";
+import Reports from "./pages/app/Reports";
+import ReportDetail from "./pages/app/ReportDetail";
+import Notifications from "./pages/app/Notifications";
+import Users from "./pages/app/Users";
+import Settings from "./pages/app/Settings";
+
+import AdminOverview from "./pages/admin/AdminOverview";
+import Companies from "./pages/admin/Companies";
+import Plans from "./pages/admin/Plans";
+import Subscriptions from "./pages/admin/Subscriptions";
+import AdminPayments from "./pages/admin/AdminPayments";
+import FeatureAccess from "./pages/admin/FeatureAccess";
+import SystemNotifications from "./pages/admin/SystemNotifications";
+import SystemSettings from "./pages/admin/SystemSettings";
+
+import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
@@ -12,13 +48,52 @@ const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <Toaster />
-      <Sonner />
+      <Sonner position="top-center" dir="rtl" />
       <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Index />} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
+        <AuthProvider>
+          <Routes>
+            <Route element={<PublicLayout />}>
+              <Route path="/" element={<Home />} />
+              <Route path="/features" element={<Features />} />
+              <Route path="/pricing" element={<Pricing />} />
+              <Route path="/about" element={<About />} />
+              <Route path="/contact" element={<Contact />} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/register" element={<Register />} />
+            </Route>
+
+            <Route path="/invoice/:publicId" element={<PublicInvoice />} />
+
+            <Route path="/app" element={<AppLayout kind="company" />}>
+              <Route index element={<Overview />} />
+              <Route path="clients" element={<Clients />} />
+              <Route path="invoices" element={<Invoices />} />
+              <Route path="invoices/new" element={<NewInvoice />} />
+              <Route path="invoices/:id" element={<InvoiceDetails />} />
+              <Route path="payments" element={<Payments />} />
+              <Route path="accounts" element={<Accounts />} />
+              <Route path="products" element={<Products />} />
+              <Route path="reports" element={<Reports />} />
+              <Route path="reports/:type" element={<ReportDetail />} />
+              <Route path="notifications" element={<Notifications />} />
+              <Route path="users" element={<Users />} />
+              <Route path="settings" element={<Settings />} />
+            </Route>
+
+            <Route path="/admin" element={<AppLayout kind="admin" />}>
+              <Route index element={<AdminOverview />} />
+              <Route path="companies" element={<Companies />} />
+              <Route path="plans" element={<Plans />} />
+              <Route path="subscriptions" element={<Subscriptions />} />
+              <Route path="payments" element={<AdminPayments />} />
+              <Route path="feature-access" element={<FeatureAccess />} />
+              <Route path="notifications" element={<SystemNotifications />} />
+              <Route path="settings" element={<SystemSettings />} />
+            </Route>
+
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
