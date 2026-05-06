@@ -29,6 +29,10 @@ interface CompanyProfile {
 
 interface InvoiceConfig {
   prefix: string;
+  yearFormat: 'full' | 'short' | 'none';
+  sequenceStart: number;
+  padding: number;
+  separator: string;
   currency: string;
   currencySymbol: string;
   taxRate: number;
@@ -41,6 +45,18 @@ interface InvoiceConfig {
   logoUrl?: string;
   stampUrl?: string;
 }
+
+export const buildInvoiceNumber = (cfg: { prefix: string; yearFormat: 'full' | 'short' | 'none'; sequenceStart: number; padding: number; separator: string }, sequence?: number, date = new Date()) => {
+  const seq = sequence ?? cfg.sequenceStart;
+  const seqStr = String(Math.max(0, Math.floor(seq))).padStart(Math.max(1, cfg.padding), '0');
+  const sep = cfg.separator || '-';
+  const parts: string[] = [];
+  if (cfg.prefix) parts.push(cfg.prefix);
+  if (cfg.yearFormat === 'full') parts.push(String(date.getFullYear()));
+  else if (cfg.yearFormat === 'short') parts.push(String(date.getFullYear()).slice(-2));
+  parts.push(seqStr);
+  return parts.join(sep);
+};
 
 interface ClientInfo {
   name: string;
@@ -76,6 +92,10 @@ const Settings = () => {
 
   const [invoiceCfg, setInvoiceCfg] = useState<InvoiceConfig>({
     prefix: 'INV',
+    yearFormat: 'full',
+    sequenceStart: 1,
+    padding: 4,
+    separator: '-',
     currency: 'SAR',
     currencySymbol: 'ر.س',
     taxRate: 15,
@@ -228,6 +248,40 @@ const Settings = () => {
                   </div>
                 </div>
               </div>
+
+              <div className="rounded-lg border border-border/60 bg-muted/30 p-4 space-y-3">
+                <div className="text-sm font-semibold">ترقيم الفاتورة</div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-xs">صيغة السنة</Label>
+                    <Select value={invoiceCfg.yearFormat} onValueChange={(v: InvoiceConfig['yearFormat']) => setI({ yearFormat: v })}>
+                      <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="full">كاملة (2026)</SelectItem>
+                        <SelectItem value="short">مختصرة (26)</SelectItem>
+                        <SelectItem value="none">بدون</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-xs">الفاصل</Label>
+                    <Input className="mt-1.5" maxLength={3} value={invoiceCfg.separator} onChange={e => setI({ separator: e.target.value })} />
+                  </div>
+                  <div>
+                    <Label className="text-xs">رقم البدء</Label>
+                    <Input type="number" min={1} className="mt-1.5" value={invoiceCfg.sequenceStart} onChange={e => setI({ sequenceStart: Math.max(1, Number(e.target.value) || 1) })} />
+                  </div>
+                  <div>
+                    <Label className="text-xs">عدد الخانات</Label>
+                    <Input type="number" min={1} max={10} className="mt-1.5" value={invoiceCfg.padding} onChange={e => setI({ padding: Math.min(10, Math.max(1, Number(e.target.value) || 1)) })} />
+                  </div>
+                </div>
+                <div className="rounded-md bg-background border border-border/60 p-3 text-xs flex items-center justify-between">
+                  <span className="text-muted-foreground">معاينة الرقم التالي:</span>
+                  <span className="font-mono font-semibold">{buildInvoiceNumber(invoiceCfg)}</span>
+                </div>
+              </div>
+
               <div><Label>شروط الدفع</Label><Textarea rows={3} className="mt-1.5" value={invoiceCfg.terms} onChange={e => setI({ terms: e.target.value })} /></div>
               <div><Label>تذييل الفاتورة</Label><Input className="mt-1.5" value={invoiceCfg.footer} onChange={e => setI({ footer: e.target.value })} /></div>
               <SaveIndicator status={saveStatus} className="w-full justify-center" />
@@ -357,7 +411,7 @@ const InvoicePreview = ({ profile, cfg, address, client }: { profile: CompanyPro
         </div>
         <div className="text-left">
           <div className="font-bold text-xl">فاتورة ضريبية</div>
-          <div className="text-sm opacity-80">رقم: {cfg.prefix}-2026-0042</div>
+          <div className="text-sm opacity-80">رقم: {buildInvoiceNumber(cfg)}</div>
         </div>
       </div>
 
