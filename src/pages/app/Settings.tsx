@@ -157,6 +157,7 @@ const Settings = () => {
           <TabsTrigger value="address">العنوان</TabsTrigger>
           <TabsTrigger value="invoice">الفاتورة والعملة</TabsTrigger>
           <TabsTrigger value="client">بيانات العميل</TabsTrigger>
+          <TabsTrigger value="identity">الهوية والختم</TabsTrigger>
         </TabsList>
 
         <TabsContent value="company" className="mt-4">
