@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card } from '@/components/ui/card';
@@ -339,7 +339,7 @@ const SaveIndicator = ({ status, className }: { status: 'idle' | 'saving' | 'sav
 );
 
 
-const DownloadPdfButton = ({ targetRef, fileName }: { targetRef: React.RefObject<HTMLDivElement>; fileName: string }) => {
+const DownloadPdfButton = ({ targetRef, fileName }: { targetRef: React.RefObject<HTMLDivElement | null>; fileName: string }) => {
   const [loading, setLoading] = useState(false);
   const handle = async () => {
     if (!targetRef.current) return;
