@@ -7,7 +7,8 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Calculator, Building2 } from 'lucide-react';
+import { Calculator, Building2, Check, Loader2 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
 interface CompanyProfile {
@@ -130,7 +131,7 @@ const Settings = () => {
               <div><Label>الرقم الضريبي</Label><Input className="mt-1.5" value={profile.taxNumber} onChange={e => setP({ taxNumber: e.target.value })} /></div>
               <div><Label>السجل التجاري</Label><Input className="mt-1.5" value={profile.commercialReg} onChange={e => setP({ commercialReg: e.target.value })} /></div>
             </div>
-            <Button onClick={save}>حفظ التغييرات</Button>
+            <SaveIndicator status={saveStatus} />
           </Card>
         </TabsContent>
 
@@ -147,7 +148,7 @@ const Settings = () => {
               <div className="text-muted-foreground mb-1">العنوان الكامل</div>
               <div className="font-medium">{fullAddress || '—'}</div>
             </div>
-            <Button onClick={save}>حفظ التغييرات</Button>
+            <SaveIndicator status={saveStatus} />
           </Card>
         </TabsContent>
 
@@ -190,7 +191,7 @@ const Settings = () => {
               </div>
               <div><Label>شروط الدفع</Label><Textarea rows={3} className="mt-1.5" value={invoiceCfg.terms} onChange={e => setI({ terms: e.target.value })} /></div>
               <div><Label>تذييل الفاتورة</Label><Input className="mt-1.5" value={invoiceCfg.footer} onChange={e => setI({ footer: e.target.value })} /></div>
-              <Button onClick={save} className="w-full">حفظ التغييرات</Button>
+              <SaveIndicator status={saveStatus} className="w-full justify-center" />
             </Card>
 
             <div className="lg:col-span-3">
