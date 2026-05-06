@@ -393,6 +393,14 @@ const InvoicePreview = ({ profile, cfg, address, client }: { profile: CompanyPro
           {address && <div>{address}</div>}
           {cfg.footer && <div className="text-center font-medium pt-2" style={{ color: cfg.accentColor }}>{cfg.footer}</div>}
         </div>
+        {cfg.stampUrl && (
+          <div className="mt-6 flex justify-end">
+            <div className="text-center">
+              <img src={cfg.stampUrl} alt="ختم/توقيع" className="h-24 w-auto object-contain opacity-90" />
+              <div className="text-[10px] text-slate-500 mt-1">الختم والتوقيع</div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
