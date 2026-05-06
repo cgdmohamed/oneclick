@@ -1,11 +1,11 @@
 export const formatCurrency = (n: number, currency = 'ر.س'): string => {
-  const formatted = new Intl.NumberFormat('ar-SA', { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(n || 0);
+  const formatted = new Intl.NumberFormat('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(n || 0);
   return `${formatted} ${currency}`;
 };
 
 export const formatDate = (iso: string): string => {
   try {
-    return new Intl.DateTimeFormat('ar-SA-u-ca-gregory', { year: 'numeric', month: 'long', day: 'numeric' }).format(new Date(iso));
+    return new Intl.DateTimeFormat('ar-SA-u-ca-gregory-nu-latn', { year: 'numeric', month: 'long', day: 'numeric' }).format(new Date(iso));
   } catch {
     return iso;
   }
@@ -13,7 +13,7 @@ export const formatDate = (iso: string): string => {
 
 export const formatDateShort = (iso: string): string => {
   try {
-    return new Intl.DateTimeFormat('ar-SA-u-ca-gregory', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(iso));
+    return new Intl.DateTimeFormat('ar-SA-u-ca-gregory-nu-latn', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(iso));
   } catch {
     return iso;
   }
