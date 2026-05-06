@@ -278,10 +278,30 @@ const Settings = () => {
             </div>
           </div>
         </TabsContent>
-      </Tabs>
-    </div>
-  );
-};
+
+        <TabsContent value="identity" className="mt-4">
+          <div className="grid lg:grid-cols-5 gap-5">
+            <Card className="p-6 border-border/60 lg:col-span-2 space-y-5 h-fit">
+              <ImageUploadField
+                label="شعار الشركة"
+                hint="يظهر أعلى الفاتورة. يفضل PNG شفاف بأبعاد 200×200."
+                value={invoiceCfg.logoUrl}
+                onChange={(url) => setI({ logoUrl: url })}
+              />
+              <ImageUploadField
+                label="الختم أو التوقيع"
+                hint="يظهر في أسفل الفاتورة. يفضل PNG بخلفية شفافة."
+                value={invoiceCfg.stampUrl}
+                onChange={(url) => setI({ stampUrl: url })}
+              />
+              <SaveIndicator status={saveStatus} className="w-full justify-center" />
+            </Card>
+            <div className="lg:col-span-3">
+              <div className="text-sm text-muted-foreground mb-2">معاينة مباشرة</div>
+              <InvoicePreview profile={profile} cfg={invoiceCfg} address={fullAddress} client={client} />
+            </div>
+          </div>
+        </TabsContent>
 
 const sampleItems = [
   { name: 'استشارة محاسبية شهرية', qty: 1, price: 1500 },
