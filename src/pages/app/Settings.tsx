@@ -317,7 +317,7 @@ const InvoicePreview = ({ profile, cfg, address, client }: { profile: CompanyPro
   const subtotal = sampleItems.reduce((s, i) => s + i.qty * i.price, 0);
   const tax = +(subtotal * (cfg.taxRate / 100)).toFixed(2);
   const total = subtotal + tax;
-  const fmt = (n: number) => `${new Intl.NumberFormat('ar-SA', { maximumFractionDigits: 2 }).format(n)} ${cfg.currencySymbol}`;
+  const fmt = (n: number) => `${new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(n)} ${cfg.currencySymbol}`;
 
   const isMinimal = cfg.template === 'minimal';
   const isClassic = cfg.template === 'classic';

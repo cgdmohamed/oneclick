@@ -57,6 +57,6 @@ export const PlanCard = ({ plan, yearly, cta = 'اختر الباقة', onSelect
 const Limit = ({ label, value }: { label: string; value: number }) => (
   <div className="rounded-lg bg-muted/50 px-3 py-2">
     <div className="text-xs text-muted-foreground">{label}</div>
-    <div className="font-semibold">{value.toLocaleString('ar-SA')}</div>
+    <div className="font-semibold">{value.toLocaleString('en-US')}</div>
   </div>
 );
