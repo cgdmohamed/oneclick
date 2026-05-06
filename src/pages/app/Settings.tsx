@@ -407,14 +407,7 @@ const SaveIndicator = ({ status, className }: { status: 'idle' | 'saving' | 'sav
     {status === 'idle' && (<><Check className="h-4 w-4 text-muted-foreground/60" /><span>كل التغييرات محفوظة</span></>)}
   </div>
 );
-        {cfg.stampUrl && (
-          <div className="mt-6 flex justify-end">
-            <div className="text-center">
-              <img src={cfg.stampUrl} alt="ختم/توقيع" className="h-24 w-auto object-contain opacity-90" />
-              <div className="text-[10px] text-slate-500 mt-1">الختم والتوقيع</div>
-            </div>
-          </div>
-        )}
+
 
 const DownloadPdfButton = ({ targetRef, fileName }: { targetRef: React.RefObject<HTMLDivElement | null>; fileName: string }) => {
   const [loading, setLoading] = useState(false);
