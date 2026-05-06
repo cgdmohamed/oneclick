@@ -241,7 +241,40 @@ const Settings = () => {
             </div>
           </div>
         </TabsContent>
-      </Tabs>
+
+        <TabsContent value="client" className="mt-4">
+          <div className="grid lg:grid-cols-5 gap-5">
+            <Card className="p-6 border-border/60 lg:col-span-2 space-y-4 h-fit">
+              <div className="space-y-3">
+                <div>
+                  <Label>اسم العميل</Label>
+                  <Input className="mt-1.5" maxLength={100} value={client.name} onChange={e => setC({ name: e.target.value })} />
+                  {clientErrors.name && <p className="text-xs text-destructive mt-1">{clientErrors.name}</p>}
+                </div>
+                <div>
+                  <Label>البريد الإلكتروني</Label>
+                  <Input className="mt-1.5" type="email" maxLength={255} value={client.email} onChange={e => setC({ email: e.target.value })} />
+                  {clientErrors.email && <p className="text-xs text-destructive mt-1">{clientErrors.email}</p>}
+                </div>
+                <div>
+                  <Label>العنوان</Label>
+                  <Textarea rows={2} className="mt-1.5" maxLength={200} value={client.address} onChange={e => setC({ address: e.target.value })} />
+                  {clientErrors.address && <p className="text-xs text-destructive mt-1">{clientErrors.address}</p>}
+                </div>
+                <div>
+                  <Label>الرقم الضريبي</Label>
+                  <Input className="mt-1.5" maxLength={20} value={client.taxNumber} onChange={e => setC({ taxNumber: e.target.value.replace(/\D/g, '') })} />
+                  {clientErrors.taxNumber && <p className="text-xs text-destructive mt-1">{clientErrors.taxNumber}</p>}
+                </div>
+              </div>
+              <SaveIndicator status={saveStatus} className="w-full justify-center" />
+            </Card>
+            <div className="lg:col-span-3">
+              <div className="text-sm text-muted-foreground mb-2">معاينة مباشرة</div>
+              <InvoicePreview profile={profile} cfg={invoiceCfg} address={fullAddress} client={client} />
+            </div>
+          </div>
+        </TabsContent>
     </div>
   );
 };
