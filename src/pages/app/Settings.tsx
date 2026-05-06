@@ -29,6 +29,10 @@ interface CompanyProfile {
 
 interface InvoiceConfig {
   prefix: string;
+  yearFormat: 'full' | 'short' | 'none';
+  sequenceStart: number;
+  padding: number;
+  separator: string;
   currency: string;
   currencySymbol: string;
   taxRate: number;
@@ -41,6 +45,18 @@ interface InvoiceConfig {
   logoUrl?: string;
   stampUrl?: string;
 }
+
+export const buildInvoiceNumber = (cfg: { prefix: string; yearFormat: 'full' | 'short' | 'none'; sequenceStart: number; padding: number; separator: string }, sequence?: number, date = new Date()) => {
+  const seq = sequence ?? cfg.sequenceStart;
+  const seqStr = String(Math.max(0, Math.floor(seq))).padStart(Math.max(1, cfg.padding), '0');
+  const sep = cfg.separator || '-';
+  const parts: string[] = [];
+  if (cfg.prefix) parts.push(cfg.prefix);
+  if (cfg.yearFormat === 'full') parts.push(String(date.getFullYear()));
+  else if (cfg.yearFormat === 'short') parts.push(String(date.getFullYear()).slice(-2));
+  parts.push(seqStr);
+  return parts.join(sep);
+};
 
 interface ClientInfo {
   name: string;
@@ -76,6 +92,10 @@ const Settings = () => {
 
   const [invoiceCfg, setInvoiceCfg] = useState<InvoiceConfig>({
     prefix: 'INV',
+    yearFormat: 'full',
+    sequenceStart: 1,
+    padding: 4,
+    separator: '-',
     currency: 'SAR',
     currencySymbol: 'ر.س',
     taxRate: 15,
