@@ -134,7 +134,7 @@ const Settings = () => {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [profile, invoiceCfg]);
+  }, [profile, invoiceCfg, client]);
 
   const fullAddress = [profile.street, profile.district, profile.city, profile.country, profile.postalCode]
     .filter(Boolean)
@@ -154,6 +154,7 @@ const Settings = () => {
           <TabsTrigger value="company">بيانات الشركة</TabsTrigger>
           <TabsTrigger value="address">العنوان</TabsTrigger>
           <TabsTrigger value="invoice">الفاتورة والعملة</TabsTrigger>
+          <TabsTrigger value="client">بيانات العميل</TabsTrigger>
         </TabsList>
 
         <TabsContent value="company" className="mt-4">
@@ -235,7 +236,7 @@ const Settings = () => {
                 <DownloadPdfButton targetRef={previewRef} fileName={`${invoiceCfg.prefix}-preview.pdf`} />
               </div>
               <div ref={previewRef}>
-                <InvoicePreview profile={profile} cfg={invoiceCfg} address={fullAddress} />
+                <InvoicePreview profile={profile} cfg={invoiceCfg} address={fullAddress} client={client} />
               </div>
             </div>
           </div>
