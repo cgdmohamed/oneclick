@@ -205,7 +205,7 @@ const Settings = () => {
             <div className="lg:col-span-3">
               <div className="flex items-center justify-between mb-2">
                 <div className="text-sm text-muted-foreground">معاينة مباشرة</div>
-                <DownloadPdfButton profile={profile} cfg={invoiceCfg} />
+                <DownloadPdfButton targetRef={previewRef} fileName={`${invoiceCfg.prefix}-preview.pdf`} />
               </div>
               <div ref={previewRef}>
                 <InvoicePreview profile={profile} cfg={invoiceCfg} address={fullAddress} />
