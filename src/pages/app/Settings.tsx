@@ -302,6 +302,10 @@ const Settings = () => {
             </div>
           </div>
         </TabsContent>
+      </Tabs>
+    </div>
+  );
+};
 
 const sampleItems = [
   { name: 'استشارة محاسبية شهرية', qty: 1, price: 1500 },
