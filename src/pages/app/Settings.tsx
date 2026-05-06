@@ -113,7 +113,11 @@ const Settings = () => {
 
   return (
     <div>
-      <PageHeader title="إعدادات الشركة" description="بيانات الشركة والعنوان والعملة ومعاينة الفاتورة" />
+      <PageHeader
+        title="إعدادات الشركة"
+        description="بيانات الشركة والعنوان والعملة ومعاينة الفاتورة"
+        actions={<SaveIndicator status={saveStatus} />}
+      />
       <Tabs defaultValue="company">
         <TabsList>
           <TabsTrigger value="company">بيانات الشركة</TabsTrigger>
@@ -316,3 +320,12 @@ const InvoicePreview = ({ profile, cfg, address }: { profile: CompanyProfile; cf
 };
 
 export default Settings;
+
+const SaveIndicator = ({ status, className }: { status: 'idle' | 'saving' | 'saved'; className?: string }) => (
+  <div className={cn('inline-flex items-center gap-2 text-sm text-muted-foreground', className)}>
+    {status === 'saving' && (<><Loader2 className="h-4 w-4 animate-spin" /><span>جارٍ الحفظ...</span></>)}
+    {status === 'saved' && (<><Check className="h-4 w-4 text-success" /><span className="text-success">تم الحفظ تلقائياً</span></>)}
+    {status === 'idle' && (<><Check className="h-4 w-4 text-muted-foreground/60" /><span>كل التغييرات محفوظة</span></>)}
+  </div>
+);
+
