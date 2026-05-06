@@ -481,3 +481,50 @@ const DownloadPdfButton = ({ targetRef, fileName }: { targetRef: React.RefObject
     </Button>
   );
 };
+
+const ImageUploadField = ({ label, hint, value, onChange }: { label: string; hint?: string; value?: string; onChange: (url: string | undefined) => void }) => {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const handleFile = (file: File | undefined) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { toast.error('يجب اختيار صورة'); return; }
+    if (file.size > 2 * 1024 * 1024) { toast.error('حجم الصورة يجب أن لا يتجاوز 2 ميجابايت'); return; }
+    const reader = new FileReader();
+    reader.onload = () => onChange(reader.result as string);
+    reader.onerror = () => toast.error('تعذّر قراءة الصورة');
+    reader.readAsDataURL(file);
+  };
+  return (
+    <div>
+      <Label>{label}</Label>
+      <div className="mt-1.5 flex items-start gap-3">
+        <div className="h-20 w-20 rounded-lg border border-dashed border-border/70 bg-muted/30 flex items-center justify-center overflow-hidden shrink-0">
+          {value ? (
+            <img src={value} alt={label} className="h-full w-full object-contain" />
+          ) : (
+            <Building2 className="h-6 w-6 text-muted-foreground/60" />
+          )}
+        </div>
+        <div className="flex-1 space-y-2">
+          {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+          <div className="flex gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={() => inputRef.current?.click()}>
+              {value ? 'تغيير الصورة' : 'رفع صورة'}
+            </Button>
+            {value && (
+              <Button type="button" variant="ghost" size="sm" onClick={() => onChange(undefined)}>
+                إزالة
+              </Button>
+            )}
+          </div>
+          <input
+            ref={inputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/svg+xml"
+            className="hidden"
+            onChange={(e) => { handleFile(e.target.files?.[0]); e.target.value = ''; }}
+          />
+        </div>
+      </div>
+    </div>
+  );
+};
