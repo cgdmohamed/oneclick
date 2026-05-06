@@ -311,15 +311,19 @@ const InvoicePreview = ({ profile, cfg, address, client }: { profile: CompanyPro
       >
         <div className="flex items-center gap-3">
           {cfg.showLogo && (
-            <div
-              className="h-12 w-12 rounded-xl flex items-center justify-center"
-              style={{
-                background: cfg.template === 'modern' ? 'rgba(255,255,255,0.2)' : cfg.accentColor + '22',
-                color: cfg.template === 'modern' ? '#fff' : cfg.accentColor,
-              }}
-            >
-              <Building2 className="h-6 w-6" />
-            </div>
+            cfg.logoUrl ? (
+              <img src={cfg.logoUrl} alt="شعار" className="h-12 w-12 rounded-xl object-contain bg-white/90 p-1" />
+            ) : (
+              <div
+                className="h-12 w-12 rounded-xl flex items-center justify-center"
+                style={{
+                  background: cfg.template === 'modern' ? 'rgba(255,255,255,0.2)' : cfg.accentColor + '22',
+                  color: cfg.template === 'modern' ? '#fff' : cfg.accentColor,
+                }}
+              >
+                <Building2 className="h-6 w-6" />
+              </div>
+            )
           )}
           <div>
             <div className="font-bold text-lg">{profile.name}</div>
