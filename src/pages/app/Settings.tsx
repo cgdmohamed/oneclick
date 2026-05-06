@@ -38,6 +38,8 @@ interface InvoiceConfig {
   showTaxNumber: boolean;
   terms: string;
   footer: string;
+  logoUrl?: string;
+  stampUrl?: string;
 }
 
 interface ClientInfo {
@@ -155,6 +157,7 @@ const Settings = () => {
           <TabsTrigger value="address">العنوان</TabsTrigger>
           <TabsTrigger value="invoice">الفاتورة والعملة</TabsTrigger>
           <TabsTrigger value="client">بيانات العميل</TabsTrigger>
+          <TabsTrigger value="identity">الهوية والختم</TabsTrigger>
         </TabsList>
 
         <TabsContent value="company" className="mt-4">
@@ -275,6 +278,30 @@ const Settings = () => {
             </div>
           </div>
         </TabsContent>
+
+        <TabsContent value="identity" className="mt-4">
+          <div className="grid lg:grid-cols-5 gap-5">
+            <Card className="p-6 border-border/60 lg:col-span-2 space-y-5 h-fit">
+              <ImageUploadField
+                label="شعار الشركة"
+                hint="يظهر أعلى الفاتورة. يفضل PNG شفاف بأبعاد 200×200."
+                value={invoiceCfg.logoUrl}
+                onChange={(url) => setI({ logoUrl: url })}
+              />
+              <ImageUploadField
+                label="الختم أو التوقيع"
+                hint="يظهر في أسفل الفاتورة. يفضل PNG بخلفية شفافة."
+                value={invoiceCfg.stampUrl}
+                onChange={(url) => setI({ stampUrl: url })}
+              />
+              <SaveIndicator status={saveStatus} className="w-full justify-center" />
+            </Card>
+            <div className="lg:col-span-3">
+              <div className="text-sm text-muted-foreground mb-2">معاينة مباشرة</div>
+              <InvoicePreview profile={profile} cfg={invoiceCfg} address={fullAddress} client={client} />
+            </div>
+          </div>
+        </TabsContent>
       </Tabs>
     </div>
   );
@@ -309,15 +336,19 @@ const InvoicePreview = ({ profile, cfg, address, client }: { profile: CompanyPro
       >
         <div className="flex items-center gap-3">
           {cfg.showLogo && (
-            <div
-              className="h-12 w-12 rounded-xl flex items-center justify-center"
-              style={{
-                background: cfg.template === 'modern' ? 'rgba(255,255,255,0.2)' : cfg.accentColor + '22',
-                color: cfg.template === 'modern' ? '#fff' : cfg.accentColor,
-              }}
-            >
-              <Building2 className="h-6 w-6" />
-            </div>
+            cfg.logoUrl ? (
+              <img src={cfg.logoUrl} alt="شعار" className="h-12 w-12 rounded-xl object-contain bg-white/90 p-1" />
+            ) : (
+              <div
+                className="h-12 w-12 rounded-xl flex items-center justify-center"
+                style={{
+                  background: cfg.template === 'modern' ? 'rgba(255,255,255,0.2)' : cfg.accentColor + '22',
+                  color: cfg.template === 'modern' ? '#fff' : cfg.accentColor,
+                }}
+              >
+                <Building2 className="h-6 w-6" />
+              </div>
+            )
           )}
           <div>
             <div className="font-bold text-lg">{profile.name}</div>
@@ -387,6 +418,14 @@ const InvoicePreview = ({ profile, cfg, address, client }: { profile: CompanyPro
           {address && <div>{address}</div>}
           {cfg.footer && <div className="text-center font-medium pt-2" style={{ color: cfg.accentColor }}>{cfg.footer}</div>}
         </div>
+        {cfg.stampUrl && (
+          <div className="mt-6 flex justify-end">
+            <div className="text-center">
+              <img src={cfg.stampUrl} alt="ختم/توقيع" className="h-24 w-auto object-contain opacity-90" />
+              <div className="text-[10px] text-slate-500 mt-1">الختم والتوقيع</div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -440,5 +479,52 @@ const DownloadPdfButton = ({ targetRef, fileName }: { targetRef: React.RefObject
       {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
       تنزيل PDF
     </Button>
+  );
+};
+
+const ImageUploadField = ({ label, hint, value, onChange }: { label: string; hint?: string; value?: string; onChange: (url: string | undefined) => void }) => {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const handleFile = (file: File | undefined) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { toast.error('يجب اختيار صورة'); return; }
+    if (file.size > 2 * 1024 * 1024) { toast.error('حجم الصورة يجب أن لا يتجاوز 2 ميجابايت'); return; }
+    const reader = new FileReader();
+    reader.onload = () => onChange(reader.result as string);
+    reader.onerror = () => toast.error('تعذّر قراءة الصورة');
+    reader.readAsDataURL(file);
+  };
+  return (
+    <div>
+      <Label>{label}</Label>
+      <div className="mt-1.5 flex items-start gap-3">
+        <div className="h-20 w-20 rounded-lg border border-dashed border-border/70 bg-muted/30 flex items-center justify-center overflow-hidden shrink-0">
+          {value ? (
+            <img src={value} alt={label} className="h-full w-full object-contain" />
+          ) : (
+            <Building2 className="h-6 w-6 text-muted-foreground/60" />
+          )}
+        </div>
+        <div className="flex-1 space-y-2">
+          {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+          <div className="flex gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={() => inputRef.current?.click()}>
+              {value ? 'تغيير الصورة' : 'رفع صورة'}
+            </Button>
+            {value && (
+              <Button type="button" variant="ghost" size="sm" onClick={() => onChange(undefined)}>
+                إزالة
+              </Button>
+            )}
+          </div>
+          <input
+            ref={inputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/svg+xml"
+            className="hidden"
+            onChange={(e) => { handleFile(e.target.files?.[0]); e.target.value = ''; }}
+          />
+        </div>
+      </div>
+    </div>
   );
 };
