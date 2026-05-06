@@ -286,7 +286,7 @@ const sampleItems = [
   { name: 'تدريب فريق المبيعات', qty: 3, price: 600 },
 ];
 
-const InvoicePreview = ({ profile, cfg, address }: { profile: CompanyProfile; cfg: InvoiceConfig; address: string }) => {
+const InvoicePreview = ({ profile, cfg, address, client }: { profile: CompanyProfile; cfg: InvoiceConfig; address: string; client: ClientInfo }) => {
   const subtotal = sampleItems.reduce((s, i) => s + i.qty * i.price, 0);
   const tax = +(subtotal * (cfg.taxRate / 100)).toFixed(2);
   const total = subtotal + tax;
@@ -333,8 +333,10 @@ const InvoicePreview = ({ profile, cfg, address }: { profile: CompanyProfile; cf
       <div className="p-6 grid grid-cols-2 gap-4 text-sm border-b border-slate-200">
         <div>
           <div className="text-slate-500 text-xs mb-1">فاتورة إلى</div>
-          <div className="font-semibold">شركة العميل التجريبية</div>
-          <div className="text-slate-600 text-xs">جدة، حي الروضة</div>
+          <div className="font-semibold">{client.name || '—'}</div>
+          {client.address && <div className="text-slate-600 text-xs">{client.address}</div>}
+          {client.email && <div className="text-slate-600 text-xs">{client.email}</div>}
+          {client.taxNumber && <div className="text-slate-600 text-xs">الرقم الضريبي: {client.taxNumber}</div>}
         </div>
         <div className="text-left">
           <div className="text-slate-500 text-xs">تاريخ الإصدار: <span className="text-slate-900">06/05/2026</span></div>
