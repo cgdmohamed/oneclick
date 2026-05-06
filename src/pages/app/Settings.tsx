@@ -7,8 +7,10 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Calculator, Building2, Check, Loader2 } from 'lucide-react';
+import { Calculator, Building2, Check, Loader2, Download } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
 import { toast } from 'sonner';
 
 interface CompanyProfile {
@@ -199,8 +201,13 @@ const Settings = () => {
             </Card>
 
             <div className="lg:col-span-3">
-              <div className="text-sm text-muted-foreground mb-2">معاينة مباشرة</div>
-              <InvoicePreview profile={profile} cfg={invoiceCfg} address={fullAddress} />
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-sm text-muted-foreground">معاينة مباشرة</div>
+                <DownloadPdfButton profile={profile} cfg={invoiceCfg} />
+              </div>
+              <div ref={previewRef}>
+                <InvoicePreview profile={profile} cfg={invoiceCfg} address={fullAddress} />
+              </div>
             </div>
           </div>
         </TabsContent>
