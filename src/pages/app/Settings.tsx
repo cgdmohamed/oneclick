@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card } from '@/components/ui/card';
@@ -7,7 +7,8 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Calculator, Building2 } from 'lucide-react';
+import { Calculator, Building2, Check, Loader2 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
 interface CompanyProfile {
@@ -83,7 +84,28 @@ const Settings = () => {
     if (c) setI({ currency: c.code, currencySymbol: c.symbol });
   };
 
-  const save = () => toast.success('تم حفظ الإعدادات');
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const isFirstRun = useRef(true);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (isFirstRun.current) {
+      isFirstRun.current = false;
+      return;
+    }
+    setSaveStatus('saving');
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+    debounceRef.current = setTimeout(() => {
+      setSaveStatus('saved');
+      toast.success('تم حفظ التغييرات تلقائياً');
+      savedTimerRef.current = setTimeout(() => setSaveStatus('idle'), 2000);
+    }, 800);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [profile, invoiceCfg]);
 
   const fullAddress = [profile.street, profile.district, profile.city, profile.country, profile.postalCode]
     .filter(Boolean)
@@ -91,7 +113,11 @@ const Settings = () => {
 
   return (
     <div>
-      <PageHeader title="إعدادات الشركة" description="بيانات الشركة والعنوان والعملة ومعاينة الفاتورة" />
+      <PageHeader
+        title="إعدادات الشركة"
+        description="بيانات الشركة والعنوان والعملة ومعاينة الفاتورة"
+        actions={<SaveIndicator status={saveStatus} />}
+      />
       <Tabs defaultValue="company">
         <TabsList>
           <TabsTrigger value="company">بيانات الشركة</TabsTrigger>
@@ -109,7 +135,7 @@ const Settings = () => {
               <div><Label>الرقم الضريبي</Label><Input className="mt-1.5" value={profile.taxNumber} onChange={e => setP({ taxNumber: e.target.value })} /></div>
               <div><Label>السجل التجاري</Label><Input className="mt-1.5" value={profile.commercialReg} onChange={e => setP({ commercialReg: e.target.value })} /></div>
             </div>
-            <Button onClick={save}>حفظ التغييرات</Button>
+            <SaveIndicator status={saveStatus} />
           </Card>
         </TabsContent>
 
@@ -126,7 +152,7 @@ const Settings = () => {
               <div className="text-muted-foreground mb-1">العنوان الكامل</div>
               <div className="font-medium">{fullAddress || '—'}</div>
             </div>
-            <Button onClick={save}>حفظ التغييرات</Button>
+            <SaveIndicator status={saveStatus} />
           </Card>
         </TabsContent>
 
@@ -169,7 +195,7 @@ const Settings = () => {
               </div>
               <div><Label>شروط الدفع</Label><Textarea rows={3} className="mt-1.5" value={invoiceCfg.terms} onChange={e => setI({ terms: e.target.value })} /></div>
               <div><Label>تذييل الفاتورة</Label><Input className="mt-1.5" value={invoiceCfg.footer} onChange={e => setI({ footer: e.target.value })} /></div>
-              <Button onClick={save} className="w-full">حفظ التغييرات</Button>
+              <SaveIndicator status={saveStatus} className="w-full justify-center" />
             </Card>
 
             <div className="lg:col-span-3">
@@ -294,3 +320,12 @@ const InvoicePreview = ({ profile, cfg, address }: { profile: CompanyProfile; cf
 };
 
 export default Settings;
+
+const SaveIndicator = ({ status, className }: { status: 'idle' | 'saving' | 'saved'; className?: string }) => (
+  <div className={cn('inline-flex items-center gap-2 text-sm text-muted-foreground', className)}>
+    {status === 'saving' && (<><Loader2 className="h-4 w-4 animate-spin" /><span>جارٍ الحفظ...</span></>)}
+    {status === 'saved' && (<><Check className="h-4 w-4 text-success" /><span className="text-success">تم الحفظ تلقائياً</span></>)}
+    {status === 'idle' && (<><Check className="h-4 w-4 text-muted-foreground/60" /><span>كل التغييرات محفوظة</span></>)}
+  </div>
+);
+
