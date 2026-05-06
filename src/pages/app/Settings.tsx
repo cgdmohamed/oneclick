@@ -40,6 +40,13 @@ interface InvoiceConfig {
   footer: string;
 }
 
+interface ClientInfo {
+  name: string;
+  email: string;
+  address: string;
+  taxNumber: string;
+}
+
 const CURRENCIES = [
   { code: 'SAR', symbol: 'ر.س', name: 'ريال سعودي' },
   { code: 'AED', symbol: 'د.إ', name: 'درهم إماراتي' },
@@ -78,8 +85,28 @@ const Settings = () => {
     footer: 'شكراً لتعاملكم معنا',
   });
 
+  const [client, setClient] = useState<ClientInfo>({
+    name: 'شركة العميل التجريبية',
+    email: 'client@example.com',
+    address: 'جدة، حي الروضة',
+    taxNumber: '310987654300003',
+  });
+  const [clientErrors, setClientErrors] = useState<Partial<Record<keyof ClientInfo, string>>>({});
+
   const setP = (patch: Partial<CompanyProfile>) => setProfile(p => ({ ...p, ...patch }));
   const setI = (patch: Partial<InvoiceConfig>) => setInvoiceCfg(c => ({ ...c, ...patch }));
+  const setC = (patch: Partial<ClientInfo>) => {
+    setClient(c => ({ ...c, ...patch }));
+    const key = Object.keys(patch)[0] as keyof ClientInfo;
+    const val = (patch[key] ?? '').toString().trim();
+    let err = '';
+    if (key === 'name' && !val) err = 'الاسم مطلوب';
+    if (key === 'name' && val.length > 100) err = 'الاسم طويل جداً';
+    if (key === 'email' && val && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)) err = 'بريد غير صالح';
+    if (key === 'taxNumber' && val && !/^\d{5,20}$/.test(val)) err = 'الرقم الضريبي غير صالح';
+    if (key === 'address' && val.length > 200) err = 'العنوان طويل جداً';
+    setClientErrors(p => ({ ...p, [key]: err || undefined }));
+  };
 
   const onCurrencyChange = (code: string) => {
     const c = CURRENCIES.find(x => x.code === code);
