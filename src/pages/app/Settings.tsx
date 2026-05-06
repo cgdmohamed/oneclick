@@ -7,8 +7,10 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Calculator, Building2, Check, Loader2 } from 'lucide-react';
+import { Calculator, Building2, Check, Loader2, Download } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
 import { toast } from 'sonner';
 
 interface CompanyProfile {
@@ -111,6 +113,8 @@ const Settings = () => {
     .filter(Boolean)
     .join('، ');
 
+  const previewRef = useRef<HTMLDivElement>(null);
+
   return (
     <div>
       <PageHeader
@@ -199,8 +203,13 @@ const Settings = () => {
             </Card>
 
             <div className="lg:col-span-3">
-              <div className="text-sm text-muted-foreground mb-2">معاينة مباشرة</div>
-              <InvoicePreview profile={profile} cfg={invoiceCfg} address={fullAddress} />
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-sm text-muted-foreground">معاينة مباشرة</div>
+                <DownloadPdfButton targetRef={previewRef} fileName={`${invoiceCfg.prefix}-preview.pdf`} />
+              </div>
+              <div ref={previewRef}>
+                <InvoicePreview profile={profile} cfg={invoiceCfg} address={fullAddress} />
+              </div>
             </div>
           </div>
         </TabsContent>
@@ -329,3 +338,43 @@ const SaveIndicator = ({ status, className }: { status: 'idle' | 'saving' | 'sav
   </div>
 );
 
+
+const DownloadPdfButton = ({ targetRef, fileName }: { targetRef: React.RefObject<HTMLDivElement>; fileName: string }) => {
+  const [loading, setLoading] = useState(false);
+  const handle = async () => {
+    if (!targetRef.current) return;
+    setLoading(true);
+    try {
+      const canvas = await html2canvas(targetRef.current, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const margin = 10;
+      const imgW = pageW - margin * 2;
+      const imgH = (canvas.height * imgW) / canvas.width;
+      let heightLeft = imgH;
+      let position = margin;
+      pdf.addImage(imgData, 'PNG', margin, position, imgW, imgH);
+      heightLeft -= pageH - margin * 2;
+      while (heightLeft > 0) {
+        position = margin - (imgH - heightLeft);
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', margin, position, imgW, imgH);
+        heightLeft -= pageH - margin * 2;
+      }
+      pdf.save(fileName);
+      toast.success('تم تنزيل ملف PDF بنجاح');
+    } catch (e) {
+      toast.error('تعذّر إنشاء ملف PDF');
+    } finally {
+      setLoading(false);
+    }
+  };
+  return (
+    <Button size="sm" onClick={handle} disabled={loading}>
+      {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+      تنزيل PDF
+    </Button>
+  );
+};
