@@ -3,11 +3,14 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import cookieParser from 'cookie-parser';
+import rateLimit from 'express-rate-limit';
+import path from 'node:path';
 
 import { env } from './config/env.js';
 import { errorHandler } from './middleware/error.js';
 import { requireAuth } from './middleware/auth.js';
 import { tenantContext } from './middleware/tenant.js';
+import { requireActiveSubscription } from './middleware/planLimits.js';
 
 import authRoutes from './modules/auth/routes.js';
 import companiesRoutes from './modules/companies/routes.js';
@@ -22,11 +25,28 @@ import reportsRoutes from './modules/reports/routes.js';
 import plansRoutes from './modules/plans/routes.js';
 import subscriptionsRoutes from './modules/subscriptions/routes.js';
 import publicRoutes from './modules/public/routes.js';
+import uploadsRoutes, { UPLOAD_DIR } from './modules/uploads/routes.js';
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 30,                  // 30 attempts per IP per window
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: 'Too many auth attempts, try again later.' },
+});
+
+const apiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 300,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 export function createApp() {
   const app = express();
 
-  app.use(helmet());
+  app.set('trust proxy', 1);
+  app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
   app.use(cors({
     origin: env.CORS_ORIGIN.split(',').map((s) => s.trim()),
     credentials: true,
@@ -38,13 +58,16 @@ export function createApp() {
   app.get('/', (_req, res) => res.json({ name: 'hesabat-api', status: 'ok' }));
   app.get('/health', (_req, res) => res.json({ ok: true }));
 
+  // Static uploads (logo/stamp/attachments)
+  app.use('/uploads', express.static(UPLOAD_DIR, { maxAge: '7d', immutable: false }));
+
   // Public
   app.use('/api/public', publicRoutes);
-  app.use('/api/auth', authRoutes);
+  app.use('/api/auth', authLimiter, authRoutes);
   app.use('/api/plans', plansRoutes);
 
-  // Protected
-  app.use('/api', requireAuth, tenantContext);
+  // Protected API surface
+  app.use('/api', apiLimiter, requireAuth, tenantContext, requireActiveSubscription);
   app.use('/api/companies', companiesRoutes);
   app.use('/api/users', usersRoutes);
   app.use('/api/clients', clientsRoutes);
@@ -55,7 +78,11 @@ export function createApp() {
   app.use('/api/notifications', notificationsRoutes);
   app.use('/api/reports', reportsRoutes);
   app.use('/api/subscriptions', subscriptionsRoutes);
+  app.use('/api/uploads', uploadsRoutes);
 
   app.use(errorHandler);
   return app;
 }
+
+// keep `path` import used in case future absolute paths are needed
+void path;
