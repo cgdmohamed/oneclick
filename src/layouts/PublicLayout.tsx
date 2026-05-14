@@ -28,10 +28,11 @@ const PublicLayout = () => {
   const { pathname } = useLocation();
   return (
     <div className="min-h-screen flex flex-col bg-background" data-public={publicKey(pathname)}>
-      <header className="sticky top-0 z-40 bg-background/80 backdrop-blur border-b border-border/60">
+      <header className="sticky top-0 z-40 bg-background/80 backdrop-blur border-b border-border/60 relative">
+        <div aria-hidden className="absolute inset-x-0 bottom-0 h-[3px] gradient-page-strong" />
         <div className="container flex items-center justify-between h-16">
           <Link to="/" className="flex items-center gap-2 font-bold text-lg">
-            <span className="h-9 w-9 rounded-xl gradient-hero text-primary-foreground flex items-center justify-center">
+            <span className="h-9 w-9 rounded-xl gradient-page-strong text-white flex items-center justify-center shadow-elev">
               <Calculator className="h-5 w-5" />
             </span>
             حسابات
