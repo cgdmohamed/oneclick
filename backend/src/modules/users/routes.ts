@@ -31,7 +31,7 @@ const inviteSchema = z.object({
   role: z.enum(['company_admin','accountant','sales','viewer']),
 });
 
-router.post('/', requireRole('company_admin'), async (req, res, next) => {
+router.post('/', requireRole('company_admin'), enforceUserLimit(), async (req, res, next) => {
   try {
     const t = req.tenant!;
     const body = inviteSchema.parse(req.body);
@@ -53,6 +53,11 @@ router.post('/', requireRole('company_admin'), async (req, res, next) => {
       await c.query(`INSERT INTO user_companies (user_id, company_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [userId, t.companyId]);
       await c.query(`INSERT INTO user_roles (user_id, company_id, role) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING`, [userId, t.companyId, body.role]);
       await c.query('COMMIT');
+      await audit(pool, {
+        companyId: t.companyId, userId: req.auth!.userId,
+        action: 'user.invite', entity: 'user', entityId: userId,
+        data: { email: body.email, role: body.role },
+      });
       res.status(201).json({ data: { id: userId, email: body.email, name: body.name, role: body.role } });
     } catch (e) { await c.query('ROLLBACK'); throw e; } finally { c.release(); }
   } catch (e) { next(e); }
