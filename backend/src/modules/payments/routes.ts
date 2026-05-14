@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import { pool } from '../../db/client.js';
 import { badRequest, notFound } from '../../utils/errors.js';
+import { audit } from '../../utils/audit.js';
 
 const router = Router();
 
