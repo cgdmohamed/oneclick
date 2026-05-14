@@ -1,132 +1,161 @@
-# خطة بناء منصة محاسبة سحابية عربية (MVP)
 
-تطبيق ويب SaaS عربي بالكامل (RTL) لإدارة الفواتير والمدفوعات والمخزون والاشتراكات، مبني بمكونات نظيفة وبيانات تجريبية واقعية، جاهز للربط لاحقاً بواجهة API حقيقية.
+# خطة تجهيز الـ Backend (Node.js + PostgreSQL محلي)
 
-## 1. الأساسات والهوية البصرية
+ملاحظة مهمة: الـ Sandbox الحالي يُشغّل واجهة React فقط ولا يستضيف Node خادم دائم. لذلك سيتم إنشاء مشروع backend كامل داخل مجلد `backend/` في نفس الـ repo، يعمل **محلياً عند المستخدم** عبر `npm run dev` ويتصل بـ PostgreSQL محلي. الواجهة الحالية تتحول من Mock إلى استدعاء الـ API.
 
-- تفعيل RTL على مستوى التطبيق: `<html lang="ar" dir="rtl">` + ضبط Tailwind للعمل مع الاتجاه العربي.
-- خط عربي احترافي (Cairo / IBM Plex Sans Arabic) عبر Google Fonts.
-- نظام تصميم في `index.css` و`tailwind.config.ts`:
-  - لوحة ألوان هادئة: أزرق نيلي عميق كلون أساسي، رمادي أردوازي، أبيض، رمادي فاتح.
-  - ألوان حالات: أخضر (مدفوعة)، كهرماني (جزئية)، أحمر (متأخرة/غير مدفوعة)، أزرق فاتح (معلوماتية).
-  - زوايا ناعمة، ظلال خفيفة، مسافات مريحة، بطاقات بحدود رقيقة بدل ظلال ثقيلة.
-- مكونات shadcn/ui موجودة بالفعل وسيتم استخدامها (Card, Table, Dialog, Sheet, Tabs, Badge…).
-- تخطيطان رئيسيان: `PublicLayout` (شريط علوي + فوتر) و`AppLayout` (سايدبار RTL + توب بار).
+---
 
-## 2. هيكلة المجلدات
+## المرحلة 1 — هيكل المشروع والبنية الأساسية
+
+إنشاء مجلد `backend/` مستقل:
 
 ```text
-src/
-  layouts/        PublicLayout, AppLayout, AdminLayout
-  components/
-    common/       PageHeader, StatCard, DataTable, StatusBadge,
-                  EmptyState, InvoiceSummary, PaymentForm,
-                  PlanCard, NotificationItem, RoleSwitcher
-    public/       Hero, FeatureGrid, PricingTable, Testimonials...
-    app/          SidebarNav, TopBar, CompanyBadge
-  pages/
-    public/       Home, Features, Pricing, About, Contact,
-                  Login, Register, PublicInvoice
-    app/          Overview, Clients, Invoices, InvoiceDetails,
-                  NewInvoice, Payments, Accounts, Products,
-                  Reports, Notifications, Users, Settings
-    admin/        AdminOverview, Companies, Plans, Subscriptions,
-                  AdminPayments, FeatureAccess, SystemNotifications,
-                  SystemSettings
-  data/           mock data files (companies, clients, invoices,
-                  payments, accounts, products, plans, subscriptions,
-                  notifications, users)
-  lib/            mock auth, role context, formatters (عملة/تاريخ عربي),
-                  invoice calculations
-  types/          domain types
+backend/
+├── package.json          (express, pg, drizzle-orm, zod, jsonwebtoken, bcrypt, dotenv, cors, helmet)
+├── tsconfig.json
+├── .env.example          (DATABASE_URL, JWT_SECRET, PORT, CORS_ORIGIN)
+├── docker-compose.yml    (postgres:16 + pgadmin اختياري)
+├── drizzle.config.ts
+├── README.md             (تعليمات التشغيل بالعربية)
+└── src/
+    ├── index.ts          (نقطة الدخول)
+    ├── app.ts            (express app + middlewares)
+    ├── config/env.ts     (تحميل وتحقق متغيرات البيئة بـ zod)
+    ├── db/
+    │   ├── client.ts     (pool + drizzle instance)
+    │   ├── schema.ts     (تعريفات الجداول)
+    │   └── migrations/   (ملفات SQL مولدة بـ drizzle-kit)
+    ├── middleware/
+    │   ├── auth.ts       (verify JWT → req.user)
+    │   ├── tenant.ts     (استخراج company_id وضبط RLS)
+    │   ├── rbac.ts       (فحص الدور)
+    │   └── error.ts      (معالج الأخطاء الموحد)
+    ├── modules/
+    │   ├── auth/         (register, login, refresh, reset-password)
+    │   ├── companies/
+    │   ├── users/
+    │   ├── clients/
+    │   ├── invoices/
+    │   ├── payments/
+    │   ├── accounts/
+    │   ├── products/
+    │   ├── reports/
+    │   ├── notifications/
+    │   ├── plans/
+    │   └── subscriptions/
+    └── utils/
+        ├── invoiceNumber.ts
+        ├── publicId.ts
+        └── pdf.ts
 ```
 
-## 3. الصفحات العامة (Public)
+كل module يحتوي: `routes.ts`, `controller.ts`, `service.ts`, `schema.ts` (Zod).
 
-- **الرئيسية**: Hero عربي قوي + أزرار "ابدأ الآن" و"استعرض المميزات"، أقسام: المميزات، الفواتير، المدفوعات، الاشتراكات، المخزون، التقارير، الأمان، شريط شركاء/إحصاءات، CTA ختامي.
-- **المميزات**: شبكة بطاقات لكل ميزة من القائمة المطلوبة بأيقونات lucide.
-- **الأسعار**: 3 باقات (الأساسية/الاحترافية/الأعمال) مع مفتاح شهري/سنوي (UI فقط) وحدود واضحة.
-- **من نحن** و**اتصل بنا** (نموذج مع تحقق zod، بدون إرسال فعلي، toast نجاح).
-- **تسجيل الدخول** و**تسجيل شركة جديدة** (UI فقط، يحفظ مستخدماً وهمياً في حالة التطبيق ويوجه للوحة التحكم).
-- **عرض فاتورة عام** `/invoice/:publicId`: تخطيط نظيف قابل للطباعة، بيانات الشركة والعميل والبنود والإجماليات والحالة، زر طباعة.
+---
 
-## 4. لوحة تحكم الشركة
+## المرحلة 2 — مخطط قاعدة البيانات Multi-tenant
 
-سايدبار RTL قابل للطي (shadcn sidebar مع `collapsible="icon"`) + توب بار يحوي اسم الشركة، مبدّل الدور (Admin/محاسب/مبيعات/مشاهدة)، الإشعارات، المستخدم.
+عزل البيانات بمبدأ **Shared Database / Shared Schema** + عمود `company_id` في كل جدول + **RLS** على مستوى Postgres.
 
-الصفحات:
-- **الرئيسية**: 6 StatCards + جدول آخر الفواتير + رسم بسيط (Recharts موجود) للمبيعات الشهرية + قائمة المنتجات منخفضة المخزون.
-- **العملاء**: DataTable مع بحث/فرز، Dialog إضافة/تعديل، حقول كاملة.
-- **الفواتير**: جدول بفلاتر الحالة وتاريخ، Badges ملوّنة، إنشاء فاتورة عبر صفحة كاملة (اختيار عميل، إضافة بنود من المنتجات، كمية/سعر/خصم/ضريبة، حساب تلقائي للإجماليات، حفظ، رابط مشاركة، أزرار "إرسال عبر البريد" و"إرسال عبر واتساب" placeholder).
-- **تفاصيل الفاتورة**: ملخص + سجل المدفوعات + زر "تسجيل دفعة" يفتح Drawer فيه `PaymentForm` يدعم تقسيم الدفعة على عدة طرق (نقدي/بنك/محفظة) كل جزء مرتبط بحساب مالي. يحدّث الحالة تلقائياً.
-- **المدفوعات**: قائمة موحّدة لجميع المدفوعات مع فلترة بالطريقة والحساب.
-- **الحسابات المالية**: قائمة بطاقات لكل حساب (خزنة/بنك/محفظة) مع الرصيد، Modal إضافة/تعديل.
-- **المنتجات والمخزون**: جدول، Modal منتج، تبويب "حركة المخزون" بسيط (دخول/خروج)، تنبيهات منخفض المخزون.
-- **التقارير**: 5 بطاقات تقارير (فواتير/مدفوعات/متبقي/حسب وسيلة الدفع/حسب الحساب) كل تقرير صفحة بفلاتر تاريخ وجدول.
-- **الإشعارات**: قائمة `NotificationItem` مع تصنيف ووضع علامة مقروء، زر "إرسال إشعار يدوي" placeholder.
-- **المستخدمون والصلاحيات**: جدول مستخدمين، إضافة/تعديل، عرض الصلاحيات لكل دور كقائمة بسيطة قابلة للقراءة.
-- **الإعدادات**: تبويبات (ملف الشركة، الفاتورة، الهوية/الشعار، التواصل).
+الجداول الأساسية:
 
-## 5. لوحة المشرف العام (Super Admin)
+| الجدول | الغرض |
+|---|---|
+| `companies` | الشركات المشتركة (السجل التجاري، الرقم الضريبي، الشعار) |
+| `users` | المستخدمون (email, password_hash, name) |
+| `user_companies` | ربط User ↔ Company (لدعم انتماء مستخدم لأكثر من شركة) |
+| `user_roles` | دور المستخدم داخل كل شركة (`super_admin`, `company_admin`, `accountant`, `sales`, `viewer`) — جدول منفصل لمنع تصعيد الصلاحيات |
+| `plans` | الباقات (سعر، حدود، مدة) |
+| `subscriptions` | اشتراكات الشركات بالباقات |
+| `feature_access` | تفعيل/تعطيل الميزات لكل باقة |
+| `clients` | عملاء الشركة |
+| `products` | المنتجات والمخزون |
+| `accounts` | الحسابات المالية (نقد/بنك/محفظة) |
+| `invoices` | الفواتير (`prefix`, `year`, `sequence`, `public_id`, `status`) |
+| `invoice_items` | بنود الفواتير |
+| `payments` | المدفوعات (مرتبطة بفاتورة + حساب) |
+| `notifications` | تنبيهات لكل شركة/مستخدم |
+| `system_notifications` | تنبيهات على مستوى النظام (للمشرف العام) |
+| `audit_log` | سجل العمليات الحساسة |
 
-تخطيط منفصل بلون مميز خفيف للتفريق:
-- **نظرة عامة**: بطاقات (شركات، اشتراكات نشطة/منتهية، إجمالي التحصيلات، شركات متأخرة) + آخر الشركات المسجلة.
-- **الشركات**: جدول + إنشاء/تعديل/إيقاف، شارات حالة.
-- **الباقات**: CRUD UI مع كل الحقول المطلوبة.
-- **الاشتراكات**: ربط شركة بباقة، تواريخ، حالة، تسجيل دفعة يدوية.
-- **تحصيلات الإدارة**: تتبع مدفوعات الاشتراكات.
-- **الصلاحيات حسب الباقة**: مصفوفة بسيطة بمفاتيح Switch.
-- **إشعارات النظام**: إرسال إشعار لشركة محددة أو للجميع (UI).
-- **إعدادات النظام**: اسم التطبيق، بريد الدعم، العملة الافتراضية، بادئة الفاتورة.
+كل جدول (عدا `users`, `plans`, `system_notifications`) يحتوي:
+- `id uuid pk default gen_random_uuid()`
+- `company_id uuid not null references companies(id) on delete cascade`
+- `created_at`, `updated_at`
 
-## 6. المصادقة الوهمية وتبديل الأدوار
+تفعيل RLS:
 
-- `AuthContext` في `lib/auth.tsx` يخزّن المستخدم الحالي ودوره في `localStorage`.
-- `RoleSwitcher` في التوب بار للتنقل الفوري بين: مدير شركة، محاسب، مبيعات، مشاهدة، مشرف عام — لأغراض العرض.
-- الحماية: أي محاولة دخول `/app` أو `/admin` بدون مستخدم تعيد للـ `/login`.
-
-## 7. البيانات التجريبية
-
-ملفات TS داخل `src/data/` تحوي بيانات عربية واقعية:
-- 3 شركات (شركة الأفق للتجارة، مؤسسة النخبة للمقاولات، مجموعة الواحة الغذائية…).
-- ~15 عميل، ~25 فاتورة بحالات مختلفة، مدفوعات متعددة وبعضها مقسّم، 4 حسابات مالية، ~20 منتج (بعضها منخفض)، 3 باقات، اشتراكات، إشعارات، مستخدمين.
-- جميع المبالغ بالريال السعودي افتراضياً (قابلة للتعديل من إعدادات النظام).
-
-## 8. القواعد التشغيلية
-
-- حساب حالة الفاتورة من المدفوعات: `paid==0` غير مدفوعة، `0<paid<total` جزئية، `paid>=total` مدفوعة، وإن تجاوزت تاريخ الاستحقاق ولم تُسدد كاملة → متأخرة.
-- إنقاص رصيد المنتج عند بيعه ضمن فاتورة، وحركة مخزون تُسجَّل تلقائياً.
-- تحديث رصيد الحساب المالي عند تسجيل دفعة.
-- حدود الباقة تُعرض في الواجهة (شارات/تنبيهات) دون فرض صارم.
-
-## 9. الجودة والاستجابة
-
-- حالات فارغة (`EmptyState`) وجداول مع بحث/فلاتر/ترقيم.
-- Skeletons أثناء التحميل الوهمي (تأخير قصير لمحاكاة API).
-- تصميم متجاوب: السايدبار يصبح Sheet على الجوال، الجداول قابلة للتمرير الأفقي.
-- لا إيموجي، لا نصوص لاتينية ظاهرة، تباعد ومحاذاة RTL سليمة.
-
-## 10. التوجيه (Routes)
-
-```text
-/                       Home
-/features /pricing /about /contact
-/login /register
-/invoice/:publicId      Public invoice
-/app                    Overview (company)
-/app/clients /invoices /invoices/new /invoices/:id
-/app/payments /accounts /products /reports /reports/:type
-/app/notifications /users /settings
-/admin                  Admin overview
-/admin/companies /plans /subscriptions /payments
-/admin/feature-access /notifications /settings
+```sql
+ALTER TABLE clients ENABLE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON clients
+  USING (company_id = current_setting('app.current_company', true)::uuid);
 ```
 
-## ملاحظات تقنية مختصرة
+الـ middleware `tenant.ts` ينفذ في بداية كل طلب:
+```sql
+SET LOCAL app.current_company = '<company-id>';
+SET LOCAL app.current_user = '<user-id>';
+```
 
-- TanStack Query مع دوال "fetch" وهمية (Promises مع setTimeout) لتسهيل الاستبدال بـ API لاحقاً عبر طبقة `lib/api/*`.
-- التحقق من النماذج عبر react-hook-form + zod.
-- دوال مساعدة: `formatCurrency`, `formatDateAr`, `calcInvoiceTotals`, `getInvoiceStatus`.
-- لا توجد عمليات backend؛ كل شيء في الذاكرة/`localStorage`.
+دالة `has_role(_user_id, _company_id, _role)` بـ `SECURITY DEFINER` لتفادي التكرار في سياسات RLS.
 
-بعد الموافقة سأبدأ بتطبيق الأساس (RTL + الهوية + التخطيطات + التوجيه + بيانات mock) ثم بناء الصفحات العامة فلوحة الشركة فلوحة المشرف.
+---
+
+## المرحلة 3 — المصادقة والصلاحيات
+
+- `POST /auth/register` — تسجيل شركة جديدة + أول مستخدم (admin) في معاملة واحدة.
+- `POST /auth/login` — يُرجع `access_token` (15 دقيقة) + `refresh_token` (30 يوم، httpOnly cookie).
+- `POST /auth/refresh` — تجديد التوكن.
+- `POST /auth/logout` — إلغاء refresh token.
+- `POST /auth/forgot-password` + `POST /auth/reset-password` — برمز OTP عبر البريد.
+- كلمة المرور بـ `bcrypt` (cost 12).
+- JWT يحمل `user_id` فقط؛ الدور و `company_id` يُحملان من DB في كل طلب لمنع الانتحال.
+
+---
+
+## المرحلة 4 — منطق الأعمال (Business Logic)
+
+تحويل كل ما هو حالياً Mock إلى منطق حقيقي:
+
+1. **توليد رقم الفاتورة** — atomic عبر `SELECT … FOR UPDATE` على عدّاد الشركة.
+2. **حالة الفاتورة** تُحسب من مجموع المدفوعات: `paid >= total → paid`، `0 < paid < total → partial`، `due_date < now → overdue`.
+3. **إنقاص المخزون** عند إنشاء فاتورة بيع داخل معاملة DB.
+4. **رصيد الحساب المالي** يُحدّث تلقائياً عند تسجيل دفعة.
+5. **رابط الفاتورة العام** `public_id` UUID، endpoint عام `GET /public/invoices/:publicId` بدون مصادقة.
+6. **التقارير** SQL aggregations حقيقية (مبيعات، عملاء، أعمار ديون).
+
+---
+
+## المرحلة 5 — تشغيل محلي
+
+`docker-compose.yml` يُقدّم Postgres 16 جاهز. الأوامر:
+
+```bash
+cd backend
+cp .env.example .env
+docker compose up -d postgres
+npm install
+npm run db:migrate
+npm run db:seed       # بيانات تجريبية (شركة + مستخدم + باقات)
+npm run dev           # http://localhost:4000
+```
+
+---
+
+## المرحلة 6 — ربط الـ Frontend
+
+- إضافة `src/lib/api.ts` (Axios instance مع interceptor للتوكن والـ refresh).
+- إضافة `VITE_API_URL` في `.env`.
+- استبدال `src/data/mock.ts` تدريجياً بـ React Query hooks تنادي الـ API.
+- تحديث `src/lib/auth.ts` ليستخدم `/auth/login` الفعلي بدل localStorage فقط.
+- إبقاء بنية الواجهة كما هي (لا تغيير بصري).
+
+---
+
+## ما سيتم تنفيذه في هذه الخطوة
+
+عند الموافقة، سأبني **المراحل 1 و 2 و 3 و 5 كاملة** + **المرحلة 4 للوحدات الأساسية** (auth, companies, clients, invoices, invoice_items, payments) + **بداية المرحلة 6** (API client + ربط شاشة Login + شاشة Clients كنموذج). باقي الوحدات تُربط بنفس النمط في طلبات لاحقة لتفادي تضخم التغييرات.
+
+## ما لن يُنفّذ الآن
+
+- إرسال البريد الفعلي (سيُترك hook

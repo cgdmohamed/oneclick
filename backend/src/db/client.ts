@@ -1,0 +1,38 @@
+import pg from 'pg';
+import { drizzle } from 'drizzle-orm/node-postgres';
+import { env } from '../config/env.js';
+import * as schema from './schema.js';
+
+export const pool = new pg.Pool({
+  connectionString: env.DATABASE_URL,
+  max: 10,
+  idleTimeoutMillis: 30_000,
+});
+
+export const db = drizzle(pool, { schema });
+
+/** Acquire a dedicated client and set tenant context for RLS. */
+export async function withTenant<T>(
+  companyId: string | null,
+  userId: string | null,
+  fn: (client: pg.PoolClient) => Promise<T>,
+): Promise<T> {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    if (companyId) {
+      await client.query(`SELECT set_config('app.current_company', $1, true)`, [companyId]);
+    }
+    if (userId) {
+      await client.query(`SELECT set_config('app.current_user', $1, true)`, [userId]);
+    }
+    const result = await fn(client);
+    await client.query('COMMIT');
+    return result;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
