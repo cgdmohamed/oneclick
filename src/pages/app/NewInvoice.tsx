@@ -6,21 +6,28 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Plus, Trash2 } from 'lucide-react';
-import { clients, products } from '@/data/mock';
 import { formatCurrency } from '@/lib/format';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { InvoiceSummary } from '@/components/common/InvoiceSummary';
+import { useClients, useProducts } from '@/hooks/entities';
+import { api, ApiError, isApiConfigured } from '@/lib/api';
 
 interface Item { id: string; name: string; quantity: number; unitPrice: number; productId?: string }
 
 const NewInvoice = () => {
   const navigate = useNavigate();
-  const [clientId, setClientId] = useState(clients[0]?.id ?? '');
+  const { list: clients } = useClients();
+  const { list: products } = useProducts();
+  const [clientId, setClientId] = useState('');
   const [items, setItems] = useState<Item[]>([{ id: 'i1', name: '', quantity: 1, unitPrice: 0 }]);
   const [taxRate, setTaxRate] = useState(15);
   const [discount, setDiscount] = useState(0);
   const [dueDate, setDueDate] = useState(new Date(Date.now() + 30 * 86400000).toISOString().slice(0,10));
+  const [saving, setSaving] = useState(false);
+
+  // Default client when list loads
+  if (!clientId && clients[0]) setClientId(clients[0].id);
 
   const totals = useMemo(() => {
     const subtotal = items.reduce((s, it) => s + (it.quantity * it.unitPrice), 0);
@@ -37,11 +44,36 @@ const NewInvoice = () => {
     if (p) update(i, { productId: pid, name: p.name, unitPrice: p.price });
   };
 
-  const save = () => {
+  const save = async () => {
     if (!clientId) return toast.error('اختر عميلاً');
     if (items.some(it => !it.name || it.quantity <= 0)) return toast.error('أكمل بيانات بنود الفاتورة');
-    toast.success('تم حفظ الفاتورة (بيانات تجريبية)');
-    navigate('/app/invoices');
+    setSaving(true);
+    try {
+      if (isApiConfigured()) {
+        const body = {
+          client_id: clientId,
+          due_date: new Date(dueDate).toISOString(),
+          discount,
+          items: items.map(it => ({
+            product_id: it.productId ?? null,
+            description: it.name,
+            quantity: it.quantity,
+            unit_price: it.unitPrice,
+            vat_rate: taxRate,
+          })),
+        };
+        const res = await api.post<{ data: { id: string } }>('/api/invoices', body);
+        toast.success('تم حفظ الفاتورة');
+        navigate(`/app/invoices/${res.data.id}`);
+      } else {
+        toast.success('تم حفظ الفاتورة (بيانات تجريبية)');
+        navigate('/app/invoices');
+      }
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : 'تعذّر حفظ الفاتورة');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -54,7 +86,7 @@ const NewInvoice = () => {
             <div>
               <Label>العميل</Label>
               <Select value={clientId} onValueChange={setClientId}>
-                <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="mt-1.5"><SelectValue placeholder="اختر عميلاً" /></SelectTrigger>
                 <SelectContent>
                   {clients.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
                 </SelectContent>
@@ -121,12 +153,9 @@ const NewInvoice = () => {
         <div className="space-y-4">
           <InvoiceSummary subtotal={totals.subtotal} tax={totals.tax} discount={discount} total={totals.total} paid={0} remaining={totals.total} />
           <Card className="p-5 border-border/60 space-y-2">
-            <Button className="w-full" onClick={save}>حفظ الفاتورة</Button>
-            <Button variant="outline" className="w-full" onClick={() => toast.message('تمت تجربة المشاركة (placeholder)')}>مشاركة رابط الفاتورة</Button>
-            <div className="grid grid-cols-2 gap-2">
-              <Button variant="outline" onClick={() => toast.message('إرسال عبر البريد (placeholder)')}>بريد إلكتروني</Button>
-              <Button variant="outline" onClick={() => toast.message('إرسال عبر واتساب (placeholder)')}>واتساب</Button>
-            </div>
+            <Button className="w-full" onClick={save} disabled={saving}>
+              {saving ? 'جارٍ الحفظ...' : 'حفظ الفاتورة'}
+            </Button>
           </Card>
         </div>
       </div>
