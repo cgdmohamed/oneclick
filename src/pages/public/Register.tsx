@@ -6,21 +6,36 @@ import { Calculator } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import { useAuth } from '@/lib/auth';
+import { isApiConfigured, registerRequest, ApiError } from '@/lib/api';
 import { toast } from 'sonner';
 
 const Register = () => {
   const [form, setForm] = useState({ company: '', owner: '', email: '', phone: '', password: '' });
+  const [loading, setLoading] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.company || !form.owner || !form.email || !form.password) {
       return toast.error('يرجى تعبئة كل الحقول المطلوبة');
     }
-    login('admin@alofok.sa');
-    toast.success('تم إنشاء حساب شركتك بنجاح');
-    navigate('/app');
+    setLoading(true);
+    try {
+      if (isApiConfigured()) {
+        await registerRequest({
+          email: form.email, password: form.password,
+          name: form.owner, companyName: form.company,
+        });
+      }
+      login(form.email);
+      toast.success('تم إنشاء حساب شركتك بنجاح');
+      navigate('/app');
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'تعذّر إنشاء الحساب');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -46,7 +61,9 @@ const Register = () => {
               <Field label="كلمة المرور" name="password" type="password" form={form} setForm={setForm} />
             </div>
             <div className="sm:col-span-2">
-              <Button type="submit" size="lg" className="w-full">إنشاء الحساب</Button>
+              <Button type="submit" size="lg" className="w-full" disabled={loading}>
+                {loading ? 'جارٍ الإنشاء…' : 'إنشاء الحساب'}
+              </Button>
             </div>
           </form>
           <p className="text-sm text-muted-foreground text-center mt-6">
