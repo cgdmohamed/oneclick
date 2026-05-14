@@ -26,6 +26,7 @@ import plansRoutes from './modules/plans/routes.js';
 import subscriptionsRoutes from './modules/subscriptions/routes.js';
 import publicRoutes from './modules/public/routes.js';
 import uploadsRoutes, { UPLOAD_DIR } from './modules/uploads/routes.js';
+import platformRoutes from './modules/platform/routes.js';
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -79,6 +80,7 @@ export function createApp() {
   app.use('/api/reports', reportsRoutes);
   app.use('/api/subscriptions', subscriptionsRoutes);
   app.use('/api/uploads', uploadsRoutes);
+  app.use('/api/platform', platformRoutes);
 
   app.use(errorHandler);
   return app;
