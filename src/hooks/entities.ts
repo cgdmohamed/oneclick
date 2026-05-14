@@ -3,8 +3,11 @@
  * the same lists (clients, products, accounts, invoices) without
  * duplicating row adapters.
  */
-import type { Client, Product, FinancialAccount, Invoice, InvoiceStatus } from '@/types';
-import { clients as mockClients, products as mockProducts, accounts as mockAccounts, invoices as mockInvoices } from '@/data/mock';
+import type { Client, Product, FinancialAccount, Invoice, InvoiceStatus, Notification, User, Role, NotificationCategory } from '@/types';
+import {
+  clients as mockClients, products as mockProducts, accounts as mockAccounts,
+  invoices as mockInvoices, notifications as mockNotifications, users as mockUsers,
+} from '@/data/mock';
 import { useResource, type ResourceConfig } from '@/hooks/useResource';
 
 /* ---------- Clients ---------- */
