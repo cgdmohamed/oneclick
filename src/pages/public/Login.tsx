@@ -58,7 +58,9 @@ const Login = () => {
               </div>
               <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="mt-1.5" required />
             </div>
-            <Button type="submit" size="lg" className="w-full">تسجيل الدخول</Button>
+            <Button type="submit" size="lg" className="w-full" disabled={loading}>
+              {loading ? 'جارٍ الدخول…' : 'تسجيل الدخول'}
+            </Button>
           </form>
           <p className="text-sm text-muted-foreground text-center mt-6">
             ليس لديك حساب؟ <Link to="/register" className="text-primary font-semibold">سجّل شركتك</Link>
