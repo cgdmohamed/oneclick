@@ -4,10 +4,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Trash2, Plus } from 'lucide-react';
-import { accounts as mockAccounts } from '@/data/mock';
 import { paymentMethodLabel, formatCurrency } from '@/lib/format';
 import type { PaymentMethod, PaymentSplit } from '@/types';
 import { toast } from 'sonner';
+import { useAccounts } from '@/hooks/entities';
 
 interface PaymentFormProps {
   remaining: number;
@@ -16,8 +16,9 @@ interface PaymentFormProps {
   companyId?: string;
 }
 
-export const PaymentForm = ({ remaining, onSubmit, onCancel, companyId = 'co-1' }: PaymentFormProps) => {
-  const accountsForCompany = mockAccounts.filter(a => a.companyId === companyId && a.status === 'active');
+export const PaymentForm = ({ remaining, onSubmit, onCancel }: PaymentFormProps) => {
+  const { list: accounts } = useAccounts();
+  const accountsForCompany = accounts.filter(a => a.status === 'active');
   const [splits, setSplits] = useState<PaymentSplit[]>([
     { method: 'cash', accountId: accountsForCompany[0]?.id ?? '', amount: remaining },
   ]);
