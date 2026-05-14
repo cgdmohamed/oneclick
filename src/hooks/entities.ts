@@ -109,3 +109,49 @@ export const invoicesCfg: ResourceConfig<Invoice & { clientName?: string }, Invo
   toRow: () => ({}), // create handled separately (POST /api/invoices)
 };
 export const useInvoices = () => useResource(invoicesCfg);
+
+/* ---------- Notifications ---------- */
+interface NotificationRow {
+  id: string; company_id: string; user_id: string | null;
+  title: string; body: string | null;
+  kind: 'info' | 'warning' | 'success' | 'error';
+  created_at: string; read_at: string | null;
+}
+const kindToCategory = (k: string): NotificationCategory => {
+  if (k === 'warning') return 'stock';
+  if (k === 'success') return 'payment';
+  if (k === 'error') return 'debt';
+  return 'system';
+};
+export const notificationsCfg: ResourceConfig<Notification, NotificationRow> = {
+  path: '/api/notifications',
+  key: 'notifications',
+  initial: mockNotifications,
+  fromRow: (r) => ({
+    id: r.id, companyId: r.company_id, category: kindToCategory(r.kind),
+    title: r.title, body: r.body ?? '',
+    date: r.created_at, read: !!r.read_at,
+  }),
+  toRow: (n) => ({ title: n.title, body: n.body ?? null, kind: 'info' }),
+};
+export const useNotifications = () => useResource(notificationsCfg);
+
+/* ---------- Users (company team) ---------- */
+interface UserRow {
+  id: string; email: string; name: string;
+  created_at: string; roles: (Role | null)[] | null;
+}
+export const usersCfg: ResourceConfig<User, UserRow> = {
+  path: '/api/users',
+  key: 'users',
+  initial: mockUsers.filter((u) => u.role !== 'super_admin'),
+  fromRow: (r) => ({
+    id: r.id, name: r.name, email: r.email,
+    role: ((r.roles ?? []).filter(Boolean)[0] as Role) ?? 'viewer',
+  }),
+  toRow: (u) => ({
+    name: u.name, email: u.email, role: u.role,
+    // password is added on the page (only for create)
+  }),
+};
+export const useUsers = () => useResource(usersCfg);
