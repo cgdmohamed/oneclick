@@ -6,17 +6,32 @@ import { Calculator } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import { useAuth } from '@/lib/auth';
+import { isApiConfigured, loginRequest, ApiError } from '@/lib/api';
+import { toast } from 'sonner';
 
 const Login = () => {
   const [email, setEmail] = useState('admin@alofok.sa');
-  const [password, setPassword] = useState('demo1234');
+  const [password, setPassword] = useState('Aa123456!');
+  const [loading, setLoading] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    login(email);
-    navigate('/app');
+    setLoading(true);
+    try {
+      if (isApiConfigured()) {
+        await loginRequest(email, password);
+        toast.success('تم تسجيل الدخول');
+      }
+      login(email);
+      navigate('/app');
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : 'تعذّر تسجيل الدخول';
+      toast.error(msg);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
