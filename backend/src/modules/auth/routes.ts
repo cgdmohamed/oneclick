@@ -7,6 +7,8 @@ import { pool } from '../../db/client.js';
 import { env } from '../../config/env.js';
 import { badRequest, unauthorized } from '../../utils/errors.js';
 import { requireAuth } from '../../middleware/auth.js';
+import { sendEmail } from '../../utils/email.js';
+import { audit } from '../../utils/audit.js';
 
 const router = Router();
 
@@ -163,8 +165,18 @@ router.post('/forgot-password', async (req, res, next) => {
         `INSERT INTO password_resets (user_id, token_hash, expires_at) VALUES ($1, $2, now() + interval '1 hour')`,
         [u.rows[0].id, sha(token)],
       );
-      // TODO: email the link `${appUrl}/reset-password?token=${token}`
-      console.log(`[auth] password reset token for ${email}: ${token}`);
+      const link = `${env.APP_URL}/reset-password?token=${token}`;
+      await sendEmail({
+        to: email,
+        subject: 'Reset your Hesabat password',
+        html: `<p>Click the link below to reset your password (valid for 1 hour):</p>
+               <p><a href="${link}">${link}</a></p>
+               <p>If you did not request this, ignore this email.</p>`,
+      });
+      await audit(pool, {
+        companyId: null, userId: u.rows[0].id,
+        action: 'auth.password_reset_request', entity: 'user', entityId: u.rows[0].id,
+      });
     }
     res.json({ ok: true });
   } catch (e) { next(e); }

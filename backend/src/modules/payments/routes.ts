@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import { pool } from '../../db/client.js';
 import { badRequest, notFound } from '../../utils/errors.js';
+import { audit } from '../../utils/audit.js';
 
 const router = Router();
 
@@ -58,6 +60,11 @@ router.post('/', async (req, res, next) => {
       [body.amount, body.account_id],
     );
 
+    await audit(pool, {
+      companyId: t.companyId, userId: req.auth!.userId,
+      action: 'payment.create', entity: 'payment', entityId: payRes.rows[0].id,
+      data: { invoice_id: body.invoice_id, amount: body.amount, account_id: body.account_id, method: body.method },
+    });
     res.status(201).json({ data: payRes.rows[0] });
   } catch (e) { next(e); }
 });
