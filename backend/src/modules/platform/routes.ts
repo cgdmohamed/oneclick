@@ -1,0 +1,186 @@
+/**
+ * Platform-level (super-admin) endpoints for MANUAL subscription billing.
+ * - /wallets      : add / rename / toggle / delete platform wallets
+ * - /subscription-payments : record a manual payment from a subscription
+ *                             into a wallet, updating wallet balance.
+ *
+ * Intentionally no Stripe / Paddle here — billing is handled by a human.
+ */
+import { Router } from 'express';
+import { z } from 'zod';
+import { pool } from '../../db/client.js';
+import { requireSuperAdmin } from '../../middleware/rbac.js';
+import { badRequest, notFound } from '../../utils/errors.js';
+import { audit } from '../../utils/audit.js';
+
+const router = Router();
+router.use(requireSuperAdmin);
+
+/* ---------------- Wallets ---------------- */
+const walletSchema = z.object({
+  name: z.string().min(1).max(120),
+  type: z.enum(['cash', 'bank', 'wallet']).default('cash'),
+  balance: z.coerce.number().default(0),
+  is_active: z.boolean().default(true),
+});
+
+router.get('/wallets', async (_req, res, next) => {
+  try {
+    const rs = await pool.query(`SELECT * FROM platform_wallets ORDER BY created_at DESC`);
+    res.json({ data: rs.rows });
+  } catch (e) { next(e); }
+});
+
+router.post('/wallets', async (req, res, next) => {
+  try {
+    const body = walletSchema.parse(req.body);
+    const rs = await pool.query(
+      `INSERT INTO platform_wallets (name, type, balance, is_active)
+       VALUES ($1,$2,$3,$4) RETURNING *`,
+      [body.name, body.type, body.balance, body.is_active],
+    );
+    res.status(201).json({ data: rs.rows[0] });
+  } catch (e) { next(e); }
+});
+
+router.patch('/wallets/:id', async (req, res, next) => {
+  try {
+    const body = walletSchema.partial().parse(req.body);
+    const fields = Object.keys(body);
+    if (!fields.length) return res.json({ data: null });
+    const sets = fields.map((f, i) => `${f} = $${i + 1}`).join(', ');
+    const values = fields.map((f) => (body as Record<string, unknown>)[f]);
+    const rs = await pool.query(
+      `UPDATE platform_wallets SET ${sets}, updated_at = now()
+       WHERE id = $${fields.length + 1} RETURNING *`,
+      [...values, req.params.id],
+    );
+    if (!rs.rowCount) throw notFound();
+    res.json({ data: rs.rows[0] });
+  } catch (e) { next(e); }
+});
+
+router.delete('/wallets/:id', async (req, res, next) => {
+  try {
+    const used = await pool.query(
+      `SELECT 1 FROM subscription_payments WHERE wallet_id = $1 LIMIT 1`,
+      [req.params.id],
+    );
+    if (used.rowCount) throw badRequest('Wallet has recorded payments — deactivate it instead');
+    await pool.query(`DELETE FROM platform_wallets WHERE id = $1`, [req.params.id]);
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
+/* ---------------- Subscription payments ---------------- */
+const paymentSchema = z.object({
+  subscription_id: z.string().uuid(),
+  wallet_id:       z.string().uuid(),
+  amount:          z.coerce.number().positive(),
+  method:          z.enum(['cash', 'bank', 'wallet']).default('cash'),
+  paid_at:         z.string().datetime().optional(),
+  reference:       z.string().optional().nullable(),
+  notes:           z.string().optional().nullable(),
+});
+
+router.get('/subscription-payments', async (_req, res, next) => {
+  try {
+    const rs = await pool.query(`
+      SELECT sp.*, w.name AS wallet_name,
+             c.name AS company_name, p.name AS plan_name
+      FROM subscription_payments sp
+      JOIN platform_wallets w ON w.id = sp.wallet_id
+      JOIN subscriptions s ON s.id = sp.subscription_id
+      JOIN companies c ON c.id = s.company_id
+      JOIN plans p     ON p.id = s.plan_id
+      ORDER BY sp.paid_at DESC
+    `);
+    res.json({ data: rs.rows });
+  } catch (e) { next(e); }
+});
+
+router.post('/subscription-payments', async (req, res, next) => {
+  const client = await pool.connect();
+  try {
+    const body = paymentSchema.parse(req.body);
+    await client.query('BEGIN');
+
+    const sub = await client.query(
+      `SELECT id, amount, status FROM subscriptions WHERE id = $1 FOR UPDATE`,
+      [body.subscription_id],
+    );
+    if (!sub.rowCount) throw notFound('Subscription not found');
+
+    const wallet = await client.query(
+      `SELECT id, is_active FROM platform_wallets WHERE id = $1 FOR UPDATE`,
+      [body.wallet_id],
+    );
+    if (!wallet.rowCount) throw notFound('Wallet not found');
+    if (!wallet.rows[0].is_active) throw badRequest('Wallet is inactive');
+
+    const rs = await client.query(
+      `INSERT INTO subscription_payments
+        (subscription_id, wallet_id, amount, method, paid_at, reference, notes, recorded_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+      [body.subscription_id, body.wallet_id, body.amount, body.method,
+       body.paid_at ?? new Date(), body.reference ?? null, body.notes ?? null,
+       req.auth!.userId],
+    );
+
+    await client.query(
+      `UPDATE platform_wallets SET balance = balance + $1, updated_at = now()
+       WHERE id = $2`,
+      [body.amount, body.wallet_id],
+    );
+
+    // Activate subscription on first qualifying payment
+    if (sub.rows[0].status !== 'active') {
+      await client.query(
+        `UPDATE subscriptions SET status = 'active' WHERE id = $1`,
+        [body.subscription_id],
+      );
+    }
+
+    await client.query('COMMIT');
+
+    await audit(pool, {
+      companyId: null, userId: req.auth!.userId,
+      action: 'subscription_payment.create', entity: 'subscription_payment',
+      entityId: rs.rows[0].id,
+      data: { subscription_id: body.subscription_id, wallet_id: body.wallet_id, amount: body.amount },
+    });
+
+    res.status(201).json({ data: rs.rows[0] });
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    next(e);
+  } finally {
+    client.release();
+  }
+});
+
+router.delete('/subscription-payments/:id', async (req, res, next) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const p = await client.query(
+      `SELECT amount, wallet_id FROM subscription_payments WHERE id = $1 FOR UPDATE`,
+      [req.params.id],
+    );
+    if (!p.rowCount) throw notFound();
+    await client.query(`DELETE FROM subscription_payments WHERE id = $1`, [req.params.id]);
+    await client.query(
+      `UPDATE platform_wallets SET balance = balance - $1, updated_at = now() WHERE id = $2`,
+      [p.rows[0].amount, p.rows[0].wallet_id],
+    );
+    await client.query('COMMIT');
+    res.json({ ok: true });
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    next(e);
+  } finally {
+    client.release();
+  }
+});
+
+export default router;
