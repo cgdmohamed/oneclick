@@ -7,6 +7,8 @@ import { pool } from '../../db/client.js';
 import { env } from '../../config/env.js';
 import { badRequest, unauthorized } from '../../utils/errors.js';
 import { requireAuth } from '../../middleware/auth.js';
+import { sendEmail } from '../../utils/email.js';
+import { audit } from '../../utils/audit.js';
 
 const router = Router();
 
