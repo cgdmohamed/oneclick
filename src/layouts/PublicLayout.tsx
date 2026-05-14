@@ -41,7 +41,7 @@ const PublicLayout = () => {
             {links.map(l => (
               <NavLink key={l.to} to={l.to} end className={({ isActive }) => cn(
                 'px-3 py-2 text-sm rounded-lg hover:bg-accent transition-colors',
-                isActive && 'text-primary font-semibold'
+                isActive && 'text-page-accent font-semibold bg-accent/60'
               )}>{l.label}</NavLink>
             ))}
           </nav>
