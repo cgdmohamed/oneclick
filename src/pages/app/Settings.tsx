@@ -12,6 +12,7 @@ import { cn } from '@/lib/utils';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import { toast } from 'sonner';
+import { api, isApiConfigured } from '@/lib/api';
 
 interface CompanyProfile {
   name: string;
@@ -140,6 +141,40 @@ const Settings = () => {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Hydrate from backend when API is configured
+  useEffect(() => {
+    if (!isApiConfigured()) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await api.get<{ data: Record<string, unknown> }>('/api/companies/me');
+        if (cancelled || !res?.data) return;
+        const r = res.data as Record<string, string | number | null>;
+        setProfile((p) => ({
+          ...p,
+          name: (r.name as string) ?? p.name,
+          ownerName: p.ownerName,
+          email: (r.email as string) ?? p.email,
+          phone: (r.phone as string) ?? p.phone,
+          taxNumber: (r.tax_number as string) ?? p.taxNumber,
+          commercialReg: (r.commercial_register as string) ?? p.commercialReg,
+        }));
+        setInvoiceCfg((c) => ({
+          ...c,
+          prefix: (r.invoice_prefix as string) ?? c.prefix,
+          yearFormat: ((r.invoice_year_format as 'full' | 'short' | 'none') ?? c.yearFormat),
+          padding: Number(r.invoice_padding ?? c.padding),
+          separator: (r.invoice_separator as string) ?? c.separator,
+          currency: (r.currency as string) ?? c.currency,
+          taxRate: Number(r.vat_rate ?? c.taxRate),
+          logoUrl: (r.logo_url as string) ?? c.logoUrl,
+          stampUrl: (r.stamp_url as string) ?? c.stampUrl,
+        }));
+      } catch { /* keep defaults */ }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
   useEffect(() => {
     if (isFirstRun.current) {
       isFirstRun.current = false;
@@ -148,7 +183,31 @@ const Settings = () => {
     setSaveStatus('saving');
     if (debounceRef.current) clearTimeout(debounceRef.current);
     if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
-    debounceRef.current = setTimeout(() => {
+    debounceRef.current = setTimeout(async () => {
+      if (isApiConfigured()) {
+        try {
+          await api.patch('/api/companies/me', {
+            name: profile.name,
+            email: profile.email || null,
+            phone: profile.phone || null,
+            tax_number: profile.taxNumber || null,
+            commercial_register: profile.commercialReg || null,
+            address: [profile.street, profile.district, profile.city, profile.country, profile.postalCode].filter(Boolean).join('، ') || null,
+            invoice_prefix: invoiceCfg.prefix,
+            invoice_year_format: invoiceCfg.yearFormat,
+            invoice_padding: invoiceCfg.padding,
+            invoice_separator: invoiceCfg.separator,
+            currency: invoiceCfg.currency,
+            vat_rate: invoiceCfg.taxRate,
+            logo_url: invoiceCfg.logoUrl ?? null,
+            stamp_url: invoiceCfg.stampUrl ?? null,
+          });
+        } catch {
+          toast.error('تعذّر الحفظ على الخادم');
+          setSaveStatus('idle');
+          return;
+        }
+      }
       setSaveStatus('saved');
       toast.success('تم حفظ التغييرات تلقائياً');
       savedTimerRef.current = setTimeout(() => setSaveStatus('idle'), 2000);

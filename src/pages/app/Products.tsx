@@ -13,22 +13,54 @@ import { formatCurrency, formatDateShort } from '@/lib/format';
 import { toast } from 'sonner';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { Card } from '@/components/ui/card';
+import { useResource } from '@/hooks/useResource';
+
+interface ProductRow {
+  id: string;
+  company_id: string;
+  sku: string | null;
+  name: string;
+  price: string | number;
+  cost: string | number;
+  quantity: number;
+  alert_level: number;
+  is_active: boolean;
+}
 
 const empty: Product = { id: '', companyId: 'co-1', name: '', code: '', price: 0, quantity: 0, alertLevel: 5, status: 'active' };
 
 const Products = () => {
-  const [list, setList] = useState<Product[]>(initial);
+  const { list, save } = useResource<Product, ProductRow>({
+    path: '/api/products',
+    key: 'products',
+    initial,
+    fromRow: (r) => ({
+      id: r.id,
+      companyId: r.company_id,
+      name: r.name,
+      code: r.sku ?? '',
+      price: Number(r.price),
+      quantity: r.quantity,
+      alertLevel: r.alert_level,
+      status: r.is_active ? 'active' : 'inactive',
+    }),
+    toRow: (p) => ({
+      name: p.name,
+      sku: p.code || null,
+      price: p.price,
+      quantity: p.quantity,
+      alert_level: p.alertLevel,
+      is_active: p.status !== 'inactive',
+    }),
+  });
+
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Product>(empty);
 
-  const save = () => {
+  const submit = async () => {
     if (!editing.name || !editing.code) return toast.error('أكمل بيانات المنتج');
-    setList(prev => {
-      const exists = prev.find(x => x.id === editing.id);
-      return exists ? prev.map(x => x.id === editing.id ? editing : x) : [editing, ...prev];
-    });
+    await save(editing);
     setOpen(false);
-    toast.success('تم الحفظ');
   };
 
   const columns: Column<Product>[] = [
@@ -98,7 +130,7 @@ const Products = () => {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>إلغاء</Button>
-            <Button onClick={save}>حفظ</Button>
+            <Button onClick={submit}>حفظ</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
