@@ -10,26 +10,56 @@ import { clients as initialClients } from '@/data/mock';
 import type { Client } from '@/types';
 import { toast } from 'sonner';
 import { formatDateShort } from '@/lib/format';
+import { useResource } from '@/hooks/useResource';
+
+interface ClientRow {
+  id: string;
+  company_id: string;
+  name: string;
+  phone: string | null;
+  email: string | null;
+  address: string | null;
+  tax_number: string | null;
+  notes: string | null;
+  created_at: string;
+}
 
 const empty: Client = { id: '', companyId: 'co-1', name: '', phone: '', email: '', address: '', taxNumber: '', createdAt: new Date().toISOString() };
 
 const Clients = () => {
-  const [list, setList] = useState<Client[]>(initialClients);
+  const { list, save, remove } = useResource<Client, ClientRow>({
+    path: '/api/clients',
+    key: 'clients',
+    initial: initialClients,
+    fromRow: (r) => ({
+      id: r.id,
+      companyId: r.company_id,
+      name: r.name,
+      phone: r.phone ?? '',
+      email: r.email ?? '',
+      address: r.address ?? '',
+      taxNumber: r.tax_number ?? '',
+      createdAt: r.created_at,
+    }),
+    toRow: (c) => ({
+      name: c.name,
+      phone: c.phone || null,
+      email: c.email || null,
+      address: c.address || null,
+      tax_number: c.taxNumber || null,
+    }),
+  });
+
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Client>(empty);
 
   const openNew = () => { setEditing({ ...empty, id: `cl-${Date.now()}` }); setOpen(true); };
   const openEdit = (c: Client) => { setEditing(c); setOpen(true); };
-  const save = () => {
+  const submit = async () => {
     if (!editing.name || !editing.phone) return toast.error('الاسم والهاتف مطلوبان');
-    setList(prev => {
-      const exists = prev.find(x => x.id === editing.id);
-      return exists ? prev.map(x => x.id === editing.id ? editing : x) : [editing, ...prev];
-    });
+    await save(editing);
     setOpen(false);
-    toast.success('تم الحفظ');
   };
-  const remove = (id: string) => { setList(prev => prev.filter(x => x.id !== id)); toast.success('تم الحذف'); };
 
   const columns: Column<Client>[] = [
     { key: 'name', header: 'الاسم', cell: r => <span className="font-medium">{r.name}</span> },
@@ -65,7 +95,7 @@ const Clients = () => {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>إلغاء</Button>
-            <Button onClick={save}>حفظ</Button>
+            <Button onClick={submit}>حفظ</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

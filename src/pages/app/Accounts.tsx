@@ -12,23 +12,50 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { accountTypeLabel, formatCurrency } from '@/lib/format';
 import { toast } from 'sonner';
 import { StatusBadge } from '@/components/common/StatusBadge';
+import { useResource } from '@/hooks/useResource';
+
+interface AccountRow {
+  id: string;
+  company_id: string;
+  name: string;
+  type: 'cash' | 'bank' | 'wallet';
+  bank_name: string | null;
+  iban: string | null;
+  balance: string | number;
+  is_active: boolean;
+}
 
 const empty: FinancialAccount = { id: '', companyId: 'co-1', name: '', type: 'cash', balance: 0, status: 'active' };
 const iconFor = (t: string) => t === 'bank' ? Building2 : t === 'wallet' ? CreditCard : Wallet;
 
 const Accounts = () => {
-  const [list, setList] = useState<FinancialAccount[]>(initial);
+  const { list, save } = useResource<FinancialAccount, AccountRow>({
+    path: '/api/accounts',
+    key: 'accounts',
+    initial,
+    fromRow: (r) => ({
+      id: r.id,
+      companyId: r.company_id,
+      name: r.name,
+      type: r.type,
+      balance: Number(r.balance),
+      status: r.is_active ? 'active' : 'inactive',
+    }),
+    toRow: (a) => ({
+      name: a.name,
+      type: a.type,
+      balance: a.balance,
+      is_active: a.status !== 'inactive',
+    }),
+  });
+
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<FinancialAccount>(empty);
 
-  const save = () => {
+  const submit = async () => {
     if (!editing.name) return toast.error('أدخل اسم الحساب');
-    setList(prev => {
-      const exists = prev.find(x => x.id === editing.id);
-      return exists ? prev.map(x => x.id === editing.id ? editing : x) : [editing, ...prev];
-    });
+    await save(editing);
     setOpen(false);
-    toast.success('تم الحفظ');
   };
 
   return (
@@ -69,7 +96,7 @@ const Accounts = () => {
           <div className="space-y-4">
             <div><Label>الاسم</Label><Input className="mt-1.5" value={editing.name} onChange={e => setEditing(s => ({ ...s, name: e.target.value }))} /></div>
             <div><Label>النوع</Label>
-              <Select value={editing.type} onValueChange={(v: any) => setEditing(s => ({ ...s, type: v }))}>
+              <Select value={editing.type} onValueChange={(v: 'cash' | 'bank' | 'wallet') => setEditing(s => ({ ...s, type: v }))}>
                 <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="cash">خزنة</SelectItem>
@@ -80,7 +107,7 @@ const Accounts = () => {
             </div>
             <div><Label>الرصيد</Label><Input type="number" className="mt-1.5" value={editing.balance} onChange={e => setEditing(s => ({ ...s, balance: Number(e.target.value) }))} /></div>
             <div><Label>الحالة</Label>
-              <Select value={editing.status} onValueChange={(v: any) => setEditing(s => ({ ...s, status: v }))}>
+              <Select value={editing.status} onValueChange={(v: 'active' | 'inactive') => setEditing(s => ({ ...s, status: v }))}>
                 <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="active">نشط</SelectItem>
@@ -91,7 +118,7 @@ const Accounts = () => {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>إلغاء</Button>
-            <Button onClick={save}>حفظ</Button>
+            <Button onClick={submit}>حفظ</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
