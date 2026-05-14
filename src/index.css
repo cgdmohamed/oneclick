@@ -158,6 +158,15 @@
     background-image: radial-gradient(hsl(var(--border)) 1px, transparent 1px);
     background-size: 22px 22px;
   }
+  .gradient-page {
+    background: linear-gradient(135deg, hsl(var(--page-accent) / 0.10) 0%, hsl(var(--page-accent-2) / 0.06) 100%);
+  }
+  .gradient-page-strong {
+    background: linear-gradient(135deg, hsl(var(--page-accent)) 0%, hsl(var(--page-accent-2)) 100%);
+  }
+  .text-page-accent { color: hsl(var(--page-accent)); }
+  .border-page-accent { border-color: hsl(var(--page-accent) / 0.25); }
+  .ring-page-accent { --tw-ring-color: hsl(var(--page-accent) / 0.3); }
 }
 
 @media print {
