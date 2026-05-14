@@ -1,4 +1,4 @@
-import { Outlet, NavLink, useNavigate } from 'react-router-dom';
+import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarTrigger, useSidebar, SidebarHeader, SidebarFooter } from '@/components/ui/sidebar';
 import { LayoutDashboard, Users, FileText, CreditCard, Wallet, Package, BarChart3, Bell, ShieldCheck, Settings, Calculator, LogOut, Building2, Layers, Receipt, ToggleRight, Megaphone, Cog, ChevronLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -34,15 +34,43 @@ const adminNav = [
   { to: '/admin/settings', label: 'إعدادات النظام', icon: Cog },
 ];
 
+const pageKey = (kind: 'company' | 'admin', pathname: string): string => {
+  if (kind === 'admin') {
+    if (pathname.startsWith('/admin/companies')) return 'admin-companies';
+    if (pathname.startsWith('/admin/plans')) return 'admin-plans';
+    if (pathname.startsWith('/admin/subscriptions')) return 'admin-subscriptions';
+    if (pathname.startsWith('/admin/payments')) return 'admin-payments';
+    if (pathname.startsWith('/admin/feature-access')) return 'admin-feature-access';
+    if (pathname.startsWith('/admin/notifications')) return 'admin-notifications';
+    if (pathname.startsWith('/admin/settings')) return 'admin-settings';
+    return 'admin-overview';
+  }
+  if (pathname.startsWith('/app/clients')) return 'clients';
+  if (pathname.startsWith('/app/invoices') || pathname.startsWith('/app/invoice')) return 'invoices';
+  if (pathname.startsWith('/app/payments')) return 'payments';
+  if (pathname.startsWith('/app/accounts')) return 'accounts';
+  if (pathname.startsWith('/app/products')) return 'products';
+  if (pathname.startsWith('/app/reports')) return 'reports';
+  if (pathname.startsWith('/app/notifications')) return 'notifications';
+  if (pathname.startsWith('/app/users')) return 'users';
+  if (pathname.startsWith('/app/settings')) return 'settings';
+  return 'overview';
+};
+
 const AppShellInner = ({ kind }: { kind: 'company' | 'admin' }) => {
   const { state } = useSidebar();
   const collapsed = state === 'collapsed';
   const { user, logout, setRole, companyName } = useAuth();
   const navigate = useNavigate();
+  const { pathname } = useLocation();
   const nav = kind === 'admin' ? adminNav : companyNav;
 
   return (
-    <div className="min-h-screen flex w-full bg-background">
+    <div
+      className="min-h-screen flex w-full bg-background"
+      data-shell={kind}
+      data-page={pageKey(kind, pathname)}
+    >
       <Sidebar collapsible="icon" side="right" className="border-l border-sidebar-border">
         <SidebarHeader className="border-b border-sidebar-border">
           <div className="flex items-center gap-2 px-2 py-2">
@@ -109,7 +137,8 @@ const AppShellInner = ({ kind }: { kind: 'company' | 'admin' }) => {
       </Sidebar>
 
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="h-14 border-b border-border bg-card/60 backdrop-blur sticky top-0 z-30 flex items-center px-4 gap-3">
+        <header className="shell-header relative h-14 border-b border-border bg-card/60 backdrop-blur sticky top-0 z-30 flex items-center px-4 gap-3">
+          <div aria-hidden className="absolute inset-x-0 bottom-0 h-[2px] gradient-page-strong opacity-80" />
           <SidebarTrigger />
           <div className="flex-1" />
           <DropdownMenu>

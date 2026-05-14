@@ -1,4 +1,4 @@
-import { Outlet, NavLink, Link } from 'react-router-dom';
+import { Outlet, NavLink, Link, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Calculator, Menu, X } from 'lucide-react';
 import { useState } from 'react';
@@ -12,14 +12,27 @@ const links = [
   { to: '/contact', label: 'تواصل معنا' },
 ];
 
+const publicKey = (path: string): string => {
+  if (path === '/' || path === '') return 'home';
+  if (path.startsWith('/features')) return 'features';
+  if (path.startsWith('/pricing')) return 'pricing';
+  if (path.startsWith('/about')) return 'about';
+  if (path.startsWith('/contact')) return 'contact';
+  if (path.startsWith('/login')) return 'login';
+  if (path.startsWith('/register')) return 'register';
+  return 'home';
+};
+
 const PublicLayout = () => {
   const [open, setOpen] = useState(false);
+  const { pathname } = useLocation();
   return (
-    <div className="min-h-screen flex flex-col bg-background">
-      <header className="sticky top-0 z-40 bg-background/80 backdrop-blur border-b border-border/60">
+    <div className="min-h-screen flex flex-col bg-background" data-public={publicKey(pathname)}>
+      <header className="sticky top-0 z-40 bg-background/80 backdrop-blur border-b border-border/60 relative">
+        <div aria-hidden className="absolute inset-x-0 bottom-0 h-[3px] gradient-page-strong" />
         <div className="container flex items-center justify-between h-16">
           <Link to="/" className="flex items-center gap-2 font-bold text-lg">
-            <span className="h-9 w-9 rounded-xl gradient-hero text-primary-foreground flex items-center justify-center">
+            <span className="h-9 w-9 rounded-xl gradient-page-strong text-white flex items-center justify-center shadow-elev">
               <Calculator className="h-5 w-5" />
             </span>
             حسابات
@@ -28,7 +41,7 @@ const PublicLayout = () => {
             {links.map(l => (
               <NavLink key={l.to} to={l.to} end className={({ isActive }) => cn(
                 'px-3 py-2 text-sm rounded-lg hover:bg-accent transition-colors',
-                isActive && 'text-primary font-semibold'
+                isActive && 'text-page-accent font-semibold bg-accent/60'
               )}>{l.label}</NavLink>
             ))}
           </nav>
