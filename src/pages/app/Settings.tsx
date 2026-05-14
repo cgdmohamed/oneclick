@@ -192,7 +192,7 @@ const Settings = () => {
             phone: profile.phone || null,
             tax_number: profile.taxNumber || null,
             commercial_register: profile.commercialReg || null,
-            address: fullAddress || null,
+            address: [profile.street, profile.district, profile.city, profile.country, profile.postalCode].filter(Boolean).join('، ') || null,
             invoice_prefix: invoiceCfg.prefix,
             invoice_year_format: invoiceCfg.yearFormat,
             invoice_padding: invoiceCfg.padding,
