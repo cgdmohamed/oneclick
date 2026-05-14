@@ -29,6 +29,7 @@ const adminNav = [
   { to: '/admin/plans', label: 'الباقات', icon: Layers },
   { to: '/admin/subscriptions', label: 'الاشتراكات', icon: FileText },
   { to: '/admin/payments', label: 'التحصيلات', icon: Receipt },
+  { to: '/admin/wallets', label: 'محافظ التحصيل', icon: Wallet },
   { to: '/admin/feature-access', label: 'الصلاحيات حسب الباقة', icon: ToggleRight },
   { to: '/admin/notifications', label: 'إشعارات النظام', icon: Megaphone },
   { to: '/admin/settings', label: 'إعدادات النظام', icon: Cog },
@@ -40,6 +41,7 @@ const pageKey = (kind: 'company' | 'admin', pathname: string): string => {
     if (pathname.startsWith('/admin/plans')) return 'admin-plans';
     if (pathname.startsWith('/admin/subscriptions')) return 'admin-subscriptions';
     if (pathname.startsWith('/admin/payments')) return 'admin-payments';
+    if (pathname.startsWith('/admin/wallets')) return 'admin-wallets';
     if (pathname.startsWith('/admin/feature-access')) return 'admin-feature-access';
     if (pathname.startsWith('/admin/notifications')) return 'admin-notifications';
     if (pathname.startsWith('/admin/settings')) return 'admin-settings';
