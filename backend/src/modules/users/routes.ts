@@ -4,6 +4,8 @@ import bcrypt from 'bcryptjs';
 import { pool } from '../../db/client.js';
 import { requireRole } from '../../middleware/rbac.js';
 import { badRequest } from '../../utils/errors.js';
+import { audit } from '../../utils/audit.js';
+import { enforceUserLimit } from '../../middleware/planLimits.js';
 
 const router = Router();
 
