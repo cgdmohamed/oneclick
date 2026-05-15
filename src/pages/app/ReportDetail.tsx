@@ -13,6 +13,7 @@ import { api, isApiConfigured } from '@/lib/api';
 import { DataTable, Column } from '@/components/common/DataTable';
 import { formatCurrency, formatDateShort, paymentMethodLabel, invoiceStatusLabel } from '@/lib/format';
 import { StatusBadge } from '@/components/common/StatusBadge';
+import { InvoicesCharts, PaymentsCharts, RemainingCharts, ByAccountCharts } from '@/components/common/ReportCharts';
 
 const titleMap: Record<string, string> = {
   invoices: 'تقرير الفواتير',
@@ -142,6 +143,12 @@ const ReportDetail = () => {
           <Button>تطبيق الفلتر</Button>
         </div>
       </Card>
+
+      {type === 'invoices' && <InvoicesCharts invoices={invoices} />}
+      {type === 'remaining' && <RemainingCharts invoices={invoices} />}
+      {(type === 'payments' || type === 'by-method') && <PaymentsCharts payments={flatPayments} />}
+      {type === 'by-account' && <ByAccountCharts accounts={accounts} payments={flatPayments} />}
+
       {renderTable()}
     </div>
   );
