@@ -139,14 +139,15 @@
   }
   html, body {
     @apply bg-background text-foreground;
-    font-family: 'Cairo', 'IBM Plex Sans Arabic', system-ui, sans-serif;
-    font-feature-settings: "kern", "liga";
+    font-family: 'IBM Plex Sans Arabic', 'Cairo', system-ui, sans-serif;
+    font-feature-settings: "kern", "liga", "ss01";
     -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
   h1, h2, h3, h4, h5 {
-    font-family: 'Cairo', system-ui, sans-serif;
+    font-family: 'IBM Plex Sans Arabic', 'Cairo', system-ui, sans-serif;
     font-weight: 700;
-    letter-spacing: -0.01em;
+    letter-spacing: -0.02em;
   }
 }
 
