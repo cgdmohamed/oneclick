@@ -28,26 +28,25 @@ const PublicLayout = () => {
   const { pathname } = useLocation();
   return (
     <div className="min-h-screen flex flex-col bg-background" data-public={publicKey(pathname)}>
-      <header className="sticky top-0 z-40 bg-background/80 backdrop-blur border-b border-border/60 relative">
-        <div aria-hidden className="absolute inset-x-0 bottom-0 h-[3px] gradient-page-strong" />
+      <header className="sticky top-0 z-40 bg-background/85 backdrop-blur-md border-b border-border/60">
         <div className="container flex items-center justify-between h-16">
-          <Link to="/" className="flex items-center gap-2 font-bold text-lg">
-            <span className="h-9 w-9 rounded-xl gradient-page-strong text-white flex items-center justify-center shadow-elev">
+          <Link to="/" className="flex items-center gap-2.5 font-bold text-lg">
+            <span className="h-9 w-9 rounded-xl bg-primary text-primary-foreground flex items-center justify-center shadow-soft">
               <Calculator className="h-5 w-5" />
             </span>
-            حسابات
+            <span className="tracking-tight">حسابات</span>
           </Link>
           <nav className="hidden md:flex items-center gap-1">
             {links.map(l => (
               <NavLink key={l.to} to={l.to} end className={({ isActive }) => cn(
-                'px-3 py-2 text-sm rounded-lg hover:bg-accent transition-colors',
-                isActive && 'text-page-accent font-semibold bg-accent/60'
+                'px-3.5 py-2 text-sm font-medium rounded-lg transition-colors',
+                isActive ? 'text-primary bg-primary/8' : 'text-muted-foreground hover:text-foreground hover:bg-accent/60'
               )}>{l.label}</NavLink>
             ))}
           </nav>
           <div className="hidden md:flex items-center gap-2">
-            <Button asChild variant="ghost"><Link to="/login">تسجيل الدخول</Link></Button>
-            <Button asChild><Link to="/register">ابدأ مجاناً</Link></Button>
+            <Button asChild variant="ghost" size="sm" className="font-medium"><Link to="/login">تسجيل الدخول</Link></Button>
+            <Button asChild size="sm" className="font-medium shadow-sm"><Link to="/register">ابدأ مجاناً</Link></Button>
           </div>
           <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setOpen(v => !v)}>
             {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
