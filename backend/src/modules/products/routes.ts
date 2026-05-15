@@ -10,12 +10,13 @@ const schema = z.object({
   quantity: z.coerce.number().int().default(0),
   alert_level: z.coerce.number().int().default(0),
   unit: z.string().default('قطعة'),
+  image_url: z.string().optional().nullable(),
   is_active: z.boolean().default(true),
 });
 
 export default crudRouter({
   table: 'products',
-  fields: ['sku','name','description','price','cost','quantity','alert_level','unit','is_active'],
+  fields: ['sku','name','description','price','cost','quantity','alert_level','unit','image_url','is_active'],
   schema,
   patchSchema: schema.partial(),
 });
