@@ -275,4 +275,93 @@ router.get('/stats', async (_req, res, next) => {
   } catch (e) { next(e); }
 });
 
+/* ---------------- Feature Access (per-plan toggle matrix) ---------------- */
+router.get('/feature-access', async (_req, res, next) => {
+  try {
+    const rs = await pool.query(`SELECT plan_id, feature_key, enabled FROM feature_access`);
+    res.json({ data: rs.rows });
+  } catch (e) { next(e); }
+});
+
+router.put('/feature-access', async (req, res, next) => {
+  try {
+    const body = z.object({
+      entries: z.array(z.object({
+        plan_id: z.string().uuid(),
+        feature_key: z.string().min(1).max(100),
+        enabled: z.boolean(),
+      })),
+    }).parse(req.body);
+    const c = await pool.connect();
+    try {
+      await c.query('BEGIN');
+      for (const e of body.entries) {
+        await c.query(
+          `INSERT INTO feature_access (plan_id, feature_key, enabled)
+           VALUES ($1,$2,$3)
+           ON CONFLICT (plan_id, feature_key) DO UPDATE SET enabled = EXCLUDED.enabled`,
+          [e.plan_id, e.feature_key, e.enabled],
+        );
+      }
+      await c.query('COMMIT');
+    } catch (err) { await c.query('ROLLBACK'); throw err; } finally { c.release(); }
+    await audit(pool, {
+      companyId: null, userId: req.user!.id,
+      action: 'feature_access.update', entity: 'feature_access', entityId: null,
+      meta: { count: body.entries.length },
+    });
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
+/* ---------------- System Notifications (broadcast) ---------------- */
+router.get('/system-notifications', async (_req, res, next) => {
+  try {
+    const rs = await pool.query(
+      `SELECT * FROM system_notifications ORDER BY created_at DESC LIMIT 100`,
+    );
+    res.json({ data: rs.rows });
+  } catch (e) { next(e); }
+});
+
+router.post('/system-notifications', async (req, res, next) => {
+  try {
+    const body = z.object({
+      title: z.string().min(1).max(200),
+      body: z.string().min(1),
+      audience: z.string().default('all'),  // 'all' or company uuid
+    }).parse(req.body);
+    const c = await pool.connect();
+    try {
+      await c.query('BEGIN');
+      const sn = await c.query(
+        `INSERT INTO system_notifications (title, body, audience) VALUES ($1,$2,$3) RETURNING *`,
+        [body.title, body.body, body.audience],
+      );
+      // Fan-out to per-company notifications
+      if (body.audience === 'all') {
+        await c.query(
+          `INSERT INTO notifications (company_id, title, body, kind)
+           SELECT id, $1, $2, 'info' FROM companies WHERE is_active = true`,
+          [body.title, body.body],
+        );
+      } else {
+        await c.query(
+          `INSERT INTO notifications (company_id, title, body, kind) VALUES ($1, $2, $3, 'info')`,
+          [body.audience, body.title, body.body],
+        );
+      }
+      await c.query('COMMIT');
+      await audit(pool, {
+        companyId: body.audience === 'all' ? null : body.audience,
+        userId: req.user!.id,
+        action: 'system_notification.send', entity: 'system_notification',
+        entityId: sn.rows[0].id, meta: { audience: body.audience },
+      });
+      res.status(201).json({ data: sn.rows[0] });
+    } catch (err) { await c.query('ROLLBACK'); throw err; } finally { c.release(); }
+  } catch (e) { next(e); }
+});
+
 export default router;
+
