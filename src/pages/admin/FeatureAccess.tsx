@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Card } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
@@ -40,16 +40,15 @@ const FeatureAccess = () => {
   });
 
   const plans: PlanRow[] = apiOn ? (plansQ.data ?? []) : mockPlans.map(p => ({ id: p.id, name: p.name }));
-
   const [matrix, setMatrix] = useState<Record<string, Record<string, boolean>>>({});
+  const [saving, setSaving] = useState(false);
 
-  // Hydrate matrix when data arrives (or seed default for mock mode)
   useEffect(() => {
     const m: Record<string, Record<string, boolean>> = {};
     plans.forEach((p, idx) => {
       m[p.id] = {};
       FEATURES.forEach((f, i) => {
-        m[p.id][f.key] = i < (idx === 0 ? 4 : idx === 1 ? 7 : 10); // mock defaults
+        m[p.id][f.key] = i < (idx === 0 ? 4 : idx === 1 ? 7 : 10);
       });
     });
     if (apiOn && accessQ.data) {
@@ -59,24 +58,12 @@ const FeatureAccess = () => {
       });
     }
     setMatrix(m);
-  }, [apiOn, accessQ.data, plansQ.data]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const saveMut = useMutation({
-    mutationFn: async () => {
-      const entries = plans.flatMap((p) =>
-        FEATURES.map((f) => ({
-          plan_id: p.id, feature_key: f.key,
-          enabled: !!matrix[p.id]?.[f.key],
-        })),
-      );
-      return api.patch
-        ? api.patch
-        : null, await fetch; // unused branch placeholder
-    },
-  });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [apiOn, accessQ.data, plansQ.data]);
 
   const onSave = async () => {
     if (!apiOn) return toast.success('تم الحفظ (تجريبي)');
+    setSaving(true);
     try {
       const entries = plans.flatMap((p) =>
         FEATURES.map((f) => ({
@@ -84,30 +71,20 @@ const FeatureAccess = () => {
           enabled: !!matrix[p.id]?.[f.key],
         })),
       );
-      // PUT
-      await api.post('/api/platform/feature-access', { entries }).catch(async () => {
-        // fallback to fetch PUT since api helper has no put()
-        const { API_URL, getAccessToken } = await import('@/lib/api');
-        const r = await fetch(`${API_URL}/api/platform/feature-access`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getAccessToken() ?? ''}` },
-          body: JSON.stringify({ entries }),
-        });
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      });
+      await api.put('/api/platform/feature-access', { entries });
       qc.invalidateQueries({ queryKey: ['feature-access'] });
       toast.success('تم حفظ الصلاحيات');
     } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : (e instanceof Error ? e.message : 'تعذّر الحفظ'));
+      toast.error(e instanceof ApiError ? e.message : 'تعذّر الحفظ');
+    } finally {
+      setSaving(false);
     }
   };
-
-  void saveMut;
 
   return (
     <div>
       <PageHeader title="الصلاحيات حسب الباقة" description="فعّل أو عطّل الميزات لكل باقة"
-        actions={<Button onClick={onSave}>حفظ التغييرات</Button>} />
+        actions={<Button onClick={onSave} disabled={saving}>{saving ? 'جارٍ الحفظ…' : 'حفظ التغييرات'}</Button>} />
       <Card className="p-0 overflow-x-auto border-border/60">
         <table className="w-full text-sm">
           <thead>
