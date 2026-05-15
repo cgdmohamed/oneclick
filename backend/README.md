@@ -98,10 +98,41 @@ npm run db:seed       # إعادة زرع البيانات التجريبية
 npm run db:reset      # حذف وإعادة إنشاء كل الجداول (تدميري!)
 npm run dev           # تشغيل بوضع التطوير (auto-reload)
 npm run build && npm start
+npm test              # تشغيل اختبارات vitest
 ```
+
+## التشغيل في الإنتاج (Docker)
+
+```bash
+docker build -t hesabat-api ./backend
+docker run -d --name hesabat-api \
+  -e DATABASE_URL="postgres://user:pass@db-host:5432/hesabat" \
+  -e JWT_SECRET="$(openssl rand -hex 32)" \
+  -e JWT_REFRESH_SECRET="$(openssl rand -hex 32)" \
+  -e CORS_ORIGIN="https://app.hesabat.example.com" \
+  -e APP_URL="https://app.hesabat.example.com" \
+  -e SMTP_HOST=smtp.example.com -e SMTP_USER=... -e SMTP_PASS=... \
+  -e NODE_ENV=production \
+  -p 4000:4000 \
+  hesabat-api
+```
+
+قبل أول تشغيل في الإنتاج: `DATABASE_URL=... npm run db:migrate`.
+
+ملاحظات:
+
+- الـ Dockerfile متعدد المراحل ويعمل بمستخدم غير-جذر مع `HEALTHCHECK` على `/health`.
+- ضع reverse proxy (Nginx/Traefik) أمام الـ API لتوفير TLS.
+- قَلِّب `JWT_SECRET` و `JWT_REFRESH_SECRET` دورياً (≥ 32 حرفاً).
+- مواصفة الـ API الكاملة في `openapi.yaml` (تستوردها في Swagger UI / Postman).
+
+## الاختبارات
+
+اختبارات smoke جاهزة في `src/__tests__/`. للاختبارات التكاملية شغّل
+`docker compose up -d postgres` ثم `npm test`.
 
 ## نقاط التوسعة
 
-- **البريد**: `src/modules/auth/email.ts` يحتوي stub — استبدله بـ Resend/Sendgrid/SMTP.
-- **المدفوعات**: `src/modules/subscriptions/billing.ts` stub لـ Stripe/Paddle.
-- **التخزين**: ارفع الشعارات/الأختام إلى S3/MinIO (حالياً Base64 في DB).
+- **البريد**: `src/utils/email.ts` يدعم SMTP أو fallback إلى stdout.
+- **المدفوعات**: يدوية بالكامل عبر `/api/platform/subscription-payments`.
+- **التخزين**: الملفات تُحفظ تحت `/uploads` وتُقدَّم عبر `/uploads/*`.
