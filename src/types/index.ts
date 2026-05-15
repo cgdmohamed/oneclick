@@ -10,6 +10,7 @@ export interface User {
   role: Role;
   companyId?: UUID;
   avatar?: string;
+  disabled?: boolean;
 }
 
 export interface Company {
