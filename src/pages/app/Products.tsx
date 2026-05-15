@@ -68,6 +68,13 @@ const Products = () => {
   };
 
   const columns: Column<Product>[] = [
+    { key: 'image', header: '', cell: r => (
+      <div className="h-10 w-10 rounded-lg border border-border/60 bg-muted/30 overflow-hidden flex items-center justify-center shrink-0">
+        {r.imageUrl
+          ? <img src={resolveAssetUrl(r.imageUrl)} alt={r.name} className="h-full w-full object-cover" />
+          : <Package className="h-4 w-4 text-muted-foreground/60" />}
+      </div>
+    ), className: 'w-14' },
     { key: 'name', header: 'المنتج', cell: r => (
       <div className="flex items-center gap-2">
         <span className="font-medium">{r.name}</span>
