@@ -132,12 +132,18 @@ const Products = () => {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>منتج</DialogTitle></DialogHeader>
-          <div className="grid sm:grid-cols-2 gap-4">
-            <div><Label>اسم المنتج</Label><Input className="mt-1.5" value={editing.name} onChange={e => setEditing(s => ({ ...s, name: e.target.value }))} /></div>
-            <div><Label>الكود</Label><Input className="mt-1.5" value={editing.code} onChange={e => setEditing(s => ({ ...s, code: e.target.value }))} /></div>
-            <div><Label>السعر</Label><Input type="number" className="mt-1.5" value={editing.price} onChange={e => setEditing(s => ({ ...s, price: Number(e.target.value) }))} /></div>
-            <div><Label>الكمية</Label><Input type="number" className="mt-1.5" value={editing.quantity} onChange={e => setEditing(s => ({ ...s, quantity: Number(e.target.value) }))} /></div>
-            <div><Label>حد التنبيه</Label><Input type="number" className="mt-1.5" value={editing.alertLevel} onChange={e => setEditing(s => ({ ...s, alertLevel: Number(e.target.value) }))} /></div>
+          <div className="space-y-4">
+            <ProductImageField
+              value={editing.imageUrl}
+              onChange={(url) => setEditing(s => ({ ...s, imageUrl: url }))}
+            />
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div><Label>اسم المنتج</Label><Input className="mt-1.5" value={editing.name} onChange={e => setEditing(s => ({ ...s, name: e.target.value }))} /></div>
+              <div><Label>الكود</Label><Input className="mt-1.5" value={editing.code} onChange={e => setEditing(s => ({ ...s, code: e.target.value }))} /></div>
+              <div><Label>السعر</Label><Input type="number" className="mt-1.5" value={editing.price} onChange={e => setEditing(s => ({ ...s, price: Number(e.target.value) }))} /></div>
+              <div><Label>الكمية</Label><Input type="number" className="mt-1.5" value={editing.quantity} onChange={e => setEditing(s => ({ ...s, quantity: Number(e.target.value) }))} /></div>
+              <div><Label>حد التنبيه</Label><Input type="number" className="mt-1.5" value={editing.alertLevel} onChange={e => setEditing(s => ({ ...s, alertLevel: Number(e.target.value) }))} /></div>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>إلغاء</Button>
@@ -145,6 +151,60 @@ const Products = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+};
+
+const ProductImageField = ({ value, onChange }: { value?: string; onChange: (url: string | undefined) => void }) => {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const preview = resolveAssetUrl(value);
+
+  const handleFile = async (file: File | undefined) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) return toast.error('يجب اختيار صورة');
+    if (file.size > 2 * 1024 * 1024) return toast.error('حجم الصورة يجب أن لا يتجاوز 2 ميجابايت');
+    if (isApiConfigured()) {
+      setUploading(true);
+      try {
+        const form = new FormData();
+        form.append('file', file);
+        form.append('kind', 'attachment');
+        const res = await api.upload<{ data: { url: string } }>('/api/uploads', form);
+        onChange(res.data.url);
+      } catch {
+        toast.error('تعذّر رفع الصورة');
+      } finally { setUploading(false); }
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => onChange(reader.result as string);
+    reader.readAsDataURL(file);
+  };
+
+  return (
+    <div>
+      <Label>صورة المنتج</Label>
+      <div className="mt-1.5 flex items-start gap-3">
+        <div className="h-20 w-20 rounded-lg border border-dashed border-border/70 bg-muted/30 flex items-center justify-center overflow-hidden shrink-0">
+          {uploading ? <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            : preview ? <img src={preview} alt="" className="h-full w-full object-cover" />
+            : <ImageIcon className="h-6 w-6 text-muted-foreground/60" />}
+        </div>
+        <div className="flex-1 space-y-2">
+          <p className="text-xs text-muted-foreground">PNG / JPG حتى 2 ميجا. تظهر في قائمة المنتجات والفواتير.</p>
+          <div className="flex gap-2">
+            <Button type="button" variant="outline" size="sm" disabled={uploading} onClick={() => inputRef.current?.click()}>
+              {uploading ? 'جارٍ الرفع…' : value ? 'تغيير الصورة' : 'رفع صورة'}
+            </Button>
+            {value && !uploading && (
+              <Button type="button" variant="ghost" size="sm" onClick={() => onChange(undefined)}>إزالة</Button>
+            )}
+          </div>
+          <input ref={inputRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden"
+            onChange={(e) => { handleFile(e.target.files?.[0]); e.target.value = ''; }} />
+        </div>
+      </div>
     </div>
   );
 };
