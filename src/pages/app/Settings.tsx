@@ -12,7 +12,7 @@ import { cn } from '@/lib/utils';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import { toast } from 'sonner';
-import { api, isApiConfigured } from '@/lib/api';
+import { api, isApiConfigured, resolveAssetUrl } from '@/lib/api';
 
 interface CompanyProfile {
   name: string;
