@@ -74,6 +74,7 @@ const App = () => (
             <Route path="/app" element={<AppLayout kind="company" />}>
               <Route index element={<Overview />} />
               <Route path="clients" element={<Clients />} />
+              <Route path="clients/:id" element={<ClientDetail />} />
               <Route path="invoices" element={<Invoices />} />
               <Route path="invoices/new" element={<NewInvoice />} />
               <Route path="invoices/:id" element={<InvoiceDetails />} />
