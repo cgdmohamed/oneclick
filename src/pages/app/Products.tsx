@@ -25,6 +25,7 @@ interface ProductRow {
   cost: string | number;
   quantity: number;
   alert_level: number;
+  image_url: string | null;
   is_active: boolean;
 }
 
@@ -43,6 +44,7 @@ const Products = () => {
       price: Number(r.price),
       quantity: r.quantity,
       alertLevel: r.alert_level,
+      imageUrl: r.image_url ?? undefined,
       status: r.is_active ? 'active' : 'inactive',
     }),
     toRow: (p) => ({
@@ -51,6 +53,7 @@ const Products = () => {
       price: p.price,
       quantity: p.quantity,
       alert_level: p.alertLevel,
+      image_url: p.imageUrl ?? null,
       is_active: p.status !== 'inactive',
     }),
   });
