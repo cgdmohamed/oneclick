@@ -398,12 +398,14 @@ const Settings = () => {
               <ImageUploadField
                 label="شعار الشركة"
                 hint="يظهر أعلى الفاتورة. يفضل PNG شفاف بأبعاد 200×200."
+                kind="logo"
                 value={invoiceCfg.logoUrl}
                 onChange={(url) => setI({ logoUrl: url })}
               />
               <ImageUploadField
                 label="الختم أو التوقيع"
                 hint="يظهر في أسفل الفاتورة. يفضل PNG بخلفية شفافة."
+                kind="stamp"
                 value={invoiceCfg.stampUrl}
                 onChange={(url) => setI({ stampUrl: url })}
               />
