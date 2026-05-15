@@ -452,7 +452,7 @@ const InvoicePreview = ({ profile, cfg, address, client }: { profile: CompanyPro
         <div className="flex items-center gap-3">
           {cfg.showLogo && (
             cfg.logoUrl ? (
-              <img src={cfg.logoUrl} alt="شعار" className="h-12 w-12 rounded-xl object-contain bg-white/90 p-1" />
+              <img src={resolveAssetUrl(cfg.logoUrl)} alt="شعار" className="h-12 w-12 rounded-xl object-contain bg-white/90 p-1" />
             ) : (
               <div
                 className="h-12 w-12 rounded-xl flex items-center justify-center"
