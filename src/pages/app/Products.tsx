@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { PageHeader } from '@/components/common/PageHeader';
 import { DataTable, Column } from '@/components/common/DataTable';
 import { Button } from '@/components/ui/button';
-import { Plus, Pencil, AlertTriangle } from 'lucide-react';
+import { Plus, Pencil, AlertTriangle, ImageIcon, Loader2, Package } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -14,6 +14,7 @@ import { toast } from 'sonner';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { Card } from '@/components/ui/card';
 import { useResource } from '@/hooks/useResource';
+import { api, isApiConfigured, resolveAssetUrl } from '@/lib/api';
 
 interface ProductRow {
   id: string;
