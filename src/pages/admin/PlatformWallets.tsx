@@ -185,6 +185,39 @@ const PlatformWallets = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Sheet open={!!ledgerWallet} onOpenChange={(o) => !o && setLedgerWallet(null)}>
+        <SheetContent side="left" className="w-full sm:max-w-lg overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>سجل التحصيلات — {ledgerWallet?.name}</SheetTitle>
+          </SheetHeader>
+          <div className="mt-6 space-y-2">
+            {!isApiConfigured() && (
+              <div className="text-sm text-muted-foreground p-4 rounded-lg bg-muted/40">
+                السجل التفصيلي يظهر عند الاتصال بـ API.
+              </div>
+            )}
+            {isApiConfigured() && ledgerQuery.isLoading && (
+              <div className="text-sm text-muted-foreground">جارٍ التحميل…</div>
+            )}
+            {isApiConfigured() && (ledgerQuery.data ?? []).length === 0 && !ledgerQuery.isLoading && (
+              <div className="text-sm text-muted-foreground p-4 rounded-lg bg-muted/40">
+                لا توجد دفعات مسجّلة على هذه المحفظة بعد.
+              </div>
+            )}
+            {(ledgerQuery.data ?? []).map((row) => (
+              <div key={row.id} className="flex items-start justify-between gap-3 p-3 rounded-lg border border-border/60">
+                <div className="min-w-0">
+                  <div className="font-medium truncate">{row.company_name}</div>
+                  <div className="text-xs text-muted-foreground">{row.plan_name} • {formatDateShort(row.paid_at)}</div>
+                  {row.reference && <div className="text-xs text-muted-foreground mt-1">مرجع: {row.reference}</div>}
+                </div>
+                <div className="font-semibold whitespace-nowrap">{formatCurrency(Number(row.amount))}</div>
+              </div>
+            ))}
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 };
