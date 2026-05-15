@@ -203,7 +203,7 @@ const InvoiceDetails = () => {
               <div className="font-semibold text-lg">{clientName}</div>
               {clientPhone && <div className="text-sm text-muted-foreground">{clientPhone}</div>}
             </div>
-            <div className="text-left">
+            <div className="text-end">
               <StatusBadge status={status} label={invoiceStatusLabel(status)} />
               <div className="text-xs text-muted-foreground mt-2">تاريخ الإصدار: {formatDate(invoice.issueDate)}</div>
               <div className="text-xs text-muted-foreground">تاريخ الاستحقاق: {formatDate(invoice.dueDate)}</div>
@@ -212,11 +212,11 @@ const InvoiceDetails = () => {
 
           <table className="w-full text-sm mt-4">
             <thead>
-              <tr className="text-right text-xs text-muted-foreground border-b border-border">
+              <tr className="text-start text-xs text-muted-foreground border-b border-border">
                 <th className="py-2 font-semibold">الوصف</th>
                 <th className="py-2 font-semibold w-20">الكمية</th>
                 <th className="py-2 font-semibold w-28">سعر الوحدة</th>
-                <th className="py-2 font-semibold w-28 text-left">الإجمالي</th>
+                <th className="py-2 font-semibold w-28 text-end">الإجمالي</th>
               </tr>
             </thead>
             <tbody>
@@ -225,7 +225,7 @@ const InvoiceDetails = () => {
                   <td className="py-3">{it.name}</td>
                   <td className="py-3">{it.quantity}</td>
                   <td className="py-3">{formatCurrency(it.unitPrice)}</td>
-                  <td className="py-3 text-left">{formatCurrency(it.quantity * it.unitPrice)}</td>
+                  <td className="py-3 text-end">{formatCurrency(it.quantity * it.unitPrice)}</td>
                 </tr>
               ))}
             </tbody>

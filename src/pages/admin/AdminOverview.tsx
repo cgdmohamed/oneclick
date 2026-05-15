@@ -66,7 +66,7 @@ const AdminOverview = () => {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-right text-xs text-muted-foreground border-b border-border">
+              <tr className="text-start text-xs text-muted-foreground border-b border-border">
                 <th className="py-2 font-semibold">الشركة</th>
                 <th className="py-2 font-semibold">المسؤول</th>
                 <th className="py-2 font-semibold">البريد</th>

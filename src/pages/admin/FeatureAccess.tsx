@@ -88,7 +88,7 @@ const FeatureAccess = () => {
       <Card className="p-0 overflow-x-auto border-border/60">
         <table className="w-full text-sm">
           <thead>
-            <tr className="bg-muted/40 text-right text-xs">
+            <tr className="bg-muted/40 text-start text-xs">
               <th className="p-3 font-semibold">الميزة</th>
               {plans.map(p => <th key={p.id} className="p-3 font-semibold text-center">{p.name}</th>)}
             </tr>

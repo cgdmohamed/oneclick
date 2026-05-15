@@ -64,7 +64,7 @@ const Overview = () => {
                   <div className="font-medium truncate">{p.name}</div>
                   <div className="text-xs text-muted-foreground">{p.code}</div>
                 </div>
-                <div className="text-left">
+                <div className="text-end">
                   <div className="font-bold text-destructive">{p.quantity}</div>
                   <div className="text-xs text-muted-foreground">من {p.alertLevel}</div>
                 </div>
@@ -82,7 +82,7 @@ const Overview = () => {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-right text-xs text-muted-foreground border-b border-border">
+              <tr className="text-start text-xs text-muted-foreground border-b border-border">
                 <th className="py-2 font-semibold">رقم الفاتورة</th>
                 <th className="py-2 font-semibold">العميل</th>
                 <th className="py-2 font-semibold">التاريخ</th>

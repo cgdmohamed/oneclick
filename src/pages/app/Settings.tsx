@@ -470,7 +470,7 @@ const InvoicePreview = ({ profile, cfg, address, client }: { profile: CompanyPro
             <div className="text-xs opacity-80">{profile.email} · {profile.phone}</div>
           </div>
         </div>
-        <div className="text-left">
+        <div className="text-end">
           <div className="font-bold text-xl">فاتورة ضريبية</div>
           <div className="text-sm opacity-80">رقم: {buildInvoiceNumber(cfg)}</div>
         </div>
@@ -484,7 +484,7 @@ const InvoicePreview = ({ profile, cfg, address, client }: { profile: CompanyPro
           {client.email && <div className="text-slate-600 text-xs">{client.email}</div>}
           {client.taxNumber && <div className="text-slate-600 text-xs">الرقم الضريبي: {client.taxNumber}</div>}
         </div>
-        <div className="text-left">
+        <div className="text-end">
           <div className="text-slate-500 text-xs">تاريخ الإصدار: <span className="text-slate-900">06/05/2026</span></div>
           <div className="text-slate-500 text-xs">تاريخ الاستحقاق: <span className="text-slate-900">05/06/2026</span></div>
           {cfg.showTaxNumber && profile.taxNumber && (
@@ -496,11 +496,11 @@ const InvoicePreview = ({ profile, cfg, address, client }: { profile: CompanyPro
       <div className="p-6">
         <table className="w-full text-sm">
           <thead>
-            <tr style={{ color: cfg.accentColor }} className="text-right border-b-2" >
+            <tr style={{ color: cfg.accentColor }} className="text-start border-b-2" >
               <th className="py-2 font-semibold">الوصف</th>
               <th className="py-2 font-semibold w-16 text-center">الكمية</th>
-              <th className="py-2 font-semibold w-28 text-left">السعر</th>
-              <th className="py-2 font-semibold w-28 text-left">الإجمالي</th>
+              <th className="py-2 font-semibold w-28 text-end">السعر</th>
+              <th className="py-2 font-semibold w-28 text-end">الإجمالي</th>
             </tr>
           </thead>
           <tbody>
@@ -508,8 +508,8 @@ const InvoicePreview = ({ profile, cfg, address, client }: { profile: CompanyPro
               <tr key={i} className="border-b border-slate-100">
                 <td className="py-2.5">{it.name}</td>
                 <td className="py-2.5 text-center">{it.qty}</td>
-                <td className="py-2.5 text-left">{fmt(it.price)}</td>
-                <td className="py-2.5 text-left font-medium">{fmt(it.qty * it.price)}</td>
+                <td className="py-2.5 text-end">{fmt(it.price)}</td>
+                <td className="py-2.5 text-end font-medium">{fmt(it.qty * it.price)}</td>
               </tr>
             ))}
           </tbody>

@@ -64,7 +64,7 @@ const Payments = () => {
     { key: 'inv', header: 'الفاتورة', cell: r => r.invoiceNumber },
     { key: 'method', header: 'الطريقة', cell: r => paymentMethodLabel(r.method) },
     { key: 'account', header: 'الحساب المالي', cell: r => r.accountName },
-    { key: 'amount', header: 'المبلغ', cell: r => <span className="font-semibold">{formatCurrency(r.amount)}</span>, className: 'text-left' },
+    { key: 'amount', header: 'المبلغ', cell: r => <span className="font-semibold">{formatCurrency(r.amount)}</span>, className: 'text-end' },
   ];
 
   return (
