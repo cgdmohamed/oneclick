@@ -1,6 +1,6 @@
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarTrigger, useSidebar, SidebarHeader, SidebarFooter } from '@/components/ui/sidebar';
-import { LayoutDashboard, Users, FileText, CreditCard, Wallet, Package, BarChart3, Bell, ShieldCheck, Settings, Calculator, LogOut, Building2, Layers, Receipt, ToggleRight, Megaphone, Cog, ChevronLeft } from 'lucide-react';
+import { LayoutDashboard, Users, FileText, CreditCard, Wallet, Package, BarChart3, Bell, ShieldCheck, Settings, Calculator, LogOut, Building2, Layers, Receipt, ToggleRight, Megaphone, Cog, ChevronLeft, Crown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
@@ -20,6 +20,7 @@ const companyNav = [
   { to: '/app/reports', label: 'التقارير', icon: BarChart3 },
   { to: '/app/notifications', label: 'التنبيهات', icon: Bell },
   { to: '/app/users', label: 'المستخدمون والصلاحيات', icon: ShieldCheck },
+  { to: '/app/subscription', label: 'الاشتراك والفوترة', icon: Crown },
   { to: '/app/settings', label: 'الإعدادات', icon: Settings },
 ];
 
@@ -55,6 +56,7 @@ const pageKey = (kind: 'company' | 'admin', pathname: string): string => {
   if (pathname.startsWith('/app/reports')) return 'reports';
   if (pathname.startsWith('/app/notifications')) return 'notifications';
   if (pathname.startsWith('/app/users')) return 'users';
+  if (pathname.startsWith('/app/subscription')) return 'subscription';
   if (pathname.startsWith('/app/settings')) return 'settings';
   return 'overview';
 };
