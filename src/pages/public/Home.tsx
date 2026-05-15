@@ -15,33 +15,37 @@ const features = [
 const Home = () => {
   return (
     <div>
-      {/* Hero */}
-      <section className="relative overflow-hidden">
-        <div className="absolute inset-0 gradient-hero opacity-[0.97]" />
-        <div className="absolute inset-0 bg-grid opacity-10" />
-        <div className="container relative py-20 md:py-28 text-primary-foreground">
-          <div className="max-w-3xl">
-            <span className="inline-flex items-center gap-2 rounded-full bg-white/10 backdrop-blur px-3 py-1 text-xs font-medium border border-white/20">
-              <Sparkles className="h-3.5 w-3.5" /> منصة محاسبة سحابية للشركات العربية
+      {/* Hero — Corporate Minimalist */}
+      <section className="relative overflow-hidden bg-gradient-to-b from-secondary/40 to-background">
+        <div className="absolute inset-0 bg-grid opacity-[0.35] [mask-image:radial-gradient(ellipse_at_center,black_30%,transparent_70%)]" />
+        <div className="container relative py-24 md:py-32">
+          <div className="max-w-3xl mx-auto flex flex-col items-center text-center">
+            <span className="inline-flex items-center gap-2 rounded-full bg-primary/5 border border-primary/15 px-3 py-1 text-xs font-semibold text-primary">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary/60 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
+              </span>
+              منصة محاسبة سحابية للشركات العربية
             </span>
-            <h1 className="mt-5 text-4xl md:text-6xl font-extrabold leading-[1.15]">
-              إدارة محاسبة شركتك<br />بسهولة وذكاء وأمان
+            <h1 className="mt-6 text-4xl md:text-6xl font-bold leading-[1.15] tracking-tight text-foreground">
+              إدارة محاسبة شركتك<br />
+              <span className="text-primary">بسهولة وذكاء وأمان</span>
             </h1>
-            <p className="mt-5 text-lg text-white/85 max-w-2xl">
+            <p className="mt-6 text-lg text-muted-foreground leading-relaxed max-w-2xl">
               حسابات منصة سحابية متكاملة لإصدار الفواتير، تحصيل المدفوعات، إدارة المخزون، ومتابعة أعمالك من مكان واحد، بواجهة عربية أصيلة وتجربة استخدام سلسة.
             </p>
-            <div className="mt-8 flex flex-wrap gap-3">
-              <Button asChild size="lg" className="bg-white text-primary hover:bg-white/90">
+            <div className="mt-10 flex flex-col sm:flex-row items-center gap-3 w-full justify-center">
+              <Button asChild size="lg" className="w-full sm:w-auto h-12 px-8 shadow-elev">
                 <Link to="/register">ابدأ الآن<ArrowLeft className="h-4 w-4 mr-2" /></Link>
               </Button>
-              <Button asChild size="lg" variant="outline" className="bg-transparent text-white border-white/30 hover:bg-white/10 hover:text-white">
+              <Button asChild size="lg" variant="outline" className="w-full sm:w-auto h-12 px-8 bg-card">
                 <Link to="/features">استعرض المميزات</Link>
               </Button>
             </div>
-            <div className="mt-10 flex flex-wrap gap-6 text-sm text-white/80">
-              <Stat label="شركة تثق بنا" value="+2,400" />
-              <Stat label="فاتورة شهرياً" value="+180K" />
-              <Stat label="جاهزية الخدمة" value="99.9%" />
+            <div className="mt-16 grid grid-cols-3 gap-8 w-full max-w-2xl border-t border-border pt-10">
+              <div className="flex flex-col gap-1"><span className="text-2xl md:text-3xl font-bold text-foreground">99.9%</span><span className="text-xs md:text-sm text-muted-foreground font-medium">جاهزية الخدمة</span></div>
+              <div className="flex flex-col gap-1 border-x border-border"><span className="text-2xl md:text-3xl font-bold text-foreground">+180K</span><span className="text-xs md:text-sm text-muted-foreground font-medium">فاتورة شهرياً</span></div>
+              <div className="flex flex-col gap-1"><span className="text-2xl md:text-3xl font-bold text-foreground">+2,400</span><span className="text-xs md:text-sm text-muted-foreground font-medium">شركة تثق بنا</span></div>
             </div>
           </div>
         </div>
