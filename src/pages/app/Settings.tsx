@@ -536,7 +536,7 @@ const InvoicePreview = ({ profile, cfg, address, client }: { profile: CompanyPro
         {cfg.stampUrl && (
           <div className="mt-6 flex justify-end">
             <div className="text-center">
-              <img src={cfg.stampUrl} alt="ختم/توقيع" className="h-24 w-auto object-contain opacity-90" />
+              <img src={resolveAssetUrl(cfg.stampUrl)} alt="ختم/توقيع" className="h-24 w-auto object-contain opacity-90" />
               <div className="text-[10px] text-slate-500 mt-1">الختم والتوقيع</div>
             </div>
           </div>
