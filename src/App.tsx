@@ -16,6 +16,8 @@ import Contact from "./pages/public/Contact";
 import Login from "./pages/public/Login";
 import Register from "./pages/public/Register";
 import PublicInvoice from "./pages/public/PublicInvoice";
+import ForgotPassword from "./pages/public/ForgotPassword";
+import ResetPassword from "./pages/public/ResetPassword";
 
 import Overview from "./pages/app/Overview";
 import Clients from "./pages/app/Clients";
@@ -61,6 +63,8 @@ const App = () => (
               <Route path="/contact" element={<Contact />} />
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
+              <Route path="/forgot-password" element={<ForgotPassword />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
             </Route>
 
             <Route path="/invoice/:publicId" element={<PublicInvoice />} />

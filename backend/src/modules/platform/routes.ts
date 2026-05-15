@@ -214,4 +214,65 @@ router.delete('/subscription-payments/:id', async (req, res, next) => {
   }
 });
 
+/* ---------------- Companies (super-admin) ---------------- */
+router.get('/companies', async (_req, res, next) => {
+  try {
+    const rs = await pool.query(`
+      SELECT c.id, c.name, c.email, c.phone, c.is_active, c.created_at,
+             (SELECT u.name FROM users u
+              JOIN user_companies uc ON uc.user_id = u.id
+              WHERE uc.company_id = c.id AND uc.is_default = true LIMIT 1) AS owner_name,
+             (SELECT p.name FROM subscriptions s
+              JOIN plans p ON p.id = s.plan_id
+              WHERE s.company_id = c.id ORDER BY s.created_at DESC LIMIT 1) AS plan_name,
+             (SELECT s.status FROM subscriptions s
+              WHERE s.company_id = c.id ORDER BY s.created_at DESC LIMIT 1) AS sub_status
+      FROM companies c ORDER BY c.created_at DESC
+    `);
+    res.json({ data: rs.rows });
+  } catch (e) { next(e); }
+});
+
+router.patch('/companies/:id', async (req, res, next) => {
+  try {
+    const body = z.object({ is_active: z.boolean() }).parse(req.body);
+    const rs = await pool.query(
+      `UPDATE companies SET is_active = $1, updated_at = now() WHERE id = $2 RETURNING *`,
+      [body.is_active, req.params.id],
+    );
+    if (!rs.rowCount) throw notFound();
+    await audit(pool, {
+      companyId: req.params.id, userId: req.user!.id,
+      action: body.is_active ? 'company.activate' : 'company.suspend',
+      entity: 'company', entityId: req.params.id,
+    });
+    res.json({ data: rs.rows[0] });
+  } catch (e) { next(e); }
+});
+
+/* ---------------- Stats (super-admin overview) ---------------- */
+router.get('/stats', async (_req, res, next) => {
+  try {
+    const [companies, subs, payments] = await Promise.all([
+      pool.query(`SELECT COUNT(*)::int AS total,
+                         SUM(CASE WHEN is_active THEN 1 ELSE 0 END)::int AS active,
+                         SUM(CASE WHEN NOT is_active THEN 1 ELSE 0 END)::int AS suspended
+                  FROM companies`),
+      pool.query(`SELECT
+                    SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END)::int AS active,
+                    SUM(CASE WHEN status = 'expired' THEN 1 ELSE 0 END)::int AS expired,
+                    SUM(CASE WHEN status = 'trialing' THEN 1 ELSE 0 END)::int AS trialing
+                  FROM subscriptions`),
+      pool.query(`SELECT COALESCE(SUM(amount),0)::float AS total FROM subscription_payments`),
+    ]);
+    res.json({
+      data: {
+        companies: companies.rows[0],
+        subscriptions: subs.rows[0],
+        revenue_total: payments.rows[0].total,
+      },
+    });
+  } catch (e) { next(e); }
+});
+
 export default router;

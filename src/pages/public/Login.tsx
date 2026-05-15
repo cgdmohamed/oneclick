@@ -54,7 +54,7 @@ const Login = () => {
             <div>
               <div className="flex items-center justify-between">
                 <Label>كلمة المرور</Label>
-                <Link to="#" className="text-xs text-primary">نسيت كلمة المرور؟</Link>
+                <Link to="/forgot-password" className="text-xs text-primary">نسيت كلمة المرور؟</Link>
               </div>
               <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="mt-1.5" required />
             </div>
