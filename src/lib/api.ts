@@ -85,6 +85,30 @@ export const api = {
   put:    <T>(path: string, body?: unknown) => request<T>('PUT', path, body),
   patch:  <T>(path: string, body?: unknown) => request<T>('PATCH', path, body),
   delete: <T>(path: string) => request<T>('DELETE', path),
+  upload: async <T>(path: string, form: FormData): Promise<T> => {
+    if (!API_URL) throw new ApiError(0, 'API_URL not configured');
+    const headers: Record<string, string> = {};
+    const token = getAccessToken();
+    if (token) headers.Authorization = `Bearer ${token}`;
+    const company = getActiveCompanyId();
+    if (company) headers['x-company-id'] = company;
+    const res = await fetch(`${API_URL}${path}`, { method: 'POST', headers, body: form, credentials: 'include' });
+    const isJson = res.headers.get('content-type')?.includes('application/json');
+    const payload = isJson ? await res.json() : await res.text();
+    if (!res.ok) {
+      const msg = (payload as { message?: string })?.message ?? `HTTP ${res.status}`;
+      throw new ApiError(res.status, msg, payload);
+    }
+    return payload as T;
+  },
+};
+
+/** Prefix relative backend URLs (e.g. /uploads/abc.png) with the API origin. */
+export const resolveAssetUrl = (url?: string | null): string | undefined => {
+  if (!url) return undefined;
+  if (/^(https?:|data:|blob:)/i.test(url)) return url;
+  if (!API_URL) return url;
+  return `${API_URL}${url.startsWith('/') ? '' : '/'}${url}`;
 };
 
 /* ---------- Auth helpers ---------- */
