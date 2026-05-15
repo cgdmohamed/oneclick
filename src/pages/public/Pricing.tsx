@@ -1,12 +1,49 @@
 import { useState } from 'react';
-import { plans } from '@/data/mock';
+import { useQuery } from '@tanstack/react-query';
+import { plans as mockPlans } from '@/data/mock';
 import { PlanCard } from '@/components/common/PlanCard';
 import { Switch } from '@/components/ui/switch';
 import { useNavigate } from 'react-router-dom';
+import { api, isApiConfigured } from '@/lib/api';
+import type { Plan } from '@/types';
+
+interface PlanRow {
+  id: string; code: string; name: string;
+  price_monthly: string | number; price_yearly: string | number;
+  max_users: number; max_invoices_monthly: number;
+  features: Record<string, unknown>;
+}
+
+const fromRow = (r: PlanRow): Plan => ({
+  id: r.id,
+  name: r.name,
+  monthlyPrice: Number(r.price_monthly),
+  yearlyPrice: Number(r.price_yearly),
+  limits: {
+    users: r.max_users,
+    invoices: r.max_invoices_monthly,
+    products: Number((r.features as { products?: number })?.products ?? 0),
+    reports: Number((r.features as { reports?: number })?.reports ?? 0),
+    notifications: Number((r.features as { notifications?: number })?.notifications ?? 0),
+  },
+  features: Array.isArray((r.features as { items?: string[] })?.items)
+    ? ((r.features as { items: string[] }).items)
+    : [],
+  popular: Boolean((r.features as { popular?: boolean })?.popular),
+});
 
 const Pricing = () => {
   const [yearly, setYearly] = useState(false);
   const navigate = useNavigate();
+  const apiOn = isApiConfigured();
+
+  const q = useQuery({
+    enabled: apiOn,
+    queryKey: ['public-plans'],
+    queryFn: async () => (await api.get<{ data: PlanRow[] }>('/api/plans')).data.map(fromRow),
+  });
+
+  const plans = apiOn ? (q.data ?? []) : mockPlans;
 
   return (
     <div className="container py-16">

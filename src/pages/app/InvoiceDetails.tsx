@@ -10,10 +10,10 @@ import { StatusBadge } from '@/components/common/StatusBadge';
 import { formatCurrency, formatDate, paymentMethodLabel, invoiceStatusLabel } from '@/lib/format';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { PaymentForm } from '@/components/common/PaymentForm';
-import { Plus, Share2, Mail, MessageCircle, Printer } from 'lucide-react';
+import { Plus, Share2, Mail, MessageCircle, Printer, Download } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Payment, PaymentSplit, Invoice, InvoiceStatus } from '@/types';
-import { api, ApiError, isApiConfigured } from '@/lib/api';
+import { api, ApiError, isApiConfigured, API_URL, getAccessToken } from '@/lib/api';
 import { useAccounts } from '@/hooks/entities';
 
 interface ApiItem { id: string; description: string; quantity: number; unit_price: string | number; product_id: string | null }
@@ -127,6 +127,49 @@ const InvoiceDetails = () => {
 
   const publicUrl = `${window.location.origin}/invoice/${invoice.publicId}`;
 
+  const downloadPdf = async () => {
+    if (!apiOn) return toast.message('تنزيل PDF يتطلب تشغيل الـ API');
+    try {
+      const res = await fetch(`${API_URL}/api/invoices/${invoice.id}/pdf`, {
+        headers: { Authorization: `Bearer ${getAccessToken() ?? ''}` },
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = `invoice-${invoice.number}.pdf`;
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'تعذّر تنزيل PDF');
+    }
+  };
+
+  const sendEmail = async () => {
+    if (!apiOn) return toast.message('الإرسال يتطلب تشغيل الـ API');
+    try {
+      await api.post(`/api/invoices/${invoice.id}/send-email`, {});
+      toast.success('تم إرسال الفاتورة بالبريد');
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : 'تعذّر الإرسال');
+    }
+  };
+
+  const openWhatsApp = async () => {
+    if (apiOn) {
+      try {
+        const r = await api.get<{ data: { url: string } }>(`/api/invoices/${invoice.id}/whatsapp-link`);
+        window.open(r.data.url, '_blank', 'noopener');
+        return;
+      } catch (e) {
+        toast.error(e instanceof ApiError ? e.message : 'تعذّر فتح واتساب');
+        return;
+      }
+    }
+    const text = encodeURIComponent(`فاتورة ${invoice.number}: ${publicUrl}`);
+    window.open(`https://wa.me/?text=${text}`, '_blank', 'noopener');
+  };
+
   return (
     <div>
       <PageHeader
@@ -137,6 +180,7 @@ const InvoiceDetails = () => {
             <Button variant="outline" onClick={() => { navigator.clipboard.writeText(publicUrl); toast.success('تم نسخ رابط المشاركة'); }}>
               <Share2 className="h-4 w-4 ml-1" /> نسخ الرابط العام
             </Button>
+            <Button variant="outline" onClick={downloadPdf}><Download className="h-4 w-4 ml-1" /> PDF</Button>
             <Button variant="outline" asChild><Link to={`/invoice/${invoice.publicId}`} target="_blank"><Printer className="h-4 w-4 ml-1" /> عرض/طباعة</Link></Button>
             <Sheet open={open} onOpenChange={setOpen}>
               <SheetTrigger asChild>
@@ -188,8 +232,8 @@ const InvoiceDetails = () => {
           </table>
 
           <div className="flex flex-wrap gap-2 mt-5">
-            <Button variant="outline" size="sm" onClick={() => toast.message('إرسال عبر البريد (قريباً)')}><Mail className="h-4 w-4 ml-1" /> إرسال بريد</Button>
-            <Button variant="outline" size="sm" onClick={() => toast.message('إرسال عبر واتساب (قريباً)')}><MessageCircle className="h-4 w-4 ml-1" /> واتساب</Button>
+            <Button variant="outline" size="sm" onClick={sendEmail}><Mail className="h-4 w-4 ml-1" /> إرسال بريد</Button>
+            <Button variant="outline" size="sm" onClick={openWhatsApp}><MessageCircle className="h-4 w-4 ml-1" /> واتساب</Button>
           </div>
         </Card>
 
