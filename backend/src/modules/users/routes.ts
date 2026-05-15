@@ -74,6 +74,10 @@ router.delete('/:id', requireRole('company_admin'), async (req, res, next) => {
       await c.query(`DELETE FROM user_companies WHERE user_id = $1 AND company_id = $2`, [req.params.id, t.companyId]);
       await c.query('COMMIT');
     } catch (e) { await c.query('ROLLBACK'); throw e; } finally { c.release(); }
+    await audit(pool, {
+      companyId: t.companyId, userId: req.auth!.userId,
+      action: 'user.remove', entity: 'user', entityId: req.params.id,
+    });
     res.json({ ok: true });
   } catch (e) { next(e); }
 });

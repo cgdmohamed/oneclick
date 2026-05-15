@@ -71,6 +71,11 @@ router.post('/register', async (req, res, next) => {
         `INSERT INTO refresh_tokens (user_id, token_hash, expires_at) VALUES ($1,$2, now() + interval '30 days')`,
         [userId, sha(refresh)],
       );
+      await audit(pool, {
+        companyId, userId,
+        action: 'auth.register', entity: 'user', entityId: userId,
+        data: { email: body.email, companyName: body.companyName },
+      });
       res.json({ access_token: access, refresh_token: refresh, user: { id: userId, email: body.email, name: body.name }, company: { id: companyId, name: body.companyName } });
     } catch (e) {
       await c.query('ROLLBACK');
@@ -106,6 +111,11 @@ router.post('/login', async (req, res, next) => {
       `SELECT role, company_id FROM user_roles WHERE user_id = $1`, [userId],
     );
 
+    await audit(pool, {
+      companyId: comp.rows[0]?.id ?? null, userId,
+      action: 'auth.login', entity: 'user', entityId: userId,
+      data: { email: body.email, ip: req.ip },
+    });
     res.json({
       access_token: access,
       refresh_token: refresh,
@@ -199,6 +209,10 @@ router.post('/reset-password', async (req, res, next) => {
       await c.query(`UPDATE refresh_tokens SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL`, [r.rows[0].user_id]);
       await c.query('COMMIT');
     } catch (e) { await c.query('ROLLBACK'); throw e; } finally { c.release(); }
+    await audit(pool, {
+      companyId: null, userId: r.rows[0].user_id,
+      action: 'auth.password_reset', entity: 'user', entityId: r.rows[0].user_id,
+    });
     res.json({ ok: true });
   } catch (e) { next(e); }
 });
