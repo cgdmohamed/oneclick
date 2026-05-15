@@ -8,15 +8,18 @@ import { useState } from 'react';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Plus, Wallet, Building2, CreditCard, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Wallet, Building2, CreditCard, Pencil, Trash2, ListOrdered } from 'lucide-react';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { accountTypeLabel, formatCurrency } from '@/lib/format';
+import { accountTypeLabel, formatCurrency, formatDateShort } from '@/lib/format';
 import { toast } from 'sonner';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { useResource } from '@/hooks/useResource';
+import { api, isApiConfigured } from '@/lib/api';
+import { useQuery } from '@tanstack/react-query';
 
 interface WalletRow {
   id: string;
