@@ -39,6 +39,11 @@ router.post('/wallets', async (req, res, next) => {
        VALUES ($1,$2,$3,$4) RETURNING *`,
       [body.name, body.type, body.balance, body.is_active],
     );
+    await audit(pool, {
+      companyId: null, userId: req.auth!.userId,
+      action: 'platform_wallet.create', entity: 'platform_wallet',
+      entityId: rs.rows[0].id, data: { name: body.name, type: body.type },
+    });
     res.status(201).json({ data: rs.rows[0] });
   } catch (e) { next(e); }
 });
@@ -56,6 +61,11 @@ router.patch('/wallets/:id', async (req, res, next) => {
       [...values, req.params.id],
     );
     if (!rs.rowCount) throw notFound();
+    await audit(pool, {
+      companyId: null, userId: req.auth!.userId,
+      action: 'platform_wallet.update', entity: 'platform_wallet',
+      entityId: req.params.id, data: body as Record<string, unknown>,
+    });
     res.json({ data: rs.rows[0] });
   } catch (e) { next(e); }
 });
@@ -68,7 +78,28 @@ router.delete('/wallets/:id', async (req, res, next) => {
     );
     if (used.rowCount) throw badRequest('Wallet has recorded payments — deactivate it instead');
     await pool.query(`DELETE FROM platform_wallets WHERE id = $1`, [req.params.id]);
+    await audit(pool, {
+      companyId: null, userId: req.auth!.userId,
+      action: 'platform_wallet.delete', entity: 'platform_wallet',
+      entityId: req.params.id,
+    });
     res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
+/* Wallet ledger — list payments received into a single wallet */
+router.get('/wallets/:id/ledger', async (req, res, next) => {
+  try {
+    const rs = await pool.query(`
+      SELECT sp.*, c.name AS company_name, p.name AS plan_name
+      FROM subscription_payments sp
+      JOIN subscriptions s ON s.id = sp.subscription_id
+      JOIN companies c ON c.id = s.company_id
+      JOIN plans p     ON p.id = s.plan_id
+      WHERE sp.wallet_id = $1
+      ORDER BY sp.paid_at DESC
+    `, [req.params.id]);
+    res.json({ data: rs.rows });
   } catch (e) { next(e); }
 });
 
