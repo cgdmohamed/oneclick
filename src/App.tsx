@@ -21,6 +21,7 @@ import ResetPassword from "./pages/public/ResetPassword";
 
 import Overview from "./pages/app/Overview";
 import Clients from "./pages/app/Clients";
+import ClientDetail from "./pages/app/ClientDetail";
 import Invoices from "./pages/app/Invoices";
 import NewInvoice from "./pages/app/NewInvoice";
 import InvoiceDetails from "./pages/app/InvoiceDetails";
@@ -73,6 +74,7 @@ const App = () => (
             <Route path="/app" element={<AppLayout kind="company" />}>
               <Route index element={<Overview />} />
               <Route path="clients" element={<Clients />} />
+              <Route path="clients/:id" element={<ClientDetail />} />
               <Route path="invoices" element={<Invoices />} />
               <Route path="invoices/new" element={<NewInvoice />} />
               <Route path="invoices/:id" element={<InvoiceDetails />} />

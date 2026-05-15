@@ -1,8 +1,9 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { PageHeader } from '@/components/common/PageHeader';
 import { DataTable, Column } from '@/components/common/DataTable';
 import { Button } from '@/components/ui/button';
-import { Plus, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, Eye } from 'lucide-react';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -27,6 +28,7 @@ interface ClientRow {
 const empty: Client = { id: '', companyId: 'co-1', name: '', phone: '', email: '', address: '', taxNumber: '', createdAt: new Date().toISOString() };
 
 const Clients = () => {
+  const navigate = useNavigate();
   const { list, save, remove } = useResource<Client, ClientRow>({
     path: '/api/clients',
     key: 'clients',
@@ -62,7 +64,11 @@ const Clients = () => {
   };
 
   const columns: Column<Client>[] = [
-    { key: 'name', header: 'الاسم', cell: r => <span className="font-medium">{r.name}</span> },
+    { key: 'name', header: 'الاسم', cell: r => (
+      <button onClick={() => navigate(`/app/clients/${r.id}`)} className="font-medium text-primary hover:underline text-start">
+        {r.name}
+      </button>
+    )},
     { key: 'phone', header: 'الهاتف', cell: r => <span dir="ltr" className="text-sm">{r.phone}</span> },
     { key: 'email', header: 'البريد', cell: r => <span className="text-sm text-muted-foreground">{r.email || '—'}</span> },
     { key: 'address', header: 'العنوان', cell: r => <span className="text-sm text-muted-foreground">{r.address || '—'}</span> },
@@ -70,6 +76,7 @@ const Clients = () => {
     { key: 'created', header: 'تاريخ الإضافة', cell: r => <span className="text-xs text-muted-foreground">{formatDateShort(r.createdAt)}</span> },
     { key: 'actions', header: '', cell: r => (
       <div className="flex justify-end gap-1">
+        <Button variant="ghost" size="icon" title="عرض ملف العميل" onClick={() => navigate(`/app/clients/${r.id}`)}><Eye className="h-4 w-4" /></Button>
         <Button variant="ghost" size="icon" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>
         <Button variant="ghost" size="icon" onClick={() => remove(r.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
       </div>
