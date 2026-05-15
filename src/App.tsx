@@ -21,6 +21,7 @@ import ResetPassword from "./pages/public/ResetPassword";
 
 import Overview from "./pages/app/Overview";
 import Clients from "./pages/app/Clients";
+import ClientDetail from "./pages/app/ClientDetail";
 import Invoices from "./pages/app/Invoices";
 import NewInvoice from "./pages/app/NewInvoice";
 import InvoiceDetails from "./pages/app/InvoiceDetails";
