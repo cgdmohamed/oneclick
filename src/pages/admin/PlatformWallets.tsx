@@ -68,6 +68,16 @@ const PlatformWallets = () => {
 
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<PlatformWallet>(empty);
+  const [ledgerWallet, setLedgerWallet] = useState<PlatformWallet | null>(null);
+
+  const ledgerQuery = useQuery({
+    enabled: isApiConfigured() && !!ledgerWallet,
+    queryKey: ['platform-wallet-ledger', ledgerWallet?.id],
+    queryFn: async () => {
+      const r = await api.get<{ data: Array<{ id: string; amount: string; method: string; paid_at: string; reference: string | null; company_name: string; plan_name: string }> }>(`/api/platform/wallets/${ledgerWallet!.id}/ledger`);
+      return r.data;
+    },
+  });
 
   const submit = async () => {
     if (!editing.name.trim()) return toast.error('أدخل اسم المحفظة');
