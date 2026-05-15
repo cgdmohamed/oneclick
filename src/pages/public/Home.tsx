@@ -168,12 +168,6 @@ const Home = () => {
   );
 };
 
-const Stat = ({ value, label }: { value: string; label: string }) => (
-  <div>
-    <div className="text-2xl font-bold">{value}</div>
-    <div className="text-xs text-white/70">{label}</div>
-  </div>
-);
 const SectionEyebrow = ({ children }: { children: React.ReactNode }) => (
   <span className="inline-block text-xs font-semibold text-primary bg-primary/10 px-2.5 py-1 rounded-full">{children}</span>
 );
