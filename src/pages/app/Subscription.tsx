@@ -247,16 +247,17 @@ const Subscription = () => {
 
             <div className="space-y-3">
               <StatCard
-                label="آخر فاتورة"
+                title="آخر فاتورة"
                 value={lastPayment ? formatCurrency(Number(lastPayment.amount)) : '—'}
-                icon={<Receipt className="h-5 w-5" />}
+                icon={Receipt}
                 hint={lastPayment ? formatDateShort(lastPayment.paid_at) : 'لا يوجد سجل بعد'}
               />
               <StatCard
-                label="الفواتير المدفوعة"
+                title="الفواتير المدفوعة"
                 value={String(payments.length)}
-                icon={<CreditCard className="h-5 w-5" />}
+                icon={CreditCard}
                 hint="منذ بداية الاشتراك"
+                accent="success"
               />
             </div>
           </div>
