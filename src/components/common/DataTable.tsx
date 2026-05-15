@@ -48,7 +48,7 @@ export function DataTable<T extends { id: string }>({ data, columns, searchKeys,
             <TableHeader>
               <TableRow className="bg-muted/40">
                 {columns.map(c => (
-                  <TableHead key={c.key} className={`text-right text-xs font-semibold text-muted-foreground ${c.className ?? ''}`}>{c.header}</TableHead>
+                  <TableHead key={c.key} className={`text-start text-xs font-semibold text-muted-foreground ${c.className ?? ''}`}>{c.header}</TableHead>
                 ))}
               </TableRow>
             </TableHeader>
@@ -63,7 +63,7 @@ export function DataTable<T extends { id: string }>({ data, columns, searchKeys,
                 filtered.map(row => (
                   <TableRow key={row.id} onClick={() => onRowClick?.(row)} className={onRowClick ? 'cursor-pointer hover:bg-muted/30' : ''}>
                     {columns.map(c => (
-                      <TableCell key={c.key} className={`text-right ${c.className ?? ''}`}>{c.cell(row)}</TableCell>
+                      <TableCell key={c.key} className={`text-start ${c.className ?? ''}`}>{c.cell(row)}</TableCell>
                     ))}
                   </TableRow>
                 ))
