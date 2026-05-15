@@ -142,7 +142,7 @@ const PublicInvoice = () => {
               {data.company_address && <p className="text-sm text-muted-foreground">{data.company_address}</p>}
               {data.company_tax && <p className="text-sm text-muted-foreground">الرقم الضريبي: {data.company_tax}</p>}
             </div>
-            <div className="text-left">
+            <div className="text-end">
               <div className="text-xs text-muted-foreground">فاتورة ضريبية</div>
               <div className="font-bold text-lg">{data.number}</div>
               <div className="mt-2"><StatusBadge status={mapStatus(data.status)} label={invoiceStatusLabel(mapStatus(data.status))} /></div>
@@ -156,7 +156,7 @@ const PublicInvoice = () => {
               {data.client_email && <div className="text-muted-foreground">{data.client_email}</div>}
               {data.client_tax && <div className="text-muted-foreground">الرقم الضريبي: {data.client_tax}</div>}
             </div>
-            <div className="sm:text-left">
+            <div className="sm:text-end">
               <div className="grid grid-cols-2 gap-2">
                 <div><div className="text-xs text-muted-foreground">تاريخ الإصدار</div><div>{formatDate(data.issue_date)}</div></div>
                 <div><div className="text-xs text-muted-foreground">تاريخ الاستحقاق</div><div>{formatDate(data.due_date ?? data.issue_date)}</div></div>
@@ -167,11 +167,11 @@ const PublicInvoice = () => {
           <div className="py-6">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-right text-xs text-muted-foreground border-b border-border">
+                <tr className="text-start text-xs text-muted-foreground border-b border-border">
                   <th className="py-2 font-semibold">الوصف</th>
                   <th className="py-2 font-semibold w-20">الكمية</th>
                   <th className="py-2 font-semibold w-28">سعر الوحدة</th>
-                  <th className="py-2 font-semibold w-28 text-left">الإجمالي</th>
+                  <th className="py-2 font-semibold w-28 text-end">الإجمالي</th>
                 </tr>
               </thead>
               <tbody>
@@ -180,7 +180,7 @@ const PublicInvoice = () => {
                     <td className="py-3">{it.name}</td>
                     <td className="py-3">{it.quantity}</td>
                     <td className="py-3">{formatCurrency(num(it.unit_price))}</td>
-                    <td className="py-3 text-left">{formatCurrency(it.quantity * num(it.unit_price))}</td>
+                    <td className="py-3 text-end">{formatCurrency(it.quantity * num(it.unit_price))}</td>
                   </tr>
                 ))}
               </tbody>

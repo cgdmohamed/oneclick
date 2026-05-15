@@ -130,7 +130,7 @@ const NewInvoice = () => {
                       <Trash2 className="h-4 w-4 text-destructive" />
                     </Button>
                   </div>
-                  <div className="col-span-12 text-left text-sm text-muted-foreground">
+                  <div className="col-span-12 text-end text-sm text-muted-foreground">
                     الإجمالي: <span className="font-semibold text-foreground">{formatCurrency(it.quantity * it.unitPrice)}</span>
                   </div>
                 </div>
