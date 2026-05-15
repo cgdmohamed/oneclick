@@ -3,7 +3,8 @@ import { useEffect, useState } from 'react';
 import { invoices as mockInvoices, clients as mockClients, companies as mockCompanies } from '@/data/mock';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Calculator, Printer, ArrowRight } from 'lucide-react';
+import { Calculator, Printer, ArrowRight, Download } from 'lucide-react';
+import { toast } from 'sonner';
 import { formatCurrency, formatDate, invoiceStatusLabel } from '@/lib/format';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { EmptyState } from '@/components/common/EmptyState';
@@ -88,13 +89,41 @@ const PublicInvoice = () => {
   return (
     <div className="min-h-screen bg-muted/30 py-8 print:bg-white print:p-0">
       <div className="container max-w-3xl">
-        <div className="flex items-center justify-between mb-6 no-print">
+        <div className="flex items-center justify-between mb-6 no-print gap-2 flex-wrap">
           <Link to="/" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
             <ArrowRight className="h-4 w-4" /> العودة للرئيسية
           </Link>
-          <Button onClick={() => window.print()} variant="outline">
-            <Printer className="h-4 w-4 ml-2" /> طباعة
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button onClick={() => window.print()} variant="outline" size="sm">
+              <Printer className="h-4 w-4 ml-2" /> طباعة
+            </Button>
+            <Button
+              size="sm"
+              onClick={async () => {
+                if (!isApiConfigured()) {
+                  window.print();
+                  return;
+                }
+                try {
+                  const res = await fetch(`${API_URL}/api/public/invoices/${publicId}/pdf`);
+                  if (!res.ok) throw new Error('failed');
+                  const blob = await res.blob();
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `invoice-${data.number}.pdf`;
+                  document.body.appendChild(a);
+                  a.click();
+                  a.remove();
+                  URL.revokeObjectURL(url);
+                } catch {
+                  toast.error('تعذّر تنزيل ملف PDF');
+                }
+              }}
+            >
+              <Download className="h-4 w-4 ml-2" /> تنزيل PDF
+            </Button>
+          </div>
         </div>
 
         <Card className="p-8 md:p-10 shadow-soft border-border/60 print:shadow-none print:border-0">
