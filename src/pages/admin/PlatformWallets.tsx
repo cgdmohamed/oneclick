@@ -113,6 +113,9 @@ const PlatformWallets = () => {
                   </div>
                 </div>
                 <div className="flex gap-1">
+                  <Button variant="ghost" size="icon" title="السجل" onClick={() => setLedgerWallet(w)}>
+                    <ListOrdered className="h-4 w-4" />
+                  </Button>
                   <Button variant="ghost" size="icon" onClick={() => { setEditing(w); setOpen(true); }}>
                     <Pencil className="h-4 w-4" />
                   </Button>
