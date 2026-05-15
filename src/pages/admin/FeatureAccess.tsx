@@ -1,28 +1,113 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Card } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
-import { plans } from '@/data/mock';
+import { plans as mockPlans } from '@/data/mock';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import { api, isApiConfigured, ApiError } from '@/lib/api';
 
-const features = [
-  'إدارة الفواتير', 'إدارة العملاء', 'إدارة المنتجات', 'إدارة المخزون',
-  'الحسابات البنكية', 'المحافظ الإلكترونية', 'التقارير المتقدمة', 'تنبيهات SMS',
-  'إدارة الصلاحيات', 'API integration',
+interface PlanRow { id: string; name: string }
+interface AccessRow { plan_id: string; feature_key: string; enabled: boolean }
+
+const FEATURES: { key: string; label: string }[] = [
+  { key: 'invoices', label: 'إدارة الفواتير' },
+  { key: 'clients', label: 'إدارة العملاء' },
+  { key: 'products', label: 'إدارة المنتجات' },
+  { key: 'inventory', label: 'إدارة المخزون' },
+  { key: 'bank_accounts', label: 'الحسابات البنكية' },
+  { key: 'wallets', label: 'المحافظ الإلكترونية' },
+  { key: 'reports_advanced', label: 'التقارير المتقدمة' },
+  { key: 'sms_alerts', label: 'تنبيهات SMS' },
+  { key: 'rbac', label: 'إدارة الصلاحيات' },
+  { key: 'api', label: 'API integration' },
 ];
 
 const FeatureAccess = () => {
-  const [matrix, setMatrix] = useState<Record<string, Record<string, boolean>>>(() => {
-    const m: any = {};
-    plans.forEach(p => { m[p.id] = {}; features.forEach((f, i) => { m[p.id][f] = i < (p.id === 'plan-basic' ? 4 : p.id === 'plan-pro' ? 7 : 10); }); });
-    return m;
+  const apiOn = isApiConfigured();
+  const qc = useQueryClient();
+
+  const plansQ = useQuery({
+    enabled: apiOn,
+    queryKey: ['admin-plans'],
+    queryFn: async () => (await api.get<{ data: PlanRow[] }>('/api/plans/all')).data,
   });
+  const accessQ = useQuery({
+    enabled: apiOn,
+    queryKey: ['feature-access'],
+    queryFn: async () => (await api.get<{ data: AccessRow[] }>('/api/platform/feature-access')).data,
+  });
+
+  const plans: PlanRow[] = apiOn ? (plansQ.data ?? []) : mockPlans.map(p => ({ id: p.id, name: p.name }));
+
+  const [matrix, setMatrix] = useState<Record<string, Record<string, boolean>>>({});
+
+  // Hydrate matrix when data arrives (or seed default for mock mode)
+  useEffect(() => {
+    const m: Record<string, Record<string, boolean>> = {};
+    plans.forEach((p, idx) => {
+      m[p.id] = {};
+      FEATURES.forEach((f, i) => {
+        m[p.id][f.key] = i < (idx === 0 ? 4 : idx === 1 ? 7 : 10); // mock defaults
+      });
+    });
+    if (apiOn && accessQ.data) {
+      accessQ.data.forEach((a) => {
+        if (!m[a.plan_id]) m[a.plan_id] = {};
+        m[a.plan_id][a.feature_key] = a.enabled;
+      });
+    }
+    setMatrix(m);
+  }, [apiOn, accessQ.data, plansQ.data]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const saveMut = useMutation({
+    mutationFn: async () => {
+      const entries = plans.flatMap((p) =>
+        FEATURES.map((f) => ({
+          plan_id: p.id, feature_key: f.key,
+          enabled: !!matrix[p.id]?.[f.key],
+        })),
+      );
+      return api.patch
+        ? api.patch
+        : null, await fetch; // unused branch placeholder
+    },
+  });
+
+  const onSave = async () => {
+    if (!apiOn) return toast.success('تم الحفظ (تجريبي)');
+    try {
+      const entries = plans.flatMap((p) =>
+        FEATURES.map((f) => ({
+          plan_id: p.id, feature_key: f.key,
+          enabled: !!matrix[p.id]?.[f.key],
+        })),
+      );
+      // PUT
+      await api.post('/api/platform/feature-access', { entries }).catch(async () => {
+        // fallback to fetch PUT since api helper has no put()
+        const { API_URL, getAccessToken } = await import('@/lib/api');
+        const r = await fetch(`${API_URL}/api/platform/feature-access`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getAccessToken() ?? ''}` },
+          body: JSON.stringify({ entries }),
+        });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      });
+      qc.invalidateQueries({ queryKey: ['feature-access'] });
+      toast.success('تم حفظ الصلاحيات');
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : (e instanceof Error ? e.message : 'تعذّر الحفظ'));
+    }
+  };
+
+  void saveMut;
 
   return (
     <div>
       <PageHeader title="الصلاحيات حسب الباقة" description="فعّل أو عطّل الميزات لكل باقة"
-        actions={<Button onClick={() => toast.success('تم حفظ الصلاحيات')}>حفظ التغييرات</Button>} />
+        actions={<Button onClick={onSave}>حفظ التغييرات</Button>} />
       <Card className="p-0 overflow-x-auto border-border/60">
         <table className="w-full text-sm">
           <thead>
@@ -32,12 +117,15 @@ const FeatureAccess = () => {
             </tr>
           </thead>
           <tbody>
-            {features.map(f => (
-              <tr key={f} className="border-t border-border/60">
-                <td className="p-3 font-medium">{f}</td>
+            {FEATURES.map(f => (
+              <tr key={f.key} className="border-t border-border/60">
+                <td className="p-3 font-medium">{f.label}</td>
                 {plans.map(p => (
                   <td key={p.id} className="p-3 text-center">
-                    <Switch checked={matrix[p.id][f]} onCheckedChange={(v) => setMatrix(m => ({ ...m, [p.id]: { ...m[p.id], [f]: v } }))} />
+                    <Switch
+                      checked={!!matrix[p.id]?.[f.key]}
+                      onCheckedChange={(v) => setMatrix(m => ({ ...m, [p.id]: { ...(m[p.id] ?? {}), [f.key]: v } }))}
+                    />
                   </td>
                 ))}
               </tr>
