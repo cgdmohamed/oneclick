@@ -8,15 +8,18 @@ import { useState } from 'react';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Plus, Wallet, Building2, CreditCard, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Wallet, Building2, CreditCard, Pencil, Trash2, ListOrdered } from 'lucide-react';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { accountTypeLabel, formatCurrency } from '@/lib/format';
+import { accountTypeLabel, formatCurrency, formatDateShort } from '@/lib/format';
 import { toast } from 'sonner';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { useResource } from '@/hooks/useResource';
+import { api, isApiConfigured } from '@/lib/api';
+import { useQuery } from '@tanstack/react-query';
 
 interface WalletRow {
   id: string;
@@ -65,6 +68,16 @@ const PlatformWallets = () => {
 
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<PlatformWallet>(empty);
+  const [ledgerWallet, setLedgerWallet] = useState<PlatformWallet | null>(null);
+
+  const ledgerQuery = useQuery({
+    enabled: isApiConfigured() && !!ledgerWallet,
+    queryKey: ['platform-wallet-ledger', ledgerWallet?.id],
+    queryFn: async () => {
+      const r = await api.get<{ data: Array<{ id: string; amount: string; method: string; paid_at: string; reference: string | null; company_name: string; plan_name: string }> }>(`/api/platform/wallets/${ledgerWallet!.id}/ledger`);
+      return r.data;
+    },
+  });
 
   const submit = async () => {
     if (!editing.name.trim()) return toast.error('أدخل اسم المحفظة');
@@ -100,6 +113,9 @@ const PlatformWallets = () => {
                   </div>
                 </div>
                 <div className="flex gap-1">
+                  <Button variant="ghost" size="icon" title="السجل" onClick={() => setLedgerWallet(w)}>
+                    <ListOrdered className="h-4 w-4" />
+                  </Button>
                   <Button variant="ghost" size="icon" onClick={() => { setEditing(w); setOpen(true); }}>
                     <Pencil className="h-4 w-4" />
                   </Button>
@@ -169,6 +185,39 @@ const PlatformWallets = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Sheet open={!!ledgerWallet} onOpenChange={(o) => !o && setLedgerWallet(null)}>
+        <SheetContent side="left" className="w-full sm:max-w-lg overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>سجل التحصيلات — {ledgerWallet?.name}</SheetTitle>
+          </SheetHeader>
+          <div className="mt-6 space-y-2">
+            {!isApiConfigured() && (
+              <div className="text-sm text-muted-foreground p-4 rounded-lg bg-muted/40">
+                السجل التفصيلي يظهر عند الاتصال بـ API.
+              </div>
+            )}
+            {isApiConfigured() && ledgerQuery.isLoading && (
+              <div className="text-sm text-muted-foreground">جارٍ التحميل…</div>
+            )}
+            {isApiConfigured() && (ledgerQuery.data ?? []).length === 0 && !ledgerQuery.isLoading && (
+              <div className="text-sm text-muted-foreground p-4 rounded-lg bg-muted/40">
+                لا توجد دفعات مسجّلة على هذه المحفظة بعد.
+              </div>
+            )}
+            {(ledgerQuery.data ?? []).map((row) => (
+              <div key={row.id} className="flex items-start justify-between gap-3 p-3 rounded-lg border border-border/60">
+                <div className="min-w-0">
+                  <div className="font-medium truncate">{row.company_name}</div>
+                  <div className="text-xs text-muted-foreground">{row.plan_name} • {formatDateShort(row.paid_at)}</div>
+                  {row.reference && <div className="text-xs text-muted-foreground mt-1">مرجع: {row.reference}</div>}
+                </div>
+                <div className="font-semibold whitespace-nowrap">{formatCurrency(Number(row.amount))}</div>
+              </div>
+            ))}
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 };

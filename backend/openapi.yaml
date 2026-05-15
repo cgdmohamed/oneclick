@@ -1,0 +1,359 @@
+openapi: 3.0.3
+info:
+  title: Hesabat API
+  description: |
+    Multi-tenant SaaS accounting API. All `/api/*` endpoints (except `/api/auth/*`,
+    `/api/plans`, and `/api/public/*`) require a valid Bearer JWT and an active
+    company subscription. Tenant isolation is enforced by PostgreSQL RLS using
+    `app.current_company` set per-request.
+  version: "0.1.0"
+servers:
+  - url: http://localhost:4000
+    description: Local development
+  - url: https://api.hesabat.example.com
+    description: Production
+
+tags:
+  - name: Health
+  - name: Auth
+  - name: Companies
+  - name: Users
+  - name: Clients
+  - name: Products
+  - name: Accounts
+  - name: Invoices
+  - name: Payments
+  - name: Notifications
+  - name: Reports
+  - name: Plans
+  - name: Subscriptions
+  - name: Public
+  - name: Uploads
+  - name: Platform
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error: { type: string }
+        message: { type: string }
+        details: { type: object, additionalProperties: true }
+
+    AuthLoginInput:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, format: password, minLength: 8 }
+
+    AuthRegisterInput:
+      type: object
+      required: [email, password, name, companyName]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, format: password, minLength: 8 }
+        name: { type: string }
+        companyName: { type: string }
+
+    Tokens:
+      type: object
+      properties:
+        access_token: { type: string }
+        token_type: { type: string, example: Bearer }
+        expires_in: { type: integer, example: 900 }
+
+    Invoice:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        company_id: { type: string, format: uuid }
+        client_id: { type: string, format: uuid }
+        public_id: { type: string, format: uuid }
+        prefix: { type: string }
+        year: { type: integer }
+        sequence: { type: integer }
+        status:
+          type: string
+          enum: [draft, sent, partial, paid, overdue, cancelled]
+        total: { type: number, format: float }
+        paid_total: { type: number, format: float }
+        issued_at: { type: string, format: date-time }
+        due_at: { type: string, format: date-time, nullable: true }
+
+    Wallet:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        type: { type: string, enum: [cash, bank, wallet] }
+        balance: { type: number, format: float }
+        is_active: { type: boolean }
+
+    SubscriptionPaymentInput:
+      type: object
+      required: [subscription_id, wallet_id, amount]
+      properties:
+        subscription_id: { type: string, format: uuid }
+        wallet_id: { type: string, format: uuid }
+        amount: { type: number, minimum: 0.01 }
+        method: { type: string, enum: [cash, bank, wallet], default: cash }
+        paid_at: { type: string, format: date-time }
+        reference: { type: string, nullable: true }
+        notes: { type: string, nullable: true }
+
+security:
+  - bearerAuth: []
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      security: []
+      summary: Liveness probe
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+
+  /api/auth/register:
+    post:
+      tags: [Auth]
+      security: []
+      summary: Create a new company + first admin user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AuthRegisterInput' }
+      responses:
+        "201": { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/Tokens' } } } }
+        "400": { description: Validation error, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      security: []
+      summary: Exchange credentials for an access token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AuthLoginInput' }
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Tokens' } } } }
+        "401": { description: Invalid credentials }
+
+  /api/auth/refresh:
+    post:
+      tags: [Auth]
+      security: []
+      summary: Rotate refresh token (httpOnly cookie) into a new access token
+      responses:
+        "200": { description: OK }
+        "401": { description: Refresh expired or revoked }
+
+  /api/auth/me:
+    get:
+      tags: [Auth]
+      summary: Current user + company context
+      responses: { "200": { description: OK } }
+    delete:
+      tags: [Auth]
+      summary: Logout — revoke refresh token
+      responses: { "200": { description: OK } }
+
+  /api/auth/password-reset:
+    post:
+      tags: [Auth]
+      security: []
+      summary: Request or complete a password reset
+      responses: { "200": { description: OK } }
+
+  /api/plans:
+    get:
+      tags: [Plans]
+      security: []
+      summary: List public plans
+      responses: { "200": { description: OK } }
+
+  /api/public/invoices/{publicId}:
+    get:
+      tags: [Public]
+      security: []
+      summary: Read a publicly shared invoice (no auth)
+      parameters:
+        - in: path
+          name: publicId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: OK }
+        "404": { description: Not found }
+
+  /api/public/invoices/{publicId}/pdf:
+    get:
+      tags: [Public]
+      security: []
+      summary: Download invoice PDF
+      parameters:
+        - in: path
+          name: publicId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: PDF stream
+          content:
+            application/pdf: {}
+
+  /api/clients:
+    get:
+      tags: [Clients]
+      summary: List clients in current company
+      responses: { "200": { description: OK } }
+    post:
+      tags: [Clients]
+      summary: Create a client
+      responses: { "201": { description: Created } }
+
+  /api/products:
+    get: { tags: [Products], summary: List products, responses: { "200": { description: OK } } }
+    post: { tags: [Products], summary: Create product, responses: { "201": { description: Created } } }
+
+  /api/accounts:
+    get: { tags: [Accounts], summary: List company accounts/wallets, responses: { "200": { description: OK } } }
+    post: { tags: [Accounts], summary: Create account, responses: { "201": { description: Created } } }
+
+  /api/invoices:
+    get:
+      tags: [Invoices]
+      summary: List invoices
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Invoice' }
+    post:
+      tags: [Invoices]
+      summary: Create invoice (enforces plan invoice quota)
+      responses:
+        "201": { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/Invoice' } } } }
+        "402": { description: Plan limit reached }
+
+  /api/invoices/{id}:
+    get: { tags: [Invoices], summary: Read invoice, parameters: [{ in: path, name: id, required: true, schema: { type: string, format: uuid } }], responses: { "200": { description: OK } } }
+    patch: { tags: [Invoices], summary: Update invoice, parameters: [{ in: path, name: id, required: true, schema: { type: string, format: uuid } }], responses: { "200": { description: OK } } }
+
+  /api/invoices/{id}/send:
+    post:
+      tags: [Invoices]
+      summary: Email or generate WhatsApp share link for an invoice
+      parameters: [{ in: path, name: id, required: true, schema: { type: string, format: uuid } }]
+      responses: { "200": { description: OK } }
+
+  /api/payments:
+    get: { tags: [Payments], summary: List payments, responses: { "200": { description: OK } } }
+    post: { tags: [Payments], summary: Record a payment against an invoice, responses: { "201": { description: Created } } }
+
+  /api/notifications:
+    get: { tags: [Notifications], summary: List notifications, responses: { "200": { description: OK } } }
+
+  /api/reports/{type}:
+    get:
+      tags: [Reports]
+      summary: Aggregated report (sales | clients | aging | payments | products)
+      parameters: [{ in: path, name: type, required: true, schema: { type: string } }]
+      responses: { "200": { description: OK } }
+
+  /api/users:
+    get: { tags: [Users], summary: List company users, responses: { "200": { description: OK } } }
+    post: { tags: [Users], summary: Invite user (enforces plan user quota), responses: { "201": { description: Created }, "402": { description: Plan limit reached } } }
+
+  /api/users/{id}:
+    delete: { tags: [Users], summary: Remove user, parameters: [{ in: path, name: id, required: true, schema: { type: string, format: uuid } }], responses: { "200": { description: OK } } }
+
+  /api/subscriptions:
+    get: { tags: [Subscriptions], summary: List subscriptions (super admin sees all), responses: { "200": { description: OK } } }
+
+  /api/uploads:
+    post:
+      tags: [Uploads]
+      summary: Upload logo / stamp / attachment
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file: { type: string, format: binary }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  url: { type: string }
+
+  /api/platform/wallets:
+    get:
+      tags: [Platform]
+      summary: List platform collection wallets (super admin)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Wallet' }
+    post: { tags: [Platform], summary: Create platform wallet, responses: { "201": { description: Created } } }
+
+  /api/platform/wallets/{id}:
+    patch: { tags: [Platform], summary: Rename / toggle wallet, parameters: [{ in: path, name: id, required: true, schema: { type: string, format: uuid } }], responses: { "200": { description: OK } } }
+    delete: { tags: [Platform], summary: Delete unused wallet, parameters: [{ in: path, name: id, required: true, schema: { type: string, format: uuid } }], responses: { "200": { description: OK }, "400": { description: Has payments — deactivate instead } } }
+
+  /api/platform/wallets/{id}/ledger:
+    get:
+      tags: [Platform]
+      summary: List subscription payments received into a wallet
+      parameters: [{ in: path, name: id, required: true, schema: { type: string, format: uuid } }]
+      responses: { "200": { description: OK } }
+
+  /api/platform/subscription-payments:
+    get: { tags: [Platform], summary: List manual subscription payments, responses: { "200": { description: OK } } }
+    post:
+      tags: [Platform]
+      summary: Record a manual subscription payment (auto-activates subscription)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SubscriptionPaymentInput' }
+      responses:
+        "201": { description: Created }
+        "400": { description: Wallet inactive or invalid input }
+        "404": { description: Subscription or wallet not found }
