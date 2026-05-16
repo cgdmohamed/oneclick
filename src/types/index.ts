@@ -35,6 +35,8 @@ export interface Client {
   email?: string;
   address?: string;
   taxNumber?: string;
+  currency?: string;
+  currencySymbol?: string;
   createdAt: string;
 }
 

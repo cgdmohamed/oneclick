@@ -7,11 +7,13 @@ import { Plus, Pencil, Trash2, Eye } from 'lucide-react';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { clients as initialClients } from '@/data/mock';
 import type { Client } from '@/types';
 import { toast } from 'sonner';
 import { formatDateShort } from '@/lib/format';
 import { useResource } from '@/hooks/useResource';
+import { CURRENCIES, getCurrencySymbol } from '@/lib/currency';
 
 interface ClientRow {
   id: string;
@@ -23,10 +25,12 @@ interface ClientRow {
   address: string | null;
   tax_number: string | null;
   notes: string | null;
+  currency: string | null;
+  currency_symbol: string | null;
   created_at: string;
 }
 
-const empty: Client = { id: '', companyId: 'co-1', name: '', phone: '', whatsapp: '', email: '', address: '', taxNumber: '', createdAt: new Date().toISOString() };
+const empty: Client = { id: '', companyId: 'co-1', name: '', phone: '', whatsapp: '', email: '', address: '', taxNumber: '', currency: 'SAR', currencySymbol: getCurrencySymbol(), createdAt: new Date().toISOString() };
 
 const Clients = () => {
   const navigate = useNavigate();
@@ -43,6 +47,8 @@ const Clients = () => {
       email: r.email ?? '',
       address: r.address ?? '',
       taxNumber: r.tax_number ?? '',
+      currency: r.currency ?? 'SAR',
+      currencySymbol: r.currency_symbol ?? getCurrencySymbol(),
       createdAt: r.created_at,
     }),
     toRow: (c) => ({
@@ -52,6 +58,8 @@ const Clients = () => {
       email: c.email || null,
       address: c.address || null,
       tax_number: c.taxNumber || null,
+      currency: c.currency || null,
+      currency_symbol: c.currencySymbol || null,
     }),
   });
 
@@ -76,6 +84,10 @@ const Clients = () => {
     { key: 'email', header: 'البريد', cell: r => <span className="text-sm text-muted-foreground">{r.email || '—'}</span> },
     { key: 'address', header: 'العنوان', cell: r => <span className="text-sm text-muted-foreground">{r.address || '—'}</span> },
     { key: 'tax', header: 'الرقم الضريبي', cell: r => <span className="text-sm">{r.taxNumber || '—'}</span> },
+    { key: 'currency', header: 'العملة', cell: r => {
+      const c = CURRENCIES.find(x => x.code === r.currency);
+      return <span className="text-sm">{c ? `${c.name} (${c.symbol})` : (r.currencySymbol || '—')}</span>;
+    }},
     { key: 'created', header: 'تاريخ الإضافة', cell: r => <span className="text-xs text-muted-foreground">{formatDateShort(r.createdAt)}</span> },
     { key: 'actions', header: '', cell: r => (
       <div className="flex justify-end gap-1">
@@ -102,6 +114,23 @@ const Clients = () => {
             <Field label="رقم واتساب" value={editing.whatsapp ?? ''} onChange={v => setEditing(e => ({ ...e, whatsapp: v }))} />
             <Field label="البريد الإلكتروني" value={editing.email ?? ''} onChange={v => setEditing(e => ({ ...e, email: v }))} />
             <Field label="الرقم الضريبي" value={editing.taxNumber ?? ''} onChange={v => setEditing(e => ({ ...e, taxNumber: v }))} />
+            <div>
+              <Label>العملة</Label>
+              <Select
+                value={editing.currency || 'SAR'}
+                onValueChange={v => {
+                  const c = CURRENCIES.find(x => x.code === v);
+                  setEditing(e => ({ ...e, currency: v, currencySymbol: c?.symbol || e.currencySymbol }));
+                }}
+              >
+                <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {CURRENCIES.map(c => (
+                    <SelectItem key={c.code} value={c.code}>{c.name} ({c.symbol})</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <div className="sm:col-span-2"><Field label="العنوان" value={editing.address ?? ''} onChange={v => setEditing(e => ({ ...e, address: v }))} /></div>
           </div>
           <DialogFooter>
