@@ -55,13 +55,20 @@ async function loadByPublicId(publicId: string): Promise<PublicInvoicePayload> {
   return payload;
 }
 
+const CURRENCY_SYMBOLS: Record<string, string> = {
+  SAR: 'ر.س', USD: '$', EUR: '€', GBP: '£', AED: 'د.إ',
+  KWD: 'د.ك', QAR: 'ر.ق', OMR: 'ر.ع', BHD: 'د.ب', JOD: 'د.أ',
+  EGP: 'ج.م', MAD: 'د.م',
+};
+
 router.get('/invoices/:publicId', async (req, res, next) => {
   try {
     const { invoice, items } = await loadByPublicId(req.params.publicId);
+    const currencyCode = (invoice.currency as string | null) ?? 'SAR';
     res.json({
       data: {
         ...invoice,
-        currency_symbol: null,
+        currency_symbol: CURRENCY_SYMBOLS[currencyCode] ?? currencyCode,
         items: items.map((r, i) => ({
           id: String(i),
           name: r.description,
