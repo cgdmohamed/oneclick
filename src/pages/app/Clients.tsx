@@ -18,6 +18,7 @@ interface ClientRow {
   company_id: string;
   name: string;
   phone: string | null;
+  whatsapp: string | null;
   email: string | null;
   address: string | null;
   tax_number: string | null;
@@ -25,7 +26,7 @@ interface ClientRow {
   created_at: string;
 }
 
-const empty: Client = { id: '', companyId: 'co-1', name: '', phone: '', email: '', address: '', taxNumber: '', createdAt: new Date().toISOString() };
+const empty: Client = { id: '', companyId: 'co-1', name: '', phone: '', whatsapp: '', email: '', address: '', taxNumber: '', createdAt: new Date().toISOString() };
 
 const Clients = () => {
   const navigate = useNavigate();
@@ -38,6 +39,7 @@ const Clients = () => {
       companyId: r.company_id,
       name: r.name,
       phone: r.phone ?? '',
+      whatsapp: r.whatsapp ?? '',
       email: r.email ?? '',
       address: r.address ?? '',
       taxNumber: r.tax_number ?? '',
@@ -46,6 +48,7 @@ const Clients = () => {
     toRow: (c) => ({
       name: c.name,
       phone: c.phone || null,
+      whatsapp: c.whatsapp || null,
       email: c.email || null,
       address: c.address || null,
       tax_number: c.taxNumber || null,
@@ -96,6 +99,7 @@ const Clients = () => {
           <div className="grid sm:grid-cols-2 gap-4">
             <Field label="الاسم *" value={editing.name} onChange={v => setEditing(e => ({ ...e, name: v }))} />
             <Field label="رقم الهاتف *" value={editing.phone} onChange={v => setEditing(e => ({ ...e, phone: v }))} />
+            <Field label="رقم واتساب" value={editing.whatsapp ?? ''} onChange={v => setEditing(e => ({ ...e, whatsapp: v }))} />
             <Field label="البريد الإلكتروني" value={editing.email ?? ''} onChange={v => setEditing(e => ({ ...e, email: v }))} />
             <Field label="الرقم الضريبي" value={editing.taxNumber ?? ''} onChange={v => setEditing(e => ({ ...e, taxNumber: v }))} />
             <div className="sm:col-span-2"><Field label="العنوان" value={editing.address ?? ''} onChange={v => setEditing(e => ({ ...e, address: v }))} /></div>

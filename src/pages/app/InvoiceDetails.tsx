@@ -62,6 +62,7 @@ const InvoiceDetails = () => {
   let viewPayments: ViewPayment[];
   let clientName = '';
   let clientPhone = '';
+  let clientWhatsapp = '';
   let clientEmail = '';
 
   if (apiOn && apiInvoice) {
@@ -85,6 +86,7 @@ const InvoiceDetails = () => {
     const mc = mockClients.find(c => c.id === invoice.clientId);
     clientName = mc?.name ?? '';
     clientPhone = mc?.phone ?? '';
+    clientWhatsapp = mc?.whatsapp ?? '';
     clientEmail = mc?.email ?? '';
     viewItems = invoice.items.map(it => ({ id: it.id, name: it.name, quantity: it.quantity, unitPrice: it.unitPrice }));
     viewPayments = mockAllPayments.map(p => ({ id: p.id, date: p.date, amount: p.amount, splits: p.splits }));
@@ -173,7 +175,7 @@ const InvoiceDetails = () => {
     toast.success(`سيتم إرسال الفاتورة إلى ${clientEmail} عبر ${smtp.host}`);
   };
 
-  const waNumber = clientPhone.replace(/[^\d]/g, '');
+  const waNumber = (clientWhatsapp || clientPhone).replace(/[^\d]/g, '');
   const openWhatsApp = async () => {
     const text = encodeURIComponent(`فاتورة ${invoice.number}: ${publicUrl}`);
     if (apiOn) {
