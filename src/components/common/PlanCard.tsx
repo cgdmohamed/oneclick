@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatCurrency } from '@/lib/format';
+import { getCurrencySymbol } from '@/lib/currency';
 import type { Plan } from '@/types';
 
 interface PlanCardProps {
@@ -28,7 +29,7 @@ export const PlanCard = ({ plan, yearly, cta = 'اختر الباقة', onSelect
         <h3 className="text-xl font-bold">{plan.name}</h3>
         <div className="mt-3 flex items-baseline gap-2">
           <span className="text-4xl font-extrabold tracking-tight">{formatCurrency(price, '')}</span>
-          <span className="text-muted-foreground text-sm">ر.س / {yearly ? 'سنة' : 'شهر'}</span>
+          <span className="text-muted-foreground text-sm">{getCurrencySymbol()} / {yearly ? 'سنة' : 'شهر'}</span>
         </div>
       </div>
       <div className="grid grid-cols-2 gap-2 text-sm">
