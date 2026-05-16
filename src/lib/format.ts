@@ -5,9 +5,13 @@ export const formatCurrency = (n: number, currency?: string): string => {
   return `${formatted} ${currency ?? getCurrencySymbol()}`;
 };
 
+const AR_MONTHS = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+
 export const formatDate = (iso: string): string => {
   try {
-    return new Intl.DateTimeFormat('ar-SA-u-ca-gregory-nu-latn', { year: 'numeric', month: 'long', day: 'numeric' }).format(new Date(iso));
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return iso;
+    return `${d.getDate()} ${AR_MONTHS[d.getMonth()]} ${d.getFullYear()}`;
   } catch {
     return iso;
   }
@@ -15,7 +19,11 @@ export const formatDate = (iso: string): string => {
 
 export const formatDateShort = (iso: string): string => {
   try {
-    return new Intl.DateTimeFormat('ar-SA-u-ca-gregory-nu-latn', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(iso));
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return iso;
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    return `${dd}/${mm}/${d.getFullYear()}`;
   } catch {
     return iso;
   }
