@@ -200,7 +200,8 @@ const InvoiceDetails = () => {
               <Share2 className="h-4 w-4 ml-1" /> نسخ الرابط العام
             </Button>
             <Button variant="outline" onClick={downloadPdf}><Download className="h-4 w-4 ml-1" /> PDF</Button>
-            <Button variant="outline" asChild><Link to={`/invoice/${invoice.publicId}`} target="_blank"><Printer className="h-4 w-4 ml-1" /> عرض/طباعة</Link></Button>
+            <Button variant="outline" asChild><Link to={`/invoice/${invoice.publicId}`} target="_blank"><Share2 className="h-4 w-4 ml-1" /> عرض عام</Link></Button>
+            <Button onClick={() => window.print()}><Printer className="h-4 w-4 ml-1" /> طباعة</Button>
             <Sheet open={open} onOpenChange={setOpen}>
               <SheetTrigger asChild>
                 <Button disabled={remaining <= 0}><Plus className="h-4 w-4 ml-1" /> تسجيل دفعة</Button>
