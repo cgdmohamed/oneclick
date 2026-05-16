@@ -5,9 +5,15 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import { getCurrencySymbol, setCurrencySymbol } from '@/lib/currency';
 
 const SystemSettings = () => {
-  const [s, setS] = useState({ appName: 'ون كليك', supportEmail: 'support@oneclick.sa', currency: 'ر.س', invoicePrefix: 'INV' });
+  const [s, setS] = useState({
+    appName: 'ون كليك',
+    supportEmail: 'support@oneclick.sa',
+    currency: getCurrencySymbol(),
+    invoicePrefix: 'INV',
+  });
   return (
     <div>
       <PageHeader title="إعدادات النظام" description="الإعدادات العامة للمنصة" />
@@ -15,7 +21,14 @@ const SystemSettings = () => {
         <div className="grid sm:grid-cols-2 gap-4">
           <div><Label>اسم التطبيق</Label><Input className="mt-1.5" value={s.appName} onChange={e => setS(v => ({ ...v, appName: e.target.value }))} /></div>
           <div><Label>بريد الدعم</Label><Input className="mt-1.5" value={s.supportEmail} onChange={e => setS(v => ({ ...v, supportEmail: e.target.value }))} /></div>
-          <div><Label>العملة الافتراضية</Label><Input className="mt-1.5" value={s.currency} onChange={e => setS(v => ({ ...v, currency: e.target.value }))} /></div>
+          <div>
+            <Label>العملة الافتراضية</Label>
+            <Input
+              className="mt-1.5"
+              value={s.currency}
+              onChange={e => { setS(v => ({ ...v, currency: e.target.value })); setCurrencySymbol(e.target.value); }}
+            />
+          </div>
           <div><Label>بادئة الفاتورة</Label><Input className="mt-1.5" value={s.invoicePrefix} onChange={e => setS(v => ({ ...v, invoicePrefix: e.target.value }))} /></div>
         </div>
         <Button onClick={() => toast.success('تم حفظ الإعدادات')}>حفظ التغييرات</Button>
