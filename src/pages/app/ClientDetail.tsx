@@ -48,6 +48,7 @@ const ClientDetail = () => {
   const { list: invoices } = useInvoices();
 
   const client = clients.find((c) => c.id === id);
+  const fc = (n: number) => formatCurrency(n, client?.currencySymbol);
 
   const clientInvoices = useMemo(
     () => invoices.filter((inv) => inv.clientId === id),
