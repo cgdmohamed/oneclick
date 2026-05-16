@@ -9,10 +9,12 @@ import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { roleLabel } from '@/lib/format';
-import { useEffect, useSyncExternalStore } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 import { getSentAlerts, subscribeSentAlerts } from '@/lib/sentAlerts';
 import type { Role } from '@/types';
 import { useCurrentFeatureSet } from '@/hooks/usePlanAccess';
+import { OnboardingWizard, isOnboardingDone, resetOnboarding } from '@/components/common/OnboardingWizard';
+import { Sparkles } from 'lucide-react';
 
 const companyNav: { to: string; label: string; icon: typeof LayoutDashboard; end?: boolean; feature?: string }[] = [
   { to: '/app', label: 'الرئيسية', icon: LayoutDashboard, end: true },
@@ -101,6 +103,16 @@ const AppShellInner = ({ kind }: { kind: 'company' | 'admin' }) => {
   const featureSet = useCurrentFeatureSet();
   const sentAlerts = useSyncExternalStore(subscribeSentAlerts, getSentAlerts, getSentAlerts);
   const unreadCount = sentAlerts.filter(a => !a.read).length;
+  const [onboardingOpen, setOnboardingOpen] = useState(false);
+
+  useEffect(() => {
+    if (kind !== 'company' || !user?.id) return;
+    if (!isOnboardingDone(user.id)) {
+      const t = setTimeout(() => setOnboardingOpen(true), 600);
+      return () => clearTimeout(t);
+    }
+  }, [kind, user?.id]);
+
   const nav = kind === 'admin'
     ? adminNav
     : companyNav.filter((item) => !('feature' in item) || !item.feature || featureSet.has(item.feature));
@@ -234,6 +246,12 @@ const AppShellInner = ({ kind }: { kind: 'company' | 'admin' }) => {
               <DropdownMenuLabel>{user?.email}</DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => navigate('/app/settings')}>الإعدادات</DropdownMenuItem>
+              {kind === 'company' && (
+                <DropdownMenuItem onClick={() => { if (user?.id) resetOnboarding(user.id); setOnboardingOpen(true); }}>
+                  <Sparkles className="h-4 w-4 ml-2" />
+                  إعادة الجولة التعريفية
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem onClick={() => { logout(); navigate('/'); }}>تسجيل الخروج</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -254,6 +272,7 @@ const AppShellInner = ({ kind }: { kind: 'company' | 'admin' }) => {
           {kind === 'admin' && <Outlet />}
         </main>
       </div>
+      {kind === 'company' && <OnboardingWizard open={onboardingOpen} onOpenChange={setOnboardingOpen} />}
     </div>
   );
 };
