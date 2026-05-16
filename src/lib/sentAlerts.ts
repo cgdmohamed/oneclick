@@ -83,18 +83,24 @@ const seed: SentAlert[] = [
   },
 ];
 
+let cache: SentAlert[] | null = null;
+
 const read = (): SentAlert[] => {
+  if (cache) return cache;
   try {
     const raw = localStorage.getItem(KEY);
     if (!raw) {
       localStorage.setItem(KEY, JSON.stringify(seed));
-      return seed;
+      cache = seed;
+      return cache;
     }
-    return JSON.parse(raw) as SentAlert[];
-  } catch { return seed; }
+    cache = JSON.parse(raw) as SentAlert[];
+    return cache;
+  } catch { cache = seed; return cache; }
 };
 
 const write = (list: SentAlert[]): void => {
+  cache = list;
   try { localStorage.setItem(KEY, JSON.stringify(list)); } catch { /* ignore */ }
   listeners.forEach(l => l());
 };
