@@ -168,12 +168,12 @@ const AlertsLog = () => {
         title="سجل التنبيهات"
         description="جميع التنبيهات التلقائية الصادرة من النظام مع المستلم، القناة، التوقيت، والحالة."
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <Button variant="outline" size="sm" onClick={() => { markAllAlertsRead(); toast.success('تم تعليم الكل كمقروء'); }} disabled={stats.unread === 0}>
-              <CheckCheck className="h-4 w-4 ml-1" /> تعليم الكل
+              <CheckCheck className="h-4 w-4 ml-1" /> <span className="hidden sm:inline">تعليم الكل</span><span className="sm:hidden">تعليم</span>
             </Button>
             <Button variant="outline" size="sm" onClick={exportCsv} disabled={rows.length === 0}>
-              <Download className="h-4 w-4 ml-1" /> تصدير CSV
+              <Download className="h-4 w-4 ml-1" /> <span className="hidden sm:inline">تصدير CSV</span><span className="sm:hidden">CSV</span>
             </Button>
           </div>
         }
