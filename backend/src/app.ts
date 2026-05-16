@@ -25,8 +25,9 @@ import reportsRoutes from './modules/reports/routes.js';
 import { publicPlansRouter, adminPlansRouter } from './modules/plans/routes.js';
 import subscriptionsRoutes from './modules/subscriptions/routes.js';
 import publicRoutes from './modules/public/routes.js';
-import uploadsRoutes, { UPLOAD_DIR } from './modules/uploads/routes.js';
+import uploadsRoutes, { UPLOAD_PUBLIC } from './modules/uploads/routes.js';
 import platformRoutes from './modules/platform/routes.js';
+import { invitationsAdminRouter, invitationsPublicRouter } from './modules/invitations/routes.js';
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
