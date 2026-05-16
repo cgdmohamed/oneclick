@@ -12,7 +12,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { roleLabel } from '@/lib/format';
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { getSentAlerts, subscribeSentAlerts } from '@/lib/sentAlerts';
-import type { Role } from '@/types';
+
 import { useCurrentFeatureSet } from '@/hooks/usePlanAccess';
 import { OnboardingWizard, isOnboardingDone, resetOnboarding } from '@/components/common/OnboardingWizard';
 import { Sparkles } from 'lucide-react';
