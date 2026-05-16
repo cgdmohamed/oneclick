@@ -5,20 +5,54 @@ import { renderInvoicePdf } from '../../utils/pdf.js';
 
 const router = Router();
 
-async function loadByPublicId(publicId: string) {
-  const inv = await pool.query(`
-    SELECT i.*, c.name AS client_name, c.email AS client_email, c.tax_number AS client_tax,
-           co.name AS company_name, co.tax_number AS company_tax, co.address AS company_address,
-           co.phone AS company_phone, co.logo_url AS company_logo, co.stamp_url AS company_stamp,
-           co.currency
-    FROM invoices i
-    JOIN clients   c  ON c.id = i.client_id
-    JOIN companies co ON co.id = i.company_id
-    WHERE i.public_id = $1
-  `, [publicId]);
-  if (!inv.rowCount) throw notFound('Invoice not found');
-  const items = await pool.query(`SELECT * FROM invoice_items WHERE invoice_id = $1 ORDER BY created_at`, [inv.rows[0].id]);
-  return { invoice: inv.rows[0], items: items.rows };
+interface PublicInvoicePayload {
+  invoice: Record<string, unknown> & {
+    id: string;
+    number: string;
+    issue_date: string;
+    due_date: string | null;
+    status: string;
+    subtotal: string | number;
+    vat_amount: string | number;
+    discount: string | number;
+    total: string | number;
+    paid: string | number;
+    remaining: string | number;
+    notes: string | null;
+    client_name: string;
+    client_email: string | null;
+    client_phone: string | null;
+    client_tax: string | null;
+    company_name: string;
+    company_address: string | null;
+    company_tax: string | null;
+    company_phone: string | null;
+    company_logo: string | null;
+    company_stamp: string | null;
+    currency: string | null;
+  };
+  items: Array<{
+    description: string;
+    quantity: string | number;
+    unit_price: string | number;
+    line_total: string | number;
+    created_at: string;
+  }>;
+}
+
+/**
+ * Load a public invoice through a SECURITY DEFINER function so RLS doesn't
+ * fight us (TEN-02). The function returns a single jsonb document; no tenant
+ * context needs to be configured on the connection.
+ */
+async function loadByPublicId(publicId: string): Promise<PublicInvoicePayload> {
+  const rs = await pool.query<{ public_get_invoice: PublicInvoicePayload | null }>(
+    `SELECT public_get_invoice($1) AS public_get_invoice`,
+    [publicId],
+  );
+  const payload = rs.rows[0]?.public_get_invoice;
+  if (!payload) throw notFound('Invoice not found');
+  return payload;
 }
 
 router.get('/invoices/:publicId', async (req, res, next) => {
@@ -32,13 +66,21 @@ router.get('/invoices/:publicId/pdf', async (req, res, next) => {
   try {
     const { invoice, items } = await loadByPublicId(req.params.publicId);
     const buf = await renderInvoicePdf({
-      number: invoice.number, issue_date: invoice.issue_date, due_date: invoice.due_date, status: invoice.status,
+      number: invoice.number, issue_date: invoice.issue_date,
+      due_date: invoice.due_date, status: invoice.status,
       currency: invoice.currency ?? 'SAR',
       subtotal: Number(invoice.subtotal), vat_amount: Number(invoice.vat_amount),
       discount: Number(invoice.discount), total: Number(invoice.total),
-      paid: Number(invoice.paid), remaining: Number(invoice.remaining), notes: invoice.notes,
-      company: { name: invoice.company_name, address: invoice.company_address, tax_number: invoice.company_tax, phone: invoice.company_phone },
-      client:  { name: invoice.client_name, email: invoice.client_email, tax_number: invoice.client_tax },
+      paid: Number(invoice.paid), remaining: Number(invoice.remaining),
+      notes: invoice.notes,
+      company: {
+        name: invoice.company_name, address: invoice.company_address,
+        tax_number: invoice.company_tax, phone: invoice.company_phone,
+      },
+      client: {
+        name: invoice.client_name, email: invoice.client_email,
+        phone: invoice.client_phone, tax_number: invoice.client_tax,
+      },
       items: items.map((r) => ({
         description: r.description, quantity: Number(r.quantity),
         unit_price: Number(r.unit_price), line_total: Number(r.line_total),

@@ -22,7 +22,7 @@ router.get('/me/payments', async (req, res, next) => {
     const t = req.tenant!;
     const rs = await pool.query(`
       SELECT sp.id, sp.amount, sp.method, sp.paid_at, sp.reference, sp.notes,
-             p.name AS plan_name, s.start_date, s.end_date
+             p.name AS plan_name, s.started_at, s.expires_at
       FROM subscription_payments sp
       JOIN subscriptions s ON s.id = sp.subscription_id
       JOIN plans p         ON p.id = s.plan_id

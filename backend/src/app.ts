@@ -22,7 +22,7 @@ import invoicesRoutes from './modules/invoices/routes.js';
 import paymentsRoutes from './modules/payments/routes.js';
 import notificationsRoutes from './modules/notifications/routes.js';
 import reportsRoutes from './modules/reports/routes.js';
-import plansRoutes from './modules/plans/routes.js';
+import { publicPlansRouter, adminPlansRouter } from './modules/plans/routes.js';
 import subscriptionsRoutes from './modules/subscriptions/routes.js';
 import publicRoutes from './modules/public/routes.js';
 import uploadsRoutes, { UPLOAD_DIR } from './modules/uploads/routes.js';
@@ -65,10 +65,12 @@ export function createApp() {
   // Public
   app.use('/api/public', publicRoutes);
   app.use('/api/auth', authLimiter, authRoutes);
-  app.use('/api/plans', plansRoutes);
+  app.use('/api/plans', publicPlansRouter);
 
   // Protected API surface
   app.use('/api', apiLimiter, requireAuth, tenantContext, requireActiveSubscription);
+  // Admin CRUD on plans must run AFTER auth+tenantContext so requireSuperAdmin works. (BUG-03)
+  app.use('/api/plans', adminPlansRouter);
   app.use('/api/companies', companiesRoutes);
   app.use('/api/users', usersRoutes);
   app.use('/api/clients', clientsRoutes);
