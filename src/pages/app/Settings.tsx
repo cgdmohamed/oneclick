@@ -226,6 +226,9 @@ const Settings = () => {
 
   const previewRef = useRef<HTMLDivElement>(null);
 
+  const [search, setSearch] = useSearchParams();
+  const tab = search.get('tab') || 'company';
+
   return (
     <div>
       <PageHeader
