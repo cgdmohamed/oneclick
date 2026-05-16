@@ -272,6 +272,7 @@ const AppShellInner = ({ kind }: { kind: 'company' | 'admin' }) => {
           {kind === 'admin' && <Outlet />}
         </main>
       </div>
+      {kind === 'company' && <OnboardingWizard open={onboardingOpen} onOpenChange={setOnboardingOpen} />}
     </div>
   );
 };
