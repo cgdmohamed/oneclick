@@ -107,7 +107,7 @@ export const SentAlertsCenter = ({
         />
       ) : (
         <div className="space-y-2.5">
-          {list.map(a => {
+          {pageItems.map(a => {
             const Icon = eventIcon(a.event);
             const ChannelIcon = a.channel === 'email' ? Mail : Bell;
             return (
@@ -154,6 +154,18 @@ export const SentAlertsCenter = ({
               </Card>
             );
           })}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between gap-2 pt-2">
+              <span className="text-xs text-muted-foreground tabular-nums">
+                {(safePage - 1) * pageSize + 1}-{Math.min(safePage * pageSize, list.length)} من {list.length}
+              </span>
+              <div className="flex items-center gap-1">
+                <Button variant="outline" size="sm" className="h-8" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={safePage === 1}>السابق</Button>
+                <span className="text-xs text-muted-foreground px-2 tabular-nums">{safePage} / {totalPages}</span>
+                <Button variant="outline" size="sm" className="h-8" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={safePage === totalPages}>التالي</Button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
