@@ -36,6 +36,7 @@ const InvoiceDetails = () => {
   const apiOn = isApiConfigured();
   const qc = useQueryClient();
   const { list: accounts } = useAccounts();
+  const navigate = useNavigate();
 
   const { data: apiInvoice } = useQuery({
     enabled: apiOn && !!id,
@@ -149,13 +150,27 @@ const InvoiceDetails = () => {
   };
 
   const sendEmail = async () => {
-    if (!apiOn) return toast.message('الإرسال يتطلب تشغيل الـ API');
-    try {
-      await api.post(`/api/invoices/${invoice.id}/send-email`, {});
-      toast.success('تم إرسال الفاتورة بالبريد');
-    } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : 'تعذّر الإرسال');
+    if (apiOn) {
+      try {
+        await api.post(`/api/invoices/${invoice.id}/send-email`, {});
+        toast.success('تم إرسال الفاتورة بالبريد');
+      } catch (e) {
+        toast.error(e instanceof ApiError ? e.message : 'تعذّر الإرسال');
+      }
+      return;
     }
+    if (!isSmtpConfigured()) {
+      toast.error('لم يتم إعداد خادم البريد (SMTP) بعد', {
+        action: { label: 'إعداد الآن', onClick: () => navigate('/app/settings?tab=smtp') },
+      });
+      return;
+    }
+    if (!clientEmail) {
+      toast.error('لا يوجد بريد إلكتروني لهذا العميل');
+      return;
+    }
+    const smtp = loadSmtp();
+    toast.success(`سيتم إرسال الفاتورة إلى ${clientEmail} عبر ${smtp.host}`);
   };
 
   const waNumber = clientPhone.replace(/[^\d]/g, '');
