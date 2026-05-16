@@ -50,6 +50,8 @@ import TrackingSettings from "./pages/admin/TrackingSettings";
 import Analytics from "./pages/admin/Analytics";
 import Users360 from "./pages/admin/Users360";
 import UserDetail360 from "./pages/admin/UserDetail360";
+import RolesAndPermissions from "./pages/admin/RolesAndPermissions";
+import AuditLog from "./pages/admin/AuditLog";
 
 import { TrackingScripts } from "./components/common/TrackingScripts";
 
@@ -113,6 +115,8 @@ const App = () => (
               <Route path="analytics" element={<Analytics />} />
               <Route path="users" element={<Users360 />} />
               <Route path="users/:id" element={<UserDetail360 />} />
+              <Route path="roles" element={<RolesAndPermissions />} />
+              <Route path="audit-log" element={<AuditLog />} />
               <Route path="settings" element={<SystemSettings />} />
             </Route>
 
