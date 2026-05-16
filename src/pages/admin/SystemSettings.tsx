@@ -32,13 +32,13 @@ const SystemSettings = () => {
     invoicePrefix: 'INV',
   });
 
-  const onFile = (f: File) => {
+  const onFile = (f: File, key: 'logoFullUrl' | 'logoIconUrl') => {
     if (f.size > 512 * 1024) {
       toast.error('حجم الشعار يجب أن يكون أقل من 512KB');
       return;
     }
     const reader = new FileReader();
-    reader.onload = () => setLocal(v => ({ ...v, logoUrl: String(reader.result) }));
+    reader.onload = () => setLocal(v => ({ ...v, [key]: String(reader.result) }));
     reader.readAsDataURL(f);
   };
 
