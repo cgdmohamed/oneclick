@@ -360,6 +360,90 @@ function ListEditor<T extends { id: string }>({ items, onChange, addLabel, creat
   );
 }
 
+const ImageUploadField = ({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) => {
+  const [uploading, setUploading] = useState(false);
+  const onFile = (file: File | undefined) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toast.error('الرجاء اختيار ملف صورة صالح');
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error('حجم الصورة يجب أن يكون أقل من 2MB');
+      return;
+    }
+    setUploading(true);
+    const reader = new FileReader();
+    reader.onload = () => {
+      onChange(String(reader.result));
+      setUploading(false);
+      toast.success('تم تحميل الصورة');
+    };
+    reader.onerror = () => { setUploading(false); toast.error('تعذر قراءة الملف'); };
+    reader.readAsDataURL(file);
+  };
+
+  return (
+    <div className="space-y-3">
+      <Label className="text-xs">{label}</Label>
+      <div className="grid sm:grid-cols-[1fr_auto] gap-3 items-stretch">
+        <div
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={(e) => { e.preventDefault(); onFile(e.dataTransfer.files?.[0]); }}
+          className="relative rounded-xl border-2 border-dashed border-border bg-muted/30 hover:bg-muted/50 transition-colors p-4 flex items-center gap-4 min-h-[120px]"
+        >
+          {value ? (
+            <>
+              <div className="h-20 w-32 rounded-lg overflow-hidden bg-background border border-border/60 shrink-0">
+                <img src={value} alt="معاينة" className="w-full h-full object-cover" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-semibold">صورة محمّلة</div>
+                <div className="text-xs text-muted-foreground truncate" dir="ltr">
+                  {value.startsWith('data:') ? `Data URL (${Math.round(value.length / 1024)} KB)` : value}
+                </div>
+              </div>
+              <Button
+                type="button" variant="ghost" size="icon"
+                onClick={() => onChange('')}
+                className="text-destructive shrink-0"
+                title="إزالة"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </>
+          ) : (
+            <div className="flex items-center gap-3 text-muted-foreground">
+              <ImageIcon className="h-8 w-8" />
+              <div className="text-sm">اسحب صورة هنا أو اختر ملفاً</div>
+            </div>
+          )}
+        </div>
+        <label className="flex">
+          <input
+            type="file" accept="image/*" className="sr-only"
+            onChange={(e) => onFile(e.target.files?.[0])}
+          />
+          <Button asChild type="button" variant="outline" className="h-full px-4">
+            <span className="cursor-pointer">
+              <Upload className="h-4 w-4 ms-1" /> {uploading ? 'جارٍ التحميل…' : 'رفع صورة'}
+            </span>
+          </Button>
+        </label>
+      </div>
+      <div>
+        <Label className="text-xs text-muted-foreground">أو ألصق رابط الصورة (URL)</Label>
+        <Input
+          dir="ltr" className="mt-1.5"
+          value={value.startsWith('data:') ? '' : value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="https://... أو /assets/landing-hero.jpg"
+        />
+      </div>
+    </div>
+  );
+};
+
 export default LandingContentAdmin;
 // re-export default to silence unused warnings during dev
 export { DEFAULT_LANDING };
