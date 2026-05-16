@@ -22,6 +22,7 @@ const companyNav: { to: string; label: string; icon: typeof LayoutDashboard; end
   { to: '/app/products', label: 'المنتجات والمخزون', icon: Package, feature: 'products' },
   { to: '/app/reports', label: 'التقارير', icon: BarChart3, feature: 'reports_basic' },
   { to: '/app/notifications', label: 'التنبيهات', icon: Bell, feature: 'notifications' },
+  { to: '/app/alerts-log', label: 'سجل التنبيهات', icon: BellRing, feature: 'notifications' },
   { to: '/app/users', label: 'المستخدمون والصلاحيات', icon: ShieldCheck, feature: 'rbac' },
   { to: '/app/activity', label: 'سجل الأنشطة', icon: History, feature: 'activity_log' },
   { to: '/app/subscription', label: 'الاشتراك والفوترة', icon: Crown },
