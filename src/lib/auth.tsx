@@ -27,7 +27,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(() => {
     try {
       const raw = localStorage.getItem(KEY);
-      return raw ? JSON.parse(raw) : null;
+      const cached = raw ? (JSON.parse(raw) as User) : null;
+      if (cached && !cached.companyId && cached.role !== 'super_admin') {
+        // Heal old cached users that were saved before companyId was tracked.
+        const match = users.find(u => u.email.toLowerCase() === cached.email.toLowerCase());
+        if (match?.companyId) return { ...cached, companyId: match.companyId };
+      }
+      return cached;
     } catch { return null; }
   });
   const [apiCompanyName, setApiCompanyName] = useState<string | null>(null);
