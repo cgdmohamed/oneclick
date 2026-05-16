@@ -114,7 +114,8 @@ export const api = {
   patch:  <T>(path: string, body?: unknown) => request<T>('PATCH', path, body),
   delete: <T>(path: string) => request<T>('DELETE', path),
   upload: async <T>(path: string, form: FormData): Promise<T> => {
-    if (!API_URL) throw new ApiError(0, 'API_URL not configured');
+    // Same logic as request(): _rawApiUrl is the sentinel; API_URL may be '' in same-origin mode.
+    if (!_rawApiUrl) throw new ApiError(0, 'API_URL not configured');
     const headers: Record<string, string> = {};
     const token = getAccessToken();
     if (token) headers.Authorization = `Bearer ${token}`;
