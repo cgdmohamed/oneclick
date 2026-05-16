@@ -23,6 +23,10 @@ export interface LandingContent {
     secondary: CTA;
     imageUrl: string;
     showImage: boolean;
+    showBrowserFrame: boolean;
+    borderWidth: number;        // 0–4 px
+    borderRadius: number;       // 8–32 px
+    shadowIntensity: 'none' | 'soft' | 'elev' | 'glow';
   };
   stats: { enabled: boolean; items: StatItem[] };
   logos: { enabled: boolean; title: string; items: LogoItem[] };
