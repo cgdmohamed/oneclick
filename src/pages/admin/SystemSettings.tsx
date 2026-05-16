@@ -217,18 +217,43 @@ const SystemSettings = () => {
 
 /** Inline preview that reflects unsaved edits without committing them. */
 const BrandLogoPreview = ({ value }: { value: BrandSettings }) => {
-  if (value.logoUrl) {
-    return <img src={value.logoUrl} alt={value.name} className="h-12 w-auto object-contain" />;
-  }
+  const fullSrc = value.logoFullUrl || value.logoIconUrl;
   return (
-    <div className="flex flex-col items-center gap-1">
-      <span
-        className={`text-2xl leading-none ${value.fontWeight} ${value.tracking}`}
-        style={{ fontFamily: value.fontFamily }}
-      >
-        {value.name}
-      </span>
-      {value.tagline && <span className="text-xs text-muted-foreground">{value.tagline}</span>}
+    <div className="flex items-center gap-8 flex-wrap justify-center">
+      {/* Full lockup */}
+      <div className="flex flex-col items-center gap-2">
+        {fullSrc ? (
+          <img src={fullSrc} alt={value.name} className="h-12 w-auto object-contain" />
+        ) : (
+          <div className="flex flex-col items-center gap-1">
+            <span
+              className={`text-2xl leading-none ${value.fontWeight} ${value.tracking}`}
+              style={{ fontFamily: value.fontFamily }}
+            >
+              {value.name}
+            </span>
+            {value.tagline && <span className="text-xs text-muted-foreground">{value.tagline}</span>}
+          </div>
+        )}
+        <span className="text-[10px] text-muted-foreground">شعار كامل</span>
+      </div>
+
+      {/* Icon */}
+      <div className="flex flex-col items-center gap-2">
+        {value.logoIconUrl ? (
+          <img src={value.logoIconUrl} alt={value.name} className="h-12 w-12 object-contain" />
+        ) : value.logoFullUrl ? (
+          <img src={value.logoFullUrl} alt={value.name} className="h-12 w-12 object-contain" />
+        ) : (
+          <span
+            className={`h-12 w-12 inline-flex items-center justify-center rounded-md bg-primary/10 text-primary text-xl ${value.fontWeight}`}
+            style={{ fontFamily: value.fontFamily }}
+          >
+            {(value.name || '•').trim().split(/\s+/).slice(0, 2).map(p => Array.from(p)[0] ?? '').join('')}
+          </span>
+        )}
+        <span className="text-[10px] text-muted-foreground">أيقونة</span>
+      </div>
     </div>
   );
 };
