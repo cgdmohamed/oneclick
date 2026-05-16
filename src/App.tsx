@@ -20,6 +20,7 @@ import Register from "./pages/public/Register";
 import PublicInvoice from "./pages/public/PublicInvoice";
 import ForgotPassword from "./pages/public/ForgotPassword";
 import ResetPassword from "./pages/public/ResetPassword";
+import AcceptInvite from "./pages/public/AcceptInvite";
 
 import Overview from "./pages/app/Overview";
 import Clients from "./pages/app/Clients";
