@@ -17,6 +17,7 @@ import jsPDF from 'jspdf';
 import { toast } from 'sonner';
 import { api, isApiConfigured, resolveAssetUrl } from '@/lib/api';
 import { setCurrencySymbol, getCurrencySymbol } from '@/lib/currency';
+import { InvoiceAlertsSettingsPanel } from '@/components/common/InvoiceAlertsSettings';
 
 interface CompanyProfile {
   name: string;
@@ -248,7 +249,14 @@ const Settings = () => {
           <TabsTrigger value="client">بيانات العميل</TabsTrigger>
           <TabsTrigger value="identity">الهوية والختم</TabsTrigger>
           <TabsTrigger value="smtp">البريد (SMTP)</TabsTrigger>
+          <TabsTrigger value="alerts">تنبيهات الفواتير</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="alerts" className="mt-4">
+          <div className="max-w-3xl">
+            <InvoiceAlertsSettingsPanel />
+          </div>
+        </TabsContent>
 
         <TabsContent value="company" className="mt-4">
           <Card className="p-6 border-border/60 max-w-3xl space-y-4">
