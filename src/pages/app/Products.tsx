@@ -69,6 +69,7 @@ const Products = () => {
   const [catsOpen, setCatsOpen] = useState(false);
   const [newCat, setNewCat] = useState('');
   const [customCats, setCustomCats] = useState<string[]>([]);
+  const [catFilter, setCatFilter] = useState<string>('all');
   const { list: invoices } = useInvoices();
   const { user } = useAuth();
   const who = { userId: user?.id, userName: user?.name, userEmail: user?.email };
@@ -195,7 +196,26 @@ const Products = () => {
           <TabsTrigger value="movements">حركة المخزون</TabsTrigger>
         </TabsList>
         <TabsContent value="products" className="mt-4">
-          <DataTable data={list} columns={columns} searchKeys={['name','code']} searchPlaceholder="ابحث بالمنتج أو الكود..." />
+          <DataTable
+            data={
+              catFilter === 'all' ? list
+                : catFilter === '__none__' ? list.filter(p => !p.category)
+                : list.filter(p => p.category === catFilter)
+            }
+            columns={columns}
+            searchKeys={['name','code']}
+            searchPlaceholder="ابحث بالمنتج أو الكود..."
+            rightToolbar={
+              <Select value={catFilter} onValueChange={setCatFilter}>
+                <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">كل التصنيفات</SelectItem>
+                  <SelectItem value="__none__">بدون تصنيف</SelectItem>
+                  {categories.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            }
+          />
         </TabsContent>
         <TabsContent value="movements" className="mt-4">
           <DataTable
