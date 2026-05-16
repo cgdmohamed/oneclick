@@ -4,7 +4,7 @@ import { HttpError } from '../utils/errors.js';
 import { logger } from '../utils/logger.js';
 
 export const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
-  const reqId = (req as unknown as { id?: string }).id;
+  const reqId = req.id as string | undefined;
   if (err instanceof ZodError) {
     return res.status(400).json({ error: 'validation_error', details: err.flatten(), request_id: reqId });
   }
