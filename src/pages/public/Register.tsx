@@ -2,7 +2,8 @@ import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { Calculator, CheckCircle2 } from 'lucide-react';
+import { CheckCircle2 } from 'lucide-react';
+import { BrandLogo } from '@/components/common/BrandLogo';
 import { Link } from 'react-router-dom';
 import { useState } from 'react';
 import { isApiConfigured, registerRequest, ApiError } from '@/lib/api';
@@ -74,11 +75,8 @@ const Register = () => {
     <div className="container py-12">
       <div className="max-w-2xl mx-auto">
         <Card className="p-8 border-border/60 shadow-soft">
-          <div className="flex items-center gap-2 mb-6 justify-center">
-            <span className="h-10 w-10 rounded-xl gradient-hero text-primary-foreground flex items-center justify-center">
-              <Calculator className="h-5 w-5" />
-            </span>
-            <span className="font-bold text-lg">ون كليك</span>
+          <div className="flex items-center justify-center mb-6">
+            <BrandLogo size="lg" />
           </div>
           <div className="text-center mb-8">
             <h1 className="text-3xl font-bold">سجّل شركتك مجاناً</h1>

@@ -2,7 +2,7 @@ import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { Calculator } from 'lucide-react';
+import { BrandLogo } from '@/components/common/BrandLogo';
 import { Link, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import { useAuth } from '@/lib/auth';
@@ -51,11 +51,8 @@ const Login = () => {
     <div className="min-h-[calc(100vh-4rem)] grid lg:grid-cols-2">
       <div className="flex items-center justify-center p-8">
         <Card className="w-full max-w-md p-8 border-border/60 shadow-soft">
-          <div className="flex items-center gap-2 mb-6">
-            <span className="h-10 w-10 rounded-xl gradient-hero text-primary-foreground flex items-center justify-center">
-              <Calculator className="h-5 w-5" />
-            </span>
-            <span className="font-bold text-lg">ون كليك</span>
+          <div className="mb-6">
+            <BrandLogo size="lg" />
           </div>
           <h1 className="text-2xl font-bold">مرحباً بعودتك</h1>
           <p className="text-sm text-muted-foreground mt-1.5">سجّل دخولك للوصول إلى لوحة التحكم.</p>
