@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import { parsePagination } from './pagination.js';
 
 /** Tiny CRUD factory for tenant-scoped tables to keep modules concise. */
 export function crudRouter(opts: {
@@ -8,17 +9,38 @@ export function crudRouter(opts: {
   schema: z.ZodTypeAny;             // body validation
   patchSchema?: z.ZodTypeAny;
   defaults?: Record<string, unknown>;
-  list?: { orderBy?: string };
+  list?: { orderBy?: string; searchable?: string[] };
 }) {
   const r = Router();
-  const cols = opts.fields.join(', ');
+  void opts.fields;
 
   r.get('/', async (req, res, next) => {
     try {
       const t = req.tenant!;
       const order = opts.list?.orderBy ?? 'created_at DESC';
-      const rs = await t.db.query(`SELECT * FROM ${opts.table} ORDER BY ${order}`);
-      res.json({ data: rs.rows });
+      const p = parsePagination(req);
+
+      // SCL-05: optional ?q=... ILIKE search across whitelisted columns only.
+      const q = (req.query.q as string | undefined)?.trim();
+      const searchable = opts.list?.searchable ?? [];
+      let where = '';
+      const params: unknown[] = [];
+      if (q && searchable.length) {
+        const idx = params.length + 1;
+        params.push(`%${q}%`);
+        where = `WHERE ${searchable.map((c) => `${c} ILIKE $${idx}`).join(' OR ')}`;
+      }
+
+      const totalQ = await t.db.query(
+        `SELECT count(*)::int AS count FROM ${opts.table} ${where}`, params,
+      );
+      const total = Number(totalQ.rows[0]?.count ?? 0);
+
+      const applied = p.applyTo(
+        `SELECT * FROM ${opts.table} ${where} ORDER BY ${order}`, params,
+      );
+      const rs = await t.db.query(applied.sql, applied.params);
+      res.json(p.respond(rs.rows, total));
     } catch (e) { next(e); }
   });
 
