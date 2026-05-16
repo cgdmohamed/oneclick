@@ -32,8 +32,7 @@ const adminNav = [
   { to: '/admin', label: 'لوحة الإدارة', icon: LayoutDashboard, end: true },
   { to: '/admin/analytics', label: 'تحليلات المنصة', icon: PieChart },
   { to: '/admin/approvals', label: 'طلبات التسجيل', icon: UserPlus, badge: 'pending-signups' as const },
-  { to: '/admin/companies', label: 'الشركات', icon: Building2 },
-  { to: '/admin/users', label: 'المشتركين', icon: UserSearch },
+  { to: '/admin/companies', label: 'الشركات والمشتركون', icon: Building2 },
   { to: '/admin/plans', label: 'الباقات', icon: Layers },
   { to: '/admin/subscriptions', label: 'الاشتراكات', icon: FileText },
   

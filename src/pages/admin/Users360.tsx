@@ -60,7 +60,7 @@ const Users360 = () => {
     {
       key: 'actions', header: '', cell: r => (
         <Button asChild variant="ghost" size="sm" className="gap-1">
-          <Link to={`/admin/users/${r.id}`}>عرض 360
+          <Link to={`/admin/users/${r.id}`}>إدارة
             <ChevronLeft className="h-4 w-4" />
           </Link>
         </Button>
@@ -70,7 +70,7 @@ const Users360 = () => {
 
   return (
     <div>
-      <PageHeader title="مستخدمو المنصة (User 360)" description="استعراض موحّد لكل المستخدمين عبر الشركات مع تفاصيل النشاط والاشتراك" />
+      <PageHeader title="مستخدمو المنصة" description="استعراض موحّد لكل المستخدمين عبر الشركات مع تفاصيل النشاط والاشتراك" />
       <DataTable data={data} columns={columns} searchKeys={['name', 'email', 'companyName']} />
     </div>
   );
