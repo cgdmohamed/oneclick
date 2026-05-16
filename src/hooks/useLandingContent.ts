@@ -23,6 +23,10 @@ export interface LandingContent {
     secondary: CTA;
     imageUrl: string;
     showImage: boolean;
+    showBrowserFrame: boolean;
+    borderWidth: number;        // 0–4 px
+    borderRadius: number;       // 8–32 px
+    shadowIntensity: 'none' | 'soft' | 'elev' | 'glow';
   };
   stats: { enabled: boolean; items: StatItem[] };
   logos: { enabled: boolean; title: string; items: LogoItem[] };
@@ -48,6 +52,10 @@ export const DEFAULT_LANDING: LandingContent = {
     secondary: { label: 'استعرض المميزات', url: '/features' },
     imageUrl: heroDefault,
     showImage: true,
+    showBrowserFrame: true,
+    borderWidth: 1,
+    borderRadius: 16,
+    shadowIntensity: 'elev',
   },
   stats: {
     enabled: true,
