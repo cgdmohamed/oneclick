@@ -165,7 +165,7 @@ const UserDetail360 = () => {
                 <Row label="الباقة">{plan.name}</Row>
                 <Row label="السعر الشهري">{formatCurrency(plan.monthlyPrice)}</Row>
                 <Row label="السعر السنوي">{formatCurrency(plan.yearlyPrice)}</Row>
-                <Row label="حالة الاشتراك"><StatusBadge status={sub.status} label={companyStatusLabel(sub.status === 'trialing' ? 'active' : sub.status)} /></Row>
+                <Row label="حالة الاشتراك"><StatusBadge status={sub.status} label={companyStatusLabel(sub.status)} /></Row>
                 <Row label="بداية الاشتراك">{formatDate(sub.startDate)}</Row>
                 <Row label="نهاية الاشتراك">{formatDate(sub.endDate)}</Row>
                 <Row label="حالة الدفع">{sub.paid ? <Badge className="bg-success/15 text-success border-0">مدفوع</Badge> : <Badge className="bg-destructive/15 text-destructive border-0">غير مدفوع</Badge>}</Row>
