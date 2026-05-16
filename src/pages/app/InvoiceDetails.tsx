@@ -287,6 +287,8 @@ const InvoiceDetails = () => {
             </tbody>
           </table>
 
+          <PrintableQr invoiceId={invoice.id} value={publicUrl} invoiceNumber={invoice.number} />
+
           <div className="flex flex-wrap gap-2 mt-5 no-print">
             <Button variant="outline" size="sm" onClick={sendEmail}><Mail className="h-4 w-4 ml-1" /> إرسال عبر البريد الإلكتروني</Button>
             <Button
