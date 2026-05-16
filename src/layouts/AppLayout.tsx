@@ -197,24 +197,6 @@ const AppShellInner = ({ kind }: { kind: 'company' | 'admin' }) => {
         <header className="shell-header relative h-14 bg-card/60 backdrop-blur sticky top-0 z-30 flex items-center px-4 gap-3 shadow-sm">
           <SidebarTrigger />
           <div className="flex-1" />
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="gap-2">
-                <span className="text-xs text-muted-foreground">عرض كـ:</span>
-                <span className="font-semibold">{roleLabel(user?.role ?? 'company_admin')}</span>
-                <ChevronLeft className="h-3 w-3" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-52">
-              <DropdownMenuLabel>تبديل الدور (للعرض)</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              {(['company_admin','accountant','sales','viewer','super_admin'] as Role[]).map(r => (
-                <DropdownMenuItem key={r} onClick={() => { setRole(r); if (r === 'super_admin') navigate('/admin'); else navigate('/app'); }}>
-                  {roleLabel(r)}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
           <Button
             variant="ghost"
             size="icon"
