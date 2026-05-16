@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Trash2, RefreshCw, Save, ExternalLink, Eye } from 'lucide-react';
+import { Plus, Trash2, RefreshCw, Save, ExternalLink, Eye, Upload, ImageIcon, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Link } from 'react-router-dom';
 import { useLandingContent, DEFAULT_LANDING, type LandingContent, type BentoItem } from '@/hooks/useLandingContent';
