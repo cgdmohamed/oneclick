@@ -8,7 +8,7 @@ import {
 
 interface AuthState {
   user: User | null;
-  login: (email: string) => boolean;
+  login: (email: string, password?: string) => boolean;
   logout: () => void;
   setRole: (role: Role) => void;
   companyName: string;
@@ -69,8 +69,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const value = useMemo<AuthState>(() => ({
     user,
-    login: (email: string) => {
-      const found = users.find(u => u.email.toLowerCase() === email.toLowerCase()) ?? users[0];
+    login: (email: string, password?: string) => {
+      // Demo-only fallback when no backend is configured. Real auth goes
+      // through loginRequest() in src/lib/api.ts. Never grant super_admin
+      // through the local mock list, and require a non-empty password.
+      if (!email || !password) return false;
+      const found = users.find(u => u.email.toLowerCase() === email.toLowerCase());
+      if (!found || found.role === 'super_admin') return false;
       setUser(found);
       return true;
     },

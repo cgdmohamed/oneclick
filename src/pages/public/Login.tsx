@@ -10,8 +10,8 @@ import { isApiConfigured, loginRequest, ApiError } from '@/lib/api';
 import { toast } from 'sonner';
 
 const Login = () => {
-  const [email, setEmail] = useState('admin@alofok.sa');
-  const [password, setPassword] = useState('Aa123456!');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
@@ -23,9 +23,22 @@ const Login = () => {
       if (isApiConfigured()) {
         await loginRequest(email, password);
         toast.success('تم تسجيل الدخول');
+        // user state will be hydrated from /api/auth/me by AuthProvider
+        navigate('/app');
+      } else {
+        // Demo mode (no backend configured): require a non-empty password and
+        // never grant super_admin via the local mock list.
+        if (!email || !password) {
+          toast.error('يرجى إدخال البريد وكلمة المرور');
+          return;
+        }
+        const ok = login(email, password);
+        if (!ok) {
+          toast.error('بيانات الدخول غير صحيحة');
+          return;
+        }
+        navigate('/app');
       }
-      login(email);
-      navigate('/app');
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : 'تعذّر تسجيل الدخول';
       toast.error(msg);
