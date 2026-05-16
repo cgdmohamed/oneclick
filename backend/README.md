@@ -119,6 +119,9 @@ docker run -d --name hesabat-api \
   -e APP_URL="https://app.hesabat.example.com" \
   -e SMTP_HOST=smtp.example.com -e SMTP_USER=... -e SMTP_PASS=... \
   -e NODE_ENV=production \
+  -e RUN_JOBS=true \
+  -e PG_POOL_MAX=10 \
+  -v hesabat_uploads:/app/uploads \
   -p 4000:4000 \
   hesabat-api
 ```
@@ -132,16 +135,43 @@ Notes:
 - Rotate `JWT_SECRET` and `JWT_REFRESH_SECRET` periodically (≥ 32 chars).
 - The full API spec is in `openapi.yaml` (import it into Swagger UI / Postman).
 
-## Tests
+### Environment variables
 
-Smoke tests are ready under `src/__tests__/`. For integration tests run
-`docker compose up -d postgres` then `npm test`.
+In addition to the obvious ones:
 
-## Extension points
+| Var | Default | Purpose |
+|---|---|---|
+| `RUN_JOBS` | `true` | SCL-06 — set to `false` on all replicas except one so scheduled jobs (overdue invoices, email queue tick) only run once. |
+| `PG_POOL_MAX` | `10` | SCL-07 — per-process pg pool size. Lower (≈5) when fronted by PgBouncer with many app replicas. |
+| `PG_IDLE_TIMEOUT_MS` | `30000` | Idle connection timeout. |
+| `PG_CONNECT_TIMEOUT_MS` | `10000` | New connection timeout. |
+| `COOKIE_SAMESITE` / `COOKIE_SECURE` / `COOKIE_DOMAIN` | — | Refresh-cookie tuning for cross-domain setups (SEC-01/02). |
 
-- **Email**: `src/utils/email.ts` supports SMTP or falls back to stdout.
-- **Payments**: fully manual via `/api/platform/subscription-payments`.
-- **Storage**: files are saved under `/uploads` and served via `/uploads/*`.
+### Health / readiness endpoints
+
+- `GET /health` — liveness only (process is up). Use for orchestrator restart loops.
+- `GET /readyz` — readiness, pings the DB. Use for load-balancer routing. Returns `503` when Postgres is unreachable.
+
+### List endpoints — pagination & search (SCL-05)
+
+All list endpoints accept `?page=` (1-indexed) and `?page_size=` (default 25, max 200) and respond with:
+
+```json
+{ "data": [...], "page": 1, "page_size": 25, "total": 137 }
+```
+
+`/api/invoices` also supports `?q=` (number or client name) and `?status=`.
+Generic CRUD endpoints (clients, products, accounts, …) support `?q=` against whitelisted columns.
+
+### Auth flow extras
+
+- `POST /api/auth/verify-email` `{ token }` — confirm verification token from the welcome email (SEC-08).
+- `POST /api/auth/resend-verification` — re-issue the verification email (requires auth).
+- Login is locked for 15 minutes after 5 failed attempts per email (SEC-07, in-memory).
+
+## CI (OPS-06)
+
+`.github/workflows/ci.yml` runs lint + typecheck + tests for both frontend and backend on every PR and push to `main`. A real Postgres 16 service container is spun up so the backend tests can hit a database.
 
 ## Production operations
 
@@ -163,9 +193,7 @@ and the Postgres database. Recommended minimum for production:
 
 ### Known scale ceilings (track before > 1 instance)
 
-- `express-rate-limit` is in-memory — pin to a single replica until you
-  move it to Redis (SCL-01).
-- Uploads are on local disk — fine for single-instance, breaks behind a
-  load balancer until SCL-02 is done.
-- PDFs render inside the API process — for heavy invoice traffic, move
-  to a worker via the existing pg-boss queue (SCL-04).
+- `express-rate-limit` and the SEC-07 login-lockout map are in-memory — pin to a single replica until you move them to Redis (SCL-01).
+- Uploads are on local disk — fine for single-instance, breaks behind a load balancer until SCL-02 is done.
+- PDFs render inside the API process — for heavy invoice traffic, move to a worker via the existing pg-boss queue (SCL-04).
+- The public `/api/plans` response is cached in-process for 60 s (SCL-08); each replica has its own cache and invalidates locally on admin writes — acceptable until you have a shared cache.
