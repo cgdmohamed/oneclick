@@ -34,6 +34,7 @@ interface PublicInvoiceData {
   company_logo: string | null;
   company_stamp: string | null;
   currency: string | null;
+  currency_symbol: string | null;
   items: Array<{ id: string; name: string; quantity: number; unit_price: number | string }>;
 }
 
