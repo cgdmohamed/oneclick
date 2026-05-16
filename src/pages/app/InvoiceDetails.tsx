@@ -62,6 +62,7 @@ const InvoiceDetails = () => {
   let viewPayments: ViewPayment[];
   let clientName = '';
   let clientPhone = '';
+  let clientWhatsapp = '';
   let clientEmail = '';
 
   if (apiOn && apiInvoice) {
