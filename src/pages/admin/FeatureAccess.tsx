@@ -7,26 +7,17 @@ import { plans as mockPlans } from '@/data/mock';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { api, isApiConfigured, ApiError } from '@/lib/api';
+import { PLAN_FEATURES, DEFAULT_PLAN_FEATURES } from '@/lib/planFeatures';
+import { usePlanAccessStore, useSetPlanAccess } from '@/hooks/usePlanAccess';
 
 interface PlanRow { id: string; name: string }
 interface AccessRow { plan_id: string; feature_key: string; enabled: boolean }
 
-const FEATURES: { key: string; label: string }[] = [
-  { key: 'invoices', label: 'إدارة الفواتير' },
-  { key: 'clients', label: 'إدارة العملاء' },
-  { key: 'products', label: 'إدارة المنتجات' },
-  { key: 'inventory', label: 'إدارة المخزون' },
-  { key: 'bank_accounts', label: 'الحسابات البنكية' },
-  { key: 'wallets', label: 'المحافظ الإلكترونية' },
-  { key: 'reports_advanced', label: 'التقارير المتقدمة' },
-  { key: 'sms_alerts', label: 'تنبيهات SMS' },
-  { key: 'rbac', label: 'إدارة الصلاحيات' },
-  { key: 'api', label: 'API integration' },
-];
-
 const FeatureAccess = () => {
   const apiOn = isApiConfigured();
   const qc = useQueryClient();
+  const accessStore = usePlanAccessStore();
+  const setAccess = useSetPlanAccess();
 
   const plansQ = useQuery({
     enabled: apiOn,
@@ -45,11 +36,10 @@ const FeatureAccess = () => {
 
   useEffect(() => {
     const m: Record<string, Record<string, boolean>> = {};
-    plans.forEach((p, idx) => {
+    plans.forEach((p) => {
       m[p.id] = {};
-      FEATURES.forEach((f, i) => {
-        m[p.id][f.key] = i < (idx === 0 ? 4 : idx === 1 ? 7 : 10);
-      });
+      const enabled = accessStore[p.id]?.features ?? DEFAULT_PLAN_FEATURES[p.id] ?? [];
+      PLAN_FEATURES.forEach((f) => { m[p.id][f.key] = enabled.includes(f.key); });
     });
     if (apiOn && accessQ.data) {
       accessQ.data.forEach((a) => {
@@ -59,14 +49,19 @@ const FeatureAccess = () => {
     }
     setMatrix(m);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [apiOn, accessQ.data, plansQ.data]);
+  }, [apiOn, accessQ.data, plansQ.data, accessStore]);
 
   const onSave = async () => {
-    if (!apiOn) return toast.success('تم الحفظ (تجريبي)');
+    // Persist locally so the tenant gating reflects immediately
+    plans.forEach((p) => {
+      const features = PLAN_FEATURES.filter(f => matrix[p.id]?.[f.key]).map(f => f.key);
+      setAccess(p.id, { features });
+    });
+    if (!apiOn) return toast.success('تم حفظ صلاحيات الباقات وتطبيقها على المشتركين');
     setSaving(true);
     try {
       const entries = plans.flatMap((p) =>
-        FEATURES.map((f) => ({
+        PLAN_FEATURES.map((f) => ({
           plan_id: p.id, feature_key: f.key,
           enabled: !!matrix[p.id]?.[f.key],
         })),
@@ -83,7 +78,7 @@ const FeatureAccess = () => {
 
   return (
     <div>
-      <PageHeader title="الصلاحيات حسب الباقة" description="فعّل أو عطّل الميزات لكل باقة"
+      <PageHeader title="الصلاحيات حسب الباقة" description="فعّل أو عطّل الميزات لكل باقة — تنعكس فوراً على المشتركين"
         actions={<Button onClick={onSave} disabled={saving}>{saving ? 'جارٍ الحفظ…' : 'حفظ التغييرات'}</Button>} />
       <Card className="p-0 overflow-x-auto border-border/60">
         <table dir="rtl" className="w-full text-sm">
@@ -94,7 +89,7 @@ const FeatureAccess = () => {
             </tr>
           </thead>
           <tbody>
-            {FEATURES.map(f => (
+            {PLAN_FEATURES.map(f => (
               <tr key={f.key} className="border-t border-border/60">
                 <td className="p-3 font-medium">{f.label}</td>
                 {plans.map(p => (
