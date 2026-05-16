@@ -1,6 +1,7 @@
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarTrigger, useSidebar, SidebarHeader, SidebarFooter } from '@/components/ui/sidebar';
-import { LayoutDashboard, Users, FileText, CreditCard, Wallet, Package, BarChart3, Bell, BellRing, ShieldCheck, Settings, Calculator, LogOut, Building2, Layers, Receipt, ToggleRight, Megaphone, Cog, ChevronLeft, Crown, History, LayoutTemplate, LineChart, PieChart, ScrollText, UserPlus } from 'lucide-react';
+import { LayoutDashboard, Users, FileText, CreditCard, Wallet, Package, BarChart3, Bell, BellRing, ShieldCheck, Settings, LogOut, Building2, Layers, Receipt, ToggleRight, Megaphone, Cog, ChevronLeft, Crown, History, LayoutTemplate, LineChart, PieChart, ScrollText, UserPlus } from 'lucide-react';
+import { BrandLogo } from '@/components/common/BrandLogo';
 import { Badge } from '@/components/ui/badge';
 import { usePendingSignupsCount } from '@/hooks/usePendingSignups';
 import { cn } from '@/lib/utils';
@@ -125,18 +126,17 @@ const AppShellInner = ({ kind }: { kind: 'company' | 'admin' }) => {
     >
       <Sidebar collapsible="icon" side="right" className="border-l border-sidebar-border">
         <SidebarHeader className="border-b border-sidebar-border">
-          <div className="flex items-center gap-2 px-2 py-2">
-            <span className="h-9 w-9 rounded-xl bg-sidebar-primary text-sidebar-primary-foreground flex items-center justify-center shrink-0">
-              <Calculator className="h-5 w-5" />
-            </span>
-            {!collapsed && (
-              <div className="min-w-0">
-                <div className="font-bold text-sidebar-foreground truncate">
-                  {kind === 'admin' ? 'ون كليك' : (companyName || 'شركتي')}
-                </div>
-                <div className="text-xs text-sidebar-foreground/60 truncate">
-                  {kind === 'admin' ? 'لوحة المشرف' : 'مساحة عمل الشركة'}
-                </div>
+          <div className="flex items-center gap-2 px-2 py-2 min-w-0">
+            <BrandLogo size={collapsed ? 'sm' : 'md'} />
+            {!collapsed && kind !== 'admin' && companyName && (
+              <div className="min-w-0 border-r border-sidebar-border pr-2 mr-1">
+                <div className="font-semibold text-sidebar-foreground truncate text-sm">{companyName}</div>
+                <div className="text-xs text-sidebar-foreground/60 truncate">مساحة عمل الشركة</div>
+              </div>
+            )}
+            {!collapsed && kind === 'admin' && (
+              <div className="min-w-0 border-r border-sidebar-border pr-2 mr-1">
+                <div className="text-xs text-sidebar-foreground/60 truncate">لوحة المشرف</div>
               </div>
             )}
           </div>
