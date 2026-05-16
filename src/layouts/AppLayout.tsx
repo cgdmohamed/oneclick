@@ -119,8 +119,12 @@ const AppShellInner = ({ kind }: { kind: 'company' | 'admin' }) => {
             </span>
             {!collapsed && (
               <div className="min-w-0">
-                <div className="font-bold text-sidebar-foreground">ون كليك</div>
-                <div className="text-xs text-sidebar-foreground/60 truncate">{kind === 'admin' ? 'لوحة المشرف' : companyName}</div>
+                <div className="font-bold text-sidebar-foreground truncate">
+                  {kind === 'admin' ? 'ون كليك' : (companyName || 'شركتي')}
+                </div>
+                <div className="text-xs text-sidebar-foreground/60 truncate">
+                  {kind === 'admin' ? 'لوحة المشرف' : 'مساحة عمل الشركة'}
+                </div>
               </div>
             )}
           </div>
