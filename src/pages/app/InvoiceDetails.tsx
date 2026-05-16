@@ -255,7 +255,7 @@ const InvoiceDetails = () => {
           </table>
 
           <div className="flex flex-wrap gap-2 mt-5">
-            <Button variant="outline" size="sm" onClick={sendEmail}><Mail className="h-4 w-4 ml-1" /> إرسال بريد</Button>
+            <Button variant="outline" size="sm" onClick={sendEmail}><Mail className="h-4 w-4 ml-1" /> إرسال عبر البريد الإلكتروني</Button>
             <Button
               size="sm"
               onClick={openWhatsApp}
