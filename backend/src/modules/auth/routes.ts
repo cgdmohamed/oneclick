@@ -11,6 +11,7 @@ import { requireAuth } from '../../middleware/auth.js';
 import { sendEmail } from '../../utils/email.js';
 import { audit } from '../../utils/audit.js';
 import { REFRESH_COOKIE, setRefreshCookie, clearRefreshCookie } from '../../utils/cookies.js';
+import { setCsrfCookie, clearCsrfCookie, requireCsrf } from '../../middleware/csrf.js';
 
 const router = Router();
 
@@ -110,6 +111,7 @@ router.post('/register', async (req, res, next) => {
         data: { email: body.email, companyName: body.companyName },
       });
       setRefreshCookie(res, refresh);
+      setCsrfCookie(res);
       res.json({
         access_token: access,
         user: { id: userId, email: body.email, name: body.name },
@@ -151,6 +153,7 @@ router.post('/login', async (req, res, next) => {
       data: { email: body.email, ip: req.ip },
     });
     setRefreshCookie(res, refresh);
+    setCsrfCookie(res);
     res.json({
       access_token: access,
       user: { id: userId, email: body.email, name: u.rows[0].name, isSuperAdmin: u.rows[0].is_super_admin },
@@ -160,7 +163,7 @@ router.post('/login', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-router.post('/refresh', async (req, res, next) => {
+router.post('/refresh', requireCsrf, async (req, res, next) => {
   try {
     const token = readRefreshToken(req);
     if (!token) throw unauthorized('Missing refresh token');
@@ -217,6 +220,7 @@ router.post('/refresh', async (req, res, next) => {
       await c.query('COMMIT');
 
       setRefreshCookie(res, newToken);
+      setCsrfCookie(res);
       res.json({ access_token: signAccess(payload.sub) });
     } catch (e) {
       try { await c.query('ROLLBACK'); } catch { /* ignore */ }
@@ -227,7 +231,7 @@ router.post('/refresh', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-router.post('/logout', async (req, res, next) => {
+router.post('/logout', requireCsrf, async (req, res, next) => {
   try {
     const token = readRefreshToken(req);
     if (token) {
@@ -239,6 +243,7 @@ router.post('/logout', async (req, res, next) => {
       );
     }
     clearRefreshCookie(res);
+    clearCsrfCookie(res);
     res.json({ ok: true });
   } catch (e) { next(e); }
 });

@@ -40,6 +40,13 @@ export class ApiError extends Error {
   }
 }
 
+/** SEC-03: read the non-httpOnly CSRF cookie set by the backend. */
+function getCsrfToken(): string | null {
+  if (typeof document === 'undefined') return null;
+  const match = document.cookie.match(/(?:^|;\s*)hesabat_csrf=([^;]+)/);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
 async function request<T>(method: string, path: string, body?: unknown, retry = true): Promise<T> {
   if (!API_URL) throw new ApiError(0, 'API_URL not configured (set VITE_API_URL)');
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -47,6 +54,10 @@ async function request<T>(method: string, path: string, body?: unknown, retry = 
   if (token) headers.Authorization = `Bearer ${token}`;
   const company = getActiveCompanyId();
   if (company) headers['x-company-id'] = company;
+  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+    const csrf = getCsrfToken();
+    if (csrf) headers['x-csrf-token'] = csrf;
+  }
 
   const res = await fetch(`${API_URL}${path}`, {
     method,
@@ -72,9 +83,12 @@ async function request<T>(method: string, path: string, body?: unknown, retry = 
 async function tryRefresh(): Promise<boolean> {
   // Refresh token is in an httpOnly cookie — sent automatically with credentials.
   try {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    const csrf = getCsrfToken();
+    if (csrf) headers['x-csrf-token'] = csrf;
     const res = await fetch(`${API_URL}/api/auth/refresh`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       credentials: 'include',
     });
     if (!res.ok) return false;
