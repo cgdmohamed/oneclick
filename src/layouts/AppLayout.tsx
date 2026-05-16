@@ -79,6 +79,16 @@ const pageKey = (kind: 'company' | 'admin', pathname: string): string => {
   return 'overview';
 };
 
+const PendingBadge = () => {
+  const count = usePendingSignupsCount();
+  if (!count) return null;
+  return (
+    <Badge variant="secondary" className="bg-warning/20 text-warning border-0 h-5 px-1.5 text-[10px] font-bold">
+      {count}
+    </Badge>
+  );
+};
+
 const AppShellInner = ({ kind }: { kind: 'company' | 'admin' }) => {
   const { state } = useSidebar();
   const collapsed = state === 'collapsed';
