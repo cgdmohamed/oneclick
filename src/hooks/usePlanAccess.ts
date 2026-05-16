@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react';
+import { useCallback, useMemo, useSyncExternalStore } from 'react';
 import { useAuth } from '@/lib/auth';
 import { companies, plans as mockPlans } from '@/data/mock';
 import { DEFAULT_PLAN_FEATURES, PLAN_FEATURES } from '@/lib/planFeatures';
