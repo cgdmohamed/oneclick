@@ -1,59 +1,34 @@
-import { useEffect, useRef, useState } from 'react';
-import QRCode from 'qrcode';
+import { useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { QrCode, Upload, RotateCcw, Download } from 'lucide-react';
 import { toast } from 'sonner';
+import { useInvoiceQr, qrStorageKey, notifyQrChange } from '@/hooks/useInvoiceQr';
 
 interface Props {
   invoiceId: string;
-  value: string; // payload to encode when auto-generating
+  value: string;
   invoiceNumber: string;
 }
 
-const storageKey = (id: string) => `invoice-qr:${id}`;
-
 export const InvoiceQR = ({ invoiceId, value, invoiceNumber }: Props) => {
-  const [src, setSrc] = useState<string>('');
-  const [custom, setCustom] = useState<boolean>(false);
+  const { src, custom } = useInvoiceQr(invoiceId, value);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    const saved = localStorage.getItem(storageKey(invoiceId));
-    if (saved) {
-      setSrc(saved);
-      setCustom(true);
-      return;
-    }
-    QRCode.toDataURL(value, { margin: 1, width: 256, errorCorrectionLevel: 'M' })
-      .then(setSrc)
-      .catch(() => setSrc(''));
-  }, [invoiceId, value]);
-
   const onUpload = (file: File) => {
-    if (!file.type.startsWith('image/')) {
-      toast.error('يجب اختيار ملف صورة');
-      return;
-    }
-    if (file.size > 2 * 1024 * 1024) {
-      toast.error('الحد الأقصى 2 ميجابايت');
-      return;
-    }
+    if (!file.type.startsWith('image/')) return toast.error('يجب اختيار ملف صورة');
+    if (file.size > 2 * 1024 * 1024) return toast.error('الحد الأقصى 2 ميجابايت');
     const reader = new FileReader();
     reader.onload = () => {
-      const dataUrl = String(reader.result);
-      localStorage.setItem(storageKey(invoiceId), dataUrl);
-      setSrc(dataUrl);
-      setCustom(true);
+      localStorage.setItem(qrStorageKey(invoiceId), String(reader.result));
+      notifyQrChange(invoiceId);
       toast.success('تم رفع QR مخصص');
     };
     reader.readAsDataURL(file);
   };
 
-  const resetToGenerated = async () => {
-    localStorage.removeItem(storageKey(invoiceId));
-    const generated = await QRCode.toDataURL(value, { margin: 1, width: 256, errorCorrectionLevel: 'M' });
-    setSrc(generated);
-    setCustom(false);
+  const resetToGenerated = () => {
+    localStorage.removeItem(qrStorageKey(invoiceId));
+    notifyQrChange(invoiceId);
     toast.success('تم استعادة QR المُولَّد');
   };
 
