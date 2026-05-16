@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import { formatCurrency, formatDate, invoiceStatusLabel } from '@/lib/format';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { PrintableQr } from '@/components/common/PrintableQr';
+import { isQrPublicVisible } from '@/hooks/useInvoiceQr';
 import { EmptyState } from '@/components/common/EmptyState';
 import { API_URL, isApiConfigured } from '@/lib/api';
 import type { InvoiceStatus } from '@/types';
