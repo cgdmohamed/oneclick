@@ -134,11 +134,7 @@ router.post('/login', async (req, res, next) => {
 
     const userId = u.rows[0].id;
     const access = signAccess(userId);
-    const refresh = signRefresh(userId);
-    await pool.query(
-      `INSERT INTO refresh_tokens (user_id, token_hash, expires_at) VALUES ($1,$2, now() + interval '30 days')`,
-      [userId, sha(refresh)],
-    );
+    const refresh = await issueRefreshToken(pool, userId, req);
 
     const comp = await pool.query(
       `SELECT c.id, c.name FROM user_companies uc JOIN companies c ON c.id = uc.company_id
@@ -154,9 +150,9 @@ router.post('/login', async (req, res, next) => {
       action: 'auth.login', entity: 'user', entityId: userId,
       data: { email: body.email, ip: req.ip },
     });
+    setRefreshCookie(res, refresh);
     res.json({
       access_token: access,
-      refresh_token: refresh,
       user: { id: userId, email: body.email, name: u.rows[0].name, isSuperAdmin: u.rows[0].is_super_admin },
       company: comp.rows[0] ?? null,
       roles: roles.rows,
@@ -166,25 +162,83 @@ router.post('/login', async (req, res, next) => {
 
 router.post('/refresh', async (req, res, next) => {
   try {
-    const { refresh_token } = z.object({ refresh_token: z.string() }).parse(req.body);
+    const token = readRefreshToken(req);
+    if (!token) throw unauthorized('Missing refresh token');
     let payload: { sub: string };
-    try { payload = jwt.verify(refresh_token, env.JWT_REFRESH_SECRET) as { sub: string }; }
+    try { payload = jwt.verify(token, env.JWT_REFRESH_SECRET) as { sub: string }; }
     catch { throw unauthorized('Invalid refresh token'); }
-    const row = await pool.query(
-      `SELECT id FROM refresh_tokens WHERE token_hash = $1 AND revoked_at IS NULL AND expires_at > now()`,
-      [sha(refresh_token)],
-    );
-    if (!row.rowCount) throw unauthorized('Refresh token revoked');
-    res.json({ access_token: signAccess(payload.sub) });
+
+    const c = await pool.connect();
+    try {
+      await c.query('BEGIN');
+      const row = await c.query<{ id: string; family_id: string; revoked_at: Date | null; expires_at: Date }>(
+        `SELECT id, family_id, revoked_at, expires_at
+           FROM refresh_tokens
+          WHERE token_hash = $1
+          FOR UPDATE`,
+        [sha(token)],
+      );
+      if (!row.rowCount) {
+        await c.query('ROLLBACK');
+        throw unauthorized('Invalid refresh token');
+      }
+      const r = row.rows[0];
+
+      // Reuse detection: token already revoked → assume theft, nuke the family
+      if (r.revoked_at) {
+        await c.query(
+          `UPDATE refresh_tokens SET revoked_at = now()
+            WHERE family_id = $1 AND revoked_at IS NULL`,
+          [r.family_id],
+        );
+        await c.query('COMMIT');
+        clearRefreshCookie(res);
+        await audit(pool, {
+          companyId: null, userId: payload.sub,
+          action: 'auth.refresh_reuse_detected', entity: 'user', entityId: payload.sub,
+          data: { family_id: r.family_id, ip: req.ip },
+        });
+        throw unauthorized('Refresh token reuse detected');
+      }
+      if (r.expires_at.getTime() < Date.now()) {
+        await c.query('ROLLBACK');
+        throw unauthorized('Refresh token expired');
+      }
+
+      // Rotate: issue a new token in the same family, mark old as replaced+revoked
+      const newToken = await issueRefreshToken(c, payload.sub, req, r.family_id);
+      const newId = await c.query<{ id: string }>(
+        `SELECT id FROM refresh_tokens WHERE token_hash = $1`, [sha(newToken)],
+      );
+      await c.query(
+        `UPDATE refresh_tokens SET revoked_at = now(), replaced_by = $2 WHERE id = $1`,
+        [r.id, newId.rows[0].id],
+      );
+      await c.query('COMMIT');
+
+      setRefreshCookie(res, newToken);
+      res.json({ access_token: signAccess(payload.sub) });
+    } catch (e) {
+      try { await c.query('ROLLBACK'); } catch { /* ignore */ }
+      throw e;
+    } finally {
+      c.release();
+    }
   } catch (e) { next(e); }
 });
 
 router.post('/logout', async (req, res, next) => {
   try {
-    const { refresh_token } = z.object({ refresh_token: z.string().optional() }).parse(req.body ?? {});
-    if (refresh_token) {
-      await pool.query(`UPDATE refresh_tokens SET revoked_at = now() WHERE token_hash = $1`, [sha(refresh_token)]);
+    const token = readRefreshToken(req);
+    if (token) {
+      await pool.query(
+        `UPDATE refresh_tokens SET revoked_at = now()
+          WHERE family_id = (SELECT family_id FROM refresh_tokens WHERE token_hash = $1)
+            AND revoked_at IS NULL`,
+        [sha(token)],
+      );
     }
+    clearRefreshCookie(res);
     res.json({ ok: true });
   } catch (e) { next(e); }
 });
