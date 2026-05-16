@@ -181,16 +181,24 @@ const Users = () => {
             <Button variant="ghost" size="icon" title="نسخ رابط الدعوة" onClick={() => copyLink(r.token)}>
               <Copy className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="icon" title="إعادة إرسال" onClick={() => { const v = resendInvitation(r.token); if (v) { setCreatedInvite(v); toast.success('تم إعادة إرسال الدعوة'); } }}>
+            <Button variant="ghost" size="icon" title="إعادة إرسال" onClick={async () => {
+              const v = await resendInvitation(r.id, companyId);
+              if (v) { setCreatedInvite(v); await reloadInvites(); toast.success('تم إعادة إرسال الدعوة'); }
+            }}>
               <RefreshCw className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="icon" title="إلغاء الدعوة" onClick={() => { revokeInvitation(r.token); toast.success('تم إلغاء الدعوة'); }}>
+            <Button variant="ghost" size="icon" title="إلغاء الدعوة" onClick={async () => {
+              await revokeInvitation(r.id); await reloadInvites(); toast.success('تم إلغاء الدعوة');
+            }}>
               <X className="h-4 w-4 text-destructive" />
             </Button>
           </>
         )}
         {(r.status === 'expired' || r.status === 'revoked') && (
-          <Button variant="ghost" size="sm" onClick={() => { const v = resendInvitation(r.token); if (v) { setCreatedInvite(v); toast.success('تم إعادة الإرسال'); } }}>
+          <Button variant="ghost" size="sm" onClick={async () => {
+            const v = await resendInvitation(r.id, companyId);
+            if (v) { setCreatedInvite(v); await reloadInvites(); toast.success('تم إعادة الإرسال'); }
+          }}>
             <RefreshCw className="h-3.5 w-3.5 ml-1" /> إعادة الإرسال
           </Button>
         )}
