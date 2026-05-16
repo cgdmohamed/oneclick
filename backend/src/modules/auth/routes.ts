@@ -1,14 +1,16 @@
-import { Router } from 'express';
+import { Router, type Request, type Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import crypto from 'node:crypto';
 import { z } from 'zod';
+import type { PoolClient } from 'pg';
 import { pool } from '../../db/client.js';
 import { env } from '../../config/env.js';
 import { badRequest, unauthorized } from '../../utils/errors.js';
 import { requireAuth } from '../../middleware/auth.js';
 import { sendEmail } from '../../utils/email.js';
 import { audit } from '../../utils/audit.js';
+import { REFRESH_COOKIE, setRefreshCookie, clearRefreshCookie } from '../../utils/cookies.js';
 
 const router = Router();
 
@@ -31,6 +33,41 @@ function signRefresh(userId: string) {
   return jwt.sign({ sub: userId, t: 'r' }, env.JWT_REFRESH_SECRET, { expiresIn: '30d' });
 }
 const sha = (s: string) => crypto.createHash('sha256').update(s).digest('hex');
+
+/**
+ * Issue a refresh token, persist it (hashed) and start a new rotation family.
+ * Returns the raw token to be sent to the client via httpOnly cookie.
+ */
+async function issueRefreshToken(
+  c: PoolClient | typeof pool,
+  userId: string,
+  req: Request,
+  familyId?: string,
+): Promise<string> {
+  const token = signRefresh(userId);
+  const ua = (req.headers['user-agent'] ?? '').toString().slice(0, 500);
+  const ip = (req.ip ?? '').toString().slice(0, 64);
+  const inserted = await c.query<{ id: string }>(
+    `INSERT INTO refresh_tokens (user_id, token_hash, expires_at, family_id, user_agent, ip)
+     VALUES ($1, $2, now() + interval '30 days', $3, $4, $5)
+     RETURNING id`,
+    [userId, sha(token), familyId ?? null, ua, ip],
+  );
+  if (!familyId) {
+    // Self-reference: this token starts a new family
+    await c.query(`UPDATE refresh_tokens SET family_id = id WHERE id = $1`, [inserted.rows[0].id]);
+  }
+  return token;
+}
+
+function readRefreshToken(req: Request): string | null {
+  const cookie = (req as Request & { cookies?: Record<string, string> }).cookies?.[REFRESH_COOKIE];
+  if (cookie) return cookie;
+  // Backward-compat: legacy clients posting refresh_token in body
+  const body = req.body as { refresh_token?: unknown } | undefined;
+  return typeof body?.refresh_token === 'string' ? body.refresh_token : null;
+}
+
 
 router.post('/register', async (req, res, next) => {
   try {
@@ -66,17 +103,18 @@ router.post('/register', async (req, res, next) => {
       await c.query('COMMIT');
 
       const access = signAccess(userId);
-      const refresh = signRefresh(userId);
-      await pool.query(
-        `INSERT INTO refresh_tokens (user_id, token_hash, expires_at) VALUES ($1,$2, now() + interval '30 days')`,
-        [userId, sha(refresh)],
-      );
+      const refresh = await issueRefreshToken(pool, userId, req);
       await audit(pool, {
         companyId, userId,
         action: 'auth.register', entity: 'user', entityId: userId,
         data: { email: body.email, companyName: body.companyName },
       });
-      res.json({ access_token: access, refresh_token: refresh, user: { id: userId, email: body.email, name: body.name }, company: { id: companyId, name: body.companyName } });
+      setRefreshCookie(res, refresh);
+      res.json({
+        access_token: access,
+        user: { id: userId, email: body.email, name: body.name },
+        company: { id: companyId, name: body.companyName },
+      });
     } catch (e) {
       await c.query('ROLLBACK');
       throw e;
@@ -96,11 +134,7 @@ router.post('/login', async (req, res, next) => {
 
     const userId = u.rows[0].id;
     const access = signAccess(userId);
-    const refresh = signRefresh(userId);
-    await pool.query(
-      `INSERT INTO refresh_tokens (user_id, token_hash, expires_at) VALUES ($1,$2, now() + interval '30 days')`,
-      [userId, sha(refresh)],
-    );
+    const refresh = await issueRefreshToken(pool, userId, req);
 
     const comp = await pool.query(
       `SELECT c.id, c.name FROM user_companies uc JOIN companies c ON c.id = uc.company_id
@@ -116,9 +150,9 @@ router.post('/login', async (req, res, next) => {
       action: 'auth.login', entity: 'user', entityId: userId,
       data: { email: body.email, ip: req.ip },
     });
+    setRefreshCookie(res, refresh);
     res.json({
       access_token: access,
-      refresh_token: refresh,
       user: { id: userId, email: body.email, name: u.rows[0].name, isSuperAdmin: u.rows[0].is_super_admin },
       company: comp.rows[0] ?? null,
       roles: roles.rows,
@@ -128,25 +162,83 @@ router.post('/login', async (req, res, next) => {
 
 router.post('/refresh', async (req, res, next) => {
   try {
-    const { refresh_token } = z.object({ refresh_token: z.string() }).parse(req.body);
+    const token = readRefreshToken(req);
+    if (!token) throw unauthorized('Missing refresh token');
     let payload: { sub: string };
-    try { payload = jwt.verify(refresh_token, env.JWT_REFRESH_SECRET) as { sub: string }; }
+    try { payload = jwt.verify(token, env.JWT_REFRESH_SECRET) as { sub: string }; }
     catch { throw unauthorized('Invalid refresh token'); }
-    const row = await pool.query(
-      `SELECT id FROM refresh_tokens WHERE token_hash = $1 AND revoked_at IS NULL AND expires_at > now()`,
-      [sha(refresh_token)],
-    );
-    if (!row.rowCount) throw unauthorized('Refresh token revoked');
-    res.json({ access_token: signAccess(payload.sub) });
+
+    const c = await pool.connect();
+    try {
+      await c.query('BEGIN');
+      const row = await c.query<{ id: string; family_id: string; revoked_at: Date | null; expires_at: Date }>(
+        `SELECT id, family_id, revoked_at, expires_at
+           FROM refresh_tokens
+          WHERE token_hash = $1
+          FOR UPDATE`,
+        [sha(token)],
+      );
+      if (!row.rowCount) {
+        await c.query('ROLLBACK');
+        throw unauthorized('Invalid refresh token');
+      }
+      const r = row.rows[0];
+
+      // Reuse detection: token already revoked → assume theft, nuke the family
+      if (r.revoked_at) {
+        await c.query(
+          `UPDATE refresh_tokens SET revoked_at = now()
+            WHERE family_id = $1 AND revoked_at IS NULL`,
+          [r.family_id],
+        );
+        await c.query('COMMIT');
+        clearRefreshCookie(res);
+        await audit(pool, {
+          companyId: null, userId: payload.sub,
+          action: 'auth.refresh_reuse_detected', entity: 'user', entityId: payload.sub,
+          data: { family_id: r.family_id, ip: req.ip },
+        });
+        throw unauthorized('Refresh token reuse detected');
+      }
+      if (r.expires_at.getTime() < Date.now()) {
+        await c.query('ROLLBACK');
+        throw unauthorized('Refresh token expired');
+      }
+
+      // Rotate: issue a new token in the same family, mark old as replaced+revoked
+      const newToken = await issueRefreshToken(c, payload.sub, req, r.family_id);
+      const newId = await c.query<{ id: string }>(
+        `SELECT id FROM refresh_tokens WHERE token_hash = $1`, [sha(newToken)],
+      );
+      await c.query(
+        `UPDATE refresh_tokens SET revoked_at = now(), replaced_by = $2 WHERE id = $1`,
+        [r.id, newId.rows[0].id],
+      );
+      await c.query('COMMIT');
+
+      setRefreshCookie(res, newToken);
+      res.json({ access_token: signAccess(payload.sub) });
+    } catch (e) {
+      try { await c.query('ROLLBACK'); } catch { /* ignore */ }
+      throw e;
+    } finally {
+      c.release();
+    }
   } catch (e) { next(e); }
 });
 
 router.post('/logout', async (req, res, next) => {
   try {
-    const { refresh_token } = z.object({ refresh_token: z.string().optional() }).parse(req.body ?? {});
-    if (refresh_token) {
-      await pool.query(`UPDATE refresh_tokens SET revoked_at = now() WHERE token_hash = $1`, [sha(refresh_token)]);
+    const token = readRefreshToken(req);
+    if (token) {
+      await pool.query(
+        `UPDATE refresh_tokens SET revoked_at = now()
+          WHERE family_id = (SELECT family_id FROM refresh_tokens WHERE token_hash = $1)
+            AND revoked_at IS NULL`,
+        [sha(token)],
+      );
     }
+    clearRefreshCookie(res);
     res.json({ ok: true });
   } catch (e) { next(e); }
 });
