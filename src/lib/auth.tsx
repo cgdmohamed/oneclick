@@ -93,7 +93,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     },
     companyName: apiCompanyName ?? (user?.companyId
       ? (companies.find(c => c.id === user.companyId)?.name ?? '')
-      : 'منصة ون كليك'),
+      : (user?.role === 'super_admin' ? 'منصة ون كليك' : (user?.name ? `شركة ${user.name}` : 'شركتي'))),
   }), [user, apiCompanyName]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
