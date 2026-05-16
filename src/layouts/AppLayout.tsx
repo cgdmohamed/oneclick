@@ -12,17 +12,17 @@ import { roleLabel } from '@/lib/format';
 import { useEffect } from 'react';
 import type { Role } from '@/types';
 
-const companyNav = [
+const companyNav: { to: string; label: string; icon: typeof LayoutDashboard; end?: boolean; feature?: string }[] = [
   { to: '/app', label: 'الرئيسية', icon: LayoutDashboard, end: true },
-  { to: '/app/clients', label: 'العملاء', icon: Users },
-  { to: '/app/invoices', label: 'الفواتير', icon: FileText },
-  { to: '/app/payments', label: 'المدفوعات', icon: CreditCard },
-  { to: '/app/accounts', label: 'الحسابات المالية', icon: Wallet },
-  { to: '/app/products', label: 'المنتجات والمخزون', icon: Package },
-  { to: '/app/reports', label: 'التقارير', icon: BarChart3 },
-  { to: '/app/notifications', label: 'التنبيهات', icon: Bell },
-  { to: '/app/users', label: 'المستخدمون والصلاحيات', icon: ShieldCheck },
-  { to: '/app/activity', label: 'سجل الأنشطة', icon: History },
+  { to: '/app/clients', label: 'العملاء', icon: Users, feature: 'clients' },
+  { to: '/app/invoices', label: 'الفواتير', icon: FileText, feature: 'invoices' },
+  { to: '/app/payments', label: 'المدفوعات', icon: CreditCard, feature: 'payments' },
+  { to: '/app/accounts', label: 'الحسابات المالية', icon: Wallet, feature: 'accounts' },
+  { to: '/app/products', label: 'المنتجات والمخزون', icon: Package, feature: 'products' },
+  { to: '/app/reports', label: 'التقارير', icon: BarChart3, feature: 'reports_basic' },
+  { to: '/app/notifications', label: 'التنبيهات', icon: Bell, feature: 'notifications' },
+  { to: '/app/users', label: 'المستخدمون والصلاحيات', icon: ShieldCheck, feature: 'rbac' },
+  { to: '/app/activity', label: 'سجل الأنشطة', icon: History, feature: 'activity_log' },
   { to: '/app/subscription', label: 'الاشتراك والفوترة', icon: Crown },
   { to: '/app/settings', label: 'الإعدادات', icon: Settings },
 ];
