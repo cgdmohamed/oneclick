@@ -76,6 +76,10 @@ const InvoiceDetails = () => {
       status: mapStatus(d.status), notes: d.notes ?? undefined,
     };
     clientName = d.client_name;
+    const mc = mockClients.find(c => c.id === d.client_id);
+    clientPhone = mc?.phone ?? '';
+    clientWhatsapp = mc?.whatsapp ?? '';
+    clientEmail = mc?.email ?? '';
     viewItems = d.items.map(it => ({ id: it.id, name: it.description, quantity: Number(it.quantity), unitPrice: Number(it.unit_price) }));
     viewPayments = d.payments.map(p => ({
       id: p.id, date: p.paid_at, amount: Number(p.amount),
@@ -176,22 +180,12 @@ const InvoiceDetails = () => {
   };
 
   const waNumber = (clientWhatsapp || clientPhone).replace(/[^\d]/g, '');
-  const openWhatsApp = async () => {
-    const text = encodeURIComponent(`فاتورة ${invoice.number}: ${publicUrl}`);
-    if (apiOn) {
-      try {
-        const r = await api.get<{ data: { url: string } }>(`/api/invoices/${invoice.id}/whatsapp-link`);
-        window.open(r.data.url, '_blank', 'noopener');
-        return;
-      } catch (e) {
-        toast.error(e instanceof ApiError ? e.message : 'تعذّر فتح واتساب');
-        return;
-      }
-    }
+  const openWhatsApp = () => {
     if (!waNumber) {
       toast.error('لا يوجد رقم واتساب لهذا العميل');
       return;
     }
+    const text = encodeURIComponent(`فاتورة ${invoice.number}: ${publicUrl}`);
     window.open(`https://wa.me/${waNumber}?text=${text}`, '_blank', 'noopener');
   };
 
