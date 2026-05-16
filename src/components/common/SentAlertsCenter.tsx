@@ -118,7 +118,7 @@ export const SentAlertsCenter = ({
                   !a.read && 'bg-primary/[0.03] border-primary/30',
                 )}
               >
-                <div className="flex items-start gap-3">
+                <div dir="rtl" className="flex items-start gap-3 text-start">
                   <div className={cn('h-10 w-10 rounded-xl flex items-center justify-center shrink-0', eventTone(a.event))}>
                     <Icon className="h-5 w-5" />
                   </div>
