@@ -195,12 +195,13 @@ const InvoiceDetails = () => {
         title={`فاتورة ${invoice.number}`}
         description={clientName}
         actions={
-          <div className="flex gap-2 flex-wrap">
+          <div className="flex gap-2 flex-wrap no-print">
             <Button variant="outline" onClick={() => { navigator.clipboard.writeText(publicUrl); toast.success('تم نسخ رابط المشاركة'); }}>
               <Share2 className="h-4 w-4 ml-1" /> نسخ الرابط العام
             </Button>
             <Button variant="outline" onClick={downloadPdf}><Download className="h-4 w-4 ml-1" /> PDF</Button>
-            <Button variant="outline" asChild><Link to={`/invoice/${invoice.publicId}`} target="_blank"><Printer className="h-4 w-4 ml-1" /> عرض/طباعة</Link></Button>
+            <Button variant="outline" asChild><Link to={`/invoice/${invoice.publicId}`} target="_blank"><Share2 className="h-4 w-4 ml-1" /> عرض عام</Link></Button>
+            <Button onClick={() => window.print()}><Printer className="h-4 w-4 ml-1" /> طباعة</Button>
             <Sheet open={open} onOpenChange={setOpen}>
               <SheetTrigger asChild>
                 <Button disabled={remaining <= 0}><Plus className="h-4 w-4 ml-1" /> تسجيل دفعة</Button>
@@ -215,7 +216,7 @@ const InvoiceDetails = () => {
       />
 
       <div className="grid lg:grid-cols-3 gap-5">
-        <Card className="lg:col-span-2 p-6 border-border/60 shadow-soft">
+        <Card className="lg:col-span-2 p-6 border-border/60 shadow-soft print-area">
           <div className="flex items-start justify-between gap-4 pb-4 border-b border-border">
             <div>
               <div className="text-xs text-muted-foreground">العميل</div>
@@ -250,7 +251,7 @@ const InvoiceDetails = () => {
             </tbody>
           </table>
 
-          <div className="flex flex-wrap gap-2 mt-5">
+          <div className="flex flex-wrap gap-2 mt-5 no-print">
             <Button variant="outline" size="sm" onClick={sendEmail}><Mail className="h-4 w-4 ml-1" /> إرسال عبر البريد الإلكتروني</Button>
             <Button
               size="sm"
