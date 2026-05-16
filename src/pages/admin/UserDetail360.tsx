@@ -110,7 +110,7 @@ const UserDetail360 = () => {
         <StatCard title="متبقي على العملاء" value={formatCurrency(outstanding)} icon={Activity} accent="warning" />
       </div>
 
-      <Tabs defaultValue="overview">
+      <Tabs dir="rtl" defaultValue="overview">
         <TabsList>
           <TabsTrigger value="overview">نظرة عامة</TabsTrigger>
           <TabsTrigger value="subscription">الاشتراك</TabsTrigger>
