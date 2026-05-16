@@ -246,6 +246,12 @@ const AppShellInner = ({ kind }: { kind: 'company' | 'admin' }) => {
               <DropdownMenuLabel>{user?.email}</DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => navigate('/app/settings')}>الإعدادات</DropdownMenuItem>
+              {kind === 'company' && (
+                <DropdownMenuItem onClick={() => { if (user?.id) resetOnboarding(user.id); setOnboardingOpen(true); }}>
+                  <Sparkles className="h-4 w-4 ml-2" />
+                  إعادة الجولة التعريفية
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem onClick={() => { logout(); navigate('/'); }}>تسجيل الخروج</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
