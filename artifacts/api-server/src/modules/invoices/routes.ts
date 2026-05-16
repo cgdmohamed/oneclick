@@ -42,8 +42,8 @@ router.get('/', async (req, res, next) => {
     const q = (req.query.q as string | undefined)?.trim();
     const status = (req.query.status as string | undefined)?.trim();
 
-    const where: string[] = [];
-    const params: unknown[] = [];
+    const params: unknown[] = [t.companyId];
+    const where: string[] = ['i.company_id = $1'];
     if (q) {
       params.push(`%${q}%`);
       where.push(`(i.number ILIKE $${params.length} OR c.name ILIKE $${params.length})`);
@@ -52,7 +52,7 @@ router.get('/', async (req, res, next) => {
       params.push(status);
       where.push(`i.status = $${params.length}`);
     }
-    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+    const whereSql = `WHERE ${where.join(' AND ')}`;
 
     const totalQ = await t.db.query(
       `SELECT count(*)::int AS count FROM invoices i JOIN clients c ON c.id = i.client_id ${whereSql}`,
@@ -75,12 +75,12 @@ router.get('/:id', async (req, res, next) => {
     const t = req.tenant!;
     const inv = await t.db.query(
       `SELECT i.*, c.name AS client_name, c.email AS client_email, c.tax_number AS client_tax
-       FROM invoices i JOIN clients c ON c.id = i.client_id WHERE i.id = $1`,
-      [req.params.id],
+       FROM invoices i JOIN clients c ON c.id = i.client_id WHERE i.id = $1 AND i.company_id = $2`,
+      [req.params.id, t.companyId],
     );
     if (!inv.rowCount) throw notFound('Invoice not found');
-    const items = await t.db.query(`SELECT * FROM invoice_items WHERE invoice_id = $1 ORDER BY created_at`, [req.params.id]);
-    const pays  = await t.db.query(`SELECT * FROM payments WHERE invoice_id = $1 ORDER BY paid_at DESC`, [req.params.id]);
+    const items = await t.db.query(`SELECT * FROM invoice_items WHERE invoice_id = $1 AND company_id = $2 ORDER BY created_at`, [req.params.id, t.companyId]);
+    const pays  = await t.db.query(`SELECT * FROM payments WHERE invoice_id = $1 AND company_id = $2 ORDER BY paid_at DESC`, [req.params.id, t.companyId]);
     res.json({ data: { ...inv.rows[0], items: items.rows, payments: pays.rows } });
   } catch (e) { next(e); }
 });
@@ -158,7 +158,7 @@ router.post('/', enforceInvoiceLimit(), async (req, res, next) => {
 router.delete('/:id', async (req, res, next) => {
   try {
     const t = req.tenant!;
-    await t.db.query(`DELETE FROM invoices WHERE id = $1`, [req.params.id]);
+    await t.db.query(`DELETE FROM invoices WHERE id = $1 AND company_id = $2`, [req.params.id, t.companyId]);
     await audit(pool, {
       companyId: t.companyId, userId: req.auth!.userId,
       action: 'invoice.delete', entity: 'invoice', entityId: req.params.id,

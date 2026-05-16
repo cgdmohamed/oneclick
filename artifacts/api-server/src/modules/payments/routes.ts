@@ -22,14 +22,15 @@ router.get('/', async (req, res, next) => {
   try {
     const t = req.tenant!;
     const p = parsePagination(req);
-    const totalQ = await t.db.query(`SELECT count(*)::int AS count FROM payments`);
+    const totalQ = await t.db.query(`SELECT count(*)::int AS count FROM payments WHERE company_id = $1`, [t.companyId]);
     const a = p.applyTo(`
       SELECT p.*, i.number AS invoice_number, a.name AS account_name
       FROM payments p
       JOIN invoices i ON i.id = p.invoice_id
       JOIN accounts a ON a.id = p.account_id
+      WHERE p.company_id = $1
       ORDER BY p.paid_at DESC
-    `);
+    `, [t.companyId]);
     const rs = await t.db.query(a.sql, a.params);
     res.json(p.respond(rs.rows, Number(totalQ.rows[0].count)));
   } catch (e) { next(e); }
@@ -78,10 +79,10 @@ router.post('/', async (req, res, next) => {
 router.delete('/:id', async (req, res, next) => {
   try {
     const t = req.tenant!;
-    const p = await t.db.query(`SELECT * FROM payments WHERE id = $1 FOR UPDATE`, [req.params.id]);
+    const p = await t.db.query(`SELECT * FROM payments WHERE id = $1 AND company_id = $2 FOR UPDATE`, [req.params.id, t.companyId]);
     if (!p.rowCount) throw notFound();
     const pay = p.rows[0];
-    await t.db.query(`DELETE FROM payments WHERE id = $1`, [req.params.id]);
+    await t.db.query(`DELETE FROM payments WHERE id = $1 AND company_id = $2`, [req.params.id, t.companyId]);
     await t.db.query(`UPDATE accounts SET balance = balance - $1 WHERE id = $2`, [pay.amount, pay.account_id]);
     const sums = await t.db.query(`SELECT COALESCE(SUM(amount),0) AS s FROM payments WHERE invoice_id = $1`, [pay.invoice_id]);
     const inv = await t.db.query(`SELECT total FROM invoices WHERE id = $1`, [pay.invoice_id]);

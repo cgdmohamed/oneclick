@@ -27,7 +27,7 @@ router.get('/', async (req, res, next) => {
 router.post('/:id/read', async (req, res, next) => {
   try {
     const t = req.tenant!;
-    await t.db.query(`UPDATE notifications SET read_at = now() WHERE id = $1`, [req.params.id]);
+    await t.db.query(`UPDATE notifications SET read_at = now() WHERE id = $1 AND company_id = $2`, [req.params.id, t.companyId]);
     res.json({ ok: true });
   } catch (e) { next(e); }
 });

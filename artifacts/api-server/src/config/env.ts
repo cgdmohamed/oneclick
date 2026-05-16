@@ -2,8 +2,8 @@ import { z } from 'zod';
 
 const schema = z.object({
   DATABASE_URL: z.string(),
-  JWT_SECRET: z.string().min(16).default('dev-jwt-secret-change-in-production-32chars'),
-  JWT_REFRESH_SECRET: z.string().min(16).default('dev-refresh-secret-change-in-prod-32chars'),
+  JWT_SECRET: z.string().min(32),
+  JWT_REFRESH_SECRET: z.string().min(32),
   PORT: z.coerce.number().default(8080),
   CORS_ORIGIN: z.string().default('same-origin'),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),

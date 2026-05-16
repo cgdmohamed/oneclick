@@ -137,7 +137,7 @@ router.post('/subscription-payments', async (req, res, next) => {
     await client.query('BEGIN');
 
     const sub = await client.query(
-      `SELECT id, amount, status FROM subscriptions WHERE id = $1 FOR UPDATE`,
+      `SELECT id, status FROM subscriptions WHERE id = $1 FOR UPDATE`,
       [body.subscription_id],
     );
     if (!sub.rowCount) throw notFound('Subscription not found');
