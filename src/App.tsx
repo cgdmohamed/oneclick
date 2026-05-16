@@ -46,6 +46,9 @@ import FeatureAccess from "./pages/admin/FeatureAccess";
 import SystemNotifications from "./pages/admin/SystemNotifications";
 import SystemSettings from "./pages/admin/SystemSettings";
 import LandingContent from "./pages/admin/LandingContent";
+import TrackingSettings from "./pages/admin/TrackingSettings";
+
+import { TrackingScripts } from "./components/common/TrackingScripts";
 
 import NotFound from "./pages/NotFound";
 
@@ -58,6 +61,7 @@ const App = () => (
       <Sonner position="top-center" dir="rtl" />
       <BrowserRouter>
         <AuthProvider>
+          <TrackingScripts />
           <Routes>
             <Route element={<PublicLayout />}>
               <Route path="/" element={<Home />} />
@@ -102,6 +106,7 @@ const App = () => (
               <Route path="feature-access" element={<FeatureAccess />} />
               <Route path="notifications" element={<SystemNotifications />} />
               <Route path="landing" element={<LandingContent />} />
+              <Route path="tracking" element={<TrackingSettings />} />
               <Route path="settings" element={<SystemSettings />} />
             </Route>
 
