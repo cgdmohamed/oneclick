@@ -1,17 +1,26 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import { parsePagination } from '../../utils/pagination.js';
 
 const router = Router();
 
 router.get('/', async (req, res, next) => {
   try {
     const t = req.tenant!;
-    const rs = await t.db.query(`
-      SELECT * FROM notifications
-      WHERE company_id = $1 AND (user_id IS NULL OR user_id = $2)
-      ORDER BY created_at DESC LIMIT 100
-    `, [t.companyId, req.auth!.userId]);
-    res.json({ data: rs.rows });
+    const p = parsePagination(req);
+    const totalQ = await t.db.query(
+      `SELECT count(*)::int AS count FROM notifications
+        WHERE company_id = $1 AND (user_id IS NULL OR user_id = $2)`,
+      [t.companyId, req.auth!.userId],
+    );
+    const a = p.applyTo(
+      `SELECT * FROM notifications
+        WHERE company_id = $1 AND (user_id IS NULL OR user_id = $2)
+        ORDER BY created_at DESC`,
+      [t.companyId, req.auth!.userId],
+    );
+    const rs = await t.db.query(a.sql, a.params);
+    res.json(p.respond(rs.rows, Number(totalQ.rows[0].count)));
   } catch (e) { next(e); }
 });
 

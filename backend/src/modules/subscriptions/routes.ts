@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { pool } from '../../db/client.js';
 import { requireSuperAdmin } from '../../middleware/rbac.js';
+import { parsePagination } from '../../utils/pagination.js';
 
 const router = Router();
 
@@ -55,14 +56,17 @@ router.post('/me/request-change', async (req, res, next) => {
 router.get('/', requireSuperAdmin, async (req, res, next) => {
   try {
     const t = req.tenant!;
-    const rs = await t.db.query(`
+    const p = parsePagination(req);
+    const totalQ = await t.db.query(`SELECT count(*)::int AS count FROM subscriptions`);
+    const a = p.applyTo(`
       SELECT s.*, c.name AS company_name, p.name AS plan_name
       FROM subscriptions s
       JOIN companies c ON c.id = s.company_id
       JOIN plans p ON p.id = s.plan_id
       ORDER BY s.created_at DESC
     `);
-    res.json({ data: rs.rows });
+    const rs = await t.db.query(a.sql, a.params);
+    res.json(p.respond(rs.rows, Number(totalQ.rows[0].count)));
   } catch (e) { next(e); }
 });
 
