@@ -155,7 +155,9 @@ const InvoiceDetails = () => {
     }
   };
 
+  const waNumber = clientPhone.replace(/[^\d]/g, '');
   const openWhatsApp = async () => {
+    const text = encodeURIComponent(`فاتورة ${invoice.number}: ${publicUrl}`);
     if (apiOn) {
       try {
         const r = await api.get<{ data: { url: string } }>(`/api/invoices/${invoice.id}/whatsapp-link`);
@@ -166,8 +168,11 @@ const InvoiceDetails = () => {
         return;
       }
     }
-    const text = encodeURIComponent(`فاتورة ${invoice.number}: ${publicUrl}`);
-    window.open(`https://wa.me/?text=${text}`, '_blank', 'noopener');
+    if (!waNumber) {
+      toast.error('لا يوجد رقم واتساب لهذا العميل');
+      return;
+    }
+    window.open(`https://wa.me/${waNumber}?text=${text}`, '_blank', 'noopener');
   };
 
   return (
@@ -233,7 +238,14 @@ const InvoiceDetails = () => {
 
           <div className="flex flex-wrap gap-2 mt-5">
             <Button variant="outline" size="sm" onClick={sendEmail}><Mail className="h-4 w-4 ml-1" /> إرسال بريد</Button>
-            <Button variant="outline" size="sm" onClick={openWhatsApp}><MessageCircle className="h-4 w-4 ml-1" /> واتساب</Button>
+            <Button
+              size="sm"
+              onClick={openWhatsApp}
+              disabled={!waNumber && !apiOn}
+              className="bg-[#25D366] hover:bg-[#1ebe57] text-white border-transparent"
+            >
+              <MessageCircle className="h-4 w-4 ml-1" /> واتساب
+            </Button>
           </div>
         </Card>
 
