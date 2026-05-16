@@ -76,6 +76,10 @@ const InvoiceDetails = () => {
       status: mapStatus(d.status), notes: d.notes ?? undefined,
     };
     clientName = d.client_name;
+    const mc = mockClients.find(c => c.id === d.client_id);
+    clientPhone = mc?.phone ?? '';
+    clientWhatsapp = mc?.whatsapp ?? '';
+    clientEmail = mc?.email ?? '';
     viewItems = d.items.map(it => ({ id: it.id, name: it.description, quantity: Number(it.quantity), unitPrice: Number(it.unit_price) }));
     viewPayments = d.payments.map(p => ({
       id: p.id, date: p.paid_at, amount: Number(p.amount),
