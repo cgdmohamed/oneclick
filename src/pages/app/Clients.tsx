@@ -7,11 +7,13 @@ import { Plus, Pencil, Trash2, Eye } from 'lucide-react';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { clients as initialClients } from '@/data/mock';
 import type { Client } from '@/types';
 import { toast } from 'sonner';
 import { formatDateShort } from '@/lib/format';
 import { useResource } from '@/hooks/useResource';
+import { CURRENCIES, getCurrencySymbol } from '@/lib/currency';
 
 interface ClientRow {
   id: string;
