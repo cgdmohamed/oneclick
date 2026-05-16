@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { invoices as initialInvoices, clients as mockClients, payments as initialPayments } from '@/data/mock';
 import { PageHeader } from '@/components/common/PageHeader';
@@ -15,6 +15,7 @@ import { toast } from 'sonner';
 import type { Payment, PaymentSplit, Invoice, InvoiceStatus } from '@/types';
 import { api, ApiError, isApiConfigured, API_URL, getAccessToken } from '@/lib/api';
 import { useAccounts } from '@/hooks/entities';
+import { isSmtpConfigured, loadSmtp } from '@/lib/smtpSettings';
 
 interface ApiItem { id: string; description: string; quantity: number; unit_price: string | number; product_id: string | null }
 interface ApiPayment { id: string; amount: string | number; paid_at: string; method: string; account_id: string; reference: string | null; notes: string | null }
@@ -35,6 +36,7 @@ const InvoiceDetails = () => {
   const apiOn = isApiConfigured();
   const qc = useQueryClient();
   const { list: accounts } = useAccounts();
+  const navigate = useNavigate();
 
   const { data: apiInvoice } = useQuery({
     enabled: apiOn && !!id,
@@ -60,6 +62,7 @@ const InvoiceDetails = () => {
   let viewPayments: ViewPayment[];
   let clientName = '';
   let clientPhone = '';
+  let clientEmail = '';
 
   if (apiOn && apiInvoice) {
     const d = apiInvoice;
@@ -82,6 +85,7 @@ const InvoiceDetails = () => {
     const mc = mockClients.find(c => c.id === invoice.clientId);
     clientName = mc?.name ?? '';
     clientPhone = mc?.phone ?? '';
+    clientEmail = mc?.email ?? '';
     viewItems = invoice.items.map(it => ({ id: it.id, name: it.name, quantity: it.quantity, unitPrice: it.unitPrice }));
     viewPayments = mockAllPayments.map(p => ({ id: p.id, date: p.date, amount: p.amount, splits: p.splits }));
   }
@@ -146,13 +150,27 @@ const InvoiceDetails = () => {
   };
 
   const sendEmail = async () => {
-    if (!apiOn) return toast.message('الإرسال يتطلب تشغيل الـ API');
-    try {
-      await api.post(`/api/invoices/${invoice.id}/send-email`, {});
-      toast.success('تم إرسال الفاتورة بالبريد');
-    } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : 'تعذّر الإرسال');
+    if (apiOn) {
+      try {
+        await api.post(`/api/invoices/${invoice.id}/send-email`, {});
+        toast.success('تم إرسال الفاتورة بالبريد');
+      } catch (e) {
+        toast.error(e instanceof ApiError ? e.message : 'تعذّر الإرسال');
+      }
+      return;
     }
+    if (!isSmtpConfigured()) {
+      toast.error('لم يتم إعداد خادم البريد (SMTP) بعد', {
+        action: { label: 'إعداد الآن', onClick: () => navigate('/app/settings?tab=smtp') },
+      });
+      return;
+    }
+    if (!clientEmail) {
+      toast.error('لا يوجد بريد إلكتروني لهذا العميل');
+      return;
+    }
+    const smtp = loadSmtp();
+    toast.success(`سيتم إرسال الفاتورة إلى ${clientEmail} عبر ${smtp.host}`);
   };
 
   const waNumber = clientPhone.replace(/[^\d]/g, '');
@@ -237,7 +255,7 @@ const InvoiceDetails = () => {
           </table>
 
           <div className="flex flex-wrap gap-2 mt-5">
-            <Button variant="outline" size="sm" onClick={sendEmail}><Mail className="h-4 w-4 ml-1" /> إرسال بريد</Button>
+            <Button variant="outline" size="sm" onClick={sendEmail}><Mail className="h-4 w-4 ml-1" /> إرسال عبر البريد الإلكتروني</Button>
             <Button
               size="sm"
               onClick={openWhatsApp}

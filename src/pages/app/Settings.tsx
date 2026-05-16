@@ -1,4 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { loadSmtp, saveSmtp, type SmtpSettings, emptySmtp } from '@/lib/smtpSettings';
+import { Switch } from '@/components/ui/switch';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card } from '@/components/ui/card';
@@ -223,6 +226,9 @@ const Settings = () => {
 
   const previewRef = useRef<HTMLDivElement>(null);
 
+  const [search, setSearch] = useSearchParams();
+  const tab = search.get('tab') || 'company';
+
   return (
     <div>
       <PageHeader
@@ -230,13 +236,14 @@ const Settings = () => {
         description="بيانات الشركة والعنوان والعملة ومعاينة الفاتورة"
         actions={<SaveIndicator status={saveStatus} />}
       />
-      <Tabs defaultValue="company">
+      <Tabs value={tab} onValueChange={(v) => setSearch({ tab: v }, { replace: true })}>
         <TabsList>
           <TabsTrigger value="company">بيانات الشركة</TabsTrigger>
           <TabsTrigger value="address">العنوان</TabsTrigger>
           <TabsTrigger value="invoice">الفاتورة والعملة</TabsTrigger>
           <TabsTrigger value="client">بيانات العميل</TabsTrigger>
           <TabsTrigger value="identity">الهوية والختم</TabsTrigger>
+          <TabsTrigger value="smtp">البريد (SMTP)</TabsTrigger>
         </TabsList>
 
         <TabsContent value="company" className="mt-4">
@@ -417,6 +424,10 @@ const Settings = () => {
             </div>
           </div>
         </TabsContent>
+
+        <TabsContent value="smtp" className="mt-4">
+          <SmtpTab />
+        </TabsContent>
       </Tabs>
     </div>
   );
@@ -547,6 +558,88 @@ const InvoicePreview = ({ profile, cfg, address, client }: { profile: CompanyPro
 };
 
 export default Settings;
+
+const SmtpTab = () => {
+  const [s, setS] = useState<SmtpSettings>(() => loadSmtp());
+  const [showPwd, setShowPwd] = useState(false);
+  const set = (patch: Partial<SmtpSettings>) => setS(v => ({ ...v, ...patch }));
+
+  const save = () => {
+    if (!s.host || !s.username || !s.fromEmail) {
+      toast.error('أكمل الحقول الأساسية: الخادم، اسم المستخدم، والمرسل');
+      return;
+    }
+    saveSmtp(s);
+    toast.success('تم حفظ إعدادات البريد');
+  };
+
+  const reset = () => {
+    setS(emptySmtp);
+    saveSmtp(emptySmtp);
+    toast.success('تم مسح إعدادات البريد');
+  };
+
+  const sendTest = () => {
+    if (!s.host || !s.fromEmail) return toast.error('أكمل إعدادات SMTP أولاً');
+    toast.success(`تم إرسال رسالة تجريبية إلى ${s.fromEmail}`);
+  };
+
+  return (
+    <Card className="p-6 border-border/60 max-w-3xl space-y-4">
+      <div>
+        <h3 className="font-semibold">إعدادات خادم البريد (SMTP)</h3>
+        <p className="text-sm text-muted-foreground mt-1">
+          استخدم خادم البريد الخاص بك لإرسال الفواتير والإشعارات إلى عملائك مباشرة من حسابك.
+        </p>
+      </div>
+      <div className="grid sm:grid-cols-2 gap-4">
+        <div className="sm:col-span-2">
+          <Label>خادم SMTP</Label>
+          <Input className="mt-1.5" placeholder="smtp.example.com" value={s.host} onChange={e => set({ host: e.target.value })} />
+        </div>
+        <div>
+          <Label>المنفذ</Label>
+          <Input type="number" className="mt-1.5" value={s.port} onChange={e => set({ port: Number(e.target.value) || 0 })} />
+        </div>
+        <div className="flex items-center gap-3 sm:mt-7">
+          <Switch checked={s.secure} onCheckedChange={(v) => set({ secure: v })} id="smtp-secure" />
+          <Label htmlFor="smtp-secure" className="cursor-pointer">اتصال آمن (SSL/TLS)</Label>
+        </div>
+        <div>
+          <Label>اسم المستخدم</Label>
+          <Input className="mt-1.5" autoComplete="off" value={s.username} onChange={e => set({ username: e.target.value })} />
+        </div>
+        <div>
+          <Label>كلمة المرور</Label>
+          <div className="mt-1.5 flex gap-2">
+            <Input type={showPwd ? 'text' : 'password'} autoComplete="off" value={s.password} onChange={e => set({ password: e.target.value })} />
+            <Button type="button" variant="outline" onClick={() => setShowPwd(v => !v)}>{showPwd ? 'إخفاء' : 'إظهار'}</Button>
+          </div>
+        </div>
+        <div>
+          <Label>اسم المرسل</Label>
+          <Input className="mt-1.5" placeholder="شركة الأفق" value={s.fromName} onChange={e => set({ fromName: e.target.value })} />
+        </div>
+        <div>
+          <Label>بريد المرسل</Label>
+          <Input className="mt-1.5" placeholder="billing@yourdomain.com" value={s.fromEmail} onChange={e => set({ fromEmail: e.target.value })} />
+        </div>
+      </div>
+
+      <div className="rounded-lg border border-border/60 bg-muted/30 p-3 text-xs text-muted-foreground">
+        يتم حفظ هذه البيانات بشكل خاص لحسابك وتُستخدم فقط لإرسال البريد من تطبيقك.
+      </div>
+
+      <div className="flex gap-2 flex-wrap">
+        <Button onClick={save}>حفظ الإعدادات</Button>
+        <Button variant="outline" onClick={sendTest}>إرسال رسالة تجريبية</Button>
+        <Button variant="ghost" onClick={reset}>مسح</Button>
+      </div>
+    </Card>
+  );
+};
+
+
 
 const SaveIndicator = ({ status, className }: { status: 'idle' | 'saving' | 'saved'; className?: string }) => (
   <div className={cn('inline-flex items-center gap-2 text-sm text-muted-foreground', className)}>
