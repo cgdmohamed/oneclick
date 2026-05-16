@@ -1,0 +1,53 @@
+name: CI
+
+# OPS-06: lint + typecheck + test gate on PRs and main pushes. Keeps the
+# repo from regressing on the basics without any external services.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  frontend:
+    name: Frontend (lint · typecheck · build · test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with: { bun-version: latest }
+      - run: bun install --frozen-lockfile
+      - run: bun run lint
+      - run: bunx tsc --noEmit
+      - run: bun run build
+      - run: bunx vitest run
+
+  backend:
+    name: Backend (lint · typecheck · test)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: hesabat_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/hesabat_test
+      JWT_SECRET: test_jwt_secret_at_least_16_chars
+      JWT_REFRESH_SECRET: test_refresh_secret_at_least_16_chars
+      NODE_ENV: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with: { bun-version: latest }
+      - run: bun install --frozen-lockfile
+      - run: bunx tsc --noEmit
+      - run: bunx vitest run

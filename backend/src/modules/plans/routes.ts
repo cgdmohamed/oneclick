@@ -31,9 +31,21 @@ const updateSchema = createSchema.partial();
 
 /* ----------------------- PUBLIC (no auth) ----------------------- */
 export const publicPlansRouter = Router();
+
+// SCL-08: tiny in-process TTL cache for the public pricing page.
+// Plans rarely change; even a 60s cache drops sustained Postgres load to
+// effectively zero on a busy /pricing route. Invalidated on admin write below.
+let plansCache: { at: number; data: unknown[] } | null = null;
+const PLANS_TTL_MS = 60_000;
+const invalidatePlansCache = () => { plansCache = null; };
+
 publicPlansRouter.get('/', async (_req, res, next) => {
   try {
+    if (plansCache && Date.now() - plansCache.at < PLANS_TTL_MS) {
+      return res.json({ data: plansCache.data, cached: true });
+    }
     const rs = await pool.query(`SELECT * FROM plans WHERE is_active = true ORDER BY price_monthly`);
+    plansCache = { at: Date.now(), data: rs.rows };
     res.json({ data: rs.rows });
   } catch (e) { next(e); }
 });
@@ -61,6 +73,7 @@ adminPlansRouter.post('/', requireSuperAdmin, async (req, res, next) => {
       companyId: null, userId: req.auth!.userId,
       action: 'plan.create', entity: 'plan', entityId: rs.rows[0].id, data: b,
     });
+    invalidatePlansCache();
     res.status(201).json({ data: rs.rows[0] });
   } catch (e) { next(e); }
 });
@@ -82,6 +95,7 @@ adminPlansRouter.patch('/:id', requireSuperAdmin, async (req, res, next) => {
       companyId: null, userId: req.auth!.userId,
       action: 'plan.update', entity: 'plan', entityId: req.params.id, data: body,
     });
+    invalidatePlansCache();
     res.json({ data: rs.rows[0] });
   } catch (e) { next(e); }
 });
@@ -96,6 +110,7 @@ adminPlansRouter.delete('/:id', requireSuperAdmin, async (req, res, next) => {
       companyId: null, userId: req.auth!.userId,
       action: 'plan.deactivate', entity: 'plan', entityId: req.params.id,
     });
+    invalidatePlansCache();
     res.json({ ok: true });
   } catch (e) { next(e); }
 });
