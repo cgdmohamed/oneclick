@@ -6,8 +6,8 @@
  */
 import { useEffect, useState } from 'react';
 
-export type ActivityModule = 'product' | 'category' | 'invoice' | 'payment' | 'client' | 'system';
-export type ActivityAction = 'create' | 'update' | 'delete' | 'pay' | 'login' | 'logout';
+export type ActivityModule = 'product' | 'category' | 'invoice' | 'payment' | 'client' | 'system' | 'role' | 'user' | 'auth' | 'permission';
+export type ActivityAction = 'create' | 'update' | 'delete' | 'pay' | 'login' | 'logout' | 'assign' | 'grant' | 'revoke' | 'denied';
 
 export interface ActivityEntry {
   id: string;

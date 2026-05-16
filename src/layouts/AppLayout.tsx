@@ -1,6 +1,6 @@
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarTrigger, useSidebar, SidebarHeader, SidebarFooter } from '@/components/ui/sidebar';
-import { LayoutDashboard, Users, FileText, CreditCard, Wallet, Package, BarChart3, Bell, ShieldCheck, Settings, Calculator, LogOut, Building2, Layers, Receipt, ToggleRight, Megaphone, Cog, ChevronLeft, Crown, History, LayoutTemplate, LineChart, UserSearch, PieChart } from 'lucide-react';
+import { LayoutDashboard, Users, FileText, CreditCard, Wallet, Package, BarChart3, Bell, ShieldCheck, Settings, Calculator, LogOut, Building2, Layers, Receipt, ToggleRight, Megaphone, Cog, ChevronLeft, Crown, History, LayoutTemplate, LineChart, UserSearch, PieChart, ScrollText } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
@@ -35,6 +35,8 @@ const adminNav = [
   { to: '/admin/payments', label: 'التحصيلات', icon: Receipt },
   { to: '/admin/wallets', label: 'محافظ التحصيل', icon: Wallet },
   { to: '/admin/feature-access', label: 'الصلاحيات حسب الباقة', icon: ToggleRight },
+  { to: '/admin/roles', label: 'الأدوار والصلاحيات', icon: ShieldCheck },
+  { to: '/admin/audit-log', label: 'سجل التدقيق', icon: ScrollText },
   { to: '/admin/notifications', label: 'إشعارات النظام', icon: Megaphone },
   { to: '/admin/landing', label: 'محتوى الصفحات العامة', icon: LayoutTemplate },
   { to: '/admin/tracking', label: 'التسويق والتحليلات', icon: LineChart },
@@ -51,6 +53,8 @@ const pageKey = (kind: 'company' | 'admin', pathname: string): string => {
     if (pathname.startsWith('/admin/payments')) return 'admin-payments';
     if (pathname.startsWith('/admin/wallets')) return 'admin-wallets';
     if (pathname.startsWith('/admin/feature-access')) return 'admin-feature-access';
+    if (pathname.startsWith('/admin/roles')) return 'admin-roles';
+    if (pathname.startsWith('/admin/audit-log')) return 'admin-audit-log';
     if (pathname.startsWith('/admin/notifications')) return 'admin-notifications';
     if (pathname.startsWith('/admin/landing')) return 'admin-landing';
     if (pathname.startsWith('/admin/tracking')) return 'admin-tracking';

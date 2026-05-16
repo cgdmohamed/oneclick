@@ -15,6 +15,10 @@ const moduleLabel: Record<ActivityModule, string> = {
   payment: 'مدفوعات',
   client: 'عملاء',
   system: 'النظام',
+  role: 'الأدوار',
+  user: 'المستخدمون',
+  auth: 'المصادقة',
+  permission: 'الصلاحيات',
 };
 
 const actionLabel: Record<string, string> = {
