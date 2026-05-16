@@ -1,6 +1,6 @@
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarTrigger, useSidebar, SidebarHeader, SidebarFooter } from '@/components/ui/sidebar';
-import { LayoutDashboard, Users, FileText, CreditCard, Wallet, Package, BarChart3, Bell, BellRing, ShieldCheck, Settings, LogOut, Building2, Layers, Receipt, ToggleRight, Megaphone, Cog, ChevronLeft, Crown, History, LayoutTemplate, LineChart, PieChart, ScrollText, UserPlus } from 'lucide-react';
+import { LayoutDashboard, Users, FileText, CreditCard, Wallet, Package, BarChart3, Bell, BellRing, ShieldCheck, Settings, LogOut, Building2, Layers, Receipt, ToggleRight, Megaphone, Cog, Crown, History, LayoutTemplate, LineChart, PieChart, ScrollText, UserPlus } from 'lucide-react';
 import { BrandLogo } from '@/components/common/BrandLogo';
 import { Badge } from '@/components/ui/badge';
 import { usePendingSignupsCount } from '@/hooks/usePendingSignups';
@@ -12,7 +12,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { roleLabel } from '@/lib/format';
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { getSentAlerts, subscribeSentAlerts } from '@/lib/sentAlerts';
-import type { Role } from '@/types';
+
 import { useCurrentFeatureSet } from '@/hooks/usePlanAccess';
 import { OnboardingWizard, isOnboardingDone, resetOnboarding } from '@/components/common/OnboardingWizard';
 import { Sparkles } from 'lucide-react';
@@ -98,7 +98,7 @@ const PendingBadge = () => {
 const AppShellInner = ({ kind }: { kind: 'company' | 'admin' }) => {
   const { state } = useSidebar();
   const collapsed = state === 'collapsed';
-  const { user, logout, setRole, companyName } = useAuth();
+  const { user, logout, companyName } = useAuth();
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const featureSet = useCurrentFeatureSet();
@@ -197,24 +197,6 @@ const AppShellInner = ({ kind }: { kind: 'company' | 'admin' }) => {
         <header className="shell-header relative h-14 bg-card/60 backdrop-blur sticky top-0 z-30 flex items-center px-4 gap-3 shadow-sm">
           <SidebarTrigger />
           <div className="flex-1" />
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="gap-2">
-                <span className="text-xs text-muted-foreground">عرض كـ:</span>
-                <span className="font-semibold">{roleLabel(user?.role ?? 'company_admin')}</span>
-                <ChevronLeft className="h-3 w-3" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-52">
-              <DropdownMenuLabel>تبديل الدور (للعرض)</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              {(['company_admin','accountant','sales','viewer','super_admin'] as Role[]).map(r => (
-                <DropdownMenuItem key={r} onClick={() => { setRole(r); if (r === 'super_admin') navigate('/admin'); else navigate('/app'); }}>
-                  {roleLabel(r)}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
           <Button
             variant="ghost"
             size="icon"
