@@ -29,7 +29,7 @@ interface ProductRow {
   is_active: boolean;
 }
 
-const empty: Product = { id: '', companyId: 'co-1', name: '', code: '', price: 0, quantity: 0, alertLevel: 5, status: 'active' };
+const empty: Product = { id: '', companyId: 'co-1', name: '', code: '', category: '', price: 0, quantity: 0, alertLevel: 5, status: 'active' };
 
 const Products = () => {
   const { list, save } = useResource<Product, ProductRow>({
@@ -82,6 +82,7 @@ const Products = () => {
       </div>
     )},
     { key: 'code', header: 'الكود', cell: r => <span className="text-muted-foreground text-sm">{r.code}</span> },
+    { key: 'category', header: 'التصنيف', cell: r => <span className="text-muted-foreground text-sm">{r.category || '—'}</span> },
     { key: 'price', header: 'السعر', cell: r => formatCurrency(r.price) },
     { key: 'qty', header: 'الكمية', cell: r => <span className={r.quantity <= r.alertLevel ? 'text-destructive font-semibold' : ''}>{r.quantity}</span> },
     { key: 'alert', header: 'حد التنبيه', cell: r => r.alertLevel },
@@ -112,8 +113,19 @@ const Products = () => {
           <TabsTrigger value="products">المنتجات</TabsTrigger>
           <TabsTrigger value="movements">حركة المخزون</TabsTrigger>
         </TabsList>
-        <TabsContent value="products" className="mt-4">
-          <DataTable data={list} columns={columns} searchKeys={['name','code']} searchPlaceholder="ابحث بالمنتج أو الكود..." />
+        <TabsContent value="products" className="mt-4 space-y-6">
+          {Array.from(new Set(list.map(p => p.category || 'غير مصنف'))).sort().map(cat => {
+            const items = list.filter(p => (p.category || 'غير مصنف') === cat);
+            return (
+              <div key={cat}>
+                <div className="flex items-center gap-2 mb-2">
+                  <h3 className="text-sm font-semibold">{cat}</h3>
+                  <span className="text-xs text-muted-foreground">({items.length})</span>
+                </div>
+                <DataTable data={items} columns={columns} searchKeys={['name','code']} searchPlaceholder="ابحث بالمنتج أو الكود..." />
+              </div>
+            );
+          })}
         </TabsContent>
         <TabsContent value="movements" className="mt-4">
           <DataTable
@@ -140,6 +152,7 @@ const Products = () => {
             <div className="grid sm:grid-cols-2 gap-4">
               <div><Label>اسم المنتج</Label><Input className="mt-1.5" value={editing.name} onChange={e => setEditing(s => ({ ...s, name: e.target.value }))} /></div>
               <div><Label>الكود</Label><Input className="mt-1.5" value={editing.code} onChange={e => setEditing(s => ({ ...s, code: e.target.value }))} /></div>
+              <div className="sm:col-span-2"><Label>التصنيف</Label><Input className="mt-1.5" placeholder="مثال: إلكترونيات" value={editing.category ?? ''} onChange={e => setEditing(s => ({ ...s, category: e.target.value }))} /></div>
               <div><Label>السعر</Label><Input type="number" className="mt-1.5" value={editing.price} onChange={e => setEditing(s => ({ ...s, price: Number(e.target.value) }))} /></div>
               <div><Label>الكمية</Label><Input type="number" className="mt-1.5" value={editing.quantity} onChange={e => setEditing(s => ({ ...s, quantity: Number(e.target.value) }))} /></div>
               <div><Label>حد التنبيه</Label><Input type="number" className="mt-1.5" value={editing.alertLevel} onChange={e => setEditing(s => ({ ...s, alertLevel: Number(e.target.value) }))} /></div>

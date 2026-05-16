@@ -59,14 +59,14 @@ export const clients: Client[] = [
 ];
 
 export const products: Product[] = [
-  { id: 'pr-1', companyId: 'co-1', name: 'جهاز كمبيوتر محمول', code: 'LAP-001', price: 4500, quantity: 12, alertLevel: 5, status: 'active' },
-  { id: 'pr-2', companyId: 'co-1', name: 'طابعة ليزر ملونة', code: 'PRN-002', price: 1850, quantity: 3, alertLevel: 5, status: 'active' },
-  { id: 'pr-3', companyId: 'co-1', name: 'شاشة عرض 27 بوصة', code: 'MON-003', price: 1200, quantity: 18, alertLevel: 6, status: 'active' },
-  { id: 'pr-4', companyId: 'co-1', name: 'لوحة مفاتيح لاسلكية', code: 'KBD-004', price: 220, quantity: 2, alertLevel: 10, status: 'active' },
-  { id: 'pr-5', companyId: 'co-1', name: 'فأرة احترافية', code: 'MOU-005', price: 180, quantity: 35, alertLevel: 10, status: 'active' },
-  { id: 'pr-6', companyId: 'co-1', name: 'سماعات رأس بلوتوث', code: 'HDP-006', price: 350, quantity: 1, alertLevel: 5, status: 'active' },
-  { id: 'pr-7', companyId: 'co-1', name: 'كرسي مكتبي مريح', code: 'CHR-007', price: 950, quantity: 7, alertLevel: 3, status: 'active' },
-  { id: 'pr-8', companyId: 'co-1', name: 'مكتب خشبي حديث', code: 'DSK-008', price: 1450, quantity: 4, alertLevel: 2, status: 'active' },
+  { id: 'pr-1', companyId: 'co-1', name: 'جهاز كمبيوتر محمول', code: 'LAP-001', category: 'إلكترونيات', price: 4500, quantity: 12, alertLevel: 5, status: 'active' },
+  { id: 'pr-2', companyId: 'co-1', name: 'طابعة ليزر ملونة', code: 'PRN-002', category: 'إلكترونيات', price: 1850, quantity: 3, alertLevel: 5, status: 'active' },
+  { id: 'pr-3', companyId: 'co-1', name: 'شاشة عرض 27 بوصة', code: 'MON-003', category: 'إلكترونيات', price: 1200, quantity: 18, alertLevel: 6, status: 'active' },
+  { id: 'pr-4', companyId: 'co-1', name: 'لوحة مفاتيح لاسلكية', code: 'KBD-004', category: 'ملحقات', price: 220, quantity: 2, alertLevel: 10, status: 'active' },
+  { id: 'pr-5', companyId: 'co-1', name: 'فأرة احترافية', code: 'MOU-005', category: 'ملحقات', price: 180, quantity: 35, alertLevel: 10, status: 'active' },
+  { id: 'pr-6', companyId: 'co-1', name: 'سماعات رأس بلوتوث', code: 'HDP-006', category: 'ملحقات', price: 350, quantity: 1, alertLevel: 5, status: 'active' },
+  { id: 'pr-7', companyId: 'co-1', name: 'كرسي مكتبي مريح', code: 'CHR-007', category: 'أثاث', price: 950, quantity: 7, alertLevel: 3, status: 'active' },
+  { id: 'pr-8', companyId: 'co-1', name: 'مكتب خشبي حديث', code: 'DSK-008', category: 'أثاث', price: 1450, quantity: 4, alertLevel: 2, status: 'active' },
 ];
 
 export const accounts: FinancialAccount[] = [
