@@ -107,7 +107,7 @@ const App = () => (
               <Route path="companies" element={<Companies />} />
               <Route path="plans" element={<Plans />} />
               <Route path="subscriptions" element={<Subscriptions />} />
-              <Route path="payments" element={<AdminPayments />} />
+              
               <Route path="wallets" element={<PlatformWallets />} />
               <Route path="feature-access" element={<FeatureAccess />} />
               <Route path="notifications" element={<SystemNotifications />} />
