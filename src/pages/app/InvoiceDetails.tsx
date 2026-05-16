@@ -86,6 +86,7 @@ const InvoiceDetails = () => {
     const mc = mockClients.find(c => c.id === invoice.clientId);
     clientName = mc?.name ?? '';
     clientPhone = mc?.phone ?? '';
+    clientWhatsapp = mc?.whatsapp ?? '';
     clientEmail = mc?.email ?? '';
     viewItems = invoice.items.map(it => ({ id: it.id, name: it.name, quantity: it.quantity, unitPrice: it.unitPrice }));
     viewPayments = mockAllPayments.map(p => ({ id: p.id, date: p.date, amount: p.amount, splits: p.splits }));
