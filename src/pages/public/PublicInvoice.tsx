@@ -89,6 +89,8 @@ const PublicInvoice = () => {
   if (notFound || !data) return <EmptyState title="الفاتورة غير موجودة" />;
 
   const num = (v: number | string) => Number(v ?? 0);
+  const sym = data.currency_symbol ?? undefined;
+  const fc = (n: number) => formatCurrency(n, sym);
 
   return (
     <div className="min-h-screen bg-muted/30 py-8 print:bg-white print:p-0">
