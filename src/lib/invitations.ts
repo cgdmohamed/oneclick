@@ -24,7 +24,11 @@ const KEY = 'hesabat.invitations';
 const TTL_DAYS = 7;
 
 const listeners = new Set<() => void>();
-const notify = () => listeners.forEach((l) => l());
+let cachedSnapshot: Invitation[] | null = null;
+const notify = () => {
+  cachedSnapshot = null;
+  listeners.forEach((l) => l());
+};
 
 const read = (): Invitation[] => {
   try {
@@ -45,7 +49,10 @@ export const subscribeInvitations = (cb: () => void) => {
   return () => { listeners.delete(cb); };
 };
 
-export const getInvitations = (): Invitation[] => read();
+export const getInvitations = (): Invitation[] => {
+  if (cachedSnapshot === null) cachedSnapshot = read();
+  return cachedSnapshot;
+};
 
 export const getInvitationsForCompany = (companyId: string) =>
   read()
