@@ -9,10 +9,12 @@ import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { roleLabel } from '@/lib/format';
-import { useEffect, useSyncExternalStore } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 import { getSentAlerts, subscribeSentAlerts } from '@/lib/sentAlerts';
 import type { Role } from '@/types';
 import { useCurrentFeatureSet } from '@/hooks/usePlanAccess';
+import { OnboardingWizard, isOnboardingDone, resetOnboarding } from '@/components/common/OnboardingWizard';
+import { Sparkles } from 'lucide-react';
 
 const companyNav: { to: string; label: string; icon: typeof LayoutDashboard; end?: boolean; feature?: string }[] = [
   { to: '/app', label: 'الرئيسية', icon: LayoutDashboard, end: true },
