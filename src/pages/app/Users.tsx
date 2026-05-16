@@ -141,7 +141,7 @@ const Users = () => {
     return <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium border ${v.cls}`}>{v.label}</span>;
   };
 
-  const inviteColumns: Column<Invitation>[] = [
+  const inviteColumns: Column<Invitation & { id: string }>[] = [
     { key: 'email', header: 'البريد', cell: (r) => <span dir="ltr" className="text-sm font-medium">{r.email}</span> },
     { key: 'fullName', header: 'الاسم', cell: (r) => <span className="text-sm">{r.fullName}</span> },
     { key: 'role', header: 'الدور', cell: (r) => <StatusBadge status="active" label={roleLabel(r.role)} /> },
