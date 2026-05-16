@@ -64,7 +64,33 @@ const Products = () => {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Product>(empty);
   const [toDelete, setToDelete] = useState<Product | null>(null);
+  const [catsOpen, setCatsOpen] = useState(false);
+  const [newCat, setNewCat] = useState('');
+  const [customCats, setCustomCats] = useState<string[]>([]);
   const { list: invoices } = useInvoices();
+
+  const categories = useMemo(() => {
+    const fromProducts = list.map(p => p.category).filter((c): c is string => !!c);
+    return Array.from(new Set([...fromProducts, ...customCats])).sort();
+  }, [list, customCats]);
+
+  const catUsageCount = (cat: string) => list.filter(p => p.category === cat).length;
+
+  const addCategory = () => {
+    const name = newCat.trim();
+    if (!name) return;
+    if (categories.includes(name)) { toast.error('التصنيف موجود مسبقاً'); return; }
+    setCustomCats(prev => [...prev, name]);
+    setNewCat('');
+  };
+
+  const removeCategory = (cat: string) => {
+    if (catUsageCount(cat) > 0) {
+      toast.error('لا يمكن حذف تصنيف مستخدم في منتجات');
+      return;
+    }
+    setCustomCats(prev => prev.filter(c => c !== cat));
+  };
 
   const submit = async () => {
     if (!editing.name || !editing.code) return toast.error('أكمل بيانات المنتج');
@@ -135,7 +161,10 @@ const Products = () => {
   return (
     <div>
       <PageHeader title="المنتجات والمخزون" description="إدارة المنتجات وحركة المخزون"
-        actions={<Button onClick={() => { setEditing({ ...empty, id: `pr-${Date.now()}` }); setOpen(true); }}><Plus className="h-4 w-4 ml-1" /> منتج جديد</Button>} />
+        actions={<>
+          <Button variant="outline" onClick={() => setCatsOpen(true)}><Tags className="h-4 w-4 ml-1" /> التصنيفات</Button>
+          <Button onClick={() => { setEditing({ ...empty, id: `pr-${Date.now()}` }); setOpen(true); }}><Plus className="h-4 w-4 ml-1" /> منتج جديد</Button>
+        </>} />
 
       {lowStock.length > 0 && (
         <Card className="p-4 mb-5 border-warning/40 bg-warning/5 flex items-center gap-3">
@@ -151,19 +180,8 @@ const Products = () => {
           <TabsTrigger value="products">المنتجات</TabsTrigger>
           <TabsTrigger value="movements">حركة المخزون</TabsTrigger>
         </TabsList>
-        <TabsContent value="products" className="mt-4 space-y-6">
-          {Array.from(new Set(list.map(p => p.category || 'غير مصنف'))).sort().map(cat => {
-            const items = list.filter(p => (p.category || 'غير مصنف') === cat);
-            return (
-              <div key={cat}>
-                <div className="flex items-center gap-2 mb-2">
-                  <h3 className="text-sm font-semibold">{cat}</h3>
-                  <span className="text-xs text-muted-foreground">({items.length})</span>
-                </div>
-                <DataTable data={items} columns={columns} searchKeys={['name','code']} searchPlaceholder="ابحث بالمنتج أو الكود..." />
-              </div>
-            );
-          })}
+        <TabsContent value="products" className="mt-4">
+          <DataTable data={list} columns={columns} searchKeys={['name','code']} searchPlaceholder="ابحث بالمنتج أو الكود..." />
         </TabsContent>
         <TabsContent value="movements" className="mt-4">
           <DataTable
