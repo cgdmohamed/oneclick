@@ -90,6 +90,7 @@ const App = () => {
             </Route>
 
             <Route path="/invoice/:publicId" element={<PublicInvoice />} />
+            <Route path="/accept-invite" element={<AcceptInvite />} />
 
             <Route path="/app" element={<AppLayout kind="company" />}>
               <Route index element={<Overview />} />
