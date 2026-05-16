@@ -176,22 +176,12 @@ const InvoiceDetails = () => {
   };
 
   const waNumber = (clientWhatsapp || clientPhone).replace(/[^\d]/g, '');
-  const openWhatsApp = async () => {
-    const text = encodeURIComponent(`فاتورة ${invoice.number}: ${publicUrl}`);
-    if (apiOn) {
-      try {
-        const r = await api.get<{ data: { url: string } }>(`/api/invoices/${invoice.id}/whatsapp-link`);
-        window.open(r.data.url, '_blank', 'noopener');
-        return;
-      } catch (e) {
-        toast.error(e instanceof ApiError ? e.message : 'تعذّر فتح واتساب');
-        return;
-      }
-    }
+  const openWhatsApp = () => {
     if (!waNumber) {
       toast.error('لا يوجد رقم واتساب لهذا العميل');
       return;
     }
+    const text = encodeURIComponent(`فاتورة ${invoice.number}: ${publicUrl}`);
     window.open(`https://wa.me/${waNumber}?text=${text}`, '_blank', 'noopener');
   };
 
