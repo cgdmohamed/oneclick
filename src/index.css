@@ -173,5 +173,8 @@
 
 @media print {
   .no-print { display: none !important; }
-  body { background: white; }
+  body { background: white; direction: rtl; }
+  .print-area { box-shadow: none !important; border: none !important; }
+  @page { size: A4; margin: 16mm; }
 }
+
