@@ -195,7 +195,7 @@ const InvoiceDetails = () => {
         title={`فاتورة ${invoice.number}`}
         description={clientName}
         actions={
-          <div className="flex gap-2 flex-wrap">
+          <div className="flex gap-2 flex-wrap no-print">
             <Button variant="outline" onClick={() => { navigator.clipboard.writeText(publicUrl); toast.success('تم نسخ رابط المشاركة'); }}>
               <Share2 className="h-4 w-4 ml-1" /> نسخ الرابط العام
             </Button>
