@@ -34,6 +34,7 @@ import Notifications from "./pages/app/Notifications";
 import Users from "./pages/app/Users";
 import Settings from "./pages/app/Settings";
 import Subscription from "./pages/app/Subscription";
+import ActivityLog from "./pages/app/ActivityLog";
 
 import AdminOverview from "./pages/admin/AdminOverview";
 import Companies from "./pages/admin/Companies";
@@ -87,6 +88,7 @@ const App = () => (
               <Route path="users" element={<Users />} />
               <Route path="subscription" element={<Subscription />} />
               <Route path="settings" element={<Settings />} />
+              <Route path="activity" element={<ActivityLog />} />
             </Route>
 
             <Route path="/admin" element={<AppLayout kind="admin" />}>
