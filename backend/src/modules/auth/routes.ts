@@ -1,14 +1,16 @@
-import { Router } from 'express';
+import { Router, type Request, type Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import crypto from 'node:crypto';
 import { z } from 'zod';
+import type { PoolClient } from 'pg';
 import { pool } from '../../db/client.js';
 import { env } from '../../config/env.js';
 import { badRequest, unauthorized } from '../../utils/errors.js';
 import { requireAuth } from '../../middleware/auth.js';
 import { sendEmail } from '../../utils/email.js';
 import { audit } from '../../utils/audit.js';
+import { REFRESH_COOKIE, setRefreshCookie, clearRefreshCookie } from '../../utils/cookies.js';
 
 const router = Router();
 
@@ -31,6 +33,41 @@ function signRefresh(userId: string) {
   return jwt.sign({ sub: userId, t: 'r' }, env.JWT_REFRESH_SECRET, { expiresIn: '30d' });
 }
 const sha = (s: string) => crypto.createHash('sha256').update(s).digest('hex');
+
+/**
+ * Issue a refresh token, persist it (hashed) and start a new rotation family.
+ * Returns the raw token to be sent to the client via httpOnly cookie.
+ */
+async function issueRefreshToken(
+  c: PoolClient | typeof pool,
+  userId: string,
+  req: Request,
+  familyId?: string,
+): Promise<string> {
+  const token = signRefresh(userId);
+  const ua = (req.headers['user-agent'] ?? '').toString().slice(0, 500);
+  const ip = (req.ip ?? '').toString().slice(0, 64);
+  const inserted = await c.query<{ id: string }>(
+    `INSERT INTO refresh_tokens (user_id, token_hash, expires_at, family_id, user_agent, ip)
+     VALUES ($1, $2, now() + interval '30 days', $3, $4, $5)
+     RETURNING id`,
+    [userId, sha(token), familyId ?? null, ua, ip],
+  );
+  if (!familyId) {
+    // Self-reference: this token starts a new family
+    await c.query(`UPDATE refresh_tokens SET family_id = id WHERE id = $1`, [inserted.rows[0].id]);
+  }
+  return token;
+}
+
+function readRefreshToken(req: Request): string | null {
+  const cookie = (req as Request & { cookies?: Record<string, string> }).cookies?.[REFRESH_COOKIE];
+  if (cookie) return cookie;
+  // Backward-compat: legacy clients posting refresh_token in body
+  const body = req.body as { refresh_token?: unknown } | undefined;
+  return typeof body?.refresh_token === 'string' ? body.refresh_token : null;
+}
+
 
 router.post('/register', async (req, res, next) => {
   try {
