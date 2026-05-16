@@ -141,7 +141,7 @@ const AppShellInner = ({ kind }: { kind: 'company' | 'admin' }) => {
       </Sidebar>
 
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="shell-header relative h-14 bg-card/60 backdrop-blur sticky top-0 z-30 flex items-center px-4 gap-3">
+        <header className="shell-header relative h-14 bg-card/60 backdrop-blur sticky top-0 z-30 flex items-center px-4 gap-3 shadow-sm">
           <SidebarTrigger />
           <div className="flex-1" />
           <DropdownMenu>
