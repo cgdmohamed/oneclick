@@ -20,15 +20,17 @@ export function crudRouter(opts: {
       const order = opts.list?.orderBy ?? 'created_at DESC';
       const p = parsePagination(req);
 
+      // Always scope to the tenant's company_id first, then optional search.
+      const params: unknown[] = [t.companyId];
+      let where = `WHERE company_id = $1`;
+
       // SCL-05: optional ?q=... ILIKE search across whitelisted columns only.
       const q = (req.query.q as string | undefined)?.trim();
       const searchable = opts.list?.searchable ?? [];
-      let where = '';
-      const params: unknown[] = [];
       if (q && searchable.length) {
         const idx = params.length + 1;
         params.push(`%${q}%`);
-        where = `WHERE ${searchable.map((c) => `${c} ILIKE $${idx}`).join(' OR ')}`;
+        where += ` AND (${searchable.map((c) => `${c} ILIKE $${idx}`).join(' OR ')})`;
       }
 
       const totalQ = await t.db.query(
@@ -47,7 +49,10 @@ export function crudRouter(opts: {
   r.get('/:id', async (req, res, next) => {
     try {
       const t = req.tenant!;
-      const rs = await t.db.query(`SELECT * FROM ${opts.table} WHERE id = $1`, [req.params.id]);
+      const rs = await t.db.query(
+        `SELECT * FROM ${opts.table} WHERE id = $1 AND company_id = $2`,
+        [req.params.id, t.companyId],
+      );
       if (!rs.rowCount) return res.status(404).json({ error: 'not_found' });
       res.json({ data: rs.rows[0] });
     } catch (e) { next(e); }
@@ -85,9 +90,9 @@ export function crudRouter(opts: {
       const fields = Object.keys(body);
       if (fields.length === 0) return res.json({ data: null });
       const set = fields.map((f, i) => `${f} = $${i + 1}`).join(', ');
-      const values = [...Object.values(body), req.params.id];
+      const values = [...Object.values(body), req.params.id, t.companyId];
       const rs = await t.db.query(
-        `UPDATE ${opts.table} SET ${set} WHERE id = $${values.length} RETURNING *`,
+        `UPDATE ${opts.table} SET ${set} WHERE id = $${values.length - 1} AND company_id = $${values.length} RETURNING *`,
         values,
       );
       if (!rs.rowCount) return res.status(404).json({ error: 'not_found' });
@@ -98,7 +103,10 @@ export function crudRouter(opts: {
   r.delete('/:id', async (req, res, next) => {
     try {
       const t = req.tenant!;
-      const rs = await t.db.query(`DELETE FROM ${opts.table} WHERE id = $1`, [req.params.id]);
+      const rs = await t.db.query(
+        `DELETE FROM ${opts.table} WHERE id = $1 AND company_id = $2`,
+        [req.params.id, t.companyId],
+      );
       res.json({ ok: true, deleted: rs.rowCount });
     } catch (e) { next(e); }
   });

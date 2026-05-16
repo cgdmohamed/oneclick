@@ -49,6 +49,7 @@ export const companies = pgTable('companies', {
   invoiceSeparator: varchar('invoice_separator', { length: 5 }).notNull().default('-'),
   currency: varchar('currency', { length: 10 }).notNull().default('SAR'),
   vatRate: numeric('vat_rate', { precision: 5, scale: 2 }).notNull().default('15.00'),
+  isActive: boolean('is_active').notNull().default(true),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });

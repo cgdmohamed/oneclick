@@ -55,7 +55,9 @@ function getCsrfToken(): string | null {
 }
 
 async function request<T>(method: string, path: string, body?: unknown, retry = true): Promise<T> {
-  if (!API_URL) throw new ApiError(0, 'API_URL not configured (set VITE_API_URL)');
+  // API_URL is empty string in same-origin mode (proxy handles routing) — that's fine.
+  // Only throw when neither same-origin nor an absolute URL is configured.
+  if (!_rawApiUrl) throw new ApiError(0, 'API_URL not configured (set VITE_API_URL)');
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   const token = getAccessToken();
   if (token) headers.Authorization = `Bearer ${token}`;
