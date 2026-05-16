@@ -8,7 +8,7 @@ import {
 
 interface AuthState {
   user: User | null;
-  login: (email: string) => boolean;
+  login: (email: string, password?: string) => boolean;
   logout: () => void;
   setRole: (role: Role) => void;
   companyName: string;
