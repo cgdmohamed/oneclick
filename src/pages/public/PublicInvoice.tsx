@@ -199,11 +199,13 @@ const PublicInvoice = () => {
             </div>
           </div>
 
-          <PrintableQr
-            invoiceId={data.id}
-            value={`${window.location.origin}/invoice/${publicId}`}
-            invoiceNumber={data.number}
-          />
+          {isQrPublicVisible(data.id) && (
+            <PrintableQr
+              invoiceId={data.id}
+              value={`${window.location.origin}/invoice/${publicId}`}
+              invoiceNumber={data.number}
+            />
+          )}
 
           {data.company_stamp && (
             <div className="mt-8 flex justify-end">
