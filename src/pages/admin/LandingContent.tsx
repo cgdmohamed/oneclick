@@ -83,17 +83,11 @@ const LandingContentAdmin = () => {
               <CtaEditor label="زر ثانوي" value={draft.hero.secondary} onChange={(v) => update('hero', { secondary: v })} />
             </div>
             <ToggleRow label="إظهار صورة الواجهة" checked={draft.hero.showImage} onChange={(v) => update('hero', { showImage: v })} />
-            <Field
-              label="رابط صورة الواجهة (URL أو import مسبق)"
+            <ImageUploadField
+              label="صورة الواجهة"
               value={draft.hero.imageUrl}
               onChange={(v) => update('hero', { imageUrl: v })}
-              placeholder="https://... أو /assets/landing-hero.jpg"
             />
-            {draft.hero.imageUrl && (
-              <div className="rounded-xl border border-border/60 overflow-hidden bg-muted/30 p-3 max-w-md">
-                <img src={draft.hero.imageUrl} alt="معاينة صورة الواجهة" className="w-full h-auto rounded-lg" />
-              </div>
-            )}
 
             {/* Frame / border / shadow controls */}
             <div className="rounded-lg border border-border/60 p-4 space-y-4 bg-muted/20">
