@@ -141,7 +141,7 @@ export const users: User[] = [
   { id: 'u-2', name: 'منى الشمري', email: 'mona@alofok.sa', phone: '+966551112234', role: 'accountant', companyId: 'co-1' },
   { id: 'u-3', name: 'فهد الدوسري', email: 'fahd@alofok.sa', phone: '+966551112235', role: 'sales', companyId: 'co-1' },
   { id: 'u-4', name: 'ريم العتيبي', email: 'reem@alofok.sa', phone: '+966551112236', role: 'viewer', companyId: 'co-1' },
-  { id: 'u-admin', name: 'مالك المنصة', email: 'owner@hesabat.sa', role: 'super_admin' },
+  { id: 'u-admin', name: 'مالك المنصة', email: 'owner@oneclick.sa', role: 'super_admin' },
 ];
 
 export const rolePermissions: Record<string, string[]> = {

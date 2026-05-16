@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 
 const SystemSettings = () => {
-  const [s, setS] = useState({ appName: 'حسابات', supportEmail: 'support@hesabat.sa', currency: 'ر.س', invoicePrefix: 'INV' });
+  const [s, setS] = useState({ appName: 'ون كليك', supportEmail: 'support@oneclick.sa', currency: 'ر.س', invoicePrefix: 'INV' });
   return (
     <div>
       <PageHeader title="إعدادات النظام" description="الإعدادات العامة للمنصة" />

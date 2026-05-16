@@ -214,7 +214,7 @@ const PublicInvoice = () => {
           )}
 
           <div className="mt-8 pt-6 border-t border-border text-center text-xs text-muted-foreground">
-            شكراً لتعاملكم معنا — تم إنشاء هذه الفاتورة عبر منصة حسابات
+            شكراً لتعاملكم معنا — تم إنشاء هذه الفاتورة عبر منصة ون كليك
           </div>
         </Card>
       </div>

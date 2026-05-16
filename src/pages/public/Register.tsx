@@ -46,7 +46,7 @@ const Register = () => {
             <span className="h-10 w-10 rounded-xl gradient-hero text-primary-foreground flex items-center justify-center">
               <Calculator className="h-5 w-5" />
             </span>
-            <span className="font-bold text-lg">حسابات</span>
+            <span className="font-bold text-lg">ون كليك</span>
           </div>
           <div className="text-center mb-8">
             <h1 className="text-3xl font-bold">سجّل شركتك مجاناً</h1>

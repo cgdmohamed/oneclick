@@ -55,7 +55,7 @@ const Login = () => {
             <span className="h-10 w-10 rounded-xl gradient-hero text-primary-foreground flex items-center justify-center">
               <Calculator className="h-5 w-5" />
             </span>
-            <span className="font-bold text-lg">حسابات</span>
+            <span className="font-bold text-lg">ون كليك</span>
           </div>
           <h1 className="text-2xl font-bold">مرحباً بعودتك</h1>
           <p className="text-sm text-muted-foreground mt-1.5">سجّل دخولك للوصول إلى لوحة التحكم.</p>
@@ -85,7 +85,7 @@ const Login = () => {
         <div className="relative h-full flex items-center justify-center p-12 text-primary-foreground">
           <div className="max-w-md">
             <h2 className="text-3xl font-bold leading-tight">إدارة محاسبة شركتك بأناقة وسهولة.</h2>
-            <p className="mt-4 text-white/85">انضم لآلاف الشركات العربية التي تثق بحسابات لإدارة فواتيرها ومدفوعاتها.</p>
+            <p className="mt-4 text-white/85">انضم لآلاف الشركات العربية التي تثق بـ«ون كليك» لإدارة فواتيرها ومدفوعاتها.</p>
           </div>
         </div>
       </div>

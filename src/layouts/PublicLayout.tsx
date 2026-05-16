@@ -34,7 +34,7 @@ const PublicLayout = () => {
             <span className="h-9 w-9 rounded-xl bg-primary text-primary-foreground flex items-center justify-center shadow-soft">
               <Calculator className="h-5 w-5" />
             </span>
-            <span className="tracking-tight">حسابات</span>
+            <span className="tracking-tight">ون كليك</span>
           </Link>
           <nav className="hidden md:flex items-center gap-1">
             {links.map(l => (
@@ -78,9 +78,9 @@ const PublicLayout = () => {
               <span className="h-9 w-9 rounded-xl gradient-hero text-primary-foreground flex items-center justify-center">
                 <Calculator className="h-5 w-5" />
               </span>
-              حسابات
+              ون كليك
             </div>
-            <p className="text-sm text-muted-foreground">منصة محاسبة سحابية للشركات الصغيرة والمتوسطة. نُبسّط لك الفواتير والمدفوعات والمخزون.</p>
+            <p className="text-sm text-muted-foreground">ون كليك: منصة محاسبة سحابية للشركات الصغيرة والمتوسطة. أدِر فواتيرك ومدفوعاتك ومخزونك بنقرة واحدة.</p>
           </div>
           <FooterCol title="المنتج" items={[['/features', 'المميزات'], ['/pricing', 'الأسعار'], ['/register', 'ابدأ الآن']]} />
           <FooterCol title="الشركة" items={[['/about', 'من نحن'], ['/contact', 'تواصل معنا']]} />
@@ -88,7 +88,7 @@ const PublicLayout = () => {
         </div>
         <div className="border-t border-border/60">
           <div className="container py-4 text-xs text-muted-foreground flex justify-between">
-            <span>© {new Date().getFullYear()} حسابات. جميع الحقوق محفوظة.</span>
+            <span>© {new Date().getFullYear()} ون كليك. جميع الحقوق محفوظة.</span>
             <span>صنع بعناية للشركات العربية.</span>
           </div>
         </div>
