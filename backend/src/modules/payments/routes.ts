@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { pool } from '../../db/client.js';
 import { badRequest, notFound } from '../../utils/errors.js';
 import { audit } from '../../utils/audit.js';
+import { parsePagination } from '../../utils/pagination.js';
 
 const router = Router();
 
@@ -19,14 +20,17 @@ const createSchema = z.object({
 router.get('/', async (req, res, next) => {
   try {
     const t = req.tenant!;
-    const rs = await t.db.query(`
+    const p = parsePagination(req);
+    const totalQ = await t.db.query(`SELECT count(*)::int AS count FROM payments`);
+    const a = p.applyTo(`
       SELECT p.*, i.number AS invoice_number, a.name AS account_name
       FROM payments p
       JOIN invoices i ON i.id = p.invoice_id
       JOIN accounts a ON a.id = p.account_id
       ORDER BY p.paid_at DESC
     `);
-    res.json({ data: rs.rows });
+    const rs = await t.db.query(a.sql, a.params);
+    res.json(p.respond(rs.rows, Number(totalQ.rows[0].count)));
   } catch (e) { next(e); }
 });
 

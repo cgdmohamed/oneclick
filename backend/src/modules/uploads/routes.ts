@@ -12,6 +12,7 @@ import crypto from 'node:crypto';
 import { pool } from '../../db/client.js';
 import { badRequest, forbidden, notFound } from '../../utils/errors.js';
 import { audit } from '../../utils/audit.js';
+import { parsePagination } from '../../utils/pagination.js';
 
 const UPLOAD_ROOT    = path.resolve(process.cwd(), 'uploads');
 const UPLOAD_PUBLIC  = path.join(UPLOAD_ROOT, 'public');
@@ -90,13 +91,19 @@ router.post('/', upload.single('file'), async (req, res, next) => {
 router.get('/', async (req, res, next) => {
   try {
     const t = req.tenant!;
-    const rs = await t.db.query(
-      `SELECT id, filename, mime_type, size, url, kind, is_public, created_at
-         FROM uploads WHERE company_id = $1
-         ORDER BY created_at DESC LIMIT 100`,
+    const p = parsePagination(req);
+    const totalQ = await t.db.query(
+      `SELECT count(*)::int AS count FROM uploads WHERE company_id = $1`,
       [t.companyId],
     );
-    res.json({ data: rs.rows });
+    const a = p.applyTo(
+      `SELECT id, filename, mime_type, size, url, kind, is_public, created_at
+         FROM uploads WHERE company_id = $1
+         ORDER BY created_at DESC`,
+      [t.companyId],
+    );
+    const rs = await t.db.query(a.sql, a.params);
+    res.json(p.respond(rs.rows, Number(totalQ.rows[0].count)));
   } catch (e) { next(e); }
 });
 

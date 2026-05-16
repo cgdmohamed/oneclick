@@ -7,6 +7,7 @@ import { renderInvoicePdf, type InvoicePdfData } from '../../utils/pdf.js';
 import { sendEmail } from '../../utils/email.js';
 import { env } from '../../config/env.js';
 import { enforceInvoiceLimit } from '../../middleware/planLimits.js';
+import { parsePagination } from '../../utils/pagination.js';
 
 const router = Router();
 
@@ -36,12 +37,35 @@ function buildNumber(prefix: string, seq: number, year: number, fmt: string, sep
 router.get('/', async (req, res, next) => {
   try {
     const t = req.tenant!;
-    const rs = await t.db.query(`
-      SELECT i.*, c.name AS client_name
-      FROM invoices i JOIN clients c ON c.id = i.client_id
-      ORDER BY i.created_at DESC
-    `);
-    res.json({ data: rs.rows });
+    const p = parsePagination(req);
+    const q = (req.query.q as string | undefined)?.trim();
+    const status = (req.query.status as string | undefined)?.trim();
+
+    const where: string[] = [];
+    const params: unknown[] = [];
+    if (q) {
+      params.push(`%${q}%`);
+      where.push(`(i.number ILIKE $${params.length} OR c.name ILIKE $${params.length})`);
+    }
+    if (status) {
+      params.push(status);
+      where.push(`i.status = $${params.length}`);
+    }
+    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+
+    const totalQ = await t.db.query(
+      `SELECT count(*)::int AS count FROM invoices i JOIN clients c ON c.id = i.client_id ${whereSql}`,
+      params,
+    );
+    const a = p.applyTo(
+      `SELECT i.*, c.name AS client_name
+         FROM invoices i JOIN clients c ON c.id = i.client_id
+         ${whereSql}
+         ORDER BY i.created_at DESC`,
+      params,
+    );
+    const rs = await t.db.query(a.sql, a.params);
+    res.json(p.respond(rs.rows, Number(totalQ.rows[0].count)));
   } catch (e) { next(e); }
 });
 
