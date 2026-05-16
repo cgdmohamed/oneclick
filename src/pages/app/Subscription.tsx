@@ -155,7 +155,7 @@ const Subscription = () => {
 
   const downloadInvoice = (p: SubPaymentRow) => {
     const lines = [
-      'فاتورة اشتراك - منصة حسابات',
+      'فاتورة اشتراك - منصة ون كليك',
       '------------------------------------',
       `رقم العملية: ${p.id}`,
       `الباقة: ${p.plan_name}`,

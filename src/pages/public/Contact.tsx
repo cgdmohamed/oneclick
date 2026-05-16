@@ -42,7 +42,7 @@ const Contact = () => {
       </div>
       <div className="grid lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
         <div className="space-y-4">
-          <ContactInfo icon={Mail} label="البريد الإلكتروني" value="support@hesabat.sa" />
+          <ContactInfo icon={Mail} label="البريد الإلكتروني" value="support@oneclick.sa" />
           <ContactInfo icon={Phone} label="الهاتف" value="+966 11 000 0000" />
           <ContactInfo icon={MapPin} label="العنوان" value="الرياض، المملكة العربية السعودية" />
         </div>

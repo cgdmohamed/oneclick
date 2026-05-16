@@ -89,7 +89,7 @@ const AppShellInner = ({ kind }: { kind: 'company' | 'admin' }) => {
             </span>
             {!collapsed && (
               <div className="min-w-0">
-                <div className="font-bold text-sidebar-foreground">حسابات</div>
+                <div className="font-bold text-sidebar-foreground">ون كليك</div>
                 <div className="text-xs text-sidebar-foreground/60 truncate">{kind === 'admin' ? 'لوحة المشرف' : companyName}</div>
               </div>
             )}
@@ -203,7 +203,7 @@ const AppLayout = ({ kind = 'company' as 'company' | 'admin' }) => {
   useEffect(() => {
     if (!user) {
       // auto-demo login so previews work without forcing /login
-      login(kind === 'admin' ? 'owner@hesabat.sa' : 'admin@alofok.sa');
+      login(kind === 'admin' ? 'owner@oneclick.sa' : 'admin@alofok.sa');
     }
   }, [user, login, kind]);
   useEffect(() => {

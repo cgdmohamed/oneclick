@@ -52,7 +52,7 @@ const AdminOverview = () => {
 
   return (
     <div>
-      <PageHeader title="لوحة المشرف العام" description="نظرة شاملة على منصة حسابات" />
+      <PageHeader title="لوحة المشرف العام" description="نظرة شاملة على منصة ون كليك" />
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         <StatCard title="عدد الشركات" value={total} icon={Building2} accent="primary" />
         <StatCard title="اشتراكات نشطة" value={active} icon={CheckCircle2} accent="success" />

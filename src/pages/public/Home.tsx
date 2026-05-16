@@ -99,7 +99,7 @@ const Home = () => {
                     )}
                     <img
                       src={c.hero.imageUrl}
-                      alt="معاينة منصة حسابات"
+                      alt="معاينة منصة ون كليك"
                       width={1920}
                       height={1200}
                       className="w-full h-auto block"
