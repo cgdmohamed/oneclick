@@ -1,5 +1,5 @@
 import app from './app.js';
-import { logger } from './lib/logger.js';
+import { logger } from './utils/logger.js';
 import { startJobs } from './jobs/overdue.js';
 import { startEmailWorker, stopEmailQueue } from './utils/emailQueue.js';
 import { env } from './config/env.js';

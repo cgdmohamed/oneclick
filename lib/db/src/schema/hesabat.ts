@@ -155,6 +155,7 @@ export const products = pgTable('products', {
   sku: varchar('sku', { length: 50 }),
   name: varchar('name', { length: 200 }).notNull(),
   description: text('description'),
+  imageUrl: text('image_url'),
   price: numeric('price', { precision: 12, scale: 2 }).notNull().default('0'),
   cost: numeric('cost', { precision: 12, scale: 2 }).notNull().default('0'),
   quantity: integer('quantity').notNull().default(0),
@@ -273,4 +274,48 @@ export const invitations = pgTable('invitations', {
   acceptedUserId: uuid('accepted_user_id').references(() => users.id, { onDelete: 'set null' }),
 }, (t) => ({
   byCompany: index('invitations_company_idx').on(t.companyId, t.invitedAt),
+}));
+
+/* ---------- File uploads ---------- */
+export const uploads = pgTable('uploads', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  companyId: uuid('company_id').notNull().references(() => companies.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
+  filename: varchar('filename', { length: 255 }).notNull(),
+  mimeType: varchar('mime_type', { length: 100 }).notNull(),
+  size: integer('size').notNull().default(0),
+  url: text('url').notNull().default(''),
+  kind: varchar('kind', { length: 30 }).notNull().default('attachment'),
+  isPublic: boolean('is_public').notNull().default(false),
+  diskName: varchar('disk_name', { length: 255 }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  byCompany: index('uploads_company_idx').on(t.companyId),
+}));
+
+/* ---------- Platform (super-admin billing) ---------- */
+export const platformWallets = pgTable('platform_wallets', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: varchar('name', { length: 120 }).notNull(),
+  type: varchar('type', { length: 20 }).notNull().default('cash'),
+  balance: numeric('balance', { precision: 14, scale: 2 }).notNull().default('0'),
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const subscriptionPayments = pgTable('subscription_payments', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  subscriptionId: uuid('subscription_id').notNull().references(() => subscriptions.id, { onDelete: 'cascade' }),
+  walletId: uuid('wallet_id').notNull().references(() => platformWallets.id),
+  amount: numeric('amount', { precision: 14, scale: 2 }).notNull(),
+  method: varchar('method', { length: 30 }).notNull().default('cash'),
+  paidAt: timestamp('paid_at', { withTimezone: true }).notNull().defaultNow(),
+  reference: varchar('reference', { length: 100 }),
+  notes: text('notes'),
+  recordedBy: uuid('recorded_by').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  bySubscription: index('sub_payments_subscription_idx').on(t.subscriptionId),
+  byWallet: index('sub_payments_wallet_idx').on(t.walletId),
 }));

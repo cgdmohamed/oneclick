@@ -5,7 +5,7 @@ const schema = z.object({
   JWT_SECRET: z.string().min(16).default('dev-jwt-secret-change-in-production-32chars'),
   JWT_REFRESH_SECRET: z.string().min(16).default('dev-refresh-secret-change-in-prod-32chars'),
   PORT: z.coerce.number().default(8080),
-  CORS_ORIGIN: z.string().default('*'),
+  CORS_ORIGIN: z.string().default('same-origin'),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
 
   RUN_JOBS: z

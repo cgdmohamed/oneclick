@@ -54,9 +54,12 @@ app.set('trust proxy', 1);
 app.use(requestContext);
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 
-const origins = env.CORS_ORIGIN === '*'
-  ? true
-  : env.CORS_ORIGIN.split(',').map((s) => s.trim());
+// Never reflect all origins with credentials — that creates a wide CSRF surface.
+// "same-origin" sentinel means the frontend is proxied, so no explicit CORS needed.
+const origins: string[] | boolean =
+  !env.CORS_ORIGIN || env.CORS_ORIGIN === 'same-origin'
+    ? false  // same-origin: CORS not needed (Vite proxy / reverse-proxy handles routing)
+    : env.CORS_ORIGIN.split(',').map((s) => s.trim());
 
 app.use(cors({
   origin: origins,
