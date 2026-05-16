@@ -224,7 +224,7 @@ const InvoiceDetails = () => {
               {clientPhone && <div className="text-sm text-muted-foreground">{clientPhone}</div>}
             </div>
             <div className="text-end">
-              <StatusBadge status={status} label={invoiceStatusLabel(status)} />
+              <StatusBadge status={status} label={invoiceStatusLabel(status)} size="md" />
               <div className="text-xs text-muted-foreground mt-2">تاريخ الإصدار: {formatDate(invoice.issueDate)}</div>
               <div className="text-xs text-muted-foreground">تاريخ الاستحقاق: {formatDate(invoice.dueDate)}</div>
             </div>
