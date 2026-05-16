@@ -119,7 +119,7 @@ export const markAllAlertsRead = (filter?: (a: SentAlert) => boolean): void => {
 
 export const subscribeSentAlerts = (cb: () => void): (() => void) => {
   listeners.add(cb);
-  const onStorage = (e: StorageEvent) => { if (e.key === KEY) cb(); };
+  const onStorage = (e: StorageEvent) => { if (e.key === KEY) { cache = null; cb(); } };
   window.addEventListener('storage', onStorage);
   return () => { listeners.delete(cb); window.removeEventListener('storage', onStorage); };
 };
