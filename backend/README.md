@@ -142,3 +142,30 @@ Smoke tests are ready under `src/__tests__/`. For integration tests run
 - **Email**: `src/utils/email.ts` supports SMTP or falls back to stdout.
 - **Payments**: fully manual via `/api/platform/subscription-payments`.
 - **Storage**: files are saved under `/uploads` and served via `/uploads/*`.
+
+## Production operations
+
+### Backups (OPS-08)
+
+The API is stateless apart from `/app/uploads` (mounted volume, see Dockerfile)
+and the Postgres database. Recommended minimum for production:
+
+- **Database**: enable point-in-time-recovery on the managed Postgres
+  (RDS, Neon, Supabase, Crunchy, etc.). If self-hosting, schedule
+  `pg_basebackup` daily + WAL archiving to S3, and rehearse a restore at
+  least once before going live.
+- **Uploads volume**: snapshot the `/app/uploads` volume nightly (EBS
+  snapshot, GCP disk snapshot, or `restic` to S3). Once you move uploads
+  to object storage (SCL-02) the volume snapshot becomes unnecessary.
+- **Secrets**: store `JWT_SECRET`, `JWT_REFRESH_SECRET`, `DATABASE_URL`,
+  and SMTP credentials in your platform's secret manager — never commit
+  `.env` files.
+
+### Known scale ceilings (track before > 1 instance)
+
+- `express-rate-limit` is in-memory — pin to a single replica until you
+  move it to Redis (SCL-01).
+- Uploads are on local disk — fine for single-instance, breaks behind a
+  load balancer until SCL-02 is done.
+- PDFs render inside the API process — for heavy invoice traffic, move
+  to a worker via the existing pg-boss queue (SCL-04).

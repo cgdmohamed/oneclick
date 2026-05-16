@@ -31,6 +31,14 @@ const inviteSchema = z.object({
   role: z.enum(['company_admin','accountant','sales','viewer']),
 });
 
+/**
+ * SEC-05: Creating a brand-new user inside the tenant is allowed; *silently
+ * attaching an existing user account to this tenant is NOT*. If the email
+ * already belongs to a registered Hesabat user, the admin must use the
+ * invitations flow (POST /api/invitations) so the existing user can accept
+ * before being added to the company. Otherwise a malicious admin could pull
+ * arbitrary accounts into their tenant just by guessing emails.
+ */
 router.post('/', requireRole('company_admin'), enforceUserLimit(), async (req, res, next) => {
   try {
     const t = req.tenant!;
@@ -38,18 +46,19 @@ router.post('/', requireRole('company_admin'), enforceUserLimit(), async (req, r
     const c = await pool.connect();
     try {
       await c.query('BEGIN');
-      let userId: string;
       const exists = await c.query(`SELECT id FROM users WHERE email = $1`, [body.email]);
       if (exists.rowCount) {
-        userId = exists.rows[0].id;
-      } else {
-        const hash = await bcrypt.hash(body.password, 12);
-        const u = await c.query(
-          `INSERT INTO users (email, password_hash, name) VALUES ($1,$2,$3) RETURNING id`,
-          [body.email, hash, body.name],
+        await c.query('ROLLBACK');
+        throw badRequest(
+          'A user with this email already exists. Send them an invitation via /api/invitations instead.',
         );
-        userId = u.rows[0].id;
       }
+      const hash = await bcrypt.hash(body.password, 12);
+      const u = await c.query(
+        `INSERT INTO users (email, password_hash, name) VALUES ($1,$2,$3) RETURNING id`,
+        [body.email, hash, body.name],
+      );
+      const userId: string = u.rows[0].id;
       await c.query(`INSERT INTO user_companies (user_id, company_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [userId, t.companyId]);
       await c.query(`INSERT INTO user_roles (user_id, company_id, role) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING`, [userId, t.companyId, body.role]);
       await c.query('COMMIT');
@@ -59,7 +68,7 @@ router.post('/', requireRole('company_admin'), enforceUserLimit(), async (req, r
         data: { email: body.email, role: body.role },
       });
       res.status(201).json({ data: { id: userId, email: body.email, name: body.name, role: body.role } });
-    } catch (e) { await c.query('ROLLBACK'); throw e; } finally { c.release(); }
+    } catch (e) { try { await c.query('ROLLBACK'); } catch { /* ignore */ } throw e; } finally { c.release(); }
   } catch (e) { next(e); }
 });
 
