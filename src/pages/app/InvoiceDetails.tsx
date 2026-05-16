@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { invoices as initialInvoices, clients as mockClients, payments as initialPayments } from '@/data/mock';
 import { PageHeader } from '@/components/common/PageHeader';
@@ -16,7 +16,6 @@ import type { Payment, PaymentSplit, Invoice, InvoiceStatus } from '@/types';
 import { api, ApiError, isApiConfigured, API_URL, getAccessToken } from '@/lib/api';
 import { useAccounts } from '@/hooks/entities';
 import { isSmtpConfigured, loadSmtp } from '@/lib/smtpSettings';
-import { useNavigate } from 'react-router-dom';
 
 interface ApiItem { id: string; description: string; quantity: number; unit_price: string | number; product_id: string | null }
 interface ApiPayment { id: string; amount: string | number; paid_at: string; method: string; account_id: string; reference: string | null; notes: string | null }
