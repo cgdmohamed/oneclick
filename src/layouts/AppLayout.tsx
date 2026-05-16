@@ -1,6 +1,8 @@
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarTrigger, useSidebar, SidebarHeader, SidebarFooter } from '@/components/ui/sidebar';
-import { LayoutDashboard, Users, FileText, CreditCard, Wallet, Package, BarChart3, Bell, ShieldCheck, Settings, Calculator, LogOut, Building2, Layers, Receipt, ToggleRight, Megaphone, Cog, ChevronLeft, Crown, History, LayoutTemplate, LineChart, UserSearch, PieChart, ScrollText } from 'lucide-react';
+import { LayoutDashboard, Users, FileText, CreditCard, Wallet, Package, BarChart3, Bell, ShieldCheck, Settings, Calculator, LogOut, Building2, Layers, Receipt, ToggleRight, Megaphone, Cog, ChevronLeft, Crown, History, LayoutTemplate, LineChart, UserSearch, PieChart, ScrollText, UserPlus } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { usePendingSignupsCount } from '@/hooks/usePendingSignups';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
@@ -28,6 +30,7 @@ const companyNav = [
 const adminNav = [
   { to: '/admin', label: 'لوحة الإدارة', icon: LayoutDashboard, end: true },
   { to: '/admin/analytics', label: 'تحليلات المنصة', icon: PieChart },
+  { to: '/admin/approvals', label: 'طلبات التسجيل', icon: UserPlus, badge: 'pending-signups' as const },
   { to: '/admin/companies', label: 'الشركات', icon: Building2 },
   { to: '/admin/users', label: 'المستخدمون (360)', icon: UserSearch },
   { to: '/admin/plans', label: 'الباقات', icon: Layers },
@@ -46,6 +49,7 @@ const adminNav = [
 const pageKey = (kind: 'company' | 'admin', pathname: string): string => {
   if (kind === 'admin') {
     if (pathname.startsWith('/admin/analytics')) return 'admin-analytics';
+    if (pathname.startsWith('/admin/approvals')) return 'admin-approvals';
     if (pathname.startsWith('/admin/companies')) return 'admin-companies';
     if (pathname.startsWith('/admin/users')) return 'admin-users';
     if (pathname.startsWith('/admin/plans')) return 'admin-plans';
@@ -116,7 +120,8 @@ const AppShellInner = ({ kind }: { kind: 'company' | 'admin' }) => {
                         isActive && 'bg-sidebar-accent text-sidebar-accent-foreground font-semibold'
                       )}>
                         <item.icon className="h-4 w-4" />
-                        {!collapsed && <span>{item.label}</span>}
+                        {!collapsed && <span className="flex-1">{item.label}</span>}
+                        {!collapsed && 'badge' in item && item.badge === 'pending-signups' && <PendingBadge />}
                       </NavLink>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
