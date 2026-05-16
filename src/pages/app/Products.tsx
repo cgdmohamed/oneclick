@@ -201,6 +201,21 @@ const Products = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!toDelete} onOpenChange={(o) => !o && setToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>حذف المنتج</AlertDialogTitle>
+            <AlertDialogDescription>
+              هل تريد حذف "{toDelete?.name}"؟ لا يمكن التراجع عن هذا الإجراء.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>إلغاء</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">حذف</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
