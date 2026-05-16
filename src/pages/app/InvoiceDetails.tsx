@@ -7,6 +7,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { InvoiceSummary } from '@/components/common/InvoiceSummary';
 import { InvoiceQR } from '@/components/common/InvoiceQR';
+import { PrintableQr } from '@/components/common/PrintableQr';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { formatCurrency, formatDate, paymentMethodLabel, invoiceStatusLabel } from '@/lib/format';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
@@ -286,6 +287,8 @@ const InvoiceDetails = () => {
               ))}
             </tbody>
           </table>
+
+          <PrintableQr invoiceId={invoice.id} value={publicUrl} invoiceNumber={invoice.number} />
 
           <div className="flex flex-wrap gap-2 mt-5 no-print">
             <Button variant="outline" size="sm" onClick={sendEmail}><Mail className="h-4 w-4 ml-1" /> إرسال عبر البريد الإلكتروني</Button>
