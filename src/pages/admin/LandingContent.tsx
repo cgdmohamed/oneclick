@@ -94,6 +94,41 @@ const LandingContentAdmin = () => {
                 <img src={draft.hero.imageUrl} alt="معاينة صورة الواجهة" className="w-full h-auto rounded-lg" />
               </div>
             )}
+
+            {/* Frame / border / shadow controls */}
+            <div className="rounded-lg border border-border/60 p-4 space-y-4 bg-muted/20">
+              <div className="text-xs font-semibold text-muted-foreground">إعدادات إطار الصورة</div>
+              <ToggleRow
+                label="إظهار شريط المتصفح (macOS)"
+                checked={draft.hero.showBrowserFrame}
+                onChange={(v) => update('hero', { showBrowserFrame: v })}
+              />
+              <div className="grid sm:grid-cols-3 gap-4">
+                <NumberField
+                  label="سماكة الحدود (px)"
+                  value={draft.hero.borderWidth}
+                  min={0} max={4} step={1}
+                  onChange={(v) => update('hero', { borderWidth: v })}
+                />
+                <NumberField
+                  label="انحناء الزوايا (px)"
+                  value={draft.hero.borderRadius}
+                  min={0} max={32} step={1}
+                  onChange={(v) => update('hero', { borderRadius: v })}
+                />
+                <SelectField
+                  label="شدّة الظل"
+                  value={draft.hero.shadowIntensity}
+                  options={[
+                    { value: 'none', label: 'بدون' },
+                    { value: 'soft', label: 'خفيف' },
+                    { value: 'elev', label: 'مرتفع' },
+                    { value: 'glow', label: 'توهج لوني' },
+                  ]}
+                  onChange={(v) => update('hero', { shadowIntensity: v as 'none' | 'soft' | 'elev' | 'glow' })}
+                />
+              </div>
+            </div>
           </Card>
         </TabsContent>
 
