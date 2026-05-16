@@ -6,8 +6,10 @@ import { logger } from './utils/logger.js';
 
 const app = createApp();
 const server = app.listen(env.PORT, () => {
-  logger.info({ port: env.PORT }, 'hesabat-api listening');
-  startJobs();
+  logger.info({ port: env.PORT, runJobs: env.RUN_JOBS }, 'hesabat-api listening');
+  // SCL-06: only one replica should tick scheduled jobs. Set RUN_JOBS=false
+  // on additional replicas (or run jobs in a dedicated worker process).
+  if (env.RUN_JOBS) startJobs();
   void startEmailWorker();
 });
 
