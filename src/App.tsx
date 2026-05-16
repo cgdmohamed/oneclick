@@ -62,6 +62,7 @@ const App = () => (
       <BrowserRouter>
         <AuthProvider>
           <TrackingScripts />
+          <Routes>
             <Route element={<PublicLayout />}>
               <Route path="/" element={<Home />} />
               <Route path="/features" element={<Features />} />
