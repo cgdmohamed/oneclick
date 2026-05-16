@@ -303,6 +303,8 @@ const InvoiceDetails = () => {
         <div className="space-y-5">
           <InvoiceSummary subtotal={invoice.subtotal} tax={invoice.tax} discount={invoice.discount} total={invoice.total} paid={paid} remaining={remaining} />
 
+          <InvoiceQR invoiceId={invoice.id} value={publicUrl} invoiceNumber={invoice.number} />
+
           <Card className="p-5 border-border/60">
             <h3 className="font-semibold mb-3">سجل المدفوعات</h3>
             {viewPayments.length === 0 ? (
