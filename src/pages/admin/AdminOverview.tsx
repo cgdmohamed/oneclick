@@ -64,7 +64,7 @@ const AdminOverview = () => {
       <Card className="p-5 mt-6 border-border/60 shadow-soft">
         <h3 className="font-semibold mb-4">آخر الشركات المسجلة</h3>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table dir="rtl" className="w-full text-sm">
             <thead>
               <tr className="text-start text-xs text-muted-foreground border-b border-border">
                 <th className="py-2 font-semibold">الشركة</th>

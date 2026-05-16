@@ -403,7 +403,7 @@ const UsersAndRoles = () => {
       </div>
 
       <Card className="p-0 border-border/60 shadow-soft overflow-hidden">
-        <table className="w-full text-sm">
+        <table dir="rtl" className="w-full text-sm">
           <thead className="bg-muted/40 text-xs text-muted-foreground">
             <tr>
               <th className="text-start px-4 py-2.5 font-semibold">المستخدم</th>

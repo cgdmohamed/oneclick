@@ -190,7 +190,7 @@ const UserDetail360 = () => {
 
         <TabsContent value="invoices" className="mt-4">
           <Card className="p-0 border-border/60 shadow-soft overflow-hidden">
-            <table className="w-full text-sm">
+            <table dir="rtl" className="w-full text-sm">
               <thead className="bg-muted/40 text-xs text-muted-foreground">
                 <tr>
                   <th className="text-start py-2.5 px-4 font-semibold">الرقم</th>
@@ -219,7 +219,7 @@ const UserDetail360 = () => {
 
         <TabsContent value="payments" className="mt-4">
           <Card className="p-0 border-border/60 shadow-soft overflow-hidden">
-            <table className="w-full text-sm">
+            <table dir="rtl" className="w-full text-sm">
               <thead className="bg-muted/40 text-xs text-muted-foreground">
                 <tr>
                   <th className="text-start py-2.5 px-4 font-semibold">التاريخ</th>
