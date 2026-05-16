@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
@@ -7,9 +7,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertTriangle, BellRing, CalendarClock, Mail, MailWarning, RotateCcw, Sparkles, Users, UserCog, CheckCircle2, FileText, Moon } from 'lucide-react';
-import { useInvoiceAlerts, type AlertsAudience, type ScheduleMode, type WeekDay } from '@/hooks/useInvoiceAlerts';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { AlertTriangle, BellRing, CalendarClock, Eye, Mail, MailWarning, RotateCcw, Sparkles, Users, UserCog, CheckCircle2, FileText, Moon } from 'lucide-react';
+import { useInvoiceAlerts, type AlertsAudience, type ScheduleMode, type WeekDay, type InvoiceAlertsSettings } from '@/hooks/useInvoiceAlerts';
 import { loadSmtp } from '@/lib/smtpSettings';
+import { formatCurrency } from '@/lib/format';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
