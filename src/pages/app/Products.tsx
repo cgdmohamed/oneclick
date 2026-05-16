@@ -1,13 +1,14 @@
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { PageHeader } from '@/components/common/PageHeader';
 import { DataTable, Column } from '@/components/common/DataTable';
 import { Button } from '@/components/ui/button';
-import { Plus, Pencil, Trash2, AlertTriangle, ImageIcon, Loader2, Package } from 'lucide-react';
+import { Plus, Pencil, Trash2, AlertTriangle, ImageIcon, Loader2, Package, Tags, X } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { products as initial, stockMovements } from '@/data/mock';
 import type { Product } from '@/types';
 import { formatCurrency, formatDateShort } from '@/lib/format';
@@ -63,7 +64,33 @@ const Products = () => {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Product>(empty);
   const [toDelete, setToDelete] = useState<Product | null>(null);
+  const [catsOpen, setCatsOpen] = useState(false);
+  const [newCat, setNewCat] = useState('');
+  const [customCats, setCustomCats] = useState<string[]>([]);
   const { list: invoices } = useInvoices();
+
+  const categories = useMemo(() => {
+    const fromProducts = list.map(p => p.category).filter((c): c is string => !!c);
+    return Array.from(new Set([...fromProducts, ...customCats])).sort();
+  }, [list, customCats]);
+
+  const catUsageCount = (cat: string) => list.filter(p => p.category === cat).length;
+
+  const addCategory = () => {
+    const name = newCat.trim();
+    if (!name) return;
+    if (categories.includes(name)) { toast.error('التصنيف موجود مسبقاً'); return; }
+    setCustomCats(prev => [...prev, name]);
+    setNewCat('');
+  };
+
+  const removeCategory = (cat: string) => {
+    if (catUsageCount(cat) > 0) {
+      toast.error('لا يمكن حذف تصنيف مستخدم في منتجات');
+      return;
+    }
+    setCustomCats(prev => prev.filter(c => c !== cat));
+  };
 
   const submit = async () => {
     if (!editing.name || !editing.code) return toast.error('أكمل بيانات المنتج');
@@ -134,7 +161,10 @@ const Products = () => {
   return (
     <div>
       <PageHeader title="المنتجات والمخزون" description="إدارة المنتجات وحركة المخزون"
-        actions={<Button onClick={() => { setEditing({ ...empty, id: `pr-${Date.now()}` }); setOpen(true); }}><Plus className="h-4 w-4 ml-1" /> منتج جديد</Button>} />
+        actions={<>
+          <Button variant="outline" onClick={() => setCatsOpen(true)}><Tags className="h-4 w-4 ml-1" /> التصنيفات</Button>
+          <Button onClick={() => { setEditing({ ...empty, id: `pr-${Date.now()}` }); setOpen(true); }}><Plus className="h-4 w-4 ml-1" /> منتج جديد</Button>
+        </>} />
 
       {lowStock.length > 0 && (
         <Card className="p-4 mb-5 border-warning/40 bg-warning/5 flex items-center gap-3">
@@ -150,19 +180,8 @@ const Products = () => {
           <TabsTrigger value="products">المنتجات</TabsTrigger>
           <TabsTrigger value="movements">حركة المخزون</TabsTrigger>
         </TabsList>
-        <TabsContent value="products" className="mt-4 space-y-6">
-          {Array.from(new Set(list.map(p => p.category || 'غير مصنف'))).sort().map(cat => {
-            const items = list.filter(p => (p.category || 'غير مصنف') === cat);
-            return (
-              <div key={cat}>
-                <div className="flex items-center gap-2 mb-2">
-                  <h3 className="text-sm font-semibold">{cat}</h3>
-                  <span className="text-xs text-muted-foreground">({items.length})</span>
-                </div>
-                <DataTable data={items} columns={columns} searchKeys={['name','code']} searchPlaceholder="ابحث بالمنتج أو الكود..." />
-              </div>
-            );
-          })}
+        <TabsContent value="products" className="mt-4">
+          <DataTable data={list} columns={columns} searchKeys={['name','code']} searchPlaceholder="ابحث بالمنتج أو الكود..." />
         </TabsContent>
         <TabsContent value="movements" className="mt-4">
           <DataTable
@@ -189,7 +208,19 @@ const Products = () => {
             <div className="grid sm:grid-cols-2 gap-4">
               <div><Label>اسم المنتج</Label><Input className="mt-1.5" value={editing.name} onChange={e => setEditing(s => ({ ...s, name: e.target.value }))} /></div>
               <div><Label>الكود</Label><Input className="mt-1.5" value={editing.code} onChange={e => setEditing(s => ({ ...s, code: e.target.value }))} /></div>
-              <div className="sm:col-span-2"><Label>التصنيف</Label><Input className="mt-1.5" placeholder="مثال: إلكترونيات" value={editing.category ?? ''} onChange={e => setEditing(s => ({ ...s, category: e.target.value }))} /></div>
+              <div className="sm:col-span-2">
+                <Label>التصنيف</Label>
+                <Select
+                  value={editing.category || '__none__'}
+                  onValueChange={(v) => setEditing(s => ({ ...s, category: v === '__none__' ? '' : v }))}
+                >
+                  <SelectTrigger className="mt-1.5"><SelectValue placeholder="اختر تصنيفاً" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">بدون تصنيف</SelectItem>
+                    {categories.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
               <div><Label>السعر</Label><Input type="number" className="mt-1.5" value={editing.price} onChange={e => setEditing(s => ({ ...s, price: Number(e.target.value) }))} /></div>
               <div><Label>الكمية</Label><Input type="number" className="mt-1.5" value={editing.quantity} onChange={e => setEditing(s => ({ ...s, quantity: Number(e.target.value) }))} /></div>
               <div><Label>حد التنبيه</Label><Input type="number" className="mt-1.5" value={editing.alertLevel} onChange={e => setEditing(s => ({ ...s, alertLevel: Number(e.target.value) }))} /></div>
@@ -216,6 +247,52 @@ const Products = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={catsOpen} onOpenChange={setCatsOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>إدارة التصنيفات</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div className="flex gap-2">
+              <Input
+                placeholder="اسم التصنيف الجديد"
+                value={newCat}
+                onChange={(e) => setNewCat(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addCategory(); } }}
+              />
+              <Button onClick={addCategory}><Plus className="h-4 w-4 ml-1" /> إضافة</Button>
+            </div>
+            {categories.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-6">لا توجد تصنيفات بعد.</p>
+            ) : (
+              <ul className="divide-y divide-border rounded-md border border-border">
+                {categories.map(c => {
+                  const used = catUsageCount(c);
+                  return (
+                    <li key={c} className="flex items-center justify-between px-3 py-2">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-sm">{c}</span>
+                        <span className="text-xs text-muted-foreground">({used})</span>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        disabled={used > 0}
+                        title={used > 0 ? 'مستخدم في منتجات' : 'حذف'}
+                        onClick={() => removeCategory(c)}
+                      >
+                        <X className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCatsOpen(false)}>إغلاق</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
