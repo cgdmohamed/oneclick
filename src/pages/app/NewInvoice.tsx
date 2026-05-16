@@ -12,6 +12,8 @@ import { toast } from 'sonner';
 import { InvoiceSummary } from '@/components/common/InvoiceSummary';
 import { useClients, useProducts } from '@/hooks/entities';
 import { api, ApiError, isApiConfigured } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
+import { logActivity } from '@/lib/activityLog';
 
 interface Item { id: string; name: string; quantity: number; unitPrice: number; productId?: string }
 
@@ -19,6 +21,7 @@ const NewInvoice = () => {
   const navigate = useNavigate();
   const { list: clients } = useClients();
   const { list: products } = useProducts();
+  const { user } = useAuth();
   const [clientId, setClientId] = useState('');
   const [items, setItems] = useState<Item[]>([{ id: 'i1', name: '', quantity: 1, unitPrice: 0 }]);
   const [taxRate, setTaxRate] = useState(15);
@@ -64,9 +67,21 @@ const NewInvoice = () => {
         };
         const res = await api.post<{ data: { id: string } }>('/api/invoices', body);
         toast.success('تم حفظ الفاتورة');
+        const clientName = clients.find(c => c.id === clientId)?.name ?? '';
+        logActivity({
+          module: 'invoice', action: 'create',
+          description: `إنشاء فاتورة للعميل "${clientName}" بقيمة ${totals.total.toFixed(2)}`,
+          userId: user?.id, userName: user?.name, userEmail: user?.email,
+        });
         navigate(`/app/invoices/${res.data.id}`);
       } else {
         toast.success('تم حفظ الفاتورة (بيانات تجريبية)');
+        const clientName = clients.find(c => c.id === clientId)?.name ?? '';
+        logActivity({
+          module: 'invoice', action: 'create',
+          description: `إنشاء فاتورة للعميل "${clientName}" بقيمة ${totals.total.toFixed(2)}`,
+          userId: user?.id, userName: user?.name, userEmail: user?.email,
+        });
         navigate('/app/invoices');
       }
     } catch (e) {
