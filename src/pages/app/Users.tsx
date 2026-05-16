@@ -1,4 +1,4 @@
-import { useState, useSyncExternalStore } from 'react';
+import { useEffect, useState } from 'react';
 import { PageHeader } from '@/components/common/PageHeader';
 import { DataTable, Column } from '@/components/common/DataTable';
 import { Button } from '@/components/ui/button';
@@ -19,8 +19,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { RoleMatrix } from '@/components/common/RoleMatrix';
 import { useAuth } from '@/lib/auth';
 import {
-  createInvitation, getInvitations, getInvitationsForCompany,
-  subscribeInvitations, buildInviteUrl, revokeInvitation, resendInvitation,
+  createInvitation, listInvitations, subscribeInvitations,
+  buildInviteUrl, revokeInvitation, resendInvitation,
   type Invitation,
 } from '@/lib/invitations';
 
@@ -39,11 +39,21 @@ const Users = () => {
   // ---------- Invite flow ----------
   const [inviteOpen, setInviteOpen] = useState(false);
   const [invite, setInvite] = useState(inviteEmpty);
-  const [createdInvite, setCreatedInvite] = useState<Invitation | null>(null);
+  const [createdInvite, setCreatedInvite] = useState<{ invitation: Invitation; url: string } | null>(null);
 
-  useSyncExternalStore(subscribeInvitations, getInvitations, getInvitations);
   const companyId = user?.companyId ?? 'co-1';
-  const invitations: (Invitation & { id: string })[] = getInvitationsForCompany(companyId).map((i) => ({ ...i, id: i.token }));
+  const [invitations, setInvitations] = useState<(Invitation & { id: string })[]>([]);
+  useEffect(() => {
+    let active = true;
+    const reload = () => {
+      listInvitations(companyId).then((rows) => {
+        if (active) setInvitations(rows.map((i) => ({ ...i, id: i.id ?? i.token })));
+      }).catch(() => { /* ignore */ });
+    };
+    reload();
+    const off = subscribeInvitations(reload);
+    return () => { active = false; off(); };
+  }, [companyId]);
 
   const isCreate = !list.find((x) => x.id === editing.id);
 
@@ -82,7 +92,7 @@ const Users = () => {
   };
 
   // ---------- Invitations ----------
-  const sendInvite = () => {
+  const sendInvite = async () => {
     const email = invite.email.trim().toLowerCase();
     const fullName = invite.fullName.trim();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return toast.error('بريد إلكتروني غير صالح');
@@ -90,15 +100,27 @@ const Users = () => {
     if (list.some((u) => u.email.toLowerCase() === email && u.companyId === companyId)) {
       return toast.error('يوجد مستخدم بهذا البريد فعلًا');
     }
-    const inv = createInvitation({
-      email, fullName, phone: invite.phone.trim() || undefined,
-      role: invite.role, companyId, invitedBy: user?.id ?? 'system',
-    });
-    setCreatedInvite(inv);
-    setInviteOpen(false);
-    setInvite(inviteEmpty);
-    toast.success('تم إرسال الدعوة عبر البريد الإلكتروني');
+    try {
+      const res = await createInvitation({
+        email, fullName, phone: invite.phone.trim() || undefined,
+        role: invite.role, companyId, invitedBy: user?.id ?? 'system',
+      });
+      setCreatedInvite(res);
+      setInviteOpen(false);
+      setInvite(inviteEmpty);
+      // Reload list (API mode doesn't auto-notify subscribers).
+      listInvitations(companyId).then((rows) =>
+        setInvitations(rows.map((i) => ({ ...i, id: i.id ?? i.token }))),
+      );
+      toast.success('تم إرسال الدعوة عبر البريد الإلكتروني');
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : 'تعذّر إرسال الدعوة');
+    }
   };
+
+  const reloadInvites = () => listInvitations(companyId).then((rows) =>
+    setInvitations(rows.map((i) => ({ ...i, id: i.id ?? i.token }))),
+  );
 
   const copyLink = async (token: string) => {
     try {
