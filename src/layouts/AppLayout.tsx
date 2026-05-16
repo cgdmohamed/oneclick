@@ -1,6 +1,6 @@
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarTrigger, useSidebar, SidebarHeader, SidebarFooter } from '@/components/ui/sidebar';
-import { LayoutDashboard, Users, FileText, CreditCard, Wallet, Package, BarChart3, Bell, ShieldCheck, Settings, Calculator, LogOut, Building2, Layers, Receipt, ToggleRight, Megaphone, Cog, ChevronLeft, Crown, History, LayoutTemplate, LineChart, UserSearch, PieChart, ScrollText, UserPlus } from 'lucide-react';
+import { LayoutDashboard, Users, FileText, CreditCard, Wallet, Package, BarChart3, Bell, ShieldCheck, Settings, Calculator, LogOut, Building2, Layers, Receipt, ToggleRight, Megaphone, Cog, ChevronLeft, Crown, History, LayoutTemplate, LineChart, PieChart, ScrollText, UserPlus } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { usePendingSignupsCount } from '@/hooks/usePendingSignups';
 import { cn } from '@/lib/utils';
@@ -32,8 +32,7 @@ const adminNav = [
   { to: '/admin', label: 'لوحة الإدارة', icon: LayoutDashboard, end: true },
   { to: '/admin/analytics', label: 'تحليلات المنصة', icon: PieChart },
   { to: '/admin/approvals', label: 'طلبات التسجيل', icon: UserPlus, badge: 'pending-signups' as const },
-  { to: '/admin/companies', label: 'الشركات', icon: Building2 },
-  { to: '/admin/users', label: 'المشتركين', icon: UserSearch },
+  { to: '/admin/companies', label: 'الشركات والمشتركون', icon: Building2 },
   { to: '/admin/plans', label: 'الباقات', icon: Layers },
   { to: '/admin/subscriptions', label: 'الاشتراكات', icon: FileText },
   

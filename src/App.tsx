@@ -38,6 +38,7 @@ import ActivityLog from "./pages/app/ActivityLog";
 
 import AdminOverview from "./pages/admin/AdminOverview";
 import Companies from "./pages/admin/Companies";
+import CompaniesAndUsers from "./pages/admin/CompaniesAndUsers";
 import Plans from "./pages/admin/Plans";
 import Subscriptions from "./pages/admin/Subscriptions";
 
@@ -104,7 +105,7 @@ const App = () => (
 
             <Route path="/admin" element={<AppLayout kind="admin" />}>
               <Route index element={<AdminOverview />} />
-              <Route path="companies" element={<Companies />} />
+              <Route path="companies" element={<CompaniesAndUsers />} />
               <Route path="plans" element={<Plans />} />
               <Route path="subscriptions" element={<Subscriptions />} />
               
@@ -114,7 +115,7 @@ const App = () => (
               <Route path="landing" element={<LandingContent />} />
               <Route path="tracking" element={<TrackingSettings />} />
               <Route path="analytics" element={<Analytics />} />
-              <Route path="users" element={<Users360 />} />
+              <Route path="users" element={<CompaniesAndUsers />} />
               <Route path="users/:id" element={<UserDetail360 />} />
               <Route path="roles" element={<RolesAndPermissions />} />
               <Route path="audit-log" element={<AuditLog />} />
