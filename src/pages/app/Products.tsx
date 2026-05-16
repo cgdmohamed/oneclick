@@ -208,7 +208,19 @@ const Products = () => {
             <div className="grid sm:grid-cols-2 gap-4">
               <div><Label>اسم المنتج</Label><Input className="mt-1.5" value={editing.name} onChange={e => setEditing(s => ({ ...s, name: e.target.value }))} /></div>
               <div><Label>الكود</Label><Input className="mt-1.5" value={editing.code} onChange={e => setEditing(s => ({ ...s, code: e.target.value }))} /></div>
-              <div className="sm:col-span-2"><Label>التصنيف</Label><Input className="mt-1.5" placeholder="مثال: إلكترونيات" value={editing.category ?? ''} onChange={e => setEditing(s => ({ ...s, category: e.target.value }))} /></div>
+              <div className="sm:col-span-2">
+                <Label>التصنيف</Label>
+                <Select
+                  value={editing.category || '__none__'}
+                  onValueChange={(v) => setEditing(s => ({ ...s, category: v === '__none__' ? '' : v }))}
+                >
+                  <SelectTrigger className="mt-1.5"><SelectValue placeholder="اختر تصنيفاً" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">بدون تصنيف</SelectItem>
+                    {categories.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
               <div><Label>السعر</Label><Input type="number" className="mt-1.5" value={editing.price} onChange={e => setEditing(s => ({ ...s, price: Number(e.target.value) }))} /></div>
               <div><Label>الكمية</Label><Input type="number" className="mt-1.5" value={editing.quantity} onChange={e => setEditing(s => ({ ...s, quantity: Number(e.target.value) }))} /></div>
               <div><Label>حد التنبيه</Label><Input type="number" className="mt-1.5" value={editing.alertLevel} onChange={e => setEditing(s => ({ ...s, alertLevel: Number(e.target.value) }))} /></div>
@@ -235,6 +247,52 @@ const Products = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={catsOpen} onOpenChange={setCatsOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>إدارة التصنيفات</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div className="flex gap-2">
+              <Input
+                placeholder="اسم التصنيف الجديد"
+                value={newCat}
+                onChange={(e) => setNewCat(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addCategory(); } }}
+              />
+              <Button onClick={addCategory}><Plus className="h-4 w-4 ml-1" /> إضافة</Button>
+            </div>
+            {categories.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-6">لا توجد تصنيفات بعد.</p>
+            ) : (
+              <ul className="divide-y divide-border rounded-md border border-border">
+                {categories.map(c => {
+                  const used = catUsageCount(c);
+                  return (
+                    <li key={c} className="flex items-center justify-between px-3 py-2">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-sm">{c}</span>
+                        <span className="text-xs text-muted-foreground">({used})</span>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        disabled={used > 0}
+                        title={used > 0 ? 'مستخدم في منتجات' : 'حذف'}
+                        onClick={() => removeCategory(c)}
+                      >
+                        <X className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCatsOpen(false)}>إغلاق</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
