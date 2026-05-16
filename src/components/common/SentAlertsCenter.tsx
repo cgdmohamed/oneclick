@@ -55,6 +55,8 @@ export const SentAlertsCenter = ({
 }: Props) => {
   const all = useSyncExternalStore(subscribeSentAlerts, getSentAlerts, getSentAlerts);
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
+  const [page, setPage] = useState(1);
+  const pageSize = compact ? 5 : 8;
 
   const scoped = useMemo(() => all.filter(a =>
     (!recipientKind || a.recipientKind === recipientKind) &&
@@ -63,6 +65,10 @@ export const SentAlertsCenter = ({
 
   const unreadCount = scoped.filter(a => !a.read).length;
   const list = filter === 'unread' ? scoped.filter(a => !a.read) : scoped;
+  const totalPages = Math.max(1, Math.ceil(list.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const pageItems = list.slice((safePage - 1) * pageSize, safePage * pageSize);
+  useEffect(() => { setPage(1); }, [filter, recipientKind, recipientId]);
 
   const onMarkAll = () => markAllAlertsRead(a =>
     (!recipientKind || a.recipientKind === recipientKind) &&
