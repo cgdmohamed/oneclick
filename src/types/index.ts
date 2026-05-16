@@ -46,6 +46,7 @@ export interface Product {
   quantity: number;
   alertLevel: number;
   imageUrl?: string;
+  category?: string;
   status: 'active' | 'inactive';
 }
 
