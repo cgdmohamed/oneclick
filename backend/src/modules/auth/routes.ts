@@ -165,6 +165,8 @@ router.post('/register', async (req, res, next) => {
         action: 'auth.register', entity: 'user', entityId: userId,
         data: { email: body.email, companyName: body.companyName },
       });
+      // SEC-08: fire-and-forget verification email; failure must not block signup.
+      sendVerificationEmail(userId, body.email).catch(() => { /* logged by email util */ });
       setRefreshCookie(res, refresh);
       setCsrfCookie(res);
       res.json({
@@ -184,10 +186,12 @@ router.post('/register', async (req, res, next) => {
 router.post('/login', async (req, res, next) => {
   try {
     const body = loginSchema.parse(req.body);
-    const u = await pool.query(`SELECT id, password_hash, name, is_super_admin FROM users WHERE email = $1`, [body.email]);
-    if (!u.rowCount) throw unauthorized('Invalid credentials');
+    checkLock(body.email); // SEC-07
+    const u = await pool.query(`SELECT id, password_hash, name, is_super_admin, email_verified_at FROM users WHERE email = $1`, [body.email]);
+    if (!u.rowCount) { noteFailure(body.email); throw unauthorized('Invalid credentials'); }
     const ok = await bcrypt.compare(body.password, u.rows[0].password_hash);
-    if (!ok) throw unauthorized('Invalid credentials');
+    if (!ok) { noteFailure(body.email); throw unauthorized('Invalid credentials'); }
+    noteSuccess(body.email);
 
     const userId = u.rows[0].id;
     const access = signAccess(userId);
@@ -211,10 +215,46 @@ router.post('/login', async (req, res, next) => {
     setCsrfCookie(res);
     res.json({
       access_token: access,
-      user: { id: userId, email: body.email, name: u.rows[0].name, isSuperAdmin: u.rows[0].is_super_admin },
+      user: {
+        id: userId, email: body.email, name: u.rows[0].name,
+        isSuperAdmin: u.rows[0].is_super_admin,
+        emailVerified: !!u.rows[0].email_verified_at,
+      },
       company: comp.rows[0] ?? null,
       roles: roles.rows,
     });
+  } catch (e) { next(e); }
+});
+
+/** SEC-08: confirm an email-verification token. */
+router.post('/verify-email', async (req, res, next) => {
+  try {
+    const { token } = z.object({ token: z.string().min(10) }).parse(req.body);
+    let payload: { sub: string; t?: string };
+    try { payload = jwt.verify(token, env.JWT_SECRET) as { sub: string; t?: string }; }
+    catch { throw badRequest('Invalid or expired token'); }
+    if (payload.t !== 'v') throw badRequest('Invalid token');
+    await pool.query(
+      `UPDATE users SET email_verified_at = COALESCE(email_verified_at, now()) WHERE id = $1`,
+      [payload.sub],
+    );
+    await audit(pool, {
+      companyId: null, userId: payload.sub,
+      action: 'auth.email_verified', entity: 'user', entityId: payload.sub,
+    });
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
+/** SEC-08: re-issue a verification email to the authenticated user. */
+router.post('/resend-verification', requireAuth, async (req, res, next) => {
+  try {
+    const userId = req.auth!.userId;
+    const u = await pool.query(`SELECT email, email_verified_at FROM users WHERE id = $1`, [userId]);
+    if (!u.rowCount) throw unauthorized();
+    if (u.rows[0].email_verified_at) return res.json({ ok: true, already: true });
+    await sendVerificationEmail(userId, u.rows[0].email);
+    res.json({ ok: true });
   } catch (e) { next(e); }
 });
 
