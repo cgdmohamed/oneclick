@@ -8,7 +8,7 @@
  */
 
 const TOKEN_KEY = 'hesabat.access_token';
-const REFRESH_KEY = 'hesabat.refresh_token';
+const REFRESH_KEY = 'hesabat.refresh_token'; // legacy — cleared on load
 const COMPANY_KEY = 'hesabat.company_id';
 
 export const API_URL: string =
@@ -20,9 +20,15 @@ export const getAccessToken = () => localStorage.getItem(TOKEN_KEY);
 export const setAccessToken = (t: string | null) =>
   t ? localStorage.setItem(TOKEN_KEY, t) : localStorage.removeItem(TOKEN_KEY);
 
-export const getRefreshToken = () => localStorage.getItem(REFRESH_KEY);
-export const setRefreshToken = (t: string | null) =>
-  t ? localStorage.setItem(REFRESH_KEY, t) : localStorage.removeItem(REFRESH_KEY);
+/**
+ * SEC-01/02: refresh tokens now live in an httpOnly cookie set by the backend.
+ * These helpers are kept for backward compatibility but always no-op / null.
+ * Any legacy value still in localStorage is purged on load.
+ */
+try { localStorage.removeItem(REFRESH_KEY); } catch { /* ignore */ }
+export const getRefreshToken = (): string | null => null;
+export const setRefreshToken = (_t: string | null): void => { /* cookie-managed */ };
+
 
 export const getActiveCompanyId = () => localStorage.getItem(COMPANY_KEY);
 export const setActiveCompanyId = (id: string | null) =>
@@ -64,13 +70,12 @@ async function request<T>(method: string, path: string, body?: unknown, retry = 
 }
 
 async function tryRefresh(): Promise<boolean> {
-  const refresh = getRefreshToken();
-  if (!refresh) return false;
+  // Refresh token is in an httpOnly cookie — sent automatically with credentials.
   try {
     const res = await fetch(`${API_URL}/api/auth/refresh`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refresh_token: refresh }),
+      credentials: 'include',
     });
     if (!res.ok) return false;
     const json = (await res.json()) as { access_token?: string };
