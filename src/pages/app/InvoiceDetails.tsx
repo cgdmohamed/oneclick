@@ -6,6 +6,7 @@ import { PageHeader } from '@/components/common/PageHeader';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { InvoiceSummary } from '@/components/common/InvoiceSummary';
+import { InvoiceQR } from '@/components/common/InvoiceQR';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { formatCurrency, formatDate, paymentMethodLabel, invoiceStatusLabel } from '@/lib/format';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
