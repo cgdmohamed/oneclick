@@ -234,7 +234,7 @@ const InvoiceDetails = () => {
         actions={
           <div className="flex gap-2 flex-wrap no-print">
             <Button variant="outline" onClick={() => { navigator.clipboard.writeText(publicUrl); toast.success('تم نسخ رابط المشاركة'); }}>
-              <Share2 className="h-4 w-4 ml-1" /> نسخ الرابط العام
+              <Copy className="h-4 w-4 ml-1" /> نسخ الرابط العام
             </Button>
             <Button variant="outline" onClick={downloadPdf}><Download className="h-4 w-4 ml-1" /> PDF</Button>
             <Button variant="outline" asChild><Link to={`/invoice/${invoice.publicId}`} target="_blank"><Share2 className="h-4 w-4 ml-1" /> عرض عام</Link></Button>
