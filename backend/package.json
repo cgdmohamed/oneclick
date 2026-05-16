@@ -11,8 +11,11 @@
     "test:watch": "vitest",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/db/migrate.ts",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio",
     "db:seed": "tsx src/db/seed.ts",
-    "db:reset": "tsx src/db/reset.ts"
+    "db:reset": "tsx src/db/reset.ts",
+    "db:setup": "npm run db:migrate && npm run db:seed"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

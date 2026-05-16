@@ -93,13 +93,19 @@ VITE_API_URL=http://localhost:4000
 
 ```bash
 npm run db:generate   # توليد ملف migration جديد بعد تعديل schema.ts
-npm run db:migrate    # تطبيق migrations على القاعدة
+npm run db:migrate    # تطبيق migrations على القاعدة (للإنتاج/CI)
+npm run db:push       # دفع schema.ts مباشرة للقاعدة (تطوير محلي سريع)
+npm run db:studio     # واجهة Drizzle Studio لتصفّح البيانات
 npm run db:seed       # إعادة زرع البيانات التجريبية
-npm run db:reset      # حذف وإعادة إنشاء كل الجداول (تدميري!)
+npm run db:reset      # ⚠️ حذف وإعادة إنشاء كل الجداول (تدميري!)
+npm run db:setup      # اختصار: db:migrate + db:seed
 npm run dev           # تشغيل بوضع التطوير (auto-reload)
 npm run build && npm start
 npm test              # تشغيل اختبارات vitest
 ```
+
+> **`db:push` vs `db:migrate`**: استخدم `db:push` للمزامنة الفورية أثناء التطوير،
+> و `db:migrate` (مع `db:generate`) لإدارة التغييرات في الإنتاج عبر ملفات SQL.
 
 ## التشغيل في الإنتاج (Docker)
 
