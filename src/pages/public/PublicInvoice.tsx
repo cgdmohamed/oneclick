@@ -7,6 +7,7 @@ import { Calculator, Printer, ArrowRight, Download } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatCurrency, formatDate, invoiceStatusLabel } from '@/lib/format';
 import { StatusBadge } from '@/components/common/StatusBadge';
+import { PrintableQr } from '@/components/common/PrintableQr';
 import { EmptyState } from '@/components/common/EmptyState';
 import { API_URL, isApiConfigured } from '@/lib/api';
 import type { InvoiceStatus } from '@/types';
@@ -196,6 +197,12 @@ const PublicInvoice = () => {
               <Row label="المتبقي" value={formatCurrency(num(data.remaining))} cls="text-destructive" bold />
             </div>
           </div>
+
+          <PrintableQr
+            invoiceId={data.id}
+            value={`${window.location.origin}/invoice/${publicId}`}
+            invoiceNumber={data.number}
+          />
 
           {data.company_stamp && (
             <div className="mt-8 flex justify-end">
