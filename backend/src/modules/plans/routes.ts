@@ -73,6 +73,7 @@ adminPlansRouter.post('/', requireSuperAdmin, async (req, res, next) => {
       companyId: null, userId: req.auth!.userId,
       action: 'plan.create', entity: 'plan', entityId: rs.rows[0].id, data: b,
     });
+    invalidatePlansCache();
     res.status(201).json({ data: rs.rows[0] });
   } catch (e) { next(e); }
 });
@@ -94,6 +95,7 @@ adminPlansRouter.patch('/:id', requireSuperAdmin, async (req, res, next) => {
       companyId: null, userId: req.auth!.userId,
       action: 'plan.update', entity: 'plan', entityId: req.params.id, data: body,
     });
+    invalidatePlansCache();
     res.json({ data: rs.rows[0] });
   } catch (e) { next(e); }
 });
@@ -108,6 +110,7 @@ adminPlansRouter.delete('/:id', requireSuperAdmin, async (req, res, next) => {
       companyId: null, userId: req.auth!.userId,
       action: 'plan.deactivate', entity: 'plan', entityId: req.params.id,
     });
+    invalidatePlansCache();
     res.json({ ok: true });
   } catch (e) { next(e); }
 });
