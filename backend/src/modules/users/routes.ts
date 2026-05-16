@@ -13,7 +13,12 @@ const router = Router();
 router.get('/', requireRole('company_admin'), async (req, res, next) => {
   try {
     const t = req.tenant!;
-    const rs = await t.db.query(`
+    const p = parsePagination(req);
+    const totalQ = await t.db.query(
+      `SELECT count(*)::int AS count FROM user_companies WHERE company_id = $1`,
+      [t.companyId],
+    );
+    const a = p.applyTo(`
       SELECT u.id, u.email, u.name, u.created_at, array_agg(ur.role) AS roles
       FROM user_companies uc
       JOIN users u ON u.id = uc.user_id
@@ -21,7 +26,8 @@ router.get('/', requireRole('company_admin'), async (req, res, next) => {
       WHERE uc.company_id = $1
       GROUP BY u.id ORDER BY u.created_at DESC
     `, [t.companyId]);
-    res.json({ data: rs.rows });
+    const rs = await t.db.query(a.sql, a.params);
+    res.json(p.respond(rs.rows, Number(totalQ.rows[0].count)));
   } catch (e) { next(e); }
 });
 
