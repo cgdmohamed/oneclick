@@ -86,7 +86,7 @@ const FeatureAccess = () => {
       <PageHeader title="الصلاحيات حسب الباقة" description="فعّل أو عطّل الميزات لكل باقة"
         actions={<Button onClick={onSave} disabled={saving}>{saving ? 'جارٍ الحفظ…' : 'حفظ التغييرات'}</Button>} />
       <Card className="p-0 overflow-x-auto border-border/60">
-        <table className="w-full text-sm">
+        <table dir="rtl" className="w-full text-sm">
           <thead>
             <tr className="bg-muted/40 text-start text-xs">
               <th className="p-3 font-semibold">الميزة</th>
