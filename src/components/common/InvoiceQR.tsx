@@ -103,6 +103,17 @@ export const InvoiceQR = ({ invoiceId, value, invoiceNumber }: Props) => {
           }}
         />
       </div>
+
+      <div className="flex items-center justify-between mt-3 pt-3 border-t border-border/60 no-print">
+        <Label htmlFor={`qr-public-${invoiceId}`} className="text-xs cursor-pointer">
+          إظهار في صفحة الفاتورة العامة
+        </Label>
+        <Switch
+          id={`qr-public-${invoiceId}`}
+          checked={publicVisible}
+          onCheckedChange={togglePublic}
+        />
+      </div>
     </div>
   );
 };
