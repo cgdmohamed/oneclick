@@ -3,7 +3,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Calculator, CheckCircle2 } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useState } from 'react';
 import { isApiConfigured, registerRequest, ApiError } from '@/lib/api';
 import { submitSignupRequest } from '@/hooks/usePendingSignups';
@@ -14,7 +14,7 @@ const Register = () => {
   const [form, setForm] = useState({ company: '', owner: '', email: '', phone: '', password: '' });
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
-  const navigate = useNavigate();
+  
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
