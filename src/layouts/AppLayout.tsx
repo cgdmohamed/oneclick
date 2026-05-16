@@ -277,18 +277,27 @@ const AppShellInner = ({ kind }: { kind: 'company' | 'admin' }) => {
   );
 };
 
+// SEC-03: only ever auto-login in DEV builds where VITE_DEMO_MODE=1 is set
+// explicitly. In production the mock-login fallback is removed entirely so
+// unauthenticated visitors are bounced to /login by RequireAuth.
+const DEMO_AUTO_LOGIN =
+  import.meta.env.DEV && import.meta.env.VITE_DEMO_MODE === '1';
+
 const AppLayout = ({ kind = 'company' as 'company' | 'admin' }) => {
   const { user, login } = useAuth();
   const navigate = useNavigate();
   useEffect(() => {
-    if (!user) {
-      // auto-demo login so previews work without forcing /login
+    if (user) return;
+    if (DEMO_AUTO_LOGIN) {
       login(kind === 'admin' ? 'owner@oneclick.eg' : 'admin@alofok.eg');
+    } else {
+      navigate('/login', { replace: true });
     }
-  }, [user, login, kind]);
+  }, [user, login, kind, navigate]);
   useEffect(() => {
     if (user && kind === 'admin' && user.role !== 'super_admin') navigate('/app');
   }, [user, kind, navigate]);
+  if (!user) return null;
   return (
     <SidebarProvider defaultOpen>
       <AppShellInner kind={kind} />

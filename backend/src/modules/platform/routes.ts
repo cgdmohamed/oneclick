@@ -242,7 +242,7 @@ router.patch('/companies/:id', async (req, res, next) => {
     );
     if (!rs.rowCount) throw notFound();
     await audit(pool, {
-      companyId: req.params.id, userId: req.user!.id,
+      companyId: req.params.id, userId: req.auth!.userId,
       action: body.is_active ? 'company.activate' : 'company.suspend',
       entity: 'company', entityId: req.params.id,
     });
@@ -306,9 +306,9 @@ router.put('/feature-access', async (req, res, next) => {
       await c.query('COMMIT');
     } catch (err) { await c.query('ROLLBACK'); throw err; } finally { c.release(); }
     await audit(pool, {
-      companyId: null, userId: req.user!.id,
+      companyId: null, userId: req.auth!.userId,
       action: 'feature_access.update', entity: 'feature_access', entityId: null,
-      meta: { count: body.entries.length },
+      data: { count: body.entries.length },
     });
     res.json({ ok: true });
   } catch (e) { next(e); }
@@ -354,9 +354,9 @@ router.post('/system-notifications', async (req, res, next) => {
       await c.query('COMMIT');
       await audit(pool, {
         companyId: body.audience === 'all' ? null : body.audience,
-        userId: req.user!.id,
+        userId: req.auth!.userId,
         action: 'system_notification.send', entity: 'system_notification',
-        entityId: sn.rows[0].id, meta: { audience: body.audience },
+        entityId: sn.rows[0].id, data: { audience: body.audience },
       });
       res.status(201).json({ data: sn.rows[0] });
     } catch (err) { await c.query('ROLLBACK'); throw err; } finally { c.release(); }
