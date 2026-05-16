@@ -97,9 +97,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const candidate = users.find(u => u.role === role) ?? (user ? { ...user, role } : null);
       if (candidate) setUser(candidate);
     },
-    companyName: apiCompanyName ?? (user?.companyId
-      ? (companies.find(c => c.id === user.companyId)?.name ?? '')
-      : (user?.role === 'super_admin' ? 'منصة ون كليك' : (user?.name ? `شركة ${user.name}` : 'شركتي'))),
+    companyName: (() => {
+      if (apiCompanyName) return apiCompanyName;
+      if (!user) return '';
+      if (user.role === 'super_admin') return 'منصة ون كليك';
+      // Try by companyId first
+      let companyId = user.companyId;
+      // Fallback: resolve via email match in mock users
+      if (!companyId) {
+        const match = users.find(u => u.email.toLowerCase() === user.email.toLowerCase());
+        companyId = match?.companyId;
+      }
+      const co = companyId ? companies.find(c => c.id === companyId) : null;
+      return co?.name ?? 'شركتي';
+    })(),
   }), [user, apiCompanyName]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
