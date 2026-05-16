@@ -33,6 +33,7 @@ import Products from "./pages/app/Products";
 import Reports from "./pages/app/Reports";
 import ReportDetail from "./pages/app/ReportDetail";
 import Notifications from "./pages/app/Notifications";
+import AlertsLog from "./pages/app/AlertsLog";
 import Users from "./pages/app/Users";
 import Settings from "./pages/app/Settings";
 import Subscription from "./pages/app/Subscription";
