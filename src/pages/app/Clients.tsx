@@ -39,6 +39,7 @@ const Clients = () => {
       companyId: r.company_id,
       name: r.name,
       phone: r.phone ?? '',
+      whatsapp: r.whatsapp ?? '',
       email: r.email ?? '',
       address: r.address ?? '',
       taxNumber: r.tax_number ?? '',
@@ -47,6 +48,7 @@ const Clients = () => {
     toRow: (c) => ({
       name: c.name,
       phone: c.phone || null,
+      whatsapp: c.whatsapp || null,
       email: c.email || null,
       address: c.address || null,
       tax_number: c.taxNumber || null,
