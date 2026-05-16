@@ -25,8 +25,9 @@ import reportsRoutes from './modules/reports/routes.js';
 import { publicPlansRouter, adminPlansRouter } from './modules/plans/routes.js';
 import subscriptionsRoutes from './modules/subscriptions/routes.js';
 import publicRoutes from './modules/public/routes.js';
-import uploadsRoutes, { UPLOAD_DIR } from './modules/uploads/routes.js';
+import uploadsRoutes, { UPLOAD_PUBLIC } from './modules/uploads/routes.js';
 import platformRoutes from './modules/platform/routes.js';
+import { invitationsAdminRouter, invitationsPublicRouter } from './modules/invitations/routes.js';
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -59,11 +60,13 @@ export function createApp() {
   app.get('/', (_req, res) => res.json({ name: 'hesabat-api', status: 'ok' }));
   app.get('/health', (_req, res) => res.json({ ok: true }));
 
-  // Static uploads (logo/stamp/attachments)
-  app.use('/uploads', express.static(UPLOAD_DIR, { maxAge: '7d', immutable: false }));
+  // Static uploads — ONLY public assets (logos/stamps). Private attachments
+  // are served by the authenticated /api/uploads/file/:id handler (SEC-04).
+  app.use('/uploads/public', express.static(UPLOAD_PUBLIC, { maxAge: '7d', immutable: false }));
 
   // Public
   app.use('/api/public', publicRoutes);
+  app.use('/api/public/invitations', invitationsPublicRouter);
   app.use('/api/auth', authLimiter, authRoutes);
   app.use('/api/plans', publicPlansRouter);
 
@@ -82,6 +85,7 @@ export function createApp() {
   app.use('/api/reports', reportsRoutes);
   app.use('/api/subscriptions', subscriptionsRoutes);
   app.use('/api/uploads', uploadsRoutes);
+  app.use('/api/invitations', invitationsAdminRouter);
   app.use('/api/platform', platformRoutes);
 
   app.use(errorHandler);

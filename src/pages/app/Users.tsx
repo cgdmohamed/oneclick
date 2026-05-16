@@ -1,4 +1,4 @@
-import { useState, useSyncExternalStore } from 'react';
+import { useEffect, useState } from 'react';
 import { PageHeader } from '@/components/common/PageHeader';
 import { DataTable, Column } from '@/components/common/DataTable';
 import { Button } from '@/components/ui/button';
@@ -14,13 +14,13 @@ import { roleLabel, formatDateShort } from '@/lib/format';
 import { toast } from 'sonner';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { useUsers } from '@/hooks/entities';
-import { api, isApiConfigured, ApiError } from '@/lib/api';
+import { api, ApiError } from '@/lib/api';
 import { useQueryClient } from '@tanstack/react-query';
 import { RoleMatrix } from '@/components/common/RoleMatrix';
 import { useAuth } from '@/lib/auth';
 import {
-  createInvitation, getInvitations, getInvitationsForCompany,
-  subscribeInvitations, buildInviteUrl, revokeInvitation, resendInvitation,
+  createInvitation, listInvitations, subscribeInvitations,
+  buildInviteUrl, revokeInvitation, resendInvitation,
   type Invitation,
 } from '@/lib/invitations';
 
@@ -39,11 +39,21 @@ const Users = () => {
   // ---------- Invite flow ----------
   const [inviteOpen, setInviteOpen] = useState(false);
   const [invite, setInvite] = useState(inviteEmpty);
-  const [createdInvite, setCreatedInvite] = useState<Invitation | null>(null);
+  const [createdInvite, setCreatedInvite] = useState<{ invitation: Invitation; url: string } | null>(null);
 
-  useSyncExternalStore(subscribeInvitations, getInvitations, getInvitations);
   const companyId = user?.companyId ?? 'co-1';
-  const invitations: (Invitation & { id: string })[] = getInvitationsForCompany(companyId).map((i) => ({ ...i, id: i.token }));
+  const [invitations, setInvitations] = useState<(Invitation & { id: string })[]>([]);
+  useEffect(() => {
+    let active = true;
+    const reload = () => {
+      listInvitations(companyId).then((rows) => {
+        if (active) setInvitations(rows.map((i) => ({ ...i, id: i.id ?? i.token })));
+      }).catch(() => { /* ignore */ });
+    };
+    reload();
+    const off = subscribeInvitations(reload);
+    return () => { active = false; off(); };
+  }, [companyId]);
 
   const isCreate = !list.find((x) => x.id === editing.id);
 
@@ -82,7 +92,7 @@ const Users = () => {
   };
 
   // ---------- Invitations ----------
-  const sendInvite = () => {
+  const sendInvite = async () => {
     const email = invite.email.trim().toLowerCase();
     const fullName = invite.fullName.trim();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return toast.error('بريد إلكتروني غير صالح');
@@ -90,15 +100,27 @@ const Users = () => {
     if (list.some((u) => u.email.toLowerCase() === email && u.companyId === companyId)) {
       return toast.error('يوجد مستخدم بهذا البريد فعلًا');
     }
-    const inv = createInvitation({
-      email, fullName, phone: invite.phone.trim() || undefined,
-      role: invite.role, companyId, invitedBy: user?.id ?? 'system',
-    });
-    setCreatedInvite(inv);
-    setInviteOpen(false);
-    setInvite(inviteEmpty);
-    toast.success('تم إرسال الدعوة عبر البريد الإلكتروني');
+    try {
+      const res = await createInvitation({
+        email, fullName, phone: invite.phone.trim() || undefined,
+        role: invite.role, companyId, invitedBy: user?.id ?? 'system',
+      });
+      setCreatedInvite(res);
+      setInviteOpen(false);
+      setInvite(inviteEmpty);
+      // Reload list (API mode doesn't auto-notify subscribers).
+      listInvitations(companyId).then((rows) =>
+        setInvitations(rows.map((i) => ({ ...i, id: i.id ?? i.token }))),
+      );
+      toast.success('تم إرسال الدعوة عبر البريد الإلكتروني');
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : 'تعذّر إرسال الدعوة');
+    }
   };
+
+  const reloadInvites = () => listInvitations(companyId).then((rows) =>
+    setInvitations(rows.map((i) => ({ ...i, id: i.id ?? i.token }))),
+  );
 
   const copyLink = async (token: string) => {
     try {
@@ -159,16 +181,24 @@ const Users = () => {
             <Button variant="ghost" size="icon" title="نسخ رابط الدعوة" onClick={() => copyLink(r.token)}>
               <Copy className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="icon" title="إعادة إرسال" onClick={() => { const v = resendInvitation(r.token); if (v) { setCreatedInvite(v); toast.success('تم إعادة إرسال الدعوة'); } }}>
+            <Button variant="ghost" size="icon" title="إعادة إرسال" onClick={async () => {
+              const v = await resendInvitation(r.id, companyId);
+              if (v) { setCreatedInvite(v); await reloadInvites(); toast.success('تم إعادة إرسال الدعوة'); }
+            }}>
               <RefreshCw className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="icon" title="إلغاء الدعوة" onClick={() => { revokeInvitation(r.token); toast.success('تم إلغاء الدعوة'); }}>
+            <Button variant="ghost" size="icon" title="إلغاء الدعوة" onClick={async () => {
+              await revokeInvitation(r.id); await reloadInvites(); toast.success('تم إلغاء الدعوة');
+            }}>
               <X className="h-4 w-4 text-destructive" />
             </Button>
           </>
         )}
         {(r.status === 'expired' || r.status === 'revoked') && (
-          <Button variant="ghost" size="sm" onClick={() => { const v = resendInvitation(r.token); if (v) { setCreatedInvite(v); toast.success('تم إعادة الإرسال'); } }}>
+          <Button variant="ghost" size="sm" onClick={async () => {
+            const v = await resendInvitation(r.id, companyId);
+            if (v) { setCreatedInvite(v); await reloadInvites(); toast.success('تم إعادة الإرسال'); }
+          }}>
             <RefreshCw className="h-3.5 w-3.5 ml-1" /> إعادة الإرسال
           </Button>
         )}
@@ -320,7 +350,7 @@ const Users = () => {
               <CheckCircle2 className="h-5 w-5 text-success" /> تم إرسال الدعوة
             </DialogTitle>
             <DialogDescription>
-              أُرسل بريد إلى <span dir="ltr" className="font-semibold text-foreground">{createdInvite?.email}</span> يحتوي رابط تفعيل صالح لمدة 7 أيام.
+              أُرسل بريد إلى <span dir="ltr" className="font-semibold text-foreground">{createdInvite?.invitation.email}</span> يحتوي رابط تفعيل صالح لمدة 7 أيام.
             </DialogDescription>
           </DialogHeader>
           {createdInvite && (
@@ -328,8 +358,11 @@ const Users = () => {
               <div className="rounded-lg border border-border/60 bg-muted/30 p-3">
                 <div className="text-xs text-muted-foreground mb-1.5">رابط الدعوة (للمشاركة المباشرة):</div>
                 <div className="flex items-center gap-2">
-                  <Input dir="ltr" readOnly value={buildInviteUrl(createdInvite.token)} className="text-xs bg-background" />
-                  <Button size="icon" variant="outline" onClick={() => copyLink(createdInvite.token)}>
+                  <Input dir="ltr" readOnly value={createdInvite.url} className="text-xs bg-background" />
+                  <Button size="icon" variant="outline" onClick={async () => {
+                    try { await navigator.clipboard.writeText(createdInvite.url); toast.success('تم النسخ'); }
+                    catch { toast.error('تعذّر النسخ'); }
+                  }}>
                     <Copy className="h-4 w-4" />
                   </Button>
                 </div>
@@ -343,7 +376,7 @@ const Users = () => {
             <Button variant="outline" onClick={() => setCreatedInvite(null)}>إغلاق</Button>
             {createdInvite && (
               <Button asChild>
-                <a href={buildInviteUrl(createdInvite.token)} target="_blank" rel="noreferrer">معاينة صفحة القبول</a>
+                <a href={createdInvite.url} target="_blank" rel="noreferrer">معاينة صفحة القبول</a>
               </Button>
             )}
           </DialogFooter>

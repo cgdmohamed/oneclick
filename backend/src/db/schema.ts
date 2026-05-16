@@ -15,6 +15,9 @@ export const accountTypeEnum = pgEnum('account_type', ['cash', 'bank', 'wallet']
 export const subscriptionStatusEnum = pgEnum('subscription_status', [
   'active', 'trialing', 'past_due', 'cancelled', 'expired',
 ]);
+export const invitationStatusEnum = pgEnum('invitation_status', [
+  'pending','accepted','revoked','expired',
+]);
 
 /* ---------- Core tables ---------- */
 export const users = pgTable('users', {
@@ -249,3 +252,21 @@ export const auditLog = pgTable('audit_log', {
   data: jsonb('data'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
+
+export const invitations = pgTable('invitations', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  companyId: uuid('company_id').notNull().references(() => companies.id, { onDelete: 'cascade' }),
+  email: varchar('email', { length: 255 }).notNull(),
+  fullName: varchar('full_name', { length: 120 }).notNull(),
+  phone: varchar('phone', { length: 30 }),
+  role: roleEnum('role').notNull(),
+  tokenHash: varchar('token_hash', { length: 64 }).notNull().unique(),
+  invitedBy: uuid('invited_by').references(() => users.id, { onDelete: 'set null' }),
+  invitedAt: timestamp('invited_at', { withTimezone: true }).notNull().defaultNow(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  status: invitationStatusEnum('status').notNull().default('pending'),
+  acceptedAt: timestamp('accepted_at', { withTimezone: true }),
+  acceptedUserId: uuid('accepted_user_id').references(() => users.id, { onDelete: 'set null' }),
+}, (t) => ({
+  byCompany: index('invitations_company_idx').on(t.companyId, t.invitedAt),
+}));

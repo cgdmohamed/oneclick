@@ -33,12 +33,16 @@ const AcceptInvite = () => {
 
   useEffect(() => {
     if (!token) { setInvitation(null); return; }
-    const inv = findInvitationByToken(token);
-    setInvitation(inv);
-    if (inv) {
-      setFullName(inv.fullName);
-      setPhone(inv.phone ?? '');
-    }
+    let active = true;
+    findInvitationByToken(token).then((inv) => {
+      if (!active) return;
+      setInvitation(inv);
+      if (inv) {
+        setFullName(inv.fullName);
+        setPhone(inv.phone ?? '');
+      }
+    });
+    return () => { active = false; };
   }, [token]);
 
   const pwIssues = useMemo(() => passwordIssues(password), [password]);
@@ -55,17 +59,24 @@ const AcceptInvite = () => {
 
     setSubmitting(true);
     try {
-      const userId = `u-${Date.now()}`;
-      await save({
-        id: userId,
-        name: fullName.trim(),
-        email: invitation.email,
+      await acceptInvitation(invitation.token, {
+        fullName: fullName.trim(),
         phone: phone.trim() || undefined,
-        role: invitation.role,
-        companyId: invitation.companyId,
-        disabled: false,
+        password,
+        userId: `u-${Date.now()}`,
       });
-      acceptInvitation(invitation.token, { fullName: fullName.trim(), phone: phone.trim() || undefined, userId });
+      // Mock-only: also persist a local user record so demo lists update.
+      if (!invitation.id) {
+        await save({
+          id: `u-${Date.now()}`,
+          name: fullName.trim(),
+          email: invitation.email,
+          phone: phone.trim() || undefined,
+          role: invitation.role,
+          companyId: invitation.companyId,
+          disabled: false,
+        });
+      }
       toast.success('تم تفعيل حسابك! يمكنك تسجيل الدخول الآن.');
       navigate(`/login?email=${encodeURIComponent(invitation.email)}`);
     } catch {
