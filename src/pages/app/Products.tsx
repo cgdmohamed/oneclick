@@ -2,9 +2,10 @@ import { useRef, useState } from 'react';
 import { PageHeader } from '@/components/common/PageHeader';
 import { DataTable, Column } from '@/components/common/DataTable';
 import { Button } from '@/components/ui/button';
-import { Plus, Pencil, AlertTriangle, ImageIcon, Loader2, Package } from 'lucide-react';
+import { Plus, Pencil, Trash2, AlertTriangle, ImageIcon, Loader2, Package } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { products as initial, stockMovements } from '@/data/mock';
@@ -14,6 +15,7 @@ import { toast } from 'sonner';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { Card } from '@/components/ui/card';
 import { useResource } from '@/hooks/useResource';
+import { useInvoices } from '@/hooks/entities';
 import { api, isApiConfigured, resolveAssetUrl } from '@/lib/api';
 
 interface ProductRow {
@@ -32,7 +34,7 @@ interface ProductRow {
 const empty: Product = { id: '', companyId: 'co-1', name: '', code: '', category: '', price: 0, quantity: 0, alertLevel: 5, status: 'active' };
 
 const Products = () => {
-  const { list, save } = useResource<Product, ProductRow>({
+  const { list, save, remove } = useResource<Product, ProductRow>({
     path: '/api/products',
     key: 'products',
     initial,
@@ -60,11 +62,32 @@ const Products = () => {
 
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Product>(empty);
+  const [toDelete, setToDelete] = useState<Product | null>(null);
+  const { list: invoices } = useInvoices();
 
   const submit = async () => {
     if (!editing.name || !editing.code) return toast.error('أكمل بيانات المنتج');
     await save(editing);
     setOpen(false);
+  };
+
+  const usageCount = (p: Product) => {
+    const inMovements = stockMovements.filter(m => m.productId === p.id).length;
+    const inInvoices = invoices.reduce(
+      (n, inv) => n + inv.items.filter(it => it.productId === p.id).length, 0,
+    );
+    return inMovements + inInvoices;
+  };
+
+  const confirmDelete = async () => {
+    if (!toDelete) return;
+    if (usageCount(toDelete) > 0) {
+      toast.error('لا يمكن حذف المنتج لأنه مستخدم في فواتير أو حركات مخزون');
+      setToDelete(null);
+      return;
+    }
+    await remove(toDelete.id);
+    setToDelete(null);
   };
 
   const columns: Column<Product>[] = [
@@ -87,9 +110,23 @@ const Products = () => {
     { key: 'qty', header: 'الكمية', cell: r => <span className={r.quantity <= r.alertLevel ? 'text-destructive font-semibold' : ''}>{r.quantity}</span> },
     { key: 'alert', header: 'حد التنبيه', cell: r => r.alertLevel },
     { key: 'status', header: 'الحالة', cell: r => <StatusBadge status={r.status} /> },
-    { key: 'actions', header: '', cell: r => (
-      <Button variant="ghost" size="icon" onClick={() => { setEditing(r); setOpen(true); }}><Pencil className="h-4 w-4" /></Button>
-    )},
+    { key: 'actions', header: '', cell: r => {
+      const used = usageCount(r) > 0;
+      return (
+        <div className="flex items-center gap-1 justify-end">
+          <Button variant="ghost" size="icon" onClick={() => { setEditing(r); setOpen(true); }}><Pencil className="h-4 w-4" /></Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            disabled={used}
+            title={used ? 'مستخدم في فواتير أو حركات مخزون' : 'حذف'}
+            onClick={() => setToDelete(r)}
+          >
+            <Trash2 className="h-4 w-4 text-destructive" />
+          </Button>
+        </div>
+      );
+    }},
   ];
 
   const lowStock = list.filter(p => p.quantity <= p.alertLevel);
@@ -164,6 +201,21 @@ const Products = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!toDelete} onOpenChange={(o) => !o && setToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>حذف المنتج</AlertDialogTitle>
+            <AlertDialogDescription>
+              هل تريد حذف "{toDelete?.name}"؟ لا يمكن التراجع عن هذا الإجراء.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>إلغاء</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">حذف</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
