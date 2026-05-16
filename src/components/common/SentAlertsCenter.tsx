@@ -1,4 +1,4 @@
-import { useMemo, useState, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -55,6 +55,8 @@ export const SentAlertsCenter = ({
 }: Props) => {
   const all = useSyncExternalStore(subscribeSentAlerts, getSentAlerts, getSentAlerts);
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
+  const [page, setPage] = useState(1);
+  const pageSize = compact ? 5 : 8;
 
   const scoped = useMemo(() => all.filter(a =>
     (!recipientKind || a.recipientKind === recipientKind) &&
@@ -63,6 +65,10 @@ export const SentAlertsCenter = ({
 
   const unreadCount = scoped.filter(a => !a.read).length;
   const list = filter === 'unread' ? scoped.filter(a => !a.read) : scoped;
+  const totalPages = Math.max(1, Math.ceil(list.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const pageItems = list.slice((safePage - 1) * pageSize, safePage * pageSize);
+  useEffect(() => { setPage(1); }, [filter, recipientKind, recipientId]);
 
   const onMarkAll = () => markAllAlertsRead(a =>
     (!recipientKind || a.recipientKind === recipientKind) &&
@@ -101,7 +107,7 @@ export const SentAlertsCenter = ({
         />
       ) : (
         <div className="space-y-2.5">
-          {list.map(a => {
+          {pageItems.map(a => {
             const Icon = eventIcon(a.event);
             const ChannelIcon = a.channel === 'email' ? Mail : Bell;
             return (
@@ -148,6 +154,18 @@ export const SentAlertsCenter = ({
               </Card>
             );
           })}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between gap-2 pt-2">
+              <span className="text-xs text-muted-foreground tabular-nums">
+                {(safePage - 1) * pageSize + 1}-{Math.min(safePage * pageSize, list.length)} من {list.length}
+              </span>
+              <div className="flex items-center gap-1">
+                <Button variant="outline" size="sm" className="h-8" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={safePage === 1}>السابق</Button>
+                <span className="text-xs text-muted-foreground px-2 tabular-nums">{safePage} / {totalPages}</span>
+                <Button variant="outline" size="sm" className="h-8" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={safePage === totalPages}>التالي</Button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
