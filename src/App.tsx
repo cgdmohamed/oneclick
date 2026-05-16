@@ -118,6 +118,7 @@ const App = () => (
               <Route path="users/:id" element={<UserDetail360 />} />
               <Route path="roles" element={<RolesAndPermissions />} />
               <Route path="audit-log" element={<AuditLog />} />
+              <Route path="approvals" element={<Approvals />} />
               <Route path="settings" element={<SystemSettings />} />
             </Route>
 
