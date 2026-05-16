@@ -175,7 +175,7 @@ const InvoiceDetails = () => {
     toast.success(`سيتم إرسال الفاتورة إلى ${clientEmail} عبر ${smtp.host}`);
   };
 
-  const waNumber = clientPhone.replace(/[^\d]/g, '');
+  const waNumber = (clientWhatsapp || clientPhone).replace(/[^\d]/g, '');
   const openWhatsApp = async () => {
     const text = encodeURIComponent(`فاتورة ${invoice.number}: ${publicUrl}`);
     if (apiOn) {
