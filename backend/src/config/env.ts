@@ -19,6 +19,14 @@ const schema = z.object({
   SMTP_USER: z.string().optional(),
   SMTP_PASS: z.string().optional(),
   SMTP_FROM: z.string().optional(),
+
+  /* Refresh-token cookie (SEC-01/02) */
+  COOKIE_SAMESITE: z.enum(['lax', 'strict', 'none']).default('lax'),
+  COOKIE_SECURE: z
+    .union([z.literal('true'), z.literal('false')])
+    .transform((v) => v === 'true')
+    .optional(),
+  COOKIE_DOMAIN: z.string().optional(),
 });
 
 export const env = schema.parse(process.env);
