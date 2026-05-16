@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatCurrency } from '@/lib/format';
+import { getCurrencySymbol } from '@/lib/currency';
 import type { Plan } from '@/types';
 
 interface PlanCardProps {
