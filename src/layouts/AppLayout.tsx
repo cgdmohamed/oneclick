@@ -1,6 +1,6 @@
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarTrigger, useSidebar, SidebarHeader, SidebarFooter } from '@/components/ui/sidebar';
-import { LayoutDashboard, Users, FileText, CreditCard, Wallet, Package, BarChart3, Bell, ShieldCheck, Settings, Calculator, LogOut, Building2, Layers, Receipt, ToggleRight, Megaphone, Cog, ChevronLeft, Crown, History, LayoutTemplate, LineChart } from 'lucide-react';
+import { LayoutDashboard, Users, FileText, CreditCard, Wallet, Package, BarChart3, Bell, ShieldCheck, Settings, Calculator, LogOut, Building2, Layers, Receipt, ToggleRight, Megaphone, Cog, ChevronLeft, Crown, History, LayoutTemplate, LineChart, UserSearch, PieChart } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
@@ -27,7 +27,9 @@ const companyNav = [
 
 const adminNav = [
   { to: '/admin', label: 'لوحة الإدارة', icon: LayoutDashboard, end: true },
+  { to: '/admin/analytics', label: 'تحليلات المنصة', icon: PieChart },
   { to: '/admin/companies', label: 'الشركات', icon: Building2 },
+  { to: '/admin/users', label: 'المستخدمون (360)', icon: UserSearch },
   { to: '/admin/plans', label: 'الباقات', icon: Layers },
   { to: '/admin/subscriptions', label: 'الاشتراكات', icon: FileText },
   { to: '/admin/payments', label: 'التحصيلات', icon: Receipt },
@@ -41,7 +43,9 @@ const adminNav = [
 
 const pageKey = (kind: 'company' | 'admin', pathname: string): string => {
   if (kind === 'admin') {
+    if (pathname.startsWith('/admin/analytics')) return 'admin-analytics';
     if (pathname.startsWith('/admin/companies')) return 'admin-companies';
+    if (pathname.startsWith('/admin/users')) return 'admin-users';
     if (pathname.startsWith('/admin/plans')) return 'admin-plans';
     if (pathname.startsWith('/admin/subscriptions')) return 'admin-subscriptions';
     if (pathname.startsWith('/admin/payments')) return 'admin-payments';
