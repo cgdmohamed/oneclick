@@ -210,7 +210,7 @@ router.post('/:id/send-email', async (req, res, next) => {
 
     const data = await loadInvoicePdfData(t.db, req.params.id, t.companyId);
     const inv = await t.db.query(`SELECT public_id FROM invoices WHERE id = $1`, [req.params.id]);
-    const publicUrl = `${env.APP_URL}/i/${inv.rows[0].public_id}`;
+    const publicUrl = `${env.APP_URL}/invoice/${inv.rows[0].public_id}`;
     const recipient = to ?? data.client.email;
     if (!recipient) throw badRequest('Client has no email — supply "to"');
 
@@ -243,7 +243,7 @@ router.get('/:id/whatsapp-link', async (req, res, next) => {
     );
     if (!inv.rowCount) throw notFound();
     const r = inv.rows[0];
-    const url = `${env.APP_URL}/i/${r.public_id}`;
+    const url = `${env.APP_URL}/invoice/${r.public_id}`;
     const text = encodeURIComponent(`Invoice ${r.number} — Total ${r.total}\n${url}`);
     const phone = (r.phone ?? '').replace(/\D/g, '');
     res.json({ link: `https://wa.me/${phone}?text=${text}` });
