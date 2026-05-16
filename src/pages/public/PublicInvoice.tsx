@@ -198,6 +198,12 @@ const PublicInvoice = () => {
             </div>
           </div>
 
+          <PrintableQr
+            invoiceId={data.id}
+            value={`${window.location.origin}/invoice/${publicId}`}
+            invoiceNumber={data.number}
+          />
+
           {data.company_stamp && (
             <div className="mt-8 flex justify-end">
               <img src={data.company_stamp} alt="ختم الشركة" className="h-24 opacity-80" />
