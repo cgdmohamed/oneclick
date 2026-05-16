@@ -98,7 +98,7 @@ const PendingBadge = () => {
 const AppShellInner = ({ kind }: { kind: 'company' | 'admin' }) => {
   const { state } = useSidebar();
   const collapsed = state === 'collapsed';
-  const { user, logout, setRole, companyName } = useAuth();
+  const { user, logout, companyName } = useAuth();
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const featureSet = useCurrentFeatureSet();
