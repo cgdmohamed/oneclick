@@ -33,8 +33,9 @@ const Home = () => {
     <div>
       {/* ============= HERO ============= */}
       {c.hero.enabled && (
-        <section className="relative overflow-hidden bg-gradient-to-b from-secondary/40 to-background">
-          <div className="absolute inset-0 bg-grid opacity-[0.35] [mask-image:radial-gradient(ellipse_at_center,black_30%,transparent_70%)]" />
+        <section className="relative overflow-hidden bg-gradient-to-b from-background via-secondary/20 to-background">
+          <div className="absolute inset-0 bg-grid opacity-[0.08] [mask-image:radial-gradient(ellipse_at_top,black_10%,transparent_60%)]" />
+          <div className="absolute top-0 start-1/2 -translate-x-1/2 h-[520px] w-[820px] rounded-full bg-primary/10 blur-3xl pointer-events-none" />
           <div className="container relative py-20 md:py-28">
             {/* Centered copy */}
             <div className="flex flex-col items-center text-center max-w-3xl mx-auto">
