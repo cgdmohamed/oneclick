@@ -22,7 +22,8 @@ const FONT_PRESETS: { label: string; value: string }[] = [
 const SystemSettings = () => {
   const { brand, save: saveBrand, reset: resetBrand } = useBrand();
   const [local, setLocal] = useState<BrandSettings>(brand);
-  const fileRef = useRef<HTMLInputElement>(null);
+  const fullFileRef = useRef<HTMLInputElement>(null);
+  const iconFileRef = useRef<HTMLInputElement>(null);
 
   const [s, setS] = useState({
     appName: 'ون كليك',
