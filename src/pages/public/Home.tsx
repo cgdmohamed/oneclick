@@ -36,7 +36,7 @@ const Home = () => {
             </p>
             <div className="mt-10 flex flex-col sm:flex-row items-center gap-3 w-full justify-center">
               <Button asChild size="lg" className="w-full sm:w-auto h-12 px-8 shadow-elev">
-                <Link to="/register">ابدأ الآن<ArrowLeft className="h-4 w-4 mr-2" /></Link>
+                <Link to="/register">ابدأ الآن<ArrowLeft className="h-4 w-4 ms-2" /></Link>
               </Button>
               <Button asChild size="lg" variant="outline" className="w-full sm:w-auto h-12 px-8 bg-card">
                 <Link to="/features">استعرض المميزات</Link>
