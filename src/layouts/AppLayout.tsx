@@ -95,7 +95,10 @@ const AppShellInner = ({ kind }: { kind: 'company' | 'admin' }) => {
   const { user, logout, setRole, companyName } = useAuth();
   const navigate = useNavigate();
   const { pathname } = useLocation();
-  const nav = kind === 'admin' ? adminNav : companyNav;
+  const featureSet = useCurrentFeatureSet();
+  const nav = kind === 'admin'
+    ? adminNav
+    : companyNav.filter((item) => !('feature' in item) || !item.feature || featureSet.has(item.feature));
 
   return (
     <div
