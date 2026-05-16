@@ -19,13 +19,25 @@ const storage = multer.diskStorage({
   },
 });
 
-const ALLOWED = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml', 'application/pdf']);
+// SVG intentionally excluded — embedded scripts cause stored XSS when served inline.
+const ALLOWED_MIME = new Set(['image/png', 'image/jpeg', 'image/webp', 'application/pdf']);
+const ALLOWED_EXT = new Set(['.png', '.jpg', '.jpeg', '.webp', '.pdf']);
+const MIME_EXT: Record<string, string[]> = {
+  'image/png': ['.png'],
+  'image/jpeg': ['.jpg', '.jpeg'],
+  'image/webp': ['.webp'],
+  'application/pdf': ['.pdf'],
+};
 
 const upload = multer({
   storage,
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
-    if (!ALLOWED.has(file.mimetype)) return cb(new Error('Unsupported file type'));
+    const mime = file.mimetype;
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (!ALLOWED_MIME.has(mime)) return cb(new Error('Unsupported file type'));
+    if (!ALLOWED_EXT.has(ext)) return cb(new Error('Unsupported file extension'));
+    if (!MIME_EXT[mime]?.includes(ext)) return cb(new Error('File extension does not match content type'));
     cb(null, true);
   },
 });
