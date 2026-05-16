@@ -234,6 +234,11 @@ const ClientDetail = () => {
                     <FileBadge2 className="h-3.5 w-3.5" /> ضريبي: {client.taxNumber}
                   </span>
                 )}
+                {client.currencySymbol && (
+                  <span className="inline-flex items-center gap-1.5">
+                    <Wallet className="h-3.5 w-3.5" /> العملة: {client.currencySymbol}
+                  </span>
+                )}
               </div>
               <div className="text-xs text-muted-foreground inline-flex items-center gap-1.5">
                 <Calendar className="h-3 w-3" /> عميل منذ {formatDateShort(client.createdAt)}
