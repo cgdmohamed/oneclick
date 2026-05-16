@@ -106,6 +106,7 @@ const App = () => (
               <Route path="feature-access" element={<FeatureAccess />} />
               <Route path="notifications" element={<SystemNotifications />} />
               <Route path="landing" element={<LandingContent />} />
+              <Route path="tracking" element={<TrackingSettings />} />
               <Route path="settings" element={<SystemSettings />} />
             </Route>
 
