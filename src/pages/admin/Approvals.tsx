@@ -160,7 +160,7 @@ const SignupCard = ({
   const planName = mockPlans.find(p => p.id === signup.planId)?.name;
 
   return (
-    <Card className="p-4 border-border/60 shadow-soft">
+    <Card dir="rtl" className="p-4 border-border/60 shadow-soft text-start">
       <div className="flex items-start gap-3 mb-3">
         <Avatar className="h-11 w-11">
           <AvatarFallback className="bg-primary/10 text-primary font-semibold">
@@ -287,7 +287,7 @@ const Approvals = () => {
         <StatCard title="إجمالي الطلبات" value={stats.total} icon={Building2} accent="primary" />
       </div>
 
-      <Tabs value={tab} onValueChange={(v) => setTab(v as SignupStatus | 'all')}>
+      <Tabs dir="rtl" value={tab} onValueChange={(v) => setTab(v as SignupStatus | 'all')}>
         <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
           <TabsList>
             <TabsTrigger value="pending">
