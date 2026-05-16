@@ -78,7 +78,7 @@ const ReportDetail = () => {
 
   const renderTable = () => {
     if (type === 'invoices') {
-      return <DataTable data={invoices} columns={[
+      return <DataTable data={filteredInvoices} columns={[
         { key: 'num', header: 'الرقم', cell: (r) => <Link to={`/app/invoices/${r.id}`} className="text-primary">{r.number}</Link> },
         { key: 'client', header: 'العميل', cell: (r) => r.clientName ?? clients.find((c) => c.id === r.clientId)?.name },
         { key: 'date', header: 'التاريخ', cell: (r) => formatDateShort(r.issueDate) },
@@ -89,7 +89,7 @@ const ReportDetail = () => {
       ]} />;
     }
     if (type === 'remaining') {
-      const data = invoices.filter((i) => i.remaining > 0);
+      const data = filteredInvoices.filter((i) => i.remaining > 0);
       return <DataTable data={data} columns={[
         { key: 'num', header: 'الرقم', cell: (r) => r.number },
         { key: 'client', header: 'العميل', cell: (r) => r.clientName ?? clients.find((c) => c.id === r.clientId)?.name },
@@ -100,7 +100,7 @@ const ReportDetail = () => {
       ]} />;
     }
     if (type === 'payments') {
-      return <DataTable data={flatPayments} columns={[
+      return <DataTable data={filteredPayments} columns={[
         { key: 'date', header: 'التاريخ', cell: (r) => formatDateShort(r.date) },
         { key: 'inv', header: 'الفاتورة', cell: (r) => r.invoiceNumber ?? invoices.find((i) => i.id === r.invoiceId)?.number },
         { key: 'method', header: 'الطريقة', cell: (r) => paymentMethodLabel(r.method) },
@@ -112,8 +112,8 @@ const ReportDetail = () => {
       const grouped = ['cash','bank','wallet'].map((m) => ({
         id: m,
         method: paymentMethodLabel(m),
-        count: flatPayments.filter((p) => p.method === m).length,
-        total: flatPayments.filter((p) => p.method === m).reduce((s, p) => s + p.amount, 0),
+        count: filteredPayments.filter((p) => p.method === m).length,
+        total: filteredPayments.filter((p) => p.method === m).reduce((s, p) => s + p.amount, 0),
       }));
       return <DataTable data={grouped} columns={[
         { key: 'method', header: 'الطريقة', cell: (r) => <span className="font-medium">{r.method}</span> },
@@ -126,8 +126,8 @@ const ReportDetail = () => {
         id: a.id,
         name: a.name,
         type: a.type,
-        count: flatPayments.filter((p) => p.accountId === a.id).length,
-        total: flatPayments.filter((p) => p.accountId === a.id).reduce((s, p) => s + p.amount, 0),
+        count: filteredPayments.filter((p) => p.accountId === a.id).length,
+        total: filteredPayments.filter((p) => p.accountId === a.id).reduce((s, p) => s + p.amount, 0),
         balance: a.balance,
       }));
       return <DataTable data={grouped} columns={[
@@ -140,6 +140,8 @@ const ReportDetail = () => {
     return null;
   };
 
+  const hasFilter = applied.from || applied.to;
+
   return (
     <div>
       <Link to="/app/reports" className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1 mb-3">
@@ -147,17 +149,20 @@ const ReportDetail = () => {
       </Link>
       <PageHeader title={titleMap[type] ?? 'تقرير'} />
       <Card className="p-4 mb-5 border-border/60">
-        <div className="grid sm:grid-cols-3 gap-4 items-end">
+        <div className="grid sm:grid-cols-4 gap-4 items-end">
           <div><Label>من تاريخ</Label><Input type="date" className="mt-1.5" value={from} onChange={(e) => setFrom(e.target.value)} /></div>
           <div><Label>إلى تاريخ</Label><Input type="date" className="mt-1.5" value={to} onChange={(e) => setTo(e.target.value)} /></div>
-          <Button>تطبيق الفلتر</Button>
+          <Button onClick={() => setApplied({ from, to })}>تطبيق الفلتر</Button>
+          {hasFilter ? (
+            <Button variant="ghost" onClick={() => { setFrom(''); setTo(''); setApplied({ from: '', to: '' }); }}>مسح الفلتر</Button>
+          ) : <div />}
         </div>
       </Card>
 
-      {type === 'invoices' && <InvoicesCharts invoices={invoices} />}
-      {type === 'remaining' && <RemainingCharts invoices={invoices} />}
-      {(type === 'payments' || type === 'by-method') && <PaymentsCharts payments={flatPayments} />}
-      {type === 'by-account' && <ByAccountCharts accounts={accounts} payments={flatPayments} />}
+      {type === 'invoices' && <InvoicesCharts invoices={filteredInvoices} />}
+      {type === 'remaining' && <RemainingCharts invoices={filteredInvoices} />}
+      {(type === 'payments' || type === 'by-method') && <PaymentsCharts payments={filteredPayments} />}
+      {type === 'by-account' && <ByAccountCharts accounts={accounts} payments={filteredPayments} />}
 
       {renderTable()}
     </div>
