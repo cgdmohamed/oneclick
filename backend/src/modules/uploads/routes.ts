@@ -65,7 +65,7 @@ router.post('/', upload.single('file'), async (req, res, next) => {
     const disk     = req.file.filename;            // random opaque on-disk name
 
     // Insert with placeholder url then patch it once we have the row id.
-    const ins = await pool.query(
+    const ins = await t.db.query(
       `INSERT INTO uploads
          (company_id, user_id, filename, mime_type, size, url, kind, is_public, disk_name)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
@@ -76,7 +76,7 @@ router.post('/', upload.single('file'), async (req, res, next) => {
     );
     const id  = ins.rows[0].id as string;
     const url = isPublic ? `/uploads/public/${disk}` : `/api/uploads/file/${id}`;
-    await pool.query(`UPDATE uploads SET url = $1 WHERE id = $2`, [url, id]);
+    await t.db.query(`UPDATE uploads SET url = $1 WHERE id = $2`, [url, id]);
 
     await audit(pool, {
       companyId: t.companyId, userId: req.auth!.userId,
@@ -90,7 +90,7 @@ router.post('/', upload.single('file'), async (req, res, next) => {
 router.get('/', async (req, res, next) => {
   try {
     const t = req.tenant!;
-    const rs = await pool.query(
+    const rs = await t.db.query(
       `SELECT id, filename, mime_type, size, url, kind, is_public, created_at
          FROM uploads WHERE company_id = $1
          ORDER BY created_at DESC LIMIT 100`,
@@ -104,7 +104,7 @@ router.get('/', async (req, res, next) => {
 router.get('/file/:id', async (req, res, next) => {
   try {
     const t = req.tenant!;
-    const rs = await pool.query(
+    const rs = await t.db.query(
       `SELECT company_id, mime_type, disk_name, is_public
          FROM uploads WHERE id = $1`,
       [req.params.id],

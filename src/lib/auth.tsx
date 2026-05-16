@@ -76,9 +76,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const value = useMemo<AuthState>(() => ({
     user,
     login: (email: string, password?: string) => {
-      // Demo-only fallback when no backend is configured. Real auth goes
-      // through loginRequest() in src/lib/api.ts. Never grant super_admin
-      // through the local mock list, and require a non-empty password.
+      // SEC-03: Mock-mode auto-login is DISABLED whenever a real backend is
+      // configured (i.e. in any deployed/preview environment). The legacy
+      // mock path only runs in pure local dev with no VITE_API_BASE_URL set,
+      // and even then refuses super_admin and empty passwords.
+      if (isApiConfigured()) return false;
+      if (import.meta.env.PROD) return false;
       if (!email || !password) return false;
       const found = users.find(u => u.email.toLowerCase() === email.toLowerCase());
       if (!found || found.role === 'super_admin') return false;
