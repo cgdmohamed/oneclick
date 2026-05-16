@@ -14,7 +14,7 @@ import { roleLabel, formatDateShort } from '@/lib/format';
 import { toast } from 'sonner';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { useUsers } from '@/hooks/entities';
-import { api, isApiConfigured, ApiError } from '@/lib/api';
+import { api, ApiError } from '@/lib/api';
 import { useQueryClient } from '@tanstack/react-query';
 import { RoleMatrix } from '@/components/common/RoleMatrix';
 import { useAuth } from '@/lib/auth';
