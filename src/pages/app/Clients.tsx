@@ -25,10 +25,12 @@ interface ClientRow {
   address: string | null;
   tax_number: string | null;
   notes: string | null;
+  currency: string | null;
+  currency_symbol: string | null;
   created_at: string;
 }
 
-const empty: Client = { id: '', companyId: 'co-1', name: '', phone: '', whatsapp: '', email: '', address: '', taxNumber: '', createdAt: new Date().toISOString() };
+const empty: Client = { id: '', companyId: 'co-1', name: '', phone: '', whatsapp: '', email: '', address: '', taxNumber: '', currency: 'SAR', currencySymbol: getCurrencySymbol(), createdAt: new Date().toISOString() };
 
 const Clients = () => {
   const navigate = useNavigate();
@@ -45,6 +47,8 @@ const Clients = () => {
       email: r.email ?? '',
       address: r.address ?? '',
       taxNumber: r.tax_number ?? '',
+      currency: r.currency ?? 'SAR',
+      currencySymbol: r.currency_symbol ?? getCurrencySymbol(),
       createdAt: r.created_at,
     }),
     toRow: (c) => ({
@@ -54,6 +58,8 @@ const Clients = () => {
       email: c.email || null,
       address: c.address || null,
       tax_number: c.taxNumber || null,
+      currency: c.currency || null,
+      currency_symbol: c.currencySymbol || null,
     }),
   });
 
