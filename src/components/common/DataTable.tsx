@@ -115,17 +115,17 @@ export function DataTable<T extends { id: string }>({
             </div>
             <div className="flex items-center gap-1">
               <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setPage(1)} disabled={safePage === 1} aria-label="الصفحة الأولى">
-                <ChevronsRight className="h-4 w-4" />
+                <ChevronsLeft className="h-4 w-4" />
               </Button>
               <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={safePage === 1} aria-label="السابق">
-                <ChevronRight className="h-4 w-4" />
+                <ChevronLeft className="h-4 w-4" />
               </Button>
               <span className="text-xs text-muted-foreground px-2 tabular-nums">صفحة {safePage} من {totalPages}</span>
               <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={safePage === totalPages} aria-label="التالي">
-                <ChevronLeft className="h-4 w-4" />
+                <ChevronRight className="h-4 w-4" />
               </Button>
               <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setPage(totalPages)} disabled={safePage === totalPages} aria-label="الصفحة الأخيرة">
-                <ChevronsLeft className="h-4 w-4" />
+                <ChevronsRight className="h-4 w-4" />
               </Button>
             </div>
           </div>
