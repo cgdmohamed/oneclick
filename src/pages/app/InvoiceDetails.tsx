@@ -186,7 +186,7 @@ const InvoiceDetails = () => {
       return;
     }
     const text = encodeURIComponent(`فاتورة ${invoice.number}: ${publicUrl}`);
-    window.open(`https://wa.me/${waNumber}?text=${text}`, '_blank', 'noopener');
+    window.open(`https://web.whatsapp.com/send?phone=${waNumber}&text=${text}`, '_blank', 'noopener');
   };
 
   return (
