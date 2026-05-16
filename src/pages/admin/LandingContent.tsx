@@ -154,7 +154,7 @@ const LandingContentAdmin = () => {
               items={draft.logos.items}
               onChange={(items) => update('logos', { items })}
               addLabel="إضافة شعار/عميل"
-              create={() => ({ id: newId('l'), name: '' })}
+              create={() => ({ id: newId('l'), name: '', logoUrl: undefined as string | undefined })}
               render={(it, set) => (
                 <div className="space-y-3 flex-1">
                   <Field label="اسم الشركة" value={it.name} onChange={(v) => set({ ...it, name: v })} />
