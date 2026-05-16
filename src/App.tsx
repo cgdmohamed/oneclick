@@ -33,6 +33,7 @@ import Products from "./pages/app/Products";
 import Reports from "./pages/app/Reports";
 import ReportDetail from "./pages/app/ReportDetail";
 import Notifications from "./pages/app/Notifications";
+import AlertsLog from "./pages/app/AlertsLog";
 import Users from "./pages/app/Users";
 import Settings from "./pages/app/Settings";
 import Subscription from "./pages/app/Subscription";
@@ -102,6 +103,7 @@ const App = () => {
               <Route path="reports" element={<Reports />} />
               <Route path="reports/:type" element={<ReportDetail />} />
               <Route path="notifications" element={<Notifications />} />
+              <Route path="alerts-log" element={<AlertsLog />} />
               <Route path="users" element={<Users />} />
               <Route path="subscription" element={<Subscription />} />
               <Route path="settings" element={<Settings />} />

@@ -1,6 +1,6 @@
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarTrigger, useSidebar, SidebarHeader, SidebarFooter } from '@/components/ui/sidebar';
-import { LayoutDashboard, Users, FileText, CreditCard, Wallet, Package, BarChart3, Bell, ShieldCheck, Settings, Calculator, LogOut, Building2, Layers, Receipt, ToggleRight, Megaphone, Cog, ChevronLeft, Crown, History, LayoutTemplate, LineChart, PieChart, ScrollText, UserPlus } from 'lucide-react';
+import { LayoutDashboard, Users, FileText, CreditCard, Wallet, Package, BarChart3, Bell, BellRing, ShieldCheck, Settings, Calculator, LogOut, Building2, Layers, Receipt, ToggleRight, Megaphone, Cog, ChevronLeft, Crown, History, LayoutTemplate, LineChart, PieChart, ScrollText, UserPlus } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { usePendingSignupsCount } from '@/hooks/usePendingSignups';
 import { cn } from '@/lib/utils';
@@ -22,6 +22,7 @@ const companyNav: { to: string; label: string; icon: typeof LayoutDashboard; end
   { to: '/app/products', label: 'المنتجات والمخزون', icon: Package, feature: 'products' },
   { to: '/app/reports', label: 'التقارير', icon: BarChart3, feature: 'reports_basic' },
   { to: '/app/notifications', label: 'التنبيهات', icon: Bell, feature: 'notifications' },
+  { to: '/app/alerts-log', label: 'سجل التنبيهات', icon: BellRing, feature: 'notifications' },
   { to: '/app/users', label: 'المستخدمون والصلاحيات', icon: ShieldCheck, feature: 'rbac' },
   { to: '/app/activity', label: 'سجل الأنشطة', icon: History, feature: 'activity_log' },
   { to: '/app/subscription', label: 'الاشتراك والفوترة', icon: Crown },
@@ -71,6 +72,7 @@ const pageKey = (kind: 'company' | 'admin', pathname: string): string => {
   if (pathname.startsWith('/app/accounts')) return 'accounts';
   if (pathname.startsWith('/app/products')) return 'products';
   if (pathname.startsWith('/app/reports')) return 'reports';
+  if (pathname.startsWith('/app/alerts-log')) return 'alerts-log';
   if (pathname.startsWith('/app/notifications')) return 'notifications';
   if (pathname.startsWith('/app/users')) return 'users';
   if (pathname.startsWith('/app/activity')) return 'activity';
