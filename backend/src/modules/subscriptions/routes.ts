@@ -67,7 +67,6 @@ router.get('/', requireSuperAdmin, async (req, res, next) => {
     `);
     const rs = await t.db.query(a.sql, a.params);
     res.json(p.respond(rs.rows, Number(totalQ.rows[0].count)));
-    void t;
   } catch (e) { next(e); }
 });
 
