@@ -107,6 +107,94 @@ npm test              # run vitest tests
 > **`db:push` vs `db:migrate`**: use `db:push` for instant sync during development,
 > and `db:migrate` (with `db:generate`) to manage changes in production via SQL files.
 
+## Production deployment (PM2)
+
+[PM2](https://pm2.keymetrics.io/) is a process manager that keeps the API running, restarts it on crashes, and starts it on server boot.
+
+```bash
+# 1) Install PM2 globally (once per server)
+npm install -g pm2
+
+# 2) Build the app
+cd backend
+npm install
+npm run build
+
+# 3) Apply DB migrations (first deploy + after each schema change)
+npm run db:migrate
+
+# 4) Start the API under PM2
+pm2 start dist/index.js --name hesabat-api \
+  --time \
+  --max-memory-restart 500M \
+  --env production
+
+# 5) Persist the process list and enable auto-start on reboot
+pm2 save
+pm2 startup           # follow the printed command (one-time setup)
+```
+
+Make sure `backend/.env` is populated (or that the variables are exported in the shell that launches PM2) — at minimum `DATABASE_URL`, `JWT_SECRET`, `JWT_REFRESH_SECRET`, `CORS_ORIGIN`, `APP_URL`, and SMTP credentials.
+
+### Useful PM2 commands
+
+```bash
+pm2 status                  # list processes
+pm2 logs hesabat-api        # tail logs (stdout + stderr)
+pm2 logs hesabat-api --lines 200
+pm2 restart hesabat-api     # restart after a deploy
+pm2 reload hesabat-api      # zero-downtime reload
+pm2 stop hesabat-api
+pm2 delete hesabat-api
+pm2 monit                   # live CPU/memory dashboard
+```
+
+### Zero-downtime deploy
+
+```bash
+cd backend
+git pull
+npm install --omit=dev=false
+npm run build
+npm run db:migrate
+pm2 reload hesabat-api --update-env
+```
+
+### Running multiple replicas (cluster mode)
+
+```bash
+pm2 start dist/index.js --name hesabat-api -i max --env production
+```
+
+When running more than one instance, set `RUN_JOBS=false` on every replica except one (see [Environment variables](#environment-variables)) so scheduled jobs only fire once. Also note the in-memory rate-limit / login-lockout ceilings listed under "Known scale ceilings".
+
+### Optional: `ecosystem.config.cjs`
+
+Instead of passing flags on the CLI, you can commit a config file:
+
+```js
+// backend/ecosystem.config.cjs
+module.exports = {
+  apps: [
+    {
+      name: 'hesabat-api',
+      script: 'dist/index.js',
+      cwd: __dirname,
+      instances: 1,                 // or 'max' for cluster mode
+      exec_mode: 'fork',            // or 'cluster'
+      max_memory_restart: '500M',
+      env: {
+        NODE_ENV: 'production',
+        PORT: 4000,
+        RUN_JOBS: 'true',
+      },
+    },
+  ],
+};
+```
+
+Then: `pm2 start ecosystem.config.cjs`.
+
 ## Production deployment (Docker)
 
 ```bash
