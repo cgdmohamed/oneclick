@@ -117,28 +117,66 @@ const SystemSettings = () => {
           </div>
         </div>
 
-        <div>
-          <Label>صورة الشعار (اختياري — SVG/PNG/JPG، حتى 512KB)</Label>
-          <div className="flex items-center gap-3 mt-1.5">
-            <input
-              ref={fileRef}
-              type="file"
-              accept="image/png,image/svg+xml,image/jpeg,image/webp"
-              className="hidden"
-              onChange={e => { const f = e.target.files?.[0]; if (f) onFile(f); }}
-            />
-            <Button variant="outline" type="button" onClick={() => fileRef.current?.click()}>
-              <Upload className="h-4 w-4 ml-2" /> رفع شعار
-            </Button>
-            {local.logoUrl && (
-              <Button variant="ghost" type="button" onClick={() => setLocal(v => ({ ...v, logoUrl: '' }))}>
-                <Trash2 className="h-4 w-4 ml-2" /> إزالة الصورة
+        <div className="grid sm:grid-cols-2 gap-4">
+          {/* Full logo uploader */}
+          <div className="rounded-lg border border-border/60 p-4 space-y-2">
+            <div>
+              <Label>الشعار الكامل (أفقي)</Label>
+              <p className="text-xs text-muted-foreground mt-0.5">يُستخدم في الهيدر، صفحات الدخول، والفواتير. النسبة المقترحة 3:1 أو 4:1.</p>
+            </div>
+            <div className="h-16 rounded bg-muted/40 flex items-center justify-center overflow-hidden">
+              {local.logoFullUrl
+                ? <img src={local.logoFullUrl} alt="full" className="h-12 w-auto object-contain" />
+                : <span className="text-xs text-muted-foreground">لا توجد صورة — يُستخدم النص</span>}
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                ref={fullFileRef}
+                type="file"
+                accept="image/png,image/svg+xml,image/jpeg,image/webp"
+                className="hidden"
+                onChange={e => { const f = e.target.files?.[0]; if (f) onFile(f, 'logoFullUrl'); }}
+              />
+              <Button size="sm" variant="outline" type="button" onClick={() => fullFileRef.current?.click()}>
+                <Upload className="h-4 w-4 ml-2" /> رفع
               </Button>
-            )}
+              {local.logoFullUrl && (
+                <Button size="sm" variant="ghost" type="button" onClick={() => setLocal(v => ({ ...v, logoFullUrl: '' }))}>
+                  <Trash2 className="h-4 w-4 ml-2" /> إزالة
+                </Button>
+              )}
+            </div>
           </div>
-          {local.logoUrl && (
-            <p className="text-xs text-muted-foreground mt-2">سيتم استخدام الصورة بدل النص في كل المنصة.</p>
-          )}
+
+          {/* Icon uploader */}
+          <div className="rounded-lg border border-border/60 p-4 space-y-2">
+            <div>
+              <Label>أيقونة الشعار (مربعة)</Label>
+              <p className="text-xs text-muted-foreground mt-0.5">تُستخدم في الشريط الجانبي المطوي والاستخدامات المضغوطة. النسبة 1:1.</p>
+            </div>
+            <div className="h-16 rounded bg-muted/40 flex items-center justify-center overflow-hidden">
+              {local.logoIconUrl
+                ? <img src={local.logoIconUrl} alt="icon" className="h-12 w-12 object-contain" />
+                : <span className="text-xs text-muted-foreground">لا توجد أيقونة — يُستخدم الحرف الأول</span>}
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                ref={iconFileRef}
+                type="file"
+                accept="image/png,image/svg+xml,image/jpeg,image/webp"
+                className="hidden"
+                onChange={e => { const f = e.target.files?.[0]; if (f) onFile(f, 'logoIconUrl'); }}
+              />
+              <Button size="sm" variant="outline" type="button" onClick={() => iconFileRef.current?.click()}>
+                <Upload className="h-4 w-4 ml-2" /> رفع
+              </Button>
+              {local.logoIconUrl && (
+                <Button size="sm" variant="ghost" type="button" onClick={() => setLocal(v => ({ ...v, logoIconUrl: '' }))}>
+                  <Trash2 className="h-4 w-4 ml-2" /> إزالة
+                </Button>
+              )}
+            </div>
+          </div>
         </div>
 
         <div className="flex flex-wrap gap-2 pt-2 border-t border-border/60">
