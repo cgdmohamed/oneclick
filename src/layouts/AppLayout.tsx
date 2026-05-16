@@ -127,7 +127,7 @@ const AppShellInner = ({ kind }: { kind: 'company' | 'admin' }) => {
       <Sidebar collapsible="icon" side="right" className="border-l border-sidebar-border">
         <SidebarHeader className="border-b border-sidebar-border">
           <div className="flex items-center gap-2 px-2 py-2 min-w-0">
-            <BrandLogo size={collapsed ? 'sm' : 'md'} />
+            <BrandLogo size={collapsed ? 'sm' : 'md'} variant={collapsed ? 'icon' : 'full'} />
             {!collapsed && kind !== 'admin' && companyName && (
               <div className="min-w-0 border-r border-sidebar-border pr-2 mr-1">
                 <div className="font-semibold text-sidebar-foreground truncate text-sm">{companyName}</div>
