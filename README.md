@@ -1,97 +1,97 @@
-# Hesabat — حسابات
+# Hesabat
 
-تطبيق SaaS محاسبي متعدد المستأجرين (Multi-tenant) مكوّن من:
+A multi-tenant accounting SaaS application consisting of:
 
-- **Frontend**: React 18 + Vite + TypeScript + Tailwind (هذا المجلد).
-- **Backend**: Node.js + Express + TypeScript + Drizzle ORM + **PostgreSQL** (مجلد `backend/`).
+- **Frontend**: React 18 + Vite + TypeScript + Tailwind (this folder).
+- **Backend**: Node.js + Express + TypeScript + Drizzle ORM + **PostgreSQL** (`backend/` folder).
 
-> لا يُستخدم Supabase ولا أي خدمة سحابية مُدارة — كل شيء يعمل ذاتياً على PostgreSQL.
-
----
-
-## 1) المتطلبات
-
-- Node.js **20+** و `npm` (أو `bun`)
-- **PostgreSQL 16+** — إمّا محلياً أو عبر Docker (موصى به)
-- (اختياري) Docker + Docker Compose
+> No Supabase or managed cloud service is used — everything runs self-hosted on PostgreSQL.
 
 ---
 
-## 2) إعداد قاعدة البيانات (PostgreSQL)
+## 1) Requirements
 
-### أ) باستخدام Docker (الأسرع)
+- Node.js **20+** and `npm` (or `bun`)
+- **PostgreSQL 16+** — either locally or via Docker (recommended)
+- (Optional) Docker + Docker Compose
+
+---
+
+## 2) Database setup (PostgreSQL)
+
+### a) Using Docker (fastest)
 
 ```bash
 cd backend
 docker compose up -d postgres
 ```
 
-يشغّل PostgreSQL على المنفذ `5432` مع المستخدم/قاعدة البيانات `hesabat`.
+Runs PostgreSQL on port `5432` with user/database `hesabat`.
 
-### ب) باستخدام PostgreSQL محلي
+### b) Using local PostgreSQL
 
-أنشئ القاعدة والمستخدم يدوياً:
+Create the database and user manually:
 
 ```bash
 sudo -u postgres psql -c "CREATE USER hesabat WITH PASSWORD 'hesabat';"
 sudo -u postgres psql -c "CREATE DATABASE hesabat OWNER hesabat;"
 ```
 
-ثم حدّث `DATABASE_URL` في `backend/.env`.
+Then update `DATABASE_URL` in `backend/.env`.
 
 ---
 
-## 3) تشغيل الـ Backend
+## 3) Running the Backend
 
 ```bash
 cd backend
-cp .env.example .env          # عدّل الأسرار قبل الإنتاج
+cp .env.example .env          # edit secrets before production
 npm install
 npm run db:setup              # = db:migrate + db:seed
 npm run dev                   # http://localhost:4000
 ```
 
-### بيانات الدخول التجريبية (بعد `db:seed`)
+### Demo credentials (after `db:seed`)
 
-| الدور | البريد | كلمة المرور |
-|------|------|------|
+| Role | Email | Password |
+|------|-------|----------|
 | Super Admin | `owner@hesabat.sa` | `Aa123456!` |
 | Company Admin | `admin@alofok.sa` | `Aa123456!` |
 
-### أوامر قاعدة البيانات
+### Database commands
 
 ```bash
-npm run db:generate   # توليد ملف migration بعد تعديل schema.ts
-npm run db:migrate    # تطبيق migrations الموجودة (موصى به للإنتاج)
-npm run db:push       # دفع تغييرات schema.ts مباشرة (للتطوير السريع فقط)
-npm run db:seed       # زرع البيانات التجريبية
-npm run db:reset      # ⚠️ حذف وإعادة إنشاء كل الجداول
-npm run db:studio     # واجهة Drizzle Studio لتصفّح القاعدة
+npm run db:generate   # generate a migration file after editing schema.ts
+npm run db:migrate    # apply existing migrations (recommended for production)
+npm run db:push       # push schema.ts changes directly (fast local dev only)
+npm run db:seed       # seed demo data
+npm run db:reset      # ⚠️ drop and recreate all tables
+npm run db:studio     # Drizzle Studio UI to browse the database
 ```
 
-> **متى تستخدم `db:push` vs `db:migrate`؟**
-> - `db:push` يزامن `schema.ts` مع القاعدة فوراً بدون إنشاء ملف migration — مفيد أثناء التطوير المحلي.
-> - `db:migrate` يطبّق ملفات SQL في `src/db/migrations/` — استخدمه في الإنتاج والـ CI.
+> **When to use `db:push` vs `db:migrate`?**
+> - `db:push` syncs `schema.ts` with the database immediately without creating a migration file — useful during local development.
+> - `db:migrate` applies the SQL files in `src/db/migrations/` — use it in production and CI.
 
 ---
 
-## 4) تشغيل الـ Frontend
+## 4) Running the Frontend
 
 ```bash
-# من جذر المشروع
+# from project root
 cp .env.example .env
-# عدّل: VITE_API_URL=http://localhost:4000
+# set: VITE_API_URL=http://localhost:4000
 npm install
 npm run dev                   # http://localhost:5173
 ```
 
-> إذا بقي `VITE_API_URL` فارغاً، تعمل الواجهة بـ **بيانات وهمية في الذاكرة** (mock mode) بدون الحاجة للـ backend — مفيد للمعاينة فقط.
+> If `VITE_API_URL` is left empty, the frontend runs with **in-memory mock data** (mock mode) without needing the backend — useful for previews only.
 
 ---
 
-## 5) التشغيل الكامل بالتوازي
+## 5) Running both in parallel
 
-من جذر المشروع، شغّل النافذتين:
+From the project root, run in two terminals:
 
 ```bash
 # Terminal 1
@@ -101,11 +101,11 @@ cd backend && npm run dev
 npm run dev
 ```
 
-افتح `http://localhost:5173`.
+Open `http://localhost:5173`.
 
 ---
 
-## 6) النشر للإنتاج
+## 6) Production deployment
 
 ### Backend (Docker)
 
@@ -121,45 +121,45 @@ docker run -d --name hesabat-api -p 4000:4000 \
   hesabat-api
 ```
 
-قبل أول تشغيل: `DATABASE_URL=... npm run db:migrate` (داخل الحاوية أو محلياً مع نفس الـ URL).
+Before first run: `DATABASE_URL=... npm run db:migrate` (inside the container or locally with the same URL).
 
 ### Frontend
 
 ```bash
-npm run build                 # المخرجات في dist/
+npm run build                 # output in dist/
 ```
 
-ارفع `dist/` على أي CDN ثابت (Nginx, Cloudflare Pages, Netlify…). تأكد أن `VITE_API_URL` مضبوط وقت البناء.
+Upload `dist/` to any static CDN (Nginx, Cloudflare Pages, Netlify…). Make sure `VITE_API_URL` is set at build time.
 
 ---
 
-## 7) بنية المشروع
+## 7) Project structure
 
 ```
 .
 ├── src/                      # Frontend (React)
-│   ├── lib/api.ts            # عميل HTTP موحّد للـ backend
-│   ├── hooks/useResource.ts  # CRUD generic (يدعم API + mock)
+│   ├── lib/api.ts            # unified HTTP client for the backend
+│   ├── hooks/useResource.ts  # generic CRUD (supports API + mock)
 │   ├── pages/, components/, layouts/
 │   └── ...
 ├── backend/                  # Backend (Node + Postgres)
-│   ├── src/db/schema.ts      # تعريفات الجداول (Drizzle)
-│   ├── src/db/migrations/    # ملفات SQL
+│   ├── src/db/schema.ts      # table definitions (Drizzle)
+│   ├── src/db/migrations/    # SQL files
 │   ├── src/modules/          # auth, invoices, clients, …
-│   ├── docker-compose.yml    # PostgreSQL محلي
-│   └── README.md             # تفاصيل الـ backend
-├── .env.example              # متغيرات الواجهة
+│   ├── docker-compose.yml    # local PostgreSQL
+│   └── README.md             # backend details
+├── .env.example              # frontend environment variables
 └── README.md
 ```
 
 ---
 
-## 8) ملاحظات مهمّة
+## 8) Important notes
 
-- **Multi-tenant**: عزل البيانات عبر `company_id` + PostgreSQL Row-Level Security (RLS).
-- **الأدوار**: مخزّنة في جدول `user_roles` منفصل (لمنع تصعيد الصلاحيات).
-- **الأسرار**: غيّر `JWT_SECRET` و `JWT_REFRESH_SECRET` قبل أي نشر (≥ 32 حرفاً).
-- **البريد**: SMTP اختياري — لو ترك فارغاً، تُطبع رسائل البريد على stdout.
-- **التخزين**: ملفات الرفع تُحفظ في `backend/uploads/` وتُقدَّم من `/uploads/*`.
+- **Multi-tenant**: data isolation via `company_id` + PostgreSQL Row-Level Security (RLS).
+- **Roles**: stored in a separate `user_roles` table (to prevent privilege escalation).
+- **Secrets**: change `JWT_SECRET` and `JWT_REFRESH_SECRET` before any deployment (≥ 32 chars).
+- **Email**: SMTP is optional — if left empty, emails are printed to stdout.
+- **Storage**: uploaded files are saved in `backend/uploads/` and served from `/uploads/*`.
 
-تفاصيل أعمق للـ backend في [`backend/README.md`](./backend/README.md).
+Deeper backend details in [`backend/README.md`](./backend/README.md).

@@ -1,63 +1,63 @@
 # Hesabat Backend — Node.js + TypeScript + PostgreSQL
 
-خادم API لتطبيق "حسابات" — Multi-tenant SaaS محاسبي.
+API server for the "Hesabat" application — a multi-tenant accounting SaaS.
 
-## المتطلبات
+## Requirements
 
 - Node.js 20+
-- Docker و Docker Compose (لتشغيل PostgreSQL محلياً)
-- (اختياري) PostgreSQL 16 مثبّت محلياً بدون Docker
+- Docker and Docker Compose (to run PostgreSQL locally)
+- (Optional) PostgreSQL 16 installed locally without Docker
 
-## التشغيل السريع
+## Quick start
 
 ```bash
 cd backend
 cp .env.example .env
 
-# 1) شغّل قاعدة البيانات
+# 1) Start the database
 docker compose up -d postgres
 
-# 2) ثبّت الحزم
+# 2) Install dependencies
 npm install
 
-# 3) أنشئ الجداول
+# 3) Create the tables
 npm run db:migrate
 
-# 4) أدخل بيانات تجريبية (شركة + مستخدم + باقات)
+# 4) Seed demo data (company + user + plans)
 npm run db:seed
 
-# 5) شغّل الـ API
+# 5) Run the API
 npm run dev
 # http://localhost:4000
 ```
 
-## بيانات الدخول التجريبية
+## Demo credentials
 
-بعد `npm run db:seed`:
+After `npm run db:seed`:
 
-- **مدير شركة**: `admin@alofok.sa` / `Aa123456!`
-- **مشرف عام (Super Admin)**: `owner@hesabat.sa` / `Aa123456!`
+- **Company Admin**: `admin@alofok.sa` / `Aa123456!`
+- **Super Admin**: `owner@hesabat.sa` / `Aa123456!`
 
-## بنية المشروع
+## Project structure
 
 ```
 src/
-├── index.ts              نقطة الدخول
-├── app.ts                إعداد Express
-├── config/env.ts         تحميل المتغيرات
+├── index.ts              entry point
+├── app.ts                Express setup
+├── config/env.ts         environment variables loader
 ├── db/
-│   ├── client.ts         اتصال Postgres + drizzle
-│   ├── schema.ts         تعريفات الجداول (Drizzle)
-│   ├── migrate.ts        تنفيذ migrations
-│   ├── seed.ts           بيانات تجريبية
-│   └── migrations/       ملفات SQL
+│   ├── client.ts         Postgres connection + drizzle
+│   ├── schema.ts         table definitions (Drizzle)
+│   ├── migrate.ts        runs migrations
+│   ├── seed.ts           demo data
+│   └── migrations/       SQL files
 ├── middleware/
-│   ├── auth.ts           فحص JWT
-│   ├── tenant.ts         عزل بيانات الشركة (RLS)
-│   ├── rbac.ts           فحص الصلاحيات
-│   └── error.ts          معالج الأخطاء
+│   ├── auth.ts           JWT verification
+│   ├── tenant.ts         company data isolation (RLS)
+│   ├── rbac.ts           permission checks
+│   └── error.ts          error handler
 └── modules/
-    ├── auth/             تسجيل/دخول/تجديد توكن
+    ├── auth/             register/login/refresh token
     ├── companies/
     ├── users/
     ├── clients/
@@ -71,43 +71,43 @@ src/
     └── subscriptions/
 ```
 
-## مبدأ Multi-Tenant
+## Multi-tenant model
 
-- نموذج **Shared Database / Shared Schema**.
-- كل سجل تجاري يحمل `company_id`.
-- **PostgreSQL RLS** مفعّل على كل الجداول؛ السياسة تستخدم `current_setting('app.current_company')` التي يضبطها middleware `tenant.ts` في بداية كل طلب.
-- جدول `user_roles` منفصل عن `users` لمنع تصعيد الصلاحيات.
+- **Shared Database / Shared Schema** model.
+- Every business record carries a `company_id`.
+- **PostgreSQL RLS** is enabled on all tables; the policy uses `current_setting('app.current_company')`, which is set by the `tenant.ts` middleware at the start of every request.
+- The `user_roles` table is separate from `users` to prevent privilege escalation.
 
-## ربطه بالواجهة
+## Wiring it to the frontend
 
-في الواجهة (`hesabat` الـ React project)، أضف:
+In the frontend (the `hesabat` React project), add:
 
 ```bash
 # .env
 VITE_API_URL=http://localhost:4000
 ```
 
-ثم استخدم `src/lib/api.ts` (تم تجهيزه في الواجهة).
+Then use `src/lib/api.ts` (already wired up in the frontend).
 
-## أوامر مفيدة
+## Useful commands
 
 ```bash
-npm run db:generate   # توليد ملف migration جديد بعد تعديل schema.ts
-npm run db:migrate    # تطبيق migrations على القاعدة (للإنتاج/CI)
-npm run db:push       # دفع schema.ts مباشرة للقاعدة (تطوير محلي سريع)
-npm run db:studio     # واجهة Drizzle Studio لتصفّح البيانات
-npm run db:seed       # إعادة زرع البيانات التجريبية
-npm run db:reset      # ⚠️ حذف وإعادة إنشاء كل الجداول (تدميري!)
-npm run db:setup      # اختصار: db:migrate + db:seed
-npm run dev           # تشغيل بوضع التطوير (auto-reload)
+npm run db:generate   # generate a new migration file after editing schema.ts
+npm run db:migrate    # apply migrations to the database (production/CI)
+npm run db:push       # push schema.ts directly to the database (fast local dev)
+npm run db:studio     # Drizzle Studio UI to browse data
+npm run db:seed       # re-seed demo data
+npm run db:reset      # ⚠️ drop and recreate all tables (destructive!)
+npm run db:setup      # shortcut: db:migrate + db:seed
+npm run dev           # run in development mode (auto-reload)
 npm run build && npm start
-npm test              # تشغيل اختبارات vitest
+npm test              # run vitest tests
 ```
 
-> **`db:push` vs `db:migrate`**: استخدم `db:push` للمزامنة الفورية أثناء التطوير،
-> و `db:migrate` (مع `db:generate`) لإدارة التغييرات في الإنتاج عبر ملفات SQL.
+> **`db:push` vs `db:migrate`**: use `db:push` for instant sync during development,
+> and `db:migrate` (with `db:generate`) to manage changes in production via SQL files.
 
-## التشغيل في الإنتاج (Docker)
+## Production deployment (Docker)
 
 ```bash
 docker build -t hesabat-api ./backend
@@ -123,22 +123,22 @@ docker run -d --name hesabat-api \
   hesabat-api
 ```
 
-قبل أول تشغيل في الإنتاج: `DATABASE_URL=... npm run db:migrate`.
+Before the first production run: `DATABASE_URL=... npm run db:migrate`.
 
-ملاحظات:
+Notes:
 
-- الـ Dockerfile متعدد المراحل ويعمل بمستخدم غير-جذر مع `HEALTHCHECK` على `/health`.
-- ضع reverse proxy (Nginx/Traefik) أمام الـ API لتوفير TLS.
-- قَلِّب `JWT_SECRET` و `JWT_REFRESH_SECRET` دورياً (≥ 32 حرفاً).
-- مواصفة الـ API الكاملة في `openapi.yaml` (تستوردها في Swagger UI / Postman).
+- The Dockerfile is multi-stage and runs as a non-root user with a `HEALTHCHECK` on `/health`.
+- Put a reverse proxy (Nginx/Traefik) in front of the API to provide TLS.
+- Rotate `JWT_SECRET` and `JWT_REFRESH_SECRET` periodically (≥ 32 chars).
+- The full API spec is in `openapi.yaml` (import it into Swagger UI / Postman).
 
-## الاختبارات
+## Tests
 
-اختبارات smoke جاهزة في `src/__tests__/`. للاختبارات التكاملية شغّل
-`docker compose up -d postgres` ثم `npm test`.
+Smoke tests are ready under `src/__tests__/`. For integration tests run
+`docker compose up -d postgres` then `npm test`.
 
-## نقاط التوسعة
+## Extension points
 
-- **البريد**: `src/utils/email.ts` يدعم SMTP أو fallback إلى stdout.
-- **المدفوعات**: يدوية بالكامل عبر `/api/platform/subscription-payments`.
-- **التخزين**: الملفات تُحفظ تحت `/uploads` وتُقدَّم عبر `/uploads/*`.
+- **Email**: `src/utils/email.ts` supports SMTP or falls back to stdout.
+- **Payments**: fully manual via `/api/platform/subscription-payments`.
+- **Storage**: files are saved under `/uploads` and served via `/uploads/*`.
