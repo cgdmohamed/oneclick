@@ -55,8 +55,8 @@ npm run dev                   # http://localhost:4000
 
 | Role | Email | Password |
 |------|-------|----------|
-| Super Admin | `owner@hesabat.sa` | `Aa123456!` |
-| Company Admin | `admin@alofok.sa` | `Aa123456!` |
+| Super Admin | `owner@hesabat.eg` | `Aa123456!` |
+| Company Admin | `admin@alofok.eg` | `Aa123456!` |
 
 ### Database commands
 

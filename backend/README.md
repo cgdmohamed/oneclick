@@ -35,8 +35,8 @@ npm run dev
 
 After `npm run db:seed`:
 
-- **Company Admin**: `admin@alofok.sa` / `Aa123456!`
-- **Super Admin**: `owner@hesabat.sa` / `Aa123456!`
+- **Company Admin**: `admin@alofok.eg` / `Aa123456!`
+- **Super Admin**: `owner@hesabat.eg` / `Aa123456!`
 
 ## Project structure
 

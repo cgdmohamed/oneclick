@@ -47,14 +47,14 @@ const seedOnce = () => {
   if (localStorage.getItem(SEED_FLAG)) return;
   localStorage.setItem(SEED_FLAG, '1');
   const seedEntries: Array<Omit<ActivityEntry, 'id'>> = [
-    { date: new Date(Date.now() - 1 * 3600000).toISOString(), module: 'auth', action: 'login', description: 'تسجيل دخول ناجح من 41.214.x.x — Chrome / Windows', userName: 'مالك المنصة', userEmail: 'owner@oneclick.sa' },
-    { date: new Date(Date.now() - 2 * 3600000).toISOString(), module: 'auth', action: 'denied', description: 'محاولة دخول فاشلة (كلمة مرور خاطئة) — البريد admin@unknown.sa', userName: 'مجهول', userEmail: 'admin@unknown.sa' },
-    { date: new Date(Date.now() - 5 * 3600000).toISOString(), module: 'role', action: 'create', description: 'تم إنشاء الدور المخصص «كاشير» (6 صلاحيات)', userName: 'مالك المنصة', userEmail: 'owner@oneclick.sa' },
-    { date: new Date(Date.now() - 7 * 3600000).toISOString(), module: 'user', action: 'assign', description: 'تغيير دور منى الشمري من «محاسب» إلى «مراجع مالي»', userName: 'مالك المنصة', userEmail: 'owner@oneclick.sa' },
-    { date: new Date(Date.now() - 1 * 86400000).toISOString(), module: 'permission', action: 'denied', description: 'حاول المستخدم ريم العتيبي حذف فاتورة — رُفض (صلاحية ناقصة)', userName: 'ريم العتيبي', userEmail: 'reem@alofok.sa' },
-    { date: new Date(Date.now() - 2 * 86400000).toISOString(), module: 'role', action: 'update', description: 'تعديل صلاحيات دور «محاسب» — إضافة تصدير التقارير', userName: 'مالك المنصة', userEmail: 'owner@oneclick.sa' },
-    { date: new Date(Date.now() - 3 * 86400000).toISOString(), module: 'auth', action: 'logout', description: 'خروج يدوي من الجلسة', userName: 'فهد الدوسري', userEmail: 'fahd@alofok.sa' },
-    { date: new Date(Date.now() - 4 * 86400000).toISOString(), module: 'user', action: 'create', description: 'تمت إضافة مستخدم جديد إلى شركة الأفق', userName: 'خالد العبدالله', userEmail: 'admin@alofok.sa' },
+    { date: new Date(Date.now() - 1 * 3600000).toISOString(), module: 'auth', action: 'login', description: 'تسجيل دخول ناجح من 41.214.x.x — Chrome / Windows', userName: 'مالك المنصة', userEmail: 'owner@oneclick.eg' },
+    { date: new Date(Date.now() - 2 * 3600000).toISOString(), module: 'auth', action: 'denied', description: 'محاولة دخول فاشلة (كلمة مرور خاطئة) — البريد admin@unknown.eg', userName: 'مجهول', userEmail: 'admin@unknown.eg' },
+    { date: new Date(Date.now() - 5 * 3600000).toISOString(), module: 'role', action: 'create', description: 'تم إنشاء الدور المخصص «كاشير» (6 صلاحيات)', userName: 'مالك المنصة', userEmail: 'owner@oneclick.eg' },
+    { date: new Date(Date.now() - 7 * 3600000).toISOString(), module: 'user', action: 'assign', description: 'تغيير دور منى الشمري من «محاسب» إلى «مراجع مالي»', userName: 'مالك المنصة', userEmail: 'owner@oneclick.eg' },
+    { date: new Date(Date.now() - 1 * 86400000).toISOString(), module: 'permission', action: 'denied', description: 'حاول المستخدم ريم العتيبي حذف فاتورة — رُفض (صلاحية ناقصة)', userName: 'ريم العتيبي', userEmail: 'reem@alofok.eg' },
+    { date: new Date(Date.now() - 2 * 86400000).toISOString(), module: 'role', action: 'update', description: 'تعديل صلاحيات دور «محاسب» — إضافة تصدير التقارير', userName: 'مالك المنصة', userEmail: 'owner@oneclick.eg' },
+    { date: new Date(Date.now() - 3 * 86400000).toISOString(), module: 'auth', action: 'logout', description: 'خروج يدوي من الجلسة', userName: 'فهد الدوسري', userEmail: 'fahd@alofok.eg' },
+    { date: new Date(Date.now() - 4 * 86400000).toISOString(), module: 'user', action: 'create', description: 'تمت إضافة مستخدم جديد إلى شركة الأفق', userName: 'خالد العبدالله', userEmail: 'admin@alofok.eg' },
   ];
   // Insert oldest first so newest stays on top
   [...seedEntries].reverse().forEach(e => logActivity(e));

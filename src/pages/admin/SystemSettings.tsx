@@ -10,7 +10,7 @@ import { getCurrencySymbol, setCurrencySymbol } from '@/lib/currency';
 const SystemSettings = () => {
   const [s, setS] = useState({
     appName: 'ون كليك',
-    supportEmail: 'support@oneclick.sa',
+    supportEmail: 'support@oneclick.eg',
     currency: getCurrencySymbol(),
     invoicePrefix: 'INV',
   });

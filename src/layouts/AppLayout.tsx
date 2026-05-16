@@ -283,7 +283,7 @@ const AppLayout = ({ kind = 'company' as 'company' | 'admin' }) => {
   useEffect(() => {
     if (!user) {
       // auto-demo login so previews work without forcing /login
-      login(kind === 'admin' ? 'owner@oneclick.sa' : 'admin@alofok.sa');
+      login(kind === 'admin' ? 'owner@oneclick.eg' : 'admin@alofok.eg');
     }
   }, [user, login, kind]);
   useEffect(() => {

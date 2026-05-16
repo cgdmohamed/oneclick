@@ -23,7 +23,7 @@ async function main() {
     const superHash = await bcrypt.hash('Aa123456!', 12);
     const superRes = await c.query(`
       INSERT INTO users (email, password_hash, name, is_super_admin, email_verified_at)
-      VALUES ('owner@hesabat.sa', $1, 'مالك حسابات', true, now())
+      VALUES ('owner@hesabat.eg', $1, 'مالك حسابات', true, now())
       ON CONFLICT (email) DO NOTHING
       RETURNING id;
     `, [superHash]);
@@ -34,7 +34,7 @@ async function main() {
     // Demo company + admin
     const compRes = await c.query(`
       INSERT INTO companies (name, legal_name, tax_number, email, phone, address, currency, vat_rate)
-      VALUES ('شركة الأفق التجارية','شركة الأفق التجارية المحدودة','310123456700003','info@alofok.sa','+966500000000','الرياض، حي العليا','SAR',15.00)
+      VALUES ('شركة الأفق التجارية','شركة الأفق التجارية المحدودة','310123456700003','info@alofok.eg','+2500000000','الرياض، حي العليا','SAR',15.00)
       RETURNING id;
     `);
     const companyId = compRes.rows[0].id;
@@ -42,7 +42,7 @@ async function main() {
     const adminHash = await bcrypt.hash('Aa123456!', 12);
     const adminRes = await c.query(`
       INSERT INTO users (email, password_hash, name, email_verified_at)
-      VALUES ('admin@alofok.sa', $1, 'مدير الأفق', now())
+      VALUES ('admin@alofok.eg', $1, 'مدير الأفق', now())
       ON CONFLICT (email) DO UPDATE SET name = EXCLUDED.name
       RETURNING id;
     `, [adminHash]);
@@ -63,9 +63,9 @@ async function main() {
 
     await c.query(`
       INSERT INTO clients (company_id, name, email, phone, tax_number) VALUES
-        ($1, 'مؤسسة النور',  'noor@example.com',  '+966511111111', '300000000000003'),
-        ($1, 'شركة البحر',   'sea@example.com',   '+966522222222', '300000000000013'),
-        ($1, 'متجر السلام',  'salam@example.com', '+966533333333', NULL);
+        ($1, 'مؤسسة النور',  'noor@example.com',  '+2511111111', '300000000000003'),
+        ($1, 'شركة البحر',   'sea@example.com',   '+2522222222', '300000000000013'),
+        ($1, 'متجر السلام',  'salam@example.com', '+2533333333', NULL);
     `, [companyId]);
 
     await c.query(`

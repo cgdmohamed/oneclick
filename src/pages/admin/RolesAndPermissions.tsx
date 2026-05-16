@@ -275,14 +275,14 @@ const RoleGenerator = () => {
       module: 'role',
       action: existed ? 'update' : 'create',
       description: existed ? `تم تعديل الدور «${r.name}»` : `تم إنشاء الدور المخصص «${r.name}» (${r.permissions.length} صلاحية)`,
-      userName: 'مالك المنصة', userEmail: 'owner@oneclick.sa',
+      userName: 'مالك المنصة', userEmail: 'owner@oneclick.eg',
     });
     toast.success(existed ? 'تم حفظ الدور' : 'تم إنشاء الدور');
   };
 
   const handleDelete = (r: CustomRole) => {
     remove(r.id);
-    logActivity({ module: 'role', action: 'delete', description: `حذف الدور «${r.name}»`, userName: 'مالك المنصة', userEmail: 'owner@oneclick.sa' });
+    logActivity({ module: 'role', action: 'delete', description: `حذف الدور «${r.name}»`, userName: 'مالك المنصة', userEmail: 'owner@oneclick.eg' });
     toast.success('تم حذف الدور');
   };
 
@@ -373,7 +373,7 @@ const UsersAndRoles = () => {
       logActivity({
         module: 'user', action: 'assign',
         description: `استعادة الدور الافتراضي «${roleLabel(original)}» للمستخدم ${userName}`,
-        userName: 'مالك المنصة', userEmail: 'owner@oneclick.sa',
+        userName: 'مالك المنصة', userEmail: 'owner@oneclick.eg',
       });
     } else {
       set(userId, newRole);
@@ -383,7 +383,7 @@ const UsersAndRoles = () => {
       logActivity({
         module: 'user', action: 'assign',
         description: `تغيير دور ${userName} من «${roleLabel(prev)}» إلى «${newLabel}»`,
-        userName: 'مالك المنصة', userEmail: 'owner@oneclick.sa',
+        userName: 'مالك المنصة', userEmail: 'owner@oneclick.eg',
       });
     }
     toast.success('تم تحديث الدور');

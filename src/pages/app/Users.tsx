@@ -289,7 +289,7 @@ const Users = () => {
               <Label>رقم الجوال <span className="text-muted-foreground text-xs">(اختياري)</span></Label>
               <Input className="mt-1.5" dir="ltr" value={invite.phone}
                 onChange={(e) => setInvite((s) => ({ ...s, phone: e.target.value }))}
-                placeholder="+9665XXXXXXXX" maxLength={20} />
+                placeholder="+25XXXXXXXX" maxLength={20} />
             </div>
             <div className="sm:col-span-2">
               <Label>الدور والصلاحيات</Label>

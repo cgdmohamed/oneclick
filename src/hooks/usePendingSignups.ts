@@ -32,11 +32,11 @@ const EVT = 'oneclick-pending-signups-change';
 const daysAgo = (n: number) => new Date(Date.now() - n * 86400000).toISOString();
 
 const seed: PendingSignup[] = [
-  { id: 'ps-1', companyName: 'مؤسسة الفجر للتجارة', ownerName: 'عبدالرحمن المالكي', email: 'fajr@example.sa', phone: '+966551234567', requestedAt: daysAgo(0), status: 'pending' },
-  { id: 'ps-2', companyName: 'شركة الديار العقارية', ownerName: 'ليلى الزهراني', email: 'diyar@example.sa', phone: '+966551234568', requestedAt: daysAgo(1), status: 'pending' },
-  { id: 'ps-3', companyName: 'متجر الرفاهية', ownerName: 'سعد الغامدي', email: 'rifahia@example.sa', phone: '+966551234569', requestedAt: daysAgo(2), status: 'pending' },
-  { id: 'ps-4', companyName: 'بيت الإبداع للتسويق', ownerName: 'نوف القرني', email: 'ebda3@example.sa', phone: '+966551234570', requestedAt: daysAgo(4), status: 'approved', planId: 'plan-pro', cycle: 'yearly', reviewedAt: daysAgo(3), reviewedBy: 'مالك المنصة' },
-  { id: 'ps-5', companyName: 'تكنو سوفت', ownerName: 'مجهول', email: 'spam@example.sa', requestedAt: daysAgo(6), status: 'declined', reason: 'بيانات غير مكتملة / مشتبه به', reviewedAt: daysAgo(5), reviewedBy: 'مالك المنصة' },
+  { id: 'ps-1', companyName: 'مؤسسة الفجر للتجارة', ownerName: 'عبدالرحمن المالكي', email: 'fajr@example.eg', phone: '+2551234567', requestedAt: daysAgo(0), status: 'pending' },
+  { id: 'ps-2', companyName: 'شركة الديار العقارية', ownerName: 'ليلى الزهراني', email: 'diyar@example.eg', phone: '+2551234568', requestedAt: daysAgo(1), status: 'pending' },
+  { id: 'ps-3', companyName: 'متجر الرفاهية', ownerName: 'سعد الغامدي', email: 'rifahia@example.eg', phone: '+2551234569', requestedAt: daysAgo(2), status: 'pending' },
+  { id: 'ps-4', companyName: 'بيت الإبداع للتسويق', ownerName: 'نوف القرني', email: 'ebda3@example.eg', phone: '+2551234570', requestedAt: daysAgo(4), status: 'approved', planId: 'plan-pro', cycle: 'yearly', reviewedAt: daysAgo(3), reviewedBy: 'مالك المنصة' },
+  { id: 'ps-5', companyName: 'تكنو سوفت', ownerName: 'مجهول', email: 'spam@example.eg', requestedAt: daysAgo(6), status: 'declined', reason: 'بيانات غير مكتملة / مشتبه به', reviewedAt: daysAgo(5), reviewedBy: 'مالك المنصة' },
 ];
 
 const read = (): PendingSignup[] => {

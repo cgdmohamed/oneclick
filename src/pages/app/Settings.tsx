@@ -85,8 +85,8 @@ const Settings = () => {
   const [profile, setProfile] = useState<CompanyProfile>({
     name: 'شركة الأفق للتجارة',
     ownerName: 'أحمد عبدالله',
-    email: 'info@alofok.sa',
-    phone: '+966551112233',
+    email: 'info@alofok.eg',
+    phone: '+2551112233',
     taxNumber: '300123456700003',
     commercialReg: '1010234567',
     country: 'المملكة العربية السعودية',
