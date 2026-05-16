@@ -103,6 +103,16 @@ const AppShellInner = ({ kind }: { kind: 'company' | 'admin' }) => {
   const featureSet = useCurrentFeatureSet();
   const sentAlerts = useSyncExternalStore(subscribeSentAlerts, getSentAlerts, getSentAlerts);
   const unreadCount = sentAlerts.filter(a => !a.read).length;
+  const [onboardingOpen, setOnboardingOpen] = useState(false);
+
+  useEffect(() => {
+    if (kind !== 'company' || !user?.id) return;
+    if (!isOnboardingDone(user.id)) {
+      const t = setTimeout(() => setOnboardingOpen(true), 600);
+      return () => clearTimeout(t);
+    }
+  }, [kind, user?.id]);
+
   const nav = kind === 'admin'
     ? adminNav
     : companyNav.filter((item) => !('feature' in item) || !item.feature || featureSet.has(item.feature));
