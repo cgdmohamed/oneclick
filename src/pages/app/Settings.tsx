@@ -1,4 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { loadSmtp, saveSmtp, type SmtpSettings, emptySmtp } from '@/lib/smtpSettings';
+import { Switch } from '@/components/ui/switch';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card } from '@/components/ui/card';
@@ -230,13 +233,38 @@ const Settings = () => {
         description="بيانات الشركة والعنوان والعملة ومعاينة الفاتورة"
         actions={<SaveIndicator status={saveStatus} />}
       />
-      <Tabs defaultValue="company">
+      <SettingsTabs profile={profile} setP={setP} invoiceCfg={invoiceCfg} setI={setI} client={client} setC={setC} clientErrors={clientErrors} CURRENCIES={CURRENCIES} onCurrencyChange={onCurrencyChange} saveStatus={saveStatus} fullAddress={fullAddress} previewRef={previewRef} />
+    </div>
+  );
+};
+
+interface SettingsTabsProps {
+  profile: CompanyProfile;
+  setP: (patch: Partial<CompanyProfile>) => void;
+  invoiceCfg: InvoiceConfig;
+  setI: (patch: Partial<InvoiceConfig>) => void;
+  client: ClientInfo;
+  setC: (patch: Partial<ClientInfo>) => void;
+  clientErrors: Partial<Record<keyof ClientInfo, string>>;
+  CURRENCIES: typeof CURRENCIES;
+  onCurrencyChange: (code: string) => void;
+  saveStatus: 'idle' | 'saving' | 'saved';
+  fullAddress: string;
+  previewRef: React.RefObject<HTMLDivElement>;
+}
+
+const SettingsTabs = ({ profile, setP, invoiceCfg, setI, client, setC, clientErrors, onCurrencyChange, saveStatus, fullAddress, previewRef }: SettingsTabsProps) => {
+  const [params, setParams] = useSearchParams();
+  const tab = params.get('tab') || 'company';
+  return (
+    <Tabs value={tab} onValueChange={(v) => setParams({ tab: v }, { replace: true })}>
         <TabsList>
           <TabsTrigger value="company">بيانات الشركة</TabsTrigger>
           <TabsTrigger value="address">العنوان</TabsTrigger>
           <TabsTrigger value="invoice">الفاتورة والعملة</TabsTrigger>
           <TabsTrigger value="client">بيانات العميل</TabsTrigger>
           <TabsTrigger value="identity">الهوية والختم</TabsTrigger>
+          <TabsTrigger value="smtp">البريد (SMTP)</TabsTrigger>
         </TabsList>
 
         <TabsContent value="company" className="mt-4">
