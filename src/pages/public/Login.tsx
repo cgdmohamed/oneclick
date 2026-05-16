@@ -10,8 +10,8 @@ import { isApiConfigured, loginRequest, ApiError } from '@/lib/api';
 import { toast } from 'sonner';
 
 const Login = () => {
-  const [email, setEmail] = useState('admin@alofok.sa');
-  const [password, setPassword] = useState('Aa123456!');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
