@@ -8,6 +8,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { SentAlertsCenter } from '@/components/common/SentAlertsCenter';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
   ArrowRight, Phone, Mail, MapPin, FileBadge2, FileText, CreditCard,
