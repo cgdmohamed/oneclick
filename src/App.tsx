@@ -47,6 +47,9 @@ import SystemNotifications from "./pages/admin/SystemNotifications";
 import SystemSettings from "./pages/admin/SystemSettings";
 import LandingContent from "./pages/admin/LandingContent";
 import TrackingSettings from "./pages/admin/TrackingSettings";
+import Analytics from "./pages/admin/Analytics";
+import Users360 from "./pages/admin/Users360";
+import UserDetail360 from "./pages/admin/UserDetail360";
 
 import { TrackingScripts } from "./components/common/TrackingScripts";
 
@@ -107,6 +110,9 @@ const App = () => (
               <Route path="notifications" element={<SystemNotifications />} />
               <Route path="landing" element={<LandingContent />} />
               <Route path="tracking" element={<TrackingSettings />} />
+              <Route path="analytics" element={<Analytics />} />
+              <Route path="users" element={<Users360 />} />
+              <Route path="users/:id" element={<UserDetail360 />} />
               <Route path="settings" element={<SystemSettings />} />
             </Route>
 
