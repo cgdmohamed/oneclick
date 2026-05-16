@@ -1,8 +1,16 @@
-import { useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import { QrCode, Upload, RotateCcw, Download } from 'lucide-react';
 import { toast } from 'sonner';
-import { useInvoiceQr, qrStorageKey, notifyQrChange } from '@/hooks/useInvoiceQr';
+import {
+  useInvoiceQr,
+  qrStorageKey,
+  notifyQrChange,
+  isQrPublicVisible,
+  setQrPublicVisible,
+} from '@/hooks/useInvoiceQr';
 
 interface Props {
   invoiceId: string;
