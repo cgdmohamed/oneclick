@@ -9,7 +9,14 @@ declare module 'express-serve-static-core' {
       companyId: string;
       isSuperAdmin: boolean;
       roles: string[];
-      /** Pre-acquired Postgres client with tenant context set; release in `finally`. */
+      /**
+       * Postgres client with an OPEN TRANSACTION and tenant context applied
+       * via `SET LOCAL`. Settings are scoped to this transaction only and
+       * cannot leak to the next request on the same pooled connection.
+       *
+       * Do not call BEGIN/COMMIT manually inside handlers — the middleware
+       * commits on a 2xx/3xx response and rolls back on >=400 or `close`.
+       */
       db: pg.PoolClient;
       release: () => void;
     };
@@ -17,13 +24,16 @@ declare module 'express-serve-static-core' {
 }
 
 /**
- * Resolves the active company for the request:
- *   - explicit header `x-company-id` (must belong to user)
- *   - default user_companies row
- * Then opens a DB client with `app.current_company` and `app.current_user` set,
- * which RLS policies rely on. Caller MUST call req.tenant.release() at end.
+ * Resolves the active company, opens a dedicated pg client in a transaction,
+ * and sets `app.current_company` / `app.current_user` with TRANSACTION scope
+ * (`SET LOCAL`) so that RLS policies cannot leak across requests via the pool.
+ *
+ * The transaction is committed when the response finishes successfully
+ * (<400) and rolled back otherwise. This also makes every authenticated
+ * handler atomic by default — no more partial writes when an INSERT in the
+ * middle of a multi-step flow throws.
  */
-export async function tenantContext(req: Request, _res: Response, next: NextFunction) {
+export async function tenantContext(req: Request, res: Response, next: NextFunction) {
   if (!req.auth) return next(unauthorized());
   const userId = req.auth.userId;
 
@@ -50,7 +60,6 @@ export async function tenantContext(req: Request, _res: Response, next: NextFunc
     if (!ok.rowCount) return next(forbidden('Not a member of this company'));
   }
 
-  // Super admin endpoints may operate without a company context.
   const rolesRes = await pool.query(
     `SELECT role FROM user_roles WHERE user_id = $1 AND (company_id = $2 OR company_id IS NULL)`,
     [userId, companyId],
@@ -58,11 +67,25 @@ export async function tenantContext(req: Request, _res: Response, next: NextFunc
   const roles: string[] = rolesRes.rows.map((r) => r.role);
 
   const client = await pool.connect();
+  let released = false;
+  const settle = async (commit: boolean) => {
+    if (released) return;
+    released = true;
+    try {
+      await client.query(commit ? 'COMMIT' : 'ROLLBACK');
+    } catch { /* ignore */ }
+    finally { client.release(); }
+  };
+
   try {
-    if (companyId) await client.query(`SELECT set_config('app.current_company', $1, false)`, [companyId]);
-    await client.query(`SELECT set_config('app.current_user', $1, false)`, [userId]);
+    await client.query('BEGIN');
+    // SET LOCAL — tenant context dies with the transaction, cannot leak.
+    if (companyId) {
+      await client.query(`SELECT set_config('app.current_company', $1, true)`, [companyId]);
+    }
+    await client.query(`SELECT set_config('app.current_user', $1, true)`, [userId]);
   } catch (e) {
-    client.release();
+    await settle(false);
     return next(e as Error);
   }
 
@@ -71,13 +94,12 @@ export async function tenantContext(req: Request, _res: Response, next: NextFunc
     isSuperAdmin,
     roles,
     db: client,
-    release: () => client.release(),
+    release: () => { void settle(false); },
   };
 
-  // Auto-release on response end
-  const origEnd = _res.end.bind(_res);
-  // @ts-expect-error narrow
-  _res.end = (...args: unknown[]) => { try { req.tenant?.release(); } catch {} return origEnd(...args); };
+  // Commit on 2xx/3xx, roll back otherwise.
+  res.on('finish', () => { void settle(res.statusCode < 400); });
+  res.on('close', () => { void settle(false); });
 
   next();
 }

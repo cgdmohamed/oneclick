@@ -1,18 +1,26 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { pool } from '../../db/client.js';
 import { notFound } from '../../utils/errors.js';
+import { requireRole } from '../../middleware/rbac.js';
 
 const router = Router();
 
 router.get('/me', async (req, res, next) => {
   try {
     const t = req.tenant!;
-    const rs = await pool.query(`SELECT * FROM companies WHERE id = $1`, [t.companyId]);
+    const rs = await t.db.query(`SELECT * FROM companies WHERE id = $1`, [t.companyId]);
     if (!rs.rowCount) throw notFound();
     res.json({ data: rs.rows[0] });
   } catch (e) { next(e); }
 });
+
+// SEC-09: explicit allow-list — never interpolate caller-controlled keys.
+const UPDATABLE = [
+  'name', 'legal_name', 'tax_number', 'commercial_register',
+  'email', 'phone', 'address', 'logo_url', 'stamp_url',
+  'invoice_prefix', 'invoice_year_format', 'invoice_padding',
+  'invoice_separator', 'currency', 'vat_rate',
+] as const;
 
 const updateSchema = z.object({
   name: z.string().min(1).optional(),
@@ -32,15 +40,20 @@ const updateSchema = z.object({
   vat_rate: z.coerce.number().min(0).max(100).optional(),
 });
 
-router.patch('/me', async (req, res, next) => {
+// SEC-06: only company_admin may rewrite tax / numbering / branding data.
+router.patch('/me', requireRole('company_admin'), async (req, res, next) => {
   try {
     const t = req.tenant!;
     const body = updateSchema.parse(req.body);
-    const fields = Object.keys(body);
+    const fields = (Object.keys(body) as Array<keyof typeof body>)
+      .filter((k) => (UPDATABLE as readonly string[]).includes(k as string));
     if (fields.length === 0) return res.json({ data: null });
     const set = fields.map((f, i) => `${f} = $${i + 1}`).join(', ');
-    const values = [...Object.values(body), t.companyId];
-    const rs = await pool.query(`UPDATE companies SET ${set} WHERE id = $${values.length} RETURNING *`, values);
+    const values = [...fields.map((f) => (body as Record<string, unknown>)[f as string]), t.companyId];
+    const rs = await t.db.query(
+      `UPDATE companies SET ${set}, updated_at = now() WHERE id = $${values.length} RETURNING *`,
+      values,
+    );
     res.json({ data: rs.rows[0] });
   } catch (e) { next(e); }
 });

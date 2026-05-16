@@ -105,10 +105,17 @@ router.post('/', enforceInvoiceLimit(), async (req, res, next) => {
       `, [t.companyId, invoice.id, it.product_id ?? null, it.description, it.quantity, it.unit_price, it.vat_rate, line]);
 
       if (it.product_id) {
-        await t.db.query(
-          `UPDATE products SET quantity = quantity - $1 WHERE id = $2 AND company_id = $3`,
+        // DAT-05: refuse to oversell. The CHECK-style update returns 0 rows
+        // when the product would go negative; we surface a clean 400.
+        const stock = await t.db.query(
+          `UPDATE products SET quantity = quantity - $1
+           WHERE id = $2 AND company_id = $3 AND quantity >= $1
+           RETURNING id`,
           [it.quantity, it.product_id, t.companyId],
         );
+        if (!stock.rowCount) {
+          throw badRequest(`Insufficient stock for "${it.description}"`);
+        }
       }
     }
 
