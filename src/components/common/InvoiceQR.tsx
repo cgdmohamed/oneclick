@@ -21,6 +21,15 @@ interface Props {
 export const InvoiceQR = ({ invoiceId, value, invoiceNumber }: Props) => {
   const { src, custom } = useInvoiceQr(invoiceId, value);
   const fileRef = useRef<HTMLInputElement>(null);
+  const [publicVisible, setPublicVisibleState] = useState(true);
+
+  useEffect(() => { setPublicVisibleState(isQrPublicVisible(invoiceId)); }, [invoiceId]);
+
+  const togglePublic = (v: boolean) => {
+    setPublicVisibleState(v);
+    setQrPublicVisible(invoiceId, v);
+    toast.success(v ? 'سيظهر QR في الصفحة العامة' : 'تم إخفاء QR من الصفحة العامة');
+  };
 
   const onUpload = (file: File) => {
     if (!file.type.startsWith('image/')) return toast.error('يجب اختيار ملف صورة');
