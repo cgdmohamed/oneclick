@@ -1,38 +1,38 @@
 /**
- * BrandLogo — single source of truth for the SaaS wordmark.
+ * BrandLogo — single source of truth for the SaaS wordmark/mark.
  *
- * Renders the uploaded logo image when configured; otherwise renders the
- * brand name as a typographic wordmark (no icon). Replaces every hardcoded
- * `Calculator + "ون كليك"` instance across the app so super-admins can
- * rebrand the platform from one place.
+ * Two variants:
+ *  - "full" (default): horizontal lockup. Prefers logoFullUrl → logoIconUrl → typographic wordmark.
+ *  - "icon":           square mark. Prefers logoIconUrl → logoFullUrl → monogram from brand name.
  */
-import { useBrand } from '@/lib/brand';
+import { useBrand, brandMonogram } from '@/lib/brand';
 import { cn } from '@/lib/utils';
 
 type Size = 'sm' | 'md' | 'lg' | 'xl';
+type Variant = 'full' | 'icon';
 
-const sizeMap: Record<Size, { img: string; text: string }> = {
-  sm: { img: 'h-7',  text: 'text-base' },
-  md: { img: 'h-9',  text: 'text-lg' },
-  lg: { img: 'h-10', text: 'text-xl' },
-  xl: { img: 'h-12', text: 'text-2xl' },
+const sizeMap: Record<Size, { img: string; iconBox: string; text: string; mono: string }> = {
+  sm: { img: 'h-7',  iconBox: 'h-7 w-7',   text: 'text-base', mono: 'text-sm' },
+  md: { img: 'h-9',  iconBox: 'h-9 w-9',   text: 'text-lg',   mono: 'text-base' },
+  lg: { img: 'h-10', iconBox: 'h-10 w-10', text: 'text-xl',   mono: 'text-lg' },
+  xl: { img: 'h-12', iconBox: 'h-12 w-12', text: 'text-2xl',  mono: 'text-xl' },
 };
 
 interface BrandLogoProps {
-  /** Visual scale. */
   size?: Size;
-  /** Force text-only wordmark even when a logo image is configured. */
+  /** Which variant to render. Defaults to 'full'. */
+  variant?: Variant;
+  /** Force the typographic/monogram fallback even when an image is configured. */
   textOnly?: boolean;
-  /** Override foreground color (defaults to currentColor — inherits from parent). */
   className?: string;
-  /** Show tagline under the wordmark (used in footer / sidebar header). */
+  /** Show tagline alongside the wordmark (full variant only). */
   withTagline?: boolean;
-  /** Override alt text on the image. */
   alt?: string;
 }
 
 export const BrandLogo = ({
   size = 'md',
+  variant = 'full',
   textOnly = false,
   className,
   withTagline = false,
@@ -41,6 +41,41 @@ export const BrandLogo = ({
   const { brand } = useBrand();
   const s = sizeMap[size];
 
+  // Pick the image source per variant, with cross-variant fallback.
+  const src = variant === 'icon'
+    ? (brand.logoIconUrl || brand.logoFullUrl)
+    : (brand.logoFullUrl || brand.logoIconUrl);
+
+  // ICON variant: square image or monogram.
+  if (variant === 'icon') {
+    if (!textOnly && src) {
+      return (
+        <img
+          src={src}
+          alt={alt ?? brand.name}
+          className={cn(s.iconBox, 'object-contain select-none', className)}
+          draggable={false}
+        />
+      );
+    }
+    return (
+      <span
+        className={cn(
+          s.iconBox,
+          s.mono,
+          brand.fontWeight,
+          'inline-flex items-center justify-center rounded-md bg-primary/10 text-primary leading-none',
+          className,
+        )}
+        style={{ fontFamily: brand.fontFamily }}
+        aria-label={brand.name}
+      >
+        {brandMonogram(brand.name)}
+      </span>
+    );
+  }
+
+  // FULL variant: horizontal lockup with optional tagline.
   const Wordmark = (
     <span
       className={cn(s.text, brand.fontWeight, brand.tracking, 'leading-none')}
@@ -52,9 +87,9 @@ export const BrandLogo = ({
 
   return (
     <span className={cn('inline-flex items-center gap-2', className)}>
-      {!textOnly && brand.logoUrl ? (
+      {!textOnly && src ? (
         <img
-          src={brand.logoUrl}
+          src={src}
           alt={alt ?? brand.name}
           className={cn(s.img, 'w-auto object-contain select-none')}
           draggable={false}
@@ -69,7 +104,7 @@ export const BrandLogo = ({
           )}
         </span>
       )}
-      {!textOnly && brand.logoUrl && withTagline && brand.tagline && (
+      {!textOnly && src && withTagline && brand.tagline && (
         <span className="text-[10px] text-muted-foreground leading-none">
           {brand.tagline}
         </span>
