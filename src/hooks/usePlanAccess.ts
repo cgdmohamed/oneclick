@@ -19,19 +19,29 @@ type Store = Record<string, PlanAccess>;
 const listeners = new Set<() => void>();
 const emit = () => listeners.forEach((l) => l());
 
+let cachedRaw: string | null = null;
+let cachedSnapshot: Store = {};
+
 const read = (): Store => {
   try {
     const raw = localStorage.getItem(KEY);
-    return raw ? (JSON.parse(raw) as Store) : {};
-  } catch { return {}; }
+    if (raw === cachedRaw) return cachedSnapshot;
+    cachedRaw = raw;
+    cachedSnapshot = raw ? (JSON.parse(raw) as Store) : {};
+    return cachedSnapshot;
+  } catch { return cachedSnapshot; }
 };
 const write = (s: Store) => {
-  localStorage.setItem(KEY, JSON.stringify(s));
+  const raw = JSON.stringify(s);
+  localStorage.setItem(KEY, raw);
+  cachedRaw = raw;
+  cachedSnapshot = s;
   emit();
 };
 
 const seed = (): Store => {
-  const s = read();
+  const current = read();
+  const s = { ...current };
   let mutated = false;
   for (const p of mockPlans) {
     if (s[p.id]) continue;
@@ -42,20 +52,21 @@ const seed = (): Store => {
     };
     mutated = true;
   }
-  if (mutated) localStorage.setItem(KEY, JSON.stringify(s));
+  if (mutated) write(s);
   return s;
 };
 
 const subscribe = (cb: () => void) => {
   listeners.add(cb);
-  const onStorage = (e: StorageEvent) => { if (e.key === KEY) cb(); };
+  const onStorage = (e: StorageEvent) => { if (e.key === KEY) { cachedRaw = null; cb(); } };
   window.addEventListener('storage', onStorage);
   return () => { listeners.delete(cb); window.removeEventListener('storage', onStorage); };
 };
 
+let seeded = false;
 export const usePlanAccessStore = () => {
-  useEffect(() => { seed(); }, []);
-  return useSyncExternalStore(subscribe, read, () => ({} as Store));
+  if (!seeded) { seeded = true; seed(); }
+  return useSyncExternalStore(subscribe, read, () => cachedSnapshot);
 };
 
 export const useSetPlanAccess = () => {
