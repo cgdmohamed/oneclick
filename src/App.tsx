@@ -40,7 +40,7 @@ import AdminOverview from "./pages/admin/AdminOverview";
 import Companies from "./pages/admin/Companies";
 import Plans from "./pages/admin/Plans";
 import Subscriptions from "./pages/admin/Subscriptions";
-import AdminPayments from "./pages/admin/AdminPayments";
+
 import PlatformWallets from "./pages/admin/PlatformWallets";
 import FeatureAccess from "./pages/admin/FeatureAccess";
 import SystemNotifications from "./pages/admin/SystemNotifications";
