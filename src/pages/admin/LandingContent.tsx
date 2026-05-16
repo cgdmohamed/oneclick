@@ -297,6 +297,18 @@ const Area = ({ label, value, onChange, rows = 3, className }: { label: string; 
   </div>
 );
 
+const NumberField = ({ label, value, onChange, min, max, step = 1 }: { label: string; value: number; onChange: (v: number) => void; min?: number; max?: number; step?: number }) => (
+  <div>
+    <Label className="text-xs">{label}</Label>
+    <Input
+      type="number" min={min} max={max} step={step}
+      className="mt-1.5"
+      value={value}
+      onChange={(e) => onChange(Number(e.target.value))}
+    />
+  </div>
+);
+
 const SelectField = ({ label, value, options, onChange }: { label: string; value: string; options: { value: string; label: string }[]; onChange: (v: string) => void }) => (
   <div>
     <Label className="text-xs">{label}</Label>
