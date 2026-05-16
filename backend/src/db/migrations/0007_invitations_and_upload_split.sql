@@ -26,4 +26,8 @@ CREATE INDEX IF NOT EXISTS invitations_email_idx   ON invitations(lower(email));
 -- SEC-04: Mark uploads as either public (logos/stamps embedded in public
 -- invoices) or private (attachments). Backfill existing rows based on kind.
 ALTER TABLE uploads ADD COLUMN IF NOT EXISTS is_public boolean NOT NULL DEFAULT false;
+ALTER TABLE uploads ADD COLUMN IF NOT EXISTS disk_name varchar(255);
 UPDATE uploads SET is_public = true WHERE kind IN ('logo','stamp');
+-- Backfill disk_name from the existing url for legacy rows (basename only).
+UPDATE uploads SET disk_name = regexp_replace(url, '^.*/', '')
+ WHERE disk_name IS NULL AND url IS NOT NULL;
