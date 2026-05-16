@@ -36,7 +36,7 @@ const adminNav = [
   { to: '/admin/users', label: 'المشتركين', icon: UserSearch },
   { to: '/admin/plans', label: 'الباقات', icon: Layers },
   { to: '/admin/subscriptions', label: 'الاشتراكات', icon: FileText },
-  { to: '/admin/payments', label: 'التحصيلات', icon: Receipt },
+  
   { to: '/admin/wallets', label: 'محافظ التحصيل', icon: Wallet },
   { to: '/admin/feature-access', label: 'الصلاحيات حسب الباقة', icon: ToggleRight },
   { to: '/admin/roles', label: 'الأدوار والصلاحيات', icon: ShieldCheck },
