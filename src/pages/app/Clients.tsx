@@ -84,6 +84,10 @@ const Clients = () => {
     { key: 'email', header: 'البريد', cell: r => <span className="text-sm text-muted-foreground">{r.email || '—'}</span> },
     { key: 'address', header: 'العنوان', cell: r => <span className="text-sm text-muted-foreground">{r.address || '—'}</span> },
     { key: 'tax', header: 'الرقم الضريبي', cell: r => <span className="text-sm">{r.taxNumber || '—'}</span> },
+    { key: 'currency', header: 'العملة', cell: r => {
+      const c = CURRENCIES.find(x => x.code === r.currency);
+      return <span className="text-sm">{c ? `${c.name} (${c.symbol})` : (r.currencySymbol || '—')}</span>;
+    }},
     { key: 'created', header: 'تاريخ الإضافة', cell: r => <span className="text-xs text-muted-foreground">{formatDateShort(r.createdAt)}</span> },
     { key: 'actions', header: '', cell: r => (
       <div className="flex justify-end gap-1">
