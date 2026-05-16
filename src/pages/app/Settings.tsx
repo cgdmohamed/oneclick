@@ -16,6 +16,7 @@ import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import { toast } from 'sonner';
 import { api, isApiConfigured, resolveAssetUrl } from '@/lib/api';
+import { setCurrencySymbol, getCurrencySymbol } from '@/lib/currency';
 
 interface CompanyProfile {
   name: string;
@@ -136,7 +137,10 @@ const Settings = () => {
 
   const onCurrencyChange = (code: string) => {
     const c = CURRENCIES.find(x => x.code === code);
-    if (c) setI({ currency: c.code, currencySymbol: c.symbol });
+    if (c) {
+      setI({ currency: c.code, currencySymbol: c.symbol });
+      setCurrencySymbol(c.symbol);
+    }
   };
 
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
