@@ -72,6 +72,7 @@ const pageKey = (kind: 'company' | 'admin', pathname: string): string => {
   if (pathname.startsWith('/app/accounts')) return 'accounts';
   if (pathname.startsWith('/app/products')) return 'products';
   if (pathname.startsWith('/app/reports')) return 'reports';
+  if (pathname.startsWith('/app/alerts-log')) return 'alerts-log';
   if (pathname.startsWith('/app/notifications')) return 'notifications';
   if (pathname.startsWith('/app/users')) return 'users';
   if (pathname.startsWith('/app/activity')) return 'activity';
