@@ -35,15 +35,6 @@ const ReportDetail = () => {
   const [to, setTo] = useState('');
   const [applied, setApplied] = useState<{ from: string; to: string }>({ from: '', to: '' });
 
-  const inRange = (dateStr?: string) => {
-    if (!dateStr) return true;
-    if (applied.from && dateStr < applied.from) return false;
-    if (applied.to && dateStr > applied.to) return false;
-    return true;
-  };
-  const filteredInvoices = useMemo(() => invoices.filter((i) => inRange(i.issueDate)), [invoices, applied]);
-  const filteredPayments = useMemo(() => flatPayments.filter((p) => inRange(p.date)), [flatPayments, applied]);
-
   const { list: clients } = useClients();
   const { list: accounts } = useAccounts();
   const { list: invoices } = useInvoices();
@@ -75,6 +66,15 @@ const ReportDetail = () => {
       })),
     );
   }, [apiOn, paymentsQuery.data]);
+
+  const inRange = (dateStr?: string) => {
+    if (!dateStr) return true;
+    if (applied.from && dateStr < applied.from) return false;
+    if (applied.to && dateStr > applied.to) return false;
+    return true;
+  };
+  const filteredInvoices = useMemo(() => invoices.filter((i) => inRange(i.issueDate)), [invoices, applied]);
+  const filteredPayments = useMemo(() => flatPayments.filter((p) => inRange(p.date)), [flatPayments, applied]);
 
   const renderTable = () => {
     if (type === 'invoices') {
