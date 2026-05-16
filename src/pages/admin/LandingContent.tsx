@@ -156,7 +156,14 @@ const LandingContentAdmin = () => {
               addLabel="إضافة شعار/عميل"
               create={() => ({ id: newId('l'), name: '' })}
               render={(it, set) => (
-                <Field label="اسم الشركة" value={it.name} onChange={(v) => set({ ...it, name: v })} />
+                <div className="space-y-3 flex-1">
+                  <Field label="اسم الشركة" value={it.name} onChange={(v) => set({ ...it, name: v })} />
+                  <ImageUploadField
+                    label="شعار الشركة (اختياري — يظهر بدلاً من الاسم)"
+                    value={it.logoUrl ?? ''}
+                    onChange={(v) => set({ ...it, logoUrl: v || undefined })}
+                  />
+                </div>
               )}
             />
           </Card>
