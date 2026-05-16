@@ -4,6 +4,7 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { BrandLogo } from '@/components/common/BrandLogo';
 import { Link, useNavigate } from 'react-router-dom';
+import { ArrowRight } from 'lucide-react';
 import { useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { isApiConfigured, loginRequest, ApiError } from '@/lib/api';
@@ -49,11 +50,15 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] grid lg:grid-cols-2">
+    <div className="min-h-screen grid lg:grid-cols-2">
       <div className="flex items-center justify-center p-8">
         <Card className="w-full max-w-md p-8 border-border/60 shadow-soft">
-          <div className="mb-6">
+          <div className="flex items-center justify-between mb-6">
             <BrandLogo size="lg" />
+            <Link to="/" className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
+              <ArrowRight className="h-4 w-4" />
+              الرئيسية
+            </Link>
           </div>
           <h1 className="text-2xl font-bold">مرحباً بعودتك</h1>
           <p className="text-sm text-muted-foreground mt-1.5">سجّل دخولك للوصول إلى لوحة التحكم.</p>

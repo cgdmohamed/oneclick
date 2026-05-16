@@ -24,12 +24,15 @@ const publicKey = (path: string): string => {
   return 'home';
 };
 
+const AUTH_PATHS = ['/login', '/register', '/forgot-password', '/reset-password'];
+
 const PublicLayout = () => {
   const [open, setOpen] = useState(false);
   const { pathname } = useLocation();
+  const isAuthPage = AUTH_PATHS.some(p => pathname.startsWith(p));
   return (
     <div className="min-h-screen flex flex-col bg-background" data-public={publicKey(pathname)}>
-      <header className="sticky top-0 z-40 bg-background/85 backdrop-blur-md border-b border-border/60">
+      <header className={cn("sticky top-0 z-40 bg-background/85 backdrop-blur-md border-b border-border/60", isAuthPage && "hidden")}>
         <div className="container flex items-center justify-between h-16">
           <Link to="/" className="flex items-center gap-2.5 font-bold text-lg" aria-label="الصفحة الرئيسية">
             <BrandLogo size="md" />
@@ -69,7 +72,7 @@ const PublicLayout = () => {
       <main className="flex-1">
         <Outlet />
       </main>
-      <footer className="border-t border-border/60 bg-card/50 mt-16">
+      <footer className={cn("border-t border-border/60 bg-card/50 mt-16", isAuthPage && "hidden")}>
         <div className="container py-10 grid md:grid-cols-4 gap-8">
           <div>
             <div className="mb-3">
