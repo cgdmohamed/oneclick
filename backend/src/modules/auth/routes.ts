@@ -103,17 +103,18 @@ router.post('/register', async (req, res, next) => {
       await c.query('COMMIT');
 
       const access = signAccess(userId);
-      const refresh = signRefresh(userId);
-      await pool.query(
-        `INSERT INTO refresh_tokens (user_id, token_hash, expires_at) VALUES ($1,$2, now() + interval '30 days')`,
-        [userId, sha(refresh)],
-      );
+      const refresh = await issueRefreshToken(pool, userId, req);
       await audit(pool, {
         companyId, userId,
         action: 'auth.register', entity: 'user', entityId: userId,
         data: { email: body.email, companyName: body.companyName },
       });
-      res.json({ access_token: access, refresh_token: refresh, user: { id: userId, email: body.email, name: body.name }, company: { id: companyId, name: body.companyName } });
+      setRefreshCookie(res, refresh);
+      res.json({
+        access_token: access,
+        user: { id: userId, email: body.email, name: body.name },
+        company: { id: companyId, name: body.companyName },
+      });
     } catch (e) {
       await c.query('ROLLBACK');
       throw e;
