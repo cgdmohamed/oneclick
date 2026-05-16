@@ -96,7 +96,6 @@
   [data-page="admin-companies"]     { --page-accent: 200 80% 38%; --page-accent-2: 198 85% 50%; }
   [data-page="admin-plans"]         { --page-accent: 270 60% 48%; --page-accent-2: 285 70% 60%; }
   [data-page="admin-subscriptions"] { --page-accent: 190 70% 38%; --page-accent-2: 188 78% 50%; }
-  [data-page="admin-payments"]      { --page-accent: 145 55% 36%; --page-accent-2: 152 65% 48%; }
   [data-page="admin-feature-access"]{ --page-accent: 320 60% 48%; --page-accent-2: 330 72% 60%; }
   [data-page="admin-notifications"] { --page-accent: 30 90% 48%;  --page-accent-2: 22 95% 58%; }
   [data-page="admin-settings"]      { --page-accent: 215 25% 32%; --page-accent-2: 220 30% 48%; }
