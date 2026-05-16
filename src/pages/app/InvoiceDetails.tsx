@@ -6,6 +6,7 @@ import { PageHeader } from '@/components/common/PageHeader';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { InvoiceSummary } from '@/components/common/InvoiceSummary';
+import { InvoiceQR } from '@/components/common/InvoiceQR';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { formatCurrency, formatDate, paymentMethodLabel, invoiceStatusLabel } from '@/lib/format';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
@@ -301,6 +302,8 @@ const InvoiceDetails = () => {
 
         <div className="space-y-5">
           <InvoiceSummary subtotal={invoice.subtotal} tax={invoice.tax} discount={invoice.discount} total={invoice.total} paid={paid} remaining={remaining} />
+
+          <InvoiceQR invoiceId={invoice.id} value={publicUrl} invoiceNumber={invoice.number} />
 
           <Card className="p-5 border-border/60">
             <h3 className="font-semibold mb-3">سجل المدفوعات</h3>
