@@ -1,6 +1,8 @@
-export const formatCurrency = (n: number, currency = 'ر.س'): string => {
+import { getCurrencySymbol } from './currency';
+
+export const formatCurrency = (n: number, currency?: string): string => {
   const formatted = new Intl.NumberFormat('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(n || 0);
-  return `${formatted} ${currency}`;
+  return `${formatted} ${currency ?? getCurrencySymbol()}`;
 };
 
 export const formatDate = (iso: string): string => {

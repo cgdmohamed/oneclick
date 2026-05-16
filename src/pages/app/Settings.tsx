@@ -16,6 +16,7 @@ import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import { toast } from 'sonner';
 import { api, isApiConfigured, resolveAssetUrl } from '@/lib/api';
+import { setCurrencySymbol, getCurrencySymbol } from '@/lib/currency';
 
 interface CompanyProfile {
   name: string;
@@ -101,7 +102,7 @@ const Settings = () => {
     padding: 4,
     separator: '-',
     currency: 'SAR',
-    currencySymbol: 'ر.س',
+    currencySymbol: getCurrencySymbol(),
     taxRate: 15,
     template: 'modern',
     accentColor: '#4F46E5',
@@ -136,7 +137,10 @@ const Settings = () => {
 
   const onCurrencyChange = (code: string) => {
     const c = CURRENCIES.find(x => x.code === code);
-    if (c) setI({ currency: c.code, currencySymbol: c.symbol });
+    if (c) {
+      setI({ currency: c.code, currencySymbol: c.symbol });
+      setCurrencySymbol(c.symbol);
+    }
   };
 
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
@@ -292,7 +296,7 @@ const Settings = () => {
                     </SelectContent>
                   </Select>
                 </div>
-                <div><Label>رمز العملة</Label><Input className="mt-1.5" value={invoiceCfg.currencySymbol} onChange={e => setI({ currencySymbol: e.target.value })} /></div>
+                <div><Label>رمز العملة</Label><Input className="mt-1.5" value={invoiceCfg.currencySymbol} onChange={e => { setI({ currencySymbol: e.target.value }); setCurrencySymbol(e.target.value); }} /></div>
                 <div><Label>بادئة الفاتورة</Label><Input className="mt-1.5" value={invoiceCfg.prefix} onChange={e => setI({ prefix: e.target.value })} /></div>
                 <div><Label>نسبة الضريبة %</Label><Input type="number" className="mt-1.5" value={invoiceCfg.taxRate} onChange={e => setI({ taxRate: Number(e.target.value) })} /></div>
                 <div>
