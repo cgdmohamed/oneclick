@@ -31,6 +31,7 @@ export interface Client {
   companyId: UUID;
   name: string;
   phone: string;
+  whatsapp?: string;
   email?: string;
   address?: string;
   taxNumber?: string;
