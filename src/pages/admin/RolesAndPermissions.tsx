@@ -307,7 +307,7 @@ const RoleGenerator = () => {
       ) : (
         <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
           {roles.map(r => (
-            <Card key={r.id} className="p-4 border-border/60 shadow-soft hover:shadow-elev transition-shadow">
+            <Card dir="rtl" key={r.id} className="p-4 border-border/60 shadow-soft hover:shadow-elev transition-shadow text-start">
               <div className="flex items-start justify-between gap-3 mb-2">
                 <div className="flex items-center gap-2.5 min-w-0">
                   <span className="h-10 w-10 rounded-xl flex items-center justify-center text-primary-foreground shrink-0" style={{ background: r.color ?? 'hsl(var(--primary))' }}>
@@ -477,7 +477,7 @@ const RolesAndPermissions = () => {
         title="الأدوار والصلاحيات"
         description="مصفوفة الصلاحيات، منشئ الأدوار المخصصة، وإسناد الأدوار للمستخدمين"
       />
-      <Tabs defaultValue="matrix">
+      <Tabs dir="rtl" defaultValue="matrix">
         <TabsList>
           <TabsTrigger value="matrix">مصفوفة الصلاحيات</TabsTrigger>
           <TabsTrigger value="generator">منشئ الأدوار</TabsTrigger>
