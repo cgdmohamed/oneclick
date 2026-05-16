@@ -118,7 +118,7 @@ const ClientDetail = () => {
         date: inv.issueDate,
         kind: 'invoice',
         title: `فاتورة ${inv.number}`,
-        detail: `${invoiceStatusLabel(inv.status)} — ${formatCurrency(inv.total)}`,
+        detail: `${invoiceStatusLabel(inv.status)} — ${fc(inv.total)}`,
       }),
     );
     clientPayments.forEach((p) =>
@@ -127,7 +127,7 @@ const ClientDetail = () => {
         date: p.date,
         kind: 'payment',
         title: `دفعة على ${p.invoiceNumber}`,
-        detail: `${formatCurrency(p.amount)} — ${paymentMethodLabel(p.method)} (${p.accountName})`,
+        detail: `${fc(p.amount)} — ${paymentMethodLabel(p.method)} (${p.accountName})`,
       }),
     );
     if (client) {
@@ -160,11 +160,11 @@ const ClientDetail = () => {
     )},
     { key: 'issue', header: 'التاريخ', cell: (r) => <span className="text-sm">{formatDateShort(r.issueDate)}</span> },
     { key: 'due', header: 'الاستحقاق', cell: (r) => <span className="text-sm text-muted-foreground">{formatDateShort(r.dueDate)}</span> },
-    { key: 'total', header: 'الإجمالي', cell: (r) => <span className="font-semibold">{formatCurrency(r.total)}</span> },
-    { key: 'paid', header: 'المدفوع', cell: (r) => <span className="text-success">{formatCurrency(r.paid)}</span> },
+    { key: 'total', header: 'الإجمالي', cell: (r) => <span className="font-semibold">{fc(r.total)}</span> },
+    { key: 'paid', header: 'المدفوع', cell: (r) => <span className="text-success">{fc(r.paid)}</span> },
     { key: 'remaining', header: 'المتبقي', cell: (r) => (
       <span className={r.remaining > 0 ? 'text-warning font-medium' : 'text-muted-foreground'}>
-        {formatCurrency(r.remaining)}
+        {fc(r.remaining)}
       </span>
     )},
     { key: 'status', header: 'الحالة', cell: (r) => <StatusBadge status={statusTone(r.status)} label={invoiceStatusLabel(r.status)} /> },
@@ -175,7 +175,7 @@ const ClientDetail = () => {
     { key: 'invoice', header: 'الفاتورة', cell: (r) => (
       <Link to={`/app/invoices/${r.invoiceId}`} className="text-primary hover:underline">{r.invoiceNumber}</Link>
     )},
-    { key: 'amount', header: 'المبلغ', cell: (r) => <span className="font-semibold">{formatCurrency(r.amount)}</span> },
+    { key: 'amount', header: 'المبلغ', cell: (r) => <span className="font-semibold">{fc(r.amount)}</span> },
     { key: 'method', header: 'طريقة الدفع', cell: (r) => <StatusBadge status="active" label={paymentMethodLabel(r.method)} /> },
     { key: 'account', header: 'الحساب', cell: (r) => <span className="text-sm">{r.accountName}</span> },
   ];
@@ -253,12 +253,12 @@ const ClientDetail = () => {
 
       {/* KPIs */}
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatCard title="إجمالي المبيعات" value={formatCurrency(totals.billed)} icon={TrendingUp} hint={`${clientInvoices.length} فاتورة`} />
-        <StatCard title="إجمالي المدفوع" value={formatCurrency(totals.paid)} icon={CreditCard} accent="success" />
-        <StatCard title="الرصيد المتبقي" value={formatCurrency(totals.remaining)} icon={Wallet} accent={totals.remaining > 0 ? 'warning' : 'primary'} />
+        <StatCard title="إجمالي المبيعات" value={fc(totals.billed)} icon={TrendingUp} hint={`${clientInvoices.length} فاتورة`} />
+        <StatCard title="إجمالي المدفوع" value={fc(totals.paid)} icon={CreditCard} accent="success" />
+        <StatCard title="الرصيد المتبقي" value={fc(totals.remaining)} icon={Wallet} accent={totals.remaining > 0 ? 'warning' : 'primary'} />
         <StatCard
           title="مبالغ متأخرة"
-          value={formatCurrency(totals.overdueAmount)}
+          value={fc(totals.overdueAmount)}
           icon={AlertTriangle}
           accent="destructive"
           hint={totals.overdueCount > 0 ? `${totals.overdueCount} فاتورة متأخرة` : 'لا يوجد'}
@@ -287,7 +287,7 @@ const ClientDetail = () => {
                   <div key={bucket}>
                     <div className="flex items-center justify-between text-sm mb-1">
                       <span className="text-muted-foreground">{bucket}</span>
-                      <span className="font-medium">{formatCurrency(amount)} <span className="text-xs text-muted-foreground">({count})</span></span>
+                      <span className="font-medium">{fc(amount)} <span className="text-xs text-muted-foreground">({count})</span></span>
                     </div>
                     <div className="h-1.5 rounded-full bg-muted overflow-hidden">
                       <div
@@ -317,7 +317,7 @@ const ClientDetail = () => {
                   <FileText className="h-4 w-4 text-primary mt-0.5" />
                   <div className="min-w-0">
                     <div className="font-medium truncate">آخر فاتورة: {totals.lastInvoice.number}</div>
-                    <div className="text-xs text-muted-foreground">{formatDateShort(totals.lastInvoice.issueDate)} — {formatCurrency(totals.lastInvoice.total)}</div>
+                    <div className="text-xs text-muted-foreground">{formatDateShort(totals.lastInvoice.issueDate)} — {fc(totals.lastInvoice.total)}</div>
                   </div>
                 </div>
               )}
@@ -326,7 +326,7 @@ const ClientDetail = () => {
                   <CreditCard className="h-4 w-4 text-success mt-0.5" />
                   <div className="min-w-0">
                     <div className="font-medium truncate">آخر دفعة على {totals.lastPayment.invoiceNumber}</div>
-                    <div className="text-xs text-muted-foreground">{formatDateShort(totals.lastPayment.date)} — {formatCurrency(totals.lastPayment.amount)}</div>
+                    <div className="text-xs text-muted-foreground">{formatDateShort(totals.lastPayment.date)} — {fc(totals.lastPayment.amount)}</div>
                   </div>
                 </div>
               )}
