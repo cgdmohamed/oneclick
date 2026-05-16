@@ -185,8 +185,8 @@ const PublicInvoice = () => {
                   <tr key={it.id} className="border-b border-border/60">
                     <td className="py-3">{it.name}</td>
                     <td className="py-3">{it.quantity}</td>
-                    <td className="py-3">{formatCurrency(num(it.unit_price))}</td>
-                    <td className="py-3 text-end">{formatCurrency(it.quantity * num(it.unit_price))}</td>
+                    <td className="py-3">{fc(num(it.unit_price))}</td>
+                    <td className="py-3 text-end">{fc(it.quantity * num(it.unit_price))}</td>
                   </tr>
                 ))}
               </tbody>
@@ -195,11 +195,11 @@ const PublicInvoice = () => {
 
           <div className="flex justify-end">
             <div className="w-full max-w-xs space-y-2 text-sm">
-              <Row label="المجموع الفرعي" value={formatCurrency(num(data.subtotal))} />
-              <Row label="الضريبة" value={formatCurrency(num(data.vat_amount))} />
-              <div className="border-t border-border pt-2"><Row label="الإجمالي" value={formatCurrency(num(data.total))} bold /></div>
-              <Row label="المدفوع" value={formatCurrency(num(data.paid))} cls="text-success" />
-              <Row label="المتبقي" value={formatCurrency(num(data.remaining))} cls="text-destructive" bold />
+              <Row label="المجموع الفرعي" value={fc(num(data.subtotal))} />
+              <Row label="الضريبة" value={fc(num(data.vat_amount))} />
+              <div className="border-t border-border pt-2"><Row label="الإجمالي" value={fc(num(data.total))} bold /></div>
+              <Row label="المدفوع" value={fc(num(data.paid))} cls="text-success" />
+              <Row label="المتبقي" value={fc(num(data.remaining))} cls="text-destructive" bold />
             </div>
           </div>
 
