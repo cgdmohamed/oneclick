@@ -52,6 +52,10 @@ export const DEFAULT_LANDING: LandingContent = {
     secondary: { label: 'استعرض المميزات', url: '/features' },
     imageUrl: heroDefault,
     showImage: true,
+    showBrowserFrame: true,
+    borderWidth: 1,
+    borderRadius: 16,
+    shadowIntensity: 'elev',
   },
   stats: {
     enabled: true,
