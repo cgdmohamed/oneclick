@@ -350,7 +350,7 @@ const Users = () => {
               <CheckCircle2 className="h-5 w-5 text-success" /> تم إرسال الدعوة
             </DialogTitle>
             <DialogDescription>
-              أُرسل بريد إلى <span dir="ltr" className="font-semibold text-foreground">{createdInvite?.email}</span> يحتوي رابط تفعيل صالح لمدة 7 أيام.
+              أُرسل بريد إلى <span dir="ltr" className="font-semibold text-foreground">{createdInvite?.invitation.email}</span> يحتوي رابط تفعيل صالح لمدة 7 أيام.
             </DialogDescription>
           </DialogHeader>
           {createdInvite && (
@@ -358,8 +358,11 @@ const Users = () => {
               <div className="rounded-lg border border-border/60 bg-muted/30 p-3">
                 <div className="text-xs text-muted-foreground mb-1.5">رابط الدعوة (للمشاركة المباشرة):</div>
                 <div className="flex items-center gap-2">
-                  <Input dir="ltr" readOnly value={buildInviteUrl(createdInvite.token)} className="text-xs bg-background" />
-                  <Button size="icon" variant="outline" onClick={() => copyLink(createdInvite.token)}>
+                  <Input dir="ltr" readOnly value={createdInvite.url} className="text-xs bg-background" />
+                  <Button size="icon" variant="outline" onClick={async () => {
+                    try { await navigator.clipboard.writeText(createdInvite.url); toast.success('تم النسخ'); }
+                    catch { toast.error('تعذّر النسخ'); }
+                  }}>
                     <Copy className="h-4 w-4" />
                   </Button>
                 </div>
@@ -373,7 +376,7 @@ const Users = () => {
             <Button variant="outline" onClick={() => setCreatedInvite(null)}>إغلاق</Button>
             {createdInvite && (
               <Button asChild>
-                <a href={buildInviteUrl(createdInvite.token)} target="_blank" rel="noreferrer">معاينة صفحة القبول</a>
+                <a href={createdInvite.url} target="_blank" rel="noreferrer">معاينة صفحة القبول</a>
               </Button>
             )}
           </DialogFooter>
