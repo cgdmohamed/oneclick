@@ -163,7 +163,7 @@ const AcceptInvite = () => {
                 onChange={(e) => setPhone(e.target.value)}
                 className="mt-1.5"
                 dir="ltr"
-                placeholder="+9665XXXXXXXX"
+                placeholder="+25XXXXXXXX"
                 maxLength={20}
               />
             </div>

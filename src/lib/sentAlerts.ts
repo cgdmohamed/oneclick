@@ -40,7 +40,7 @@ const seed: SentAlert[] = [
   {
     id: 'sa-1', event: 'onDueSoon', channel: 'email',
     recipientKind: 'client', recipientId: 'cl-1',
-    recipientName: 'شركة الأفق للتجارة', recipientContact: 'finance@alofok.sa',
+    recipientName: 'شركة الأفق للتجارة', recipientContact: 'finance@alofok.eg',
     invoiceId: 'inv-1', invoiceNumber: 'INV-2026-0006',
     amount: 12450, currencySymbol: 'ر.س',
     subject: 'تذكير: استحقاق فاتورتك خلال 3 أيام',
@@ -62,7 +62,7 @@ const seed: SentAlert[] = [
   {
     id: 'sa-3', event: 'onOverdue', channel: 'email',
     recipientKind: 'client', recipientId: 'cl-1',
-    recipientName: 'شركة الأفق للتجارة', recipientContact: 'finance@alofok.sa',
+    recipientName: 'شركة الأفق للتجارة', recipientContact: 'finance@alofok.eg',
     invoiceId: 'inv-3', invoiceNumber: 'INV-2026-0004',
     amount: 8200, currencySymbol: 'ر.س',
     subject: 'فاتورتك متأخرة عن السداد',
@@ -73,7 +73,7 @@ const seed: SentAlert[] = [
   {
     id: 'sa-4', event: 'onPaid', channel: 'email',
     recipientKind: 'client', recipientId: 'cl-2',
-    recipientName: 'مؤسسة النجم', recipientContact: 'pay@alnajm.sa',
+    recipientName: 'مؤسسة النجم', recipientContact: 'pay@alnajm.eg',
     invoiceId: 'inv-4', invoiceNumber: 'INV-2026-0005',
     amount: 3100, currencySymbol: 'ر.س',
     subject: 'تم استلام دفعتك — شكراً لك',

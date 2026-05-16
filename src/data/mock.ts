@@ -33,11 +33,11 @@ export const plans: Plan[] = [
 ];
 
 export const companies: Company[] = [
-  { id: 'co-1', name: 'شركة الأفق للتجارة', ownerName: 'خالد العبدالله', email: 'info@alofok.sa', phone: '+966551112233', address: 'الرياض، حي الملقا', taxNumber: '300123456700003', status: 'active', planId: 'plan-pro', createdAt: daysAgo(120) },
-  { id: 'co-2', name: 'مؤسسة النخبة للمقاولات', ownerName: 'أحمد المنصوري', email: 'contact@nokba.sa', phone: '+966552223344', address: 'جدة، حي الروضة', taxNumber: '300456789100003', status: 'active', planId: 'plan-business', createdAt: daysAgo(80) },
-  { id: 'co-3', name: 'مجموعة الواحة الغذائية', ownerName: 'سارة الحربي', email: 'hello@alwaha.sa', phone: '+966553334455', address: 'الدمام، حي الشاطئ', status: 'expired', planId: 'plan-basic', createdAt: daysAgo(220) },
-  { id: 'co-4', name: 'متجر اللمسة الذهبية', ownerName: 'نورة القحطاني', email: 'shop@goldentouch.sa', phone: '+966554445566', address: 'مكة المكرمة', status: 'suspended', planId: 'plan-basic', createdAt: daysAgo(30) },
-  { id: 'co-5', name: 'شركة المسار الرقمي', ownerName: 'ماجد السهلي', email: 'info@digitalpath.sa', phone: '+966555556677', address: 'الرياض، حي العليا', status: 'active', planId: 'plan-pro', createdAt: daysAgo(15) },
+  { id: 'co-1', name: 'شركة الأفق للتجارة', ownerName: 'خالد العبدالله', email: 'info@alofok.eg', phone: '+2551112233', address: 'الرياض، حي الملقا', taxNumber: '300123456700003', status: 'active', planId: 'plan-pro', createdAt: daysAgo(120) },
+  { id: 'co-2', name: 'مؤسسة النخبة للمقاولات', ownerName: 'أحمد المنصوري', email: 'contact@nokba.eg', phone: '+2552223344', address: 'جدة، حي الروضة', taxNumber: '300456789100003', status: 'active', planId: 'plan-business', createdAt: daysAgo(80) },
+  { id: 'co-3', name: 'مجموعة الواحة الغذائية', ownerName: 'سارة الحربي', email: 'hello@alwaha.eg', phone: '+2553334455', address: 'الدمام، حي الشاطئ', status: 'expired', planId: 'plan-basic', createdAt: daysAgo(220) },
+  { id: 'co-4', name: 'متجر اللمسة الذهبية', ownerName: 'نورة القحطاني', email: 'shop@goldentouch.eg', phone: '+2554445566', address: 'مكة المكرمة', status: 'suspended', planId: 'plan-basic', createdAt: daysAgo(30) },
+  { id: 'co-5', name: 'شركة المسار الرقمي', ownerName: 'ماجد السهلي', email: 'info@digitalpath.eg', phone: '+2555556677', address: 'الرياض، حي العليا', status: 'active', planId: 'plan-pro', createdAt: daysAgo(15) },
 ];
 
 export const subscriptions: Subscription[] = [
@@ -49,13 +49,13 @@ export const subscriptions: Subscription[] = [
 ];
 
 export const clients: Client[] = [
-  { id: 'cl-1', companyId: 'co-1', name: 'مؤسسة الزهور التجارية', phone: '+966500111222', email: 'zohor@example.sa', address: 'الرياض، حي العليا', taxNumber: '301122334400003', createdAt: daysAgo(90) },
-  { id: 'cl-2', companyId: 'co-1', name: 'محلات السلام للتموينات', phone: '+966500333444', email: 'salam@example.sa', address: 'الرياض، حي النسيم', createdAt: daysAgo(70) },
-  { id: 'cl-3', companyId: 'co-1', name: 'شركة البيان للخدمات', phone: '+966500555666', email: 'bayan@example.sa', address: 'جدة، حي الصفا', taxNumber: '302233445500003', createdAt: daysAgo(60) },
-  { id: 'cl-4', companyId: 'co-1', name: 'مكتب الأمانة للاستشارات', phone: '+966500777888', email: 'amana@example.sa', address: 'الدمام', createdAt: daysAgo(45) },
-  { id: 'cl-5', companyId: 'co-1', name: 'مؤسسة الصفوة للمقاولات', phone: '+966500999000', address: 'الرياض، حي الياسمين', createdAt: daysAgo(30) },
-  { id: 'cl-6', companyId: 'co-1', name: 'متجر النجمة الذهبية', phone: '+966501111222', email: 'najma@example.sa', address: 'الخبر', createdAt: daysAgo(20) },
-  { id: 'cl-7', companyId: 'co-1', name: 'شركة المروج للأغذية', phone: '+966501333444', email: 'morooj@example.sa', address: 'الرياض', createdAt: daysAgo(10) },
+  { id: 'cl-1', companyId: 'co-1', name: 'مؤسسة الزهور التجارية', phone: '+2500111222', email: 'zohor@example.eg', address: 'الرياض، حي العليا', taxNumber: '301122334400003', createdAt: daysAgo(90) },
+  { id: 'cl-2', companyId: 'co-1', name: 'محلات السلام للتموينات', phone: '+2500333444', email: 'salam@example.eg', address: 'الرياض، حي النسيم', createdAt: daysAgo(70) },
+  { id: 'cl-3', companyId: 'co-1', name: 'شركة البيان للخدمات', phone: '+2500555666', email: 'bayan@example.eg', address: 'جدة، حي الصفا', taxNumber: '302233445500003', createdAt: daysAgo(60) },
+  { id: 'cl-4', companyId: 'co-1', name: 'مكتب الأمانة للاستشارات', phone: '+2500777888', email: 'amana@example.eg', address: 'الدمام', createdAt: daysAgo(45) },
+  { id: 'cl-5', companyId: 'co-1', name: 'مؤسسة الصفوة للمقاولات', phone: '+2500999000', address: 'الرياض، حي الياسمين', createdAt: daysAgo(30) },
+  { id: 'cl-6', companyId: 'co-1', name: 'متجر النجمة الذهبية', phone: '+2501111222', email: 'najma@example.eg', address: 'الخبر', createdAt: daysAgo(20) },
+  { id: 'cl-7', companyId: 'co-1', name: 'شركة المروج للأغذية', phone: '+2501333444', email: 'morooj@example.eg', address: 'الرياض', createdAt: daysAgo(10) },
 ];
 
 export const products: Product[] = [
@@ -137,11 +137,11 @@ export const notifications: Notification[] = [
 ];
 
 export const users: User[] = [
-  { id: 'u-1', name: 'خالد العبدالله', email: 'admin@alofok.sa', phone: '+966551112233', role: 'company_admin', companyId: 'co-1' },
-  { id: 'u-2', name: 'منى الشمري', email: 'mona@alofok.sa', phone: '+966551112234', role: 'accountant', companyId: 'co-1' },
-  { id: 'u-3', name: 'فهد الدوسري', email: 'fahd@alofok.sa', phone: '+966551112235', role: 'sales', companyId: 'co-1' },
-  { id: 'u-4', name: 'ريم العتيبي', email: 'reem@alofok.sa', phone: '+966551112236', role: 'viewer', companyId: 'co-1' },
-  { id: 'u-admin', name: 'مالك المنصة', email: 'owner@oneclick.sa', role: 'super_admin' },
+  { id: 'u-1', name: 'خالد العبدالله', email: 'admin@alofok.eg', phone: '+2551112233', role: 'company_admin', companyId: 'co-1' },
+  { id: 'u-2', name: 'منى الشمري', email: 'mona@alofok.eg', phone: '+2551112234', role: 'accountant', companyId: 'co-1' },
+  { id: 'u-3', name: 'فهد الدوسري', email: 'fahd@alofok.eg', phone: '+2551112235', role: 'sales', companyId: 'co-1' },
+  { id: 'u-4', name: 'ريم العتيبي', email: 'reem@alofok.eg', phone: '+2551112236', role: 'viewer', companyId: 'co-1' },
+  { id: 'u-admin', name: 'مالك المنصة', email: 'owner@oneclick.eg', role: 'super_admin' },
 ];
 
 export const rolePermissions: Record<string, string[]> = {
