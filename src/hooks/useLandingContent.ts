@@ -8,7 +8,7 @@ import heroDefault from '@/assets/landing-hero.jpg';
 export interface CTA { label: string; url: string }
 export interface StatItem { id: string; value: string; label: string }
 export interface BentoItem { id: string; icon: string; title: string; desc: string; tone?: 'default' | 'accent' | 'dark'; size?: 'sm' | 'md' | 'lg' }
-export interface LogoItem { id: string; name: string }
+export interface LogoItem { id: string; name: string; logoUrl?: string }
 export interface Testimonial { id: string; name: string; role: string; quote: string; initials: string }
 export interface FaqItem { id: string; q: string; a: string }
 
