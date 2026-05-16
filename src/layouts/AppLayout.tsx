@@ -11,18 +11,19 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { roleLabel } from '@/lib/format';
 import { useEffect } from 'react';
 import type { Role } from '@/types';
+import { useCurrentFeatureSet } from '@/hooks/usePlanAccess';
 
-const companyNav = [
+const companyNav: { to: string; label: string; icon: typeof LayoutDashboard; end?: boolean; feature?: string }[] = [
   { to: '/app', label: 'الرئيسية', icon: LayoutDashboard, end: true },
-  { to: '/app/clients', label: 'العملاء', icon: Users },
-  { to: '/app/invoices', label: 'الفواتير', icon: FileText },
-  { to: '/app/payments', label: 'المدفوعات', icon: CreditCard },
-  { to: '/app/accounts', label: 'الحسابات المالية', icon: Wallet },
-  { to: '/app/products', label: 'المنتجات والمخزون', icon: Package },
-  { to: '/app/reports', label: 'التقارير', icon: BarChart3 },
-  { to: '/app/notifications', label: 'التنبيهات', icon: Bell },
-  { to: '/app/users', label: 'المستخدمون والصلاحيات', icon: ShieldCheck },
-  { to: '/app/activity', label: 'سجل الأنشطة', icon: History },
+  { to: '/app/clients', label: 'العملاء', icon: Users, feature: 'clients' },
+  { to: '/app/invoices', label: 'الفواتير', icon: FileText, feature: 'invoices' },
+  { to: '/app/payments', label: 'المدفوعات', icon: CreditCard, feature: 'payments' },
+  { to: '/app/accounts', label: 'الحسابات المالية', icon: Wallet, feature: 'accounts' },
+  { to: '/app/products', label: 'المنتجات والمخزون', icon: Package, feature: 'products' },
+  { to: '/app/reports', label: 'التقارير', icon: BarChart3, feature: 'reports_basic' },
+  { to: '/app/notifications', label: 'التنبيهات', icon: Bell, feature: 'notifications' },
+  { to: '/app/users', label: 'المستخدمون والصلاحيات', icon: ShieldCheck, feature: 'rbac' },
+  { to: '/app/activity', label: 'سجل الأنشطة', icon: History, feature: 'activity_log' },
   { to: '/app/subscription', label: 'الاشتراك والفوترة', icon: Crown },
   { to: '/app/settings', label: 'الإعدادات', icon: Settings },
 ];
@@ -95,7 +96,10 @@ const AppShellInner = ({ kind }: { kind: 'company' | 'admin' }) => {
   const { user, logout, setRole, companyName } = useAuth();
   const navigate = useNavigate();
   const { pathname } = useLocation();
-  const nav = kind === 'admin' ? adminNav : companyNav;
+  const featureSet = useCurrentFeatureSet();
+  const nav = kind === 'admin'
+    ? adminNav
+    : companyNav.filter((item) => !('feature' in item) || !item.feature || featureSet.has(item.feature));
 
   return (
     <div
@@ -213,7 +217,19 @@ const AppShellInner = ({ kind }: { kind: 'company' | 'admin' }) => {
           </DropdownMenu>
         </header>
         <main className="flex-1 p-4 md:p-6 lg:p-8">
-          <Outlet />
+          {kind === 'company' && (() => {
+            const blocking = companyNav.find(n => n.feature && n.to !== '/app' && pathname.startsWith(n.to) && !featureSet.has(n.feature));
+            if (!blocking) return <Outlet />;
+            return (
+              <div className="max-w-xl mx-auto mt-12 rounded-2xl border border-border/60 bg-card p-8 text-center shadow-soft">
+                <Crown className="h-10 w-10 mx-auto text-warning mb-3" />
+                <h2 className="text-xl font-bold mb-2">هذه الميزة غير مفعّلة في باقتك</h2>
+                <p className="text-sm text-muted-foreground mb-5">«{blocking.label}» متاحة في باقات أعلى. يمكنك ترقية الاشتراك للوصول إليها.</p>
+                <Button onClick={() => navigate('/app/subscription')}>ترقية الباقة</Button>
+              </div>
+            );
+          })()}
+          {kind === 'admin' && <Outlet />}
         </main>
       </div>
     </div>
