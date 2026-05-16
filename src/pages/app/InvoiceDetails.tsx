@@ -251,7 +251,7 @@ const InvoiceDetails = () => {
       />
 
       <div className="grid lg:grid-cols-3 gap-5">
-        <Card className="lg:col-span-2 p-6 border-border/60 shadow-soft print-area">
+        <Card data-print-area className="lg:col-span-2 p-6 border-border/60 shadow-soft print-area">
           <div className="flex items-start justify-between gap-4 pb-4 border-b border-border">
             <div>
               <div className="text-xs text-muted-foreground">العميل</div>
