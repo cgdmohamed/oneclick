@@ -3,8 +3,8 @@ import { PageHeader } from '@/components/common/PageHeader';
 import { NotificationItem } from '@/components/common/NotificationItem';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Send, CheckCheck, Inbox } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Send, CheckCheck, Inbox, Bell, BellRing } from 'lucide-react';
 import { useNotifications } from '@/hooks/entities';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
@@ -14,6 +14,7 @@ import { toast } from 'sonner';
 import { api, isApiConfigured, ApiError } from '@/lib/api';
 import { useQueryClient } from '@tanstack/react-query';
 import { EmptyState } from '@/components/common/EmptyState';
+import { SentAlertsCenter } from '@/components/common/SentAlertsCenter';
 import type { Notification } from '@/types';
 
 const Notifications = () => {
