@@ -105,6 +105,21 @@ app.use('/api/uploads', uploadsRoutes);
 app.use('/api/platform', platformRoutes);
 app.use('/api/invitations', invitationsAdminRouter);
 
+// Production: serve the built React frontend so a single process handles everything.
+// The frontend build output sits two levels up from this file's compiled location
+// (artifacts/api-server/dist/ → artifacts/hesabat/dist/public/).
+// Dev is unaffected — the Vite dev server handles the frontend in that case.
+if (env.NODE_ENV === 'production') {
+  const __dirname = path.dirname(fileURLToPath(import.meta.url));
+  const FRONTEND_DIST = path.resolve(__dirname, '../../hesabat/dist/public');
+  app.use(express.static(FRONTEND_DIST, { maxAge: '1d', index: 'index.html' }));
+  // Catch-all for React Router: only handle paths that are NOT under /api or /uploads
+  // so unmatched API/upload requests still fall through to the error handler as 404 JSON.
+  app.get(/^(?!\/(api|uploads))(\/.*)?$/, (_req, res) => {
+    res.sendFile(path.join(FRONTEND_DIST, 'index.html'));
+  });
+}
+
 app.use(errorHandler);
 
 export default app;
