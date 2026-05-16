@@ -424,6 +424,10 @@ const Settings = () => {
             </div>
           </div>
         </TabsContent>
+
+        <TabsContent value="smtp" className="mt-4">
+          <SmtpTab />
+        </TabsContent>
       </Tabs>
     </div>
   );
