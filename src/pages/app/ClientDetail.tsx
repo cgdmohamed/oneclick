@@ -277,6 +277,7 @@ const ClientDetail = () => {
           <TabsTrigger value="overview">نظرة عامة</TabsTrigger>
           <TabsTrigger value="invoices">الفواتير ({clientInvoices.length})</TabsTrigger>
           <TabsTrigger value="payments">المدفوعات ({clientPayments.length})</TabsTrigger>
+          <TabsTrigger value="alerts">التنبيهات</TabsTrigger>
           <TabsTrigger value="activity">سجل النشاط</TabsTrigger>
         </TabsList>
 
