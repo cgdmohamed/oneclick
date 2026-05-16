@@ -114,6 +114,23 @@ const Clients = () => {
             <Field label="رقم واتساب" value={editing.whatsapp ?? ''} onChange={v => setEditing(e => ({ ...e, whatsapp: v }))} />
             <Field label="البريد الإلكتروني" value={editing.email ?? ''} onChange={v => setEditing(e => ({ ...e, email: v }))} />
             <Field label="الرقم الضريبي" value={editing.taxNumber ?? ''} onChange={v => setEditing(e => ({ ...e, taxNumber: v }))} />
+            <div>
+              <Label>العملة</Label>
+              <Select
+                value={editing.currency || 'SAR'}
+                onValueChange={v => {
+                  const c = CURRENCIES.find(x => x.code === v);
+                  setEditing(e => ({ ...e, currency: v, currencySymbol: c?.symbol || e.currencySymbol }));
+                }}
+              >
+                <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {CURRENCIES.map(c => (
+                    <SelectItem key={c.code} value={c.code}>{c.name} ({c.symbol})</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <div className="sm:col-span-2"><Field label="العنوان" value={editing.address ?? ''} onChange={v => setEditing(e => ({ ...e, address: v }))} /></div>
           </div>
           <DialogFooter>
