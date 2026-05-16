@@ -1,8 +1,16 @@
-import { useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import { QrCode, Upload, RotateCcw, Download } from 'lucide-react';
 import { toast } from 'sonner';
-import { useInvoiceQr, qrStorageKey, notifyQrChange } from '@/hooks/useInvoiceQr';
+import {
+  useInvoiceQr,
+  qrStorageKey,
+  notifyQrChange,
+  isQrPublicVisible,
+  setQrPublicVisible,
+} from '@/hooks/useInvoiceQr';
 
 interface Props {
   invoiceId: string;
@@ -13,6 +21,15 @@ interface Props {
 export const InvoiceQR = ({ invoiceId, value, invoiceNumber }: Props) => {
   const { src, custom } = useInvoiceQr(invoiceId, value);
   const fileRef = useRef<HTMLInputElement>(null);
+  const [publicVisible, setPublicVisibleState] = useState(true);
+
+  useEffect(() => { setPublicVisibleState(isQrPublicVisible(invoiceId)); }, [invoiceId]);
+
+  const togglePublic = (v: boolean) => {
+    setPublicVisibleState(v);
+    setQrPublicVisible(invoiceId, v);
+    toast.success(v ? 'سيظهر QR في الصفحة العامة' : 'تم إخفاء QR من الصفحة العامة');
+  };
 
   const onUpload = (file: File) => {
     if (!file.type.startsWith('image/')) return toast.error('يجب اختيار ملف صورة');
@@ -84,6 +101,17 @@ export const InvoiceQR = ({ invoiceId, value, invoiceNumber }: Props) => {
             if (f) onUpload(f);
             e.target.value = '';
           }}
+        />
+      </div>
+
+      <div className="flex items-center justify-between mt-3 pt-3 border-t border-border/60 no-print">
+        <Label htmlFor={`qr-public-${invoiceId}`} className="text-xs cursor-pointer">
+          إظهار في صفحة الفاتورة العامة
+        </Label>
+        <Switch
+          id={`qr-public-${invoiceId}`}
+          checked={publicVisible}
+          onCheckedChange={togglePublic}
         />
       </div>
     </div>

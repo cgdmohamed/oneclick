@@ -2,6 +2,17 @@ import { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
 
 export const qrStorageKey = (id: string) => `invoice-qr:${id}`;
+export const qrPublicVisibleKey = (id: string) => `invoice-qr-public:${id}`;
+
+export const isQrPublicVisible = (invoiceId: string): boolean => {
+  const v = localStorage.getItem(qrPublicVisibleKey(invoiceId));
+  return v === null ? true : v === '1';
+};
+
+export const setQrPublicVisible = (invoiceId: string, visible: boolean) => {
+  localStorage.setItem(qrPublicVisibleKey(invoiceId), visible ? '1' : '0');
+  window.dispatchEvent(new CustomEvent('invoice-qr-change', { detail: { invoiceId } }));
+};
 
 export const useInvoiceQr = (invoiceId: string, value: string) => {
   const [src, setSrc] = useState<string>('');
