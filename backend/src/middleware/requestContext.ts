@@ -10,11 +10,8 @@ import pinoHttp from 'pino-http';
 import type { Request, Response, NextFunction } from 'express';
 import { logger } from '../utils/logger.js';
 
-declare module 'express-serve-static-core' {
-  interface Request {
-    id?: string;
-  }
-}
+// Note: pino-http already augments Request with `id` and `log`, so we don't
+// re-declare them here (doing so causes type incompatibilities).
 
 const httpLogger = pinoHttp({
   logger,
