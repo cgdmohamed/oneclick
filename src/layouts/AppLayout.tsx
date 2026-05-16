@@ -99,6 +99,8 @@ const AppShellInner = ({ kind }: { kind: 'company' | 'admin' }) => {
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const featureSet = useCurrentFeatureSet();
+  const sentAlerts = useSyncExternalStore(subscribeSentAlerts, getSentAlerts, getSentAlerts);
+  const unreadCount = sentAlerts.filter(a => !a.read).length;
   const nav = kind === 'admin'
     ? adminNav
     : companyNav.filter((item) => !('feature' in item) || !item.feature || featureSet.has(item.feature));
