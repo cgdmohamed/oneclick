@@ -236,7 +236,7 @@ const Settings = () => {
         description="بيانات الشركة والعنوان والعملة ومعاينة الفاتورة"
         actions={<SaveIndicator status={saveStatus} />}
       />
-      <Tabs value={tab} onValueChange={(v) => setSearch({ tab: v }, { replace: true })}>
+      <Tabs dir="rtl" value={tab} onValueChange={(v) => setSearch({ tab: v }, { replace: true })}>
         <TabsList>
           <TabsTrigger value="company">بيانات الشركة</TabsTrigger>
           <TabsTrigger value="address">العنوان</TabsTrigger>
