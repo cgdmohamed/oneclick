@@ -18,6 +18,7 @@ interface ClientRow {
   company_id: string;
   name: string;
   phone: string | null;
+  whatsapp: string | null;
   email: string | null;
   address: string | null;
   tax_number: string | null;
@@ -25,7 +26,7 @@ interface ClientRow {
   created_at: string;
 }
 
-const empty: Client = { id: '', companyId: 'co-1', name: '', phone: '', email: '', address: '', taxNumber: '', createdAt: new Date().toISOString() };
+const empty: Client = { id: '', companyId: 'co-1', name: '', phone: '', whatsapp: '', email: '', address: '', taxNumber: '', createdAt: new Date().toISOString() };
 
 const Clients = () => {
   const navigate = useNavigate();
