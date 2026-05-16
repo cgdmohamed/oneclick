@@ -168,12 +168,12 @@ const AlertsLog = () => {
         title="سجل التنبيهات"
         description="جميع التنبيهات التلقائية الصادرة من النظام مع المستلم، القناة، التوقيت، والحالة."
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <Button variant="outline" size="sm" onClick={() => { markAllAlertsRead(); toast.success('تم تعليم الكل كمقروء'); }} disabled={stats.unread === 0}>
-              <CheckCheck className="h-4 w-4 ml-1" /> تعليم الكل
+              <CheckCheck className="h-4 w-4 ml-1" /> <span className="hidden sm:inline">تعليم الكل</span><span className="sm:hidden">تعليم</span>
             </Button>
             <Button variant="outline" size="sm" onClick={exportCsv} disabled={rows.length === 0}>
-              <Download className="h-4 w-4 ml-1" /> تصدير CSV
+              <Download className="h-4 w-4 ml-1" /> <span className="hidden sm:inline">تصدير CSV</span><span className="sm:hidden">CSV</span>
             </Button>
           </div>
         }
@@ -186,50 +186,52 @@ const AlertsLog = () => {
         <StatCard title="داخل التطبيق" value={String(stats.inApp)} icon={Bell} />
       </div>
 
-      <Card className="p-4 border-border/60 mb-4 flex flex-wrap gap-3 items-end">
-        <FilterField label="الحدث">
-          <Select value={event} onValueChange={(v) => setEvent(v as EventFilter)}>
-            <SelectTrigger className="w-44 h-9"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">كل الأحداث</SelectItem>
-              <SelectItem value="onCreated">إصدار فاتورة</SelectItem>
-              <SelectItem value="onDueSoon">قبل الاستحقاق</SelectItem>
-              <SelectItem value="onOverdue">تأخر السداد</SelectItem>
-              <SelectItem value="onPaid">استلام دفعة</SelectItem>
-            </SelectContent>
-          </Select>
-        </FilterField>
-        <FilterField label="القناة">
-          <Select value={channel} onValueChange={(v) => setChannel(v as ChannelFilter)}>
-            <SelectTrigger className="w-40 h-9"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">كل القنوات</SelectItem>
-              <SelectItem value="email">بريد إلكتروني</SelectItem>
-              <SelectItem value="inApp">داخل التطبيق</SelectItem>
-            </SelectContent>
-          </Select>
-        </FilterField>
-        <FilterField label="نوع المستلم">
-          <Select value={audience} onValueChange={(v) => setAudience(v as AudienceFilter)}>
-            <SelectTrigger className="w-40 h-9"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">الجميع</SelectItem>
-              <SelectItem value="client">العملاء</SelectItem>
-              <SelectItem value="user">مستخدمو النظام</SelectItem>
-            </SelectContent>
-          </Select>
-        </FilterField>
-        <FilterField label="الحالة">
-          <Select value={status} onValueChange={(v) => setStatus(v as StatusFilter)}>
-            <SelectTrigger className="w-36 h-9"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">الكل</SelectItem>
-              <SelectItem value="read">المقروءة</SelectItem>
-              <SelectItem value="unread">غير المقروءة</SelectItem>
-            </SelectContent>
-          </Select>
-        </FilterField>
-        <div className="text-xs text-muted-foreground ms-auto">إجمالي النتائج: {rows.length}</div>
+      <Card className="p-4 border-border/60 mb-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 items-end">
+          <FilterField label="الحدث">
+            <Select value={event} onValueChange={(v) => setEvent(v as EventFilter)}>
+              <SelectTrigger className="w-full h-9"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">كل الأحداث</SelectItem>
+                <SelectItem value="onCreated">إصدار فاتورة</SelectItem>
+                <SelectItem value="onDueSoon">قبل الاستحقاق</SelectItem>
+                <SelectItem value="onOverdue">تأخر السداد</SelectItem>
+                <SelectItem value="onPaid">استلام دفعة</SelectItem>
+              </SelectContent>
+            </Select>
+          </FilterField>
+          <FilterField label="القناة">
+            <Select value={channel} onValueChange={(v) => setChannel(v as ChannelFilter)}>
+              <SelectTrigger className="w-full h-9"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">كل القنوات</SelectItem>
+                <SelectItem value="email">بريد إلكتروني</SelectItem>
+                <SelectItem value="inApp">داخل التطبيق</SelectItem>
+              </SelectContent>
+            </Select>
+          </FilterField>
+          <FilterField label="نوع المستلم">
+            <Select value={audience} onValueChange={(v) => setAudience(v as AudienceFilter)}>
+              <SelectTrigger className="w-full h-9"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">الجميع</SelectItem>
+                <SelectItem value="client">العملاء</SelectItem>
+                <SelectItem value="user">مستخدمو النظام</SelectItem>
+              </SelectContent>
+            </Select>
+          </FilterField>
+          <FilterField label="الحالة">
+            <Select value={status} onValueChange={(v) => setStatus(v as StatusFilter)}>
+              <SelectTrigger className="w-full h-9"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">الكل</SelectItem>
+                <SelectItem value="read">المقروءة</SelectItem>
+                <SelectItem value="unread">غير المقروءة</SelectItem>
+              </SelectContent>
+            </Select>
+          </FilterField>
+          <div className="text-xs text-muted-foreground sm:col-span-1 col-span-2 sm:text-end">إجمالي النتائج: {rows.length}</div>
+        </div>
       </Card>
 
       <DataTable

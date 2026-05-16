@@ -83,18 +83,24 @@ const seed: SentAlert[] = [
   },
 ];
 
+let cache: SentAlert[] | null = null;
+
 const read = (): SentAlert[] => {
+  if (cache) return cache;
   try {
     const raw = localStorage.getItem(KEY);
     if (!raw) {
       localStorage.setItem(KEY, JSON.stringify(seed));
-      return seed;
+      cache = seed;
+      return cache;
     }
-    return JSON.parse(raw) as SentAlert[];
-  } catch { return seed; }
+    cache = JSON.parse(raw) as SentAlert[];
+    return cache;
+  } catch { cache = seed; return cache; }
 };
 
 const write = (list: SentAlert[]): void => {
+  cache = list;
   try { localStorage.setItem(KEY, JSON.stringify(list)); } catch { /* ignore */ }
   listeners.forEach(l => l());
 };
@@ -113,7 +119,7 @@ export const markAllAlertsRead = (filter?: (a: SentAlert) => boolean): void => {
 
 export const subscribeSentAlerts = (cb: () => void): (() => void) => {
   listeners.add(cb);
-  const onStorage = (e: StorageEvent) => { if (e.key === KEY) cb(); };
+  const onStorage = (e: StorageEvent) => { if (e.key === KEY) { cache = null; cb(); } };
   window.addEventListener('storage', onStorage);
   return () => { listeners.delete(cb); window.removeEventListener('storage', onStorage); };
 };
