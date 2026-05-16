@@ -11,6 +11,7 @@ import { requireAuth } from '../../middleware/auth.js';
 import { sendEmail } from '../../utils/email.js';
 import { audit } from '../../utils/audit.js';
 import { REFRESH_COOKIE, setRefreshCookie, clearRefreshCookie } from '../../utils/cookies.js';
+import { setCsrfCookie, clearCsrfCookie, requireCsrf } from '../../middleware/csrf.js';
 
 const router = Router();
 
