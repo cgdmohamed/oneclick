@@ -34,6 +34,7 @@ interface PublicInvoiceData {
   company_logo: string | null;
   company_stamp: string | null;
   currency: string | null;
+  currency_symbol: string | null;
   items: Array<{ id: string; name: string; quantity: number; unit_price: number | string }>;
 }
 
@@ -62,7 +63,8 @@ const PublicInvoice = () => {
         client_tax: client?.taxNumber ?? null,
         company_name: company?.name ?? '', company_tax: company?.taxNumber ?? null,
         company_address: company?.address ?? null, company_logo: null, company_stamp: null,
-        currency: 'SAR',
+        currency: client?.currency ?? 'SAR',
+        currency_symbol: client?.currencySymbol ?? null,
         items: inv.items.map((it) => ({ id: it.id, name: it.name, quantity: it.quantity, unit_price: it.unitPrice })),
       });
       setLoading(false);
@@ -87,6 +89,8 @@ const PublicInvoice = () => {
   if (notFound || !data) return <EmptyState title="الفاتورة غير موجودة" />;
 
   const num = (v: number | string) => Number(v ?? 0);
+  const sym = data.currency_symbol ?? undefined;
+  const fc = (n: number) => formatCurrency(n, sym);
 
   return (
     <div className="min-h-screen bg-muted/30 py-8 print:bg-white print:p-0">
@@ -181,8 +185,8 @@ const PublicInvoice = () => {
                   <tr key={it.id} className="border-b border-border/60">
                     <td className="py-3">{it.name}</td>
                     <td className="py-3">{it.quantity}</td>
-                    <td className="py-3">{formatCurrency(num(it.unit_price))}</td>
-                    <td className="py-3 text-end">{formatCurrency(it.quantity * num(it.unit_price))}</td>
+                    <td className="py-3">{fc(num(it.unit_price))}</td>
+                    <td className="py-3 text-end">{fc(it.quantity * num(it.unit_price))}</td>
                   </tr>
                 ))}
               </tbody>
@@ -191,11 +195,11 @@ const PublicInvoice = () => {
 
           <div className="flex justify-end">
             <div className="w-full max-w-xs space-y-2 text-sm">
-              <Row label="المجموع الفرعي" value={formatCurrency(num(data.subtotal))} />
-              <Row label="الضريبة" value={formatCurrency(num(data.vat_amount))} />
-              <div className="border-t border-border pt-2"><Row label="الإجمالي" value={formatCurrency(num(data.total))} bold /></div>
-              <Row label="المدفوع" value={formatCurrency(num(data.paid))} cls="text-success" />
-              <Row label="المتبقي" value={formatCurrency(num(data.remaining))} cls="text-destructive" bold />
+              <Row label="المجموع الفرعي" value={fc(num(data.subtotal))} />
+              <Row label="الضريبة" value={fc(num(data.vat_amount))} />
+              <div className="border-t border-border pt-2"><Row label="الإجمالي" value={fc(num(data.total))} bold /></div>
+              <Row label="المدفوع" value={fc(num(data.paid))} cls="text-success" />
+              <Row label="المتبقي" value={fc(num(data.remaining))} cls="text-destructive" bold />
             </div>
           </div>
 
