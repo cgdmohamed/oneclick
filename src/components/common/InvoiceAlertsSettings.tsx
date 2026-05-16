@@ -37,6 +37,7 @@ const featureBullets = [
 
 export const InvoiceAlertsSettingsPanel = () => {
   const { settings, setSettings, update, reset } = useInvoiceAlerts();
+  const [previewOpen, setPreviewOpen] = useState(false);
   const smtpConfigured = useMemo(() => {
     const s = loadSmtp();
     return Boolean(s?.host && s?.fromEmail);
