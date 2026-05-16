@@ -70,33 +70,51 @@ const Home = () => {
             </div>
 
             {/* Screenshot mockup below */}
-            {c.hero.showImage && c.hero.imageUrl && (
-              <div className="relative mt-16 max-w-5xl mx-auto">
-                <div className="absolute -inset-8 bg-primary/10 rounded-[2rem] blur-3xl" />
-                <div className="relative rounded-2xl overflow-hidden border border-border/60 shadow-elev bg-card">
-                  {/* macOS-style title bar */}
-                  <div className="flex items-center gap-1.5 px-4 py-3 bg-muted/60 border-b border-border/60">
-                    <span className="h-3 w-3 rounded-full bg-[#ff5f57]" />
-                    <span className="h-3 w-3 rounded-full bg-[#febc2e]" />
-                    <span className="h-3 w-3 rounded-full bg-[#28c840]" />
+            {c.hero.showImage && c.hero.imageUrl && (() => {
+              const shadowClass = {
+                none: '',
+                soft: 'shadow-soft',
+                elev: 'shadow-elev',
+                glow: 'shadow-[0_30px_80px_-20px_hsl(var(--primary)/0.45)]',
+              }[c.hero.shadowIntensity];
+              const radius = `${c.hero.borderRadius}px`;
+              const border = c.hero.borderWidth > 0
+                ? { borderWidth: `${c.hero.borderWidth}px`, borderStyle: 'solid' as const }
+                : { borderWidth: 0 };
+              return (
+                <div className="relative mt-16 max-w-5xl mx-auto">
+                  {c.hero.shadowIntensity === 'glow' && (
+                    <div className="absolute -inset-8 bg-primary/10 rounded-[2rem] blur-3xl" />
+                  )}
+                  <div
+                    className={`relative overflow-hidden bg-card border-border/60 ${shadowClass}`}
+                    style={{ borderRadius: radius, ...border }}
+                  >
+                    {c.hero.showBrowserFrame && (
+                      <div className="flex items-center gap-1.5 px-4 py-3 bg-muted/60 border-b border-border/60">
+                        <span className="h-3 w-3 rounded-full bg-[#ff5f57]" />
+                        <span className="h-3 w-3 rounded-full bg-[#febc2e]" />
+                        <span className="h-3 w-3 rounded-full bg-[#28c840]" />
+                      </div>
+                    )}
+                    <img
+                      src={c.hero.imageUrl}
+                      alt="معاينة منصة حسابات"
+                      width={1920}
+                      height={1200}
+                      className="w-full h-auto block"
+                    />
                   </div>
-                  <img
-                    src={c.hero.imageUrl}
-                    alt="معاينة منصة حسابات"
-                    width={1920}
-                    height={1200}
-                    className="w-full h-auto block"
-                  />
+                  <Card className="absolute -bottom-5 -start-4 hidden md:flex items-center gap-3 p-3 shadow-elev border-border/60 bg-card/95 backdrop-blur">
+                    <div className="h-9 w-9 rounded-lg bg-success/15 text-success flex items-center justify-center"><Check className="h-5 w-5" /></div>
+                    <div>
+                      <div className="text-xs text-muted-foreground">فاتورة جديدة</div>
+                      <div className="text-sm font-bold">تم الدفع بالكامل</div>
+                    </div>
+                  </Card>
                 </div>
-                <Card className="absolute -bottom-5 -start-4 hidden md:flex items-center gap-3 p-3 shadow-elev border-border/60 bg-card/95 backdrop-blur">
-                  <div className="h-9 w-9 rounded-lg bg-success/15 text-success flex items-center justify-center"><Check className="h-5 w-5" /></div>
-                  <div>
-                    <div className="text-xs text-muted-foreground">فاتورة جديدة</div>
-                    <div className="text-sm font-bold">تم الدفع بالكامل</div>
-                  </div>
-                </Card>
-              </div>
-            )}
+              );
+            })()}
 
             {/* Stats inside hero */}
             {c.stats.enabled && c.stats.items.length > 0 && (
