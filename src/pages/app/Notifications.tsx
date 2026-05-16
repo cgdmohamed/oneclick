@@ -94,33 +94,50 @@ const Notifications = () => {
       />
 
       <div className="max-w-3xl">
-        <Tabs value={filter} onValueChange={(v) => setFilter(v as 'all' | 'unread')} className="mb-4">
+        <Tabs defaultValue="system" className="mb-4">
           <TabsList>
-            <TabsTrigger value="all">
-              الكل <Badge variant="secondary" className="mr-2">{list.length}</Badge>
-            </TabsTrigger>
-            <TabsTrigger value="unread">
-              غير المقروءة
-              {unreadCount > 0 && (
-                <Badge className="mr-2 bg-primary text-primary-foreground">{unreadCount}</Badge>
-              )}
-            </TabsTrigger>
+            <TabsTrigger value="system"><Bell className="h-4 w-4 ml-1" /> إشعارات النظام</TabsTrigger>
+            <TabsTrigger value="alerts"><BellRing className="h-4 w-4 ml-1" /> تنبيهات الفواتير المُرسَلة</TabsTrigger>
           </TabsList>
-        </Tabs>
 
-        {filtered.length === 0 ? (
-          <EmptyState
-            icon={Inbox}
-            title={filter === 'unread' ? 'لا توجد إشعارات غير مقروءة' : 'لا توجد إشعارات'}
-            description="ستظهر هنا تنبيهات النظام والفواتير والمدفوعات."
-          />
-        ) : (
-          <div className="space-y-3">
-            {filtered.map((n) => (
-              <NotificationItem key={n.id} n={n} onMarkRead={() => markRead(n.id)} />
-            ))}
-          </div>
-        )}
+          <TabsContent value="system" className="mt-4">
+            <Tabs value={filter} onValueChange={(v) => setFilter(v as 'all' | 'unread')} className="mb-4">
+              <TabsList>
+                <TabsTrigger value="all">
+                  الكل <Badge variant="secondary" className="mr-2">{list.length}</Badge>
+                </TabsTrigger>
+                <TabsTrigger value="unread">
+                  غير المقروءة
+                  {unreadCount > 0 && (
+                    <Badge className="mr-2 bg-primary text-primary-foreground">{unreadCount}</Badge>
+                  )}
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+
+            {filtered.length === 0 ? (
+              <EmptyState
+                icon={Inbox}
+                title={filter === 'unread' ? 'لا توجد إشعارات غير مقروءة' : 'لا توجد إشعارات'}
+                description="ستظهر هنا تنبيهات النظام والفواتير والمدفوعات."
+              />
+            ) : (
+              <div className="space-y-3">
+                {filtered.map((n) => (
+                  <NotificationItem key={n.id} n={n} onMarkRead={() => markRead(n.id)} />
+                ))}
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="alerts" className="mt-4">
+            <SentAlertsCenter
+              title="تنبيهات الفواتير المُرسَلة"
+              description="سجل التنبيهات التلقائية المُرسَلة إلى العملاء ومستخدمي النظام بحالة القراءة."
+              emptyDescription="لم يُرسل أي تنبيه فواتير بعد. فعّل التنبيهات من الإعدادات."
+            />
+          </TabsContent>
+        </Tabs>
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
