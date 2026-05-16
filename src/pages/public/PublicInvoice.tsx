@@ -63,7 +63,8 @@ const PublicInvoice = () => {
         client_tax: client?.taxNumber ?? null,
         company_name: company?.name ?? '', company_tax: company?.taxNumber ?? null,
         company_address: company?.address ?? null, company_logo: null, company_stamp: null,
-        currency: 'SAR',
+        currency: client?.currency ?? 'SAR',
+        currency_symbol: client?.currencySymbol ?? null,
         items: inv.items.map((it) => ({ id: it.id, name: it.name, quantity: it.quantity, unit_price: it.unitPrice })),
       });
       setLoading(false);
