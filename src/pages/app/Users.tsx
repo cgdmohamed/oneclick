@@ -43,7 +43,7 @@ const Users = () => {
 
   useSyncExternalStore(subscribeInvitations, getInvitations, getInvitations);
   const companyId = user?.companyId ?? 'co-1';
-  const invitations = getInvitationsForCompany(companyId).map((i) => ({ ...i, id: i.token }));
+  const invitations: (Invitation & { id: string })[] = getInvitationsForCompany(companyId).map((i) => ({ ...i, id: i.token }));
 
   const isCreate = !list.find((x) => x.id === editing.id);
 
