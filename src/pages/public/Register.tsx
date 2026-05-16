@@ -2,17 +2,18 @@ import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { Calculator } from 'lucide-react';
+import { Calculator, CheckCircle2 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
-import { useAuth } from '@/lib/auth';
 import { isApiConfigured, registerRequest, ApiError } from '@/lib/api';
+import { submitSignupRequest } from '@/hooks/usePendingSignups';
+import { logActivity } from '@/lib/activityLog';
 import { toast } from 'sonner';
 
 const Register = () => {
   const [form, setForm] = useState({ company: '', owner: '', email: '', phone: '', password: '' });
   const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
+  const [submitted, setSubmitted] = useState(false);
   const navigate = useNavigate();
 
   const submit = async (e: React.FormEvent) => {
@@ -28,11 +29,21 @@ const Register = () => {
           name: form.owner, companyName: form.company,
         });
       }
-      login(form.email);
-      toast.success('تم إنشاء حساب شركتك بنجاح');
-      navigate('/app');
+      submitSignupRequest({
+        companyName: form.company,
+        ownerName: form.owner,
+        email: form.email,
+        phone: form.phone,
+      });
+      logActivity({
+        module: 'user', action: 'create',
+        description: `طلب تسجيل جديد من ${form.company} (${form.email}) — بانتظار المراجعة`,
+        userName: form.owner, userEmail: form.email,
+      });
+      toast.success('تم إرسال طلب تسجيل شركتك للمراجعة');
+      setSubmitted(true);
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'تعذّر إنشاء الحساب');
+      toast.error(err instanceof ApiError ? err.message : 'تعذّر إرسال الطلب');
     } finally {
       setLoading(false);
     }
