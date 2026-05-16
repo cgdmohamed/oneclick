@@ -137,8 +137,42 @@ const InvoiceDetails = () => {
 
   const publicUrl = `${window.location.origin}/invoice/${invoice.publicId}`;
 
+  const exportClientPdf = async () => {
+    const node = document.querySelector<HTMLElement>('[data-print-area]');
+    if (!node) return toast.error('تعذّر إيجاد محتوى الفاتورة');
+    const t = toast.loading('جارٍ توليد PDF...');
+    try {
+      const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
+        import('html2canvas'),
+        import('jspdf'),
+      ]);
+      const canvas = await html2canvas(node, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const margin = 10;
+      const imgW = pageW - margin * 2;
+      const imgH = (canvas.height * imgW) / canvas.width;
+      let heightLeft = imgH;
+      let position = margin;
+      pdf.addImage(imgData, 'PNG', margin, position, imgW, imgH);
+      heightLeft -= pageH - margin * 2;
+      while (heightLeft > 0) {
+        position = margin - (imgH - heightLeft);
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', margin, position, imgW, imgH);
+        heightLeft -= pageH - margin * 2;
+      }
+      pdf.save(`invoice-${invoice.number}.pdf`);
+      toast.success('تم تنزيل PDF', { id: t });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'تعذّر توليد PDF', { id: t });
+    }
+  };
+
   const downloadPdf = async () => {
-    if (!apiOn) return toast.message('تنزيل PDF يتطلب تشغيل الـ API');
+    if (!apiOn) return exportClientPdf();
     try {
       const res = await fetch(`${API_URL}/api/invoices/${invoice.id}/pdf`, {
         headers: { Authorization: `Bearer ${getAccessToken() ?? ''}` },
@@ -150,8 +184,9 @@ const InvoiceDetails = () => {
       a.href = url; a.download = `invoice-${invoice.number}.pdf`;
       document.body.appendChild(a); a.click(); a.remove();
       URL.revokeObjectURL(url);
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'تعذّر تنزيل PDF');
+    } catch {
+      // fallback to client-side rendering
+      await exportClientPdf();
     }
   };
 
