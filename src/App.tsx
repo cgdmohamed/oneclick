@@ -52,6 +52,7 @@ import Users360 from "./pages/admin/Users360";
 import UserDetail360 from "./pages/admin/UserDetail360";
 import RolesAndPermissions from "./pages/admin/RolesAndPermissions";
 import AuditLog from "./pages/admin/AuditLog";
+import Approvals from "./pages/admin/Approvals";
 
 import { TrackingScripts } from "./components/common/TrackingScripts";
 
