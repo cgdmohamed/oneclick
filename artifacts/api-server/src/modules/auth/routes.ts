@@ -1,0 +1,412 @@
+import { Router, type Request, type Response } from 'express';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import crypto from 'node:crypto';
+import { z } from 'zod';
+import type { PoolClient } from 'pg';
+import { pool } from '../../db/client.js';
+import { env } from '../../config/env.js';
+import { badRequest, unauthorized } from '../../utils/errors.js';
+import { requireAuth } from '../../middleware/auth.js';
+import { sendEmail } from '../../utils/email.js';
+import { audit } from '../../utils/audit.js';
+import { REFRESH_COOKIE, setRefreshCookie, clearRefreshCookie } from '../../utils/cookies.js';
+import { setCsrfCookie, clearCsrfCookie, requireCsrf } from '../../middleware/csrf.js';
+
+const router = Router();
+
+const registerSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(8),
+  name: z.string().min(2),
+  companyName: z.string().min(2),
+});
+
+const loginSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(1),
+});
+
+function signAccess(userId: string) {
+  return jwt.sign({ sub: userId }, env.JWT_SECRET, { expiresIn: '15m' });
+}
+function signRefresh(userId: string) {
+  return jwt.sign({ sub: userId, t: 'r' }, env.JWT_REFRESH_SECRET, { expiresIn: '30d' });
+}
+function signVerify(userId: string) {
+  return jwt.sign({ sub: userId, t: 'v' }, env.JWT_SECRET, { expiresIn: '24h' });
+}
+const sha = (s: string) => crypto.createHash('sha256').update(s).digest('hex');
+
+/**
+ * SEC-07: In-memory failed-login tracker. Per-email sliding 15-min window;
+ * after MAX_ATTEMPTS failures the address is locked for LOCK_MS regardless of
+ * password correctness. Resets on successful login.
+ *
+ * Single-process only — matches the existing in-memory rate-limit posture
+ * (see SCL-01 in the audit). When we move to multi-instance, swap to Redis.
+ */
+const MAX_ATTEMPTS = 5;
+const WINDOW_MS = 15 * 60 * 1000;
+const LOCK_MS = 15 * 60 * 1000;
+const attempts = new Map<string, { count: number; firstAt: number; lockedUntil: number }>();
+
+function checkLock(email: string) {
+  const key = email.toLowerCase();
+  const rec = attempts.get(key);
+  if (!rec) return;
+  const now = Date.now();
+  if (rec.lockedUntil > now) {
+    const mins = Math.ceil((rec.lockedUntil - now) / 60000);
+    throw unauthorized(`Account temporarily locked. Try again in ${mins} minute(s).`);
+  }
+  if (now - rec.firstAt > WINDOW_MS) attempts.delete(key);
+}
+
+function noteFailure(email: string) {
+  const key = email.toLowerCase();
+  const now = Date.now();
+  const rec = attempts.get(key);
+  if (!rec || now - rec.firstAt > WINDOW_MS) {
+    attempts.set(key, { count: 1, firstAt: now, lockedUntil: 0 });
+    return;
+  }
+  rec.count += 1;
+  if (rec.count >= MAX_ATTEMPTS) rec.lockedUntil = now + LOCK_MS;
+}
+
+function noteSuccess(email: string) {
+  attempts.delete(email.toLowerCase());
+}
+
+async function sendVerificationEmail(userId: string, email: string) {
+  const token = signVerify(userId);
+  const link = `${env.APP_URL}/verify-email?token=${token}`;
+  await sendEmail({
+    to: email,
+    subject: 'Verify your Hesabat email',
+    html: `<p>Welcome! Confirm your email to finish setting up your account (link valid for 24 hours):</p>
+           <p><a href="${link}">${link}</a></p>`,
+  });
+}
+
+/**
+ * Issue a refresh token, persist it (hashed) and start a new rotation family.
+ * Returns the raw token to be sent to the client via httpOnly cookie.
+ */
+async function issueRefreshToken(
+  c: PoolClient | typeof pool,
+  userId: string,
+  req: Request,
+  familyId?: string,
+): Promise<string> {
+  const token = signRefresh(userId);
+  const ua = (req.headers['user-agent'] ?? '').toString().slice(0, 500);
+  const ip = (req.ip ?? '').toString().slice(0, 64);
+  const inserted = await c.query<{ id: string }>(
+    `INSERT INTO refresh_tokens (user_id, token_hash, expires_at, family_id, user_agent, ip)
+     VALUES ($1, $2, now() + interval '30 days', $3, $4, $5)
+     RETURNING id`,
+    [userId, sha(token), familyId ?? null, ua, ip],
+  );
+  if (!familyId) {
+    // Self-reference: this token starts a new family
+    await c.query(`UPDATE refresh_tokens SET family_id = id WHERE id = $1`, [inserted.rows[0].id]);
+  }
+  return token;
+}
+
+function readRefreshToken(req: Request): string | null {
+  const cookie = (req as Request & { cookies?: Record<string, string> }).cookies?.[REFRESH_COOKIE];
+  if (cookie) return cookie;
+  // Backward-compat: legacy clients posting refresh_token in body
+  const body = req.body as { refresh_token?: unknown } | undefined;
+  return typeof body?.refresh_token === 'string' ? body.refresh_token : null;
+}
+
+
+router.post('/register', async (req, res, next) => {
+  try {
+    const body = registerSchema.parse(req.body);
+    const c = await pool.connect();
+    try {
+      await c.query('BEGIN');
+      const exists = await c.query('SELECT 1 FROM users WHERE email = $1', [body.email]);
+      if (exists.rowCount) throw badRequest('Email already registered');
+
+      const hash = await bcrypt.hash(body.password, 12);
+      const userRes = await c.query(
+        `INSERT INTO users (email, password_hash, name) VALUES ($1,$2,$3) RETURNING id`,
+        [body.email, hash, body.name],
+      );
+      const userId = userRes.rows[0].id;
+
+      const compRes = await c.query(
+        `INSERT INTO companies (name, email) VALUES ($1,$2) RETURNING id`,
+        [body.companyName, body.email],
+      );
+      const companyId = compRes.rows[0].id;
+
+      await c.query(`INSERT INTO user_companies (user_id, company_id, is_default) VALUES ($1,$2,true)`, [userId, companyId]);
+      await c.query(`INSERT INTO user_roles (user_id, company_id, role) VALUES ($1,$2,'company_admin')`, [userId, companyId]);
+
+      // free plan trial
+      await c.query(`
+        INSERT INTO subscriptions (company_id, plan_id, status, expires_at)
+        SELECT $1, id, 'trialing', now() + interval '14 days' FROM plans WHERE code='free' LIMIT 1
+      `, [companyId]);
+
+      await c.query('COMMIT');
+
+      const access = signAccess(userId);
+      const refresh = await issueRefreshToken(pool, userId, req);
+      await audit(pool, {
+        companyId, userId,
+        action: 'auth.register', entity: 'user', entityId: userId,
+        data: { email: body.email, companyName: body.companyName },
+      });
+      // SEC-08: fire-and-forget verification email; failure must not block signup.
+      sendVerificationEmail(userId, body.email).catch(() => { /* logged by email util */ });
+      setRefreshCookie(res, refresh);
+      setCsrfCookie(res);
+      res.json({
+        access_token: access,
+        user: { id: userId, email: body.email, name: body.name },
+        company: { id: companyId, name: body.companyName },
+      });
+    } catch (e) {
+      await c.query('ROLLBACK');
+      throw e;
+    } finally {
+      c.release();
+    }
+  } catch (e) { next(e); }
+});
+
+router.post('/login', async (req, res, next) => {
+  try {
+    const body = loginSchema.parse(req.body);
+    checkLock(body.email); // SEC-07
+    const u = await pool.query(`SELECT id, password_hash, name, is_super_admin, email_verified_at FROM users WHERE email = $1`, [body.email]);
+    if (!u.rowCount) { noteFailure(body.email); throw unauthorized('Invalid credentials'); }
+    const ok = await bcrypt.compare(body.password, u.rows[0].password_hash);
+    if (!ok) { noteFailure(body.email); throw unauthorized('Invalid credentials'); }
+    noteSuccess(body.email);
+
+    const userId = u.rows[0].id;
+    const access = signAccess(userId);
+    const refresh = await issueRefreshToken(pool, userId, req);
+
+    const comp = await pool.query(
+      `SELECT c.id, c.name FROM user_companies uc JOIN companies c ON c.id = uc.company_id
+       WHERE uc.user_id = $1 ORDER BY uc.is_default DESC LIMIT 1`,
+      [userId],
+    );
+    const roles = await pool.query(
+      `SELECT role, company_id FROM user_roles WHERE user_id = $1`, [userId],
+    );
+
+    await audit(pool, {
+      companyId: comp.rows[0]?.id ?? null, userId,
+      action: 'auth.login', entity: 'user', entityId: userId,
+      data: { email: body.email, ip: req.ip },
+    });
+    setRefreshCookie(res, refresh);
+    setCsrfCookie(res);
+    res.json({
+      access_token: access,
+      user: {
+        id: userId, email: body.email, name: u.rows[0].name,
+        isSuperAdmin: u.rows[0].is_super_admin,
+        emailVerified: !!u.rows[0].email_verified_at,
+      },
+      company: comp.rows[0] ?? null,
+      roles: roles.rows,
+    });
+  } catch (e) { next(e); }
+});
+
+/** SEC-08: confirm an email-verification token. */
+router.post('/verify-email', async (req, res, next) => {
+  try {
+    const { token } = z.object({ token: z.string().min(10) }).parse(req.body);
+    let payload: { sub: string; t?: string };
+    try { payload = jwt.verify(token, env.JWT_SECRET) as { sub: string; t?: string }; }
+    catch { throw badRequest('Invalid or expired token'); }
+    if (payload.t !== 'v') throw badRequest('Invalid token');
+    await pool.query(
+      `UPDATE users SET email_verified_at = COALESCE(email_verified_at, now()) WHERE id = $1`,
+      [payload.sub],
+    );
+    await audit(pool, {
+      companyId: null, userId: payload.sub,
+      action: 'auth.email_verified', entity: 'user', entityId: payload.sub,
+    });
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
+/** SEC-08: re-issue a verification email to the authenticated user. */
+router.post('/resend-verification', requireAuth, async (req, res, next) => {
+  try {
+    const userId = req.auth!.userId;
+    const u = await pool.query(`SELECT email, email_verified_at FROM users WHERE id = $1`, [userId]);
+    if (!u.rowCount) throw unauthorized();
+    if (u.rows[0].email_verified_at) return res.json({ ok: true, already: true });
+    await sendVerificationEmail(userId, u.rows[0].email);
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
+router.post('/refresh', requireCsrf, async (req, res, next) => {
+  try {
+    const token = readRefreshToken(req);
+    if (!token) throw unauthorized('Missing refresh token');
+    let payload: { sub: string };
+    try { payload = jwt.verify(token, env.JWT_REFRESH_SECRET) as { sub: string }; }
+    catch { throw unauthorized('Invalid refresh token'); }
+
+    const c = await pool.connect();
+    try {
+      await c.query('BEGIN');
+      const row = await c.query<{ id: string; family_id: string; revoked_at: Date | null; expires_at: Date }>(
+        `SELECT id, family_id, revoked_at, expires_at
+           FROM refresh_tokens
+          WHERE token_hash = $1
+          FOR UPDATE`,
+        [sha(token)],
+      );
+      if (!row.rowCount) {
+        await c.query('ROLLBACK');
+        throw unauthorized('Invalid refresh token');
+      }
+      const r = row.rows[0];
+
+      // Reuse detection: token already revoked → assume theft, nuke the family
+      if (r.revoked_at) {
+        await c.query(
+          `UPDATE refresh_tokens SET revoked_at = now()
+            WHERE family_id = $1 AND revoked_at IS NULL`,
+          [r.family_id],
+        );
+        await c.query('COMMIT');
+        clearRefreshCookie(res);
+        await audit(pool, {
+          companyId: null, userId: payload.sub,
+          action: 'auth.refresh_reuse_detected', entity: 'user', entityId: payload.sub,
+          data: { family_id: r.family_id, ip: req.ip },
+        });
+        throw unauthorized('Refresh token reuse detected');
+      }
+      if (r.expires_at.getTime() < Date.now()) {
+        await c.query('ROLLBACK');
+        throw unauthorized('Refresh token expired');
+      }
+
+      // Rotate: issue a new token in the same family, mark old as replaced+revoked
+      const newToken = await issueRefreshToken(c, payload.sub, req, r.family_id);
+      const newId = await c.query<{ id: string }>(
+        `SELECT id FROM refresh_tokens WHERE token_hash = $1`, [sha(newToken)],
+      );
+      await c.query(
+        `UPDATE refresh_tokens SET revoked_at = now(), replaced_by = $2 WHERE id = $1`,
+        [r.id, newId.rows[0].id],
+      );
+      await c.query('COMMIT');
+
+      setRefreshCookie(res, newToken);
+      setCsrfCookie(res);
+      res.json({ access_token: signAccess(payload.sub) });
+    } catch (e) {
+      try { await c.query('ROLLBACK'); } catch { /* ignore */ }
+      throw e;
+    } finally {
+      c.release();
+    }
+  } catch (e) { next(e); }
+});
+
+router.post('/logout', requireCsrf, async (req, res, next) => {
+  try {
+    const token = readRefreshToken(req);
+    if (token) {
+      await pool.query(
+        `UPDATE refresh_tokens SET revoked_at = now()
+          WHERE family_id = (SELECT family_id FROM refresh_tokens WHERE token_hash = $1)
+            AND revoked_at IS NULL`,
+        [sha(token)],
+      );
+    }
+    clearRefreshCookie(res);
+    clearCsrfCookie(res);
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
+router.get('/me', requireAuth, async (req, res, next) => {
+  try {
+    const userId = req.auth!.userId;
+    const u = await pool.query(`SELECT id, email, name, is_super_admin FROM users WHERE id = $1`, [userId]);
+    if (!u.rowCount) throw unauthorized();
+    const comps = await pool.query(
+      `SELECT c.id, c.name, uc.is_default FROM user_companies uc JOIN companies c ON c.id = uc.company_id WHERE uc.user_id = $1`,
+      [userId],
+    );
+    const roles = await pool.query(`SELECT role, company_id FROM user_roles WHERE user_id = $1`, [userId]);
+    res.json({ user: u.rows[0], companies: comps.rows, roles: roles.rows });
+  } catch (e) { next(e); }
+});
+
+router.post('/forgot-password', async (req, res, next) => {
+  try {
+    const { email } = z.object({ email: z.string().email() }).parse(req.body);
+    const u = await pool.query(`SELECT id FROM users WHERE email = $1`, [email]);
+    if (u.rowCount) {
+      const token = crypto.randomBytes(32).toString('hex');
+      await pool.query(
+        `INSERT INTO password_resets (user_id, token_hash, expires_at) VALUES ($1, $2, now() + interval '1 hour')`,
+        [u.rows[0].id, sha(token)],
+      );
+      const link = `${env.APP_URL}/reset-password?token=${token}`;
+      await sendEmail({
+        to: email,
+        subject: 'Reset your Hesabat password',
+        html: `<p>Click the link below to reset your password (valid for 1 hour):</p>
+               <p><a href="${link}">${link}</a></p>
+               <p>If you did not request this, ignore this email.</p>`,
+      });
+      await audit(pool, {
+        companyId: null, userId: u.rows[0].id,
+        action: 'auth.password_reset_request', entity: 'user', entityId: u.rows[0].id,
+      });
+    }
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
+router.post('/reset-password', async (req, res, next) => {
+  try {
+    const { token, password } = z.object({ token: z.string().min(10), password: z.string().min(8) }).parse(req.body);
+    const r = await pool.query(
+      `SELECT id, user_id FROM password_resets WHERE token_hash = $1 AND used_at IS NULL AND expires_at > now()`,
+      [sha(token)],
+    );
+    if (!r.rowCount) throw badRequest('Invalid or expired token');
+    const hash = await bcrypt.hash(password, 12);
+    const c = await pool.connect();
+    try {
+      await c.query('BEGIN');
+      await c.query(`UPDATE users SET password_hash = $1 WHERE id = $2`, [hash, r.rows[0].user_id]);
+      await c.query(`UPDATE password_resets SET used_at = now() WHERE id = $1`, [r.rows[0].id]);
+      await c.query(`UPDATE refresh_tokens SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL`, [r.rows[0].user_id]);
+      await c.query('COMMIT');
+    } catch (e) { await c.query('ROLLBACK'); throw e; } finally { c.release(); }
+    await audit(pool, {
+      companyId: null, userId: r.rows[0].user_id,
+      action: 'auth.password_reset', entity: 'user', entityId: r.rows[0].user_id,
+    });
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
+export default router;

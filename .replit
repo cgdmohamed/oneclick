@@ -18,3 +18,24 @@ expertMode = true
 [postMerge]
 path = "scripts/post-merge.sh"
 timeoutMs = 20000
+
+[userenv]
+
+[userenv.shared]
+JWT_SECRET = "f6bf6de633c4e3126a889ec0b5eeb16f43dd54e4a967a424ec67097b56b21db8"
+JWT_REFRESH_SECRET = "95a2e011a9980d1a151406c78a1e9b261ab652bafb67e896dce924e2e0ec44d0"
+CORS_ORIGIN = "*"
+VITE_API_URL = "same-origin"
+NODE_ENV = "development"
+
+[[ports]]
+localPort = 5001
+externalPort = 80
+
+[[ports]]
+localPort = 8080
+externalPort = 8080
+
+[[ports]]
+localPort = 18627
+externalPort = 3000

@@ -1,0 +1,144 @@
+import { useSyncExternalStore } from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { Toaster as Sonner } from "@/components/ui/sonner";
+import { Toaster } from "@/components/ui/toaster";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { AuthProvider } from "@/lib/auth";
+import { getCurrencySymbol, subscribeCurrency } from "@/lib/currency";
+
+import PublicLayout from "./layouts/PublicLayout";
+import AppLayout from "./layouts/AppLayout";
+
+import Home from "./pages/public/Home";
+import Features from "./pages/public/Features";
+import Pricing from "./pages/public/Pricing";
+import About from "./pages/public/About";
+import Contact from "./pages/public/Contact";
+import Login from "./pages/public/Login";
+import Register from "./pages/public/Register";
+import PublicInvoice from "./pages/public/PublicInvoice";
+import ForgotPassword from "./pages/public/ForgotPassword";
+import ResetPassword from "./pages/public/ResetPassword";
+import AcceptInvite from "./pages/public/AcceptInvite";
+
+import Overview from "./pages/app/Overview";
+import Clients from "./pages/app/Clients";
+import ClientDetail from "./pages/app/ClientDetail";
+import Invoices from "./pages/app/Invoices";
+import NewInvoice from "./pages/app/NewInvoice";
+import InvoiceDetails from "./pages/app/InvoiceDetails";
+import Payments from "./pages/app/Payments";
+import Accounts from "./pages/app/Accounts";
+import Products from "./pages/app/Products";
+import Reports from "./pages/app/Reports";
+import ReportDetail from "./pages/app/ReportDetail";
+import Notifications from "./pages/app/Notifications";
+import AlertsLog from "./pages/app/AlertsLog";
+import Users from "./pages/app/Users";
+import Settings from "./pages/app/Settings";
+import Subscription from "./pages/app/Subscription";
+import ActivityLog from "./pages/app/ActivityLog";
+
+import AdminOverview from "./pages/admin/AdminOverview";
+import Companies from "./pages/admin/Companies";
+import CompaniesAndUsers from "./pages/admin/CompaniesAndUsers";
+import Plans from "./pages/admin/Plans";
+import Subscriptions from "./pages/admin/Subscriptions";
+
+import PlatformWallets from "./pages/admin/PlatformWallets";
+import FeatureAccess from "./pages/admin/FeatureAccess";
+import SystemNotifications from "./pages/admin/SystemNotifications";
+import SystemSettings from "./pages/admin/SystemSettings";
+import LandingContent from "./pages/admin/LandingContent";
+import TrackingSettings from "./pages/admin/TrackingSettings";
+import Analytics from "./pages/admin/Analytics";
+import Users360 from "./pages/admin/Users360";
+import UserDetail360 from "./pages/admin/UserDetail360";
+import RolesAndPermissions from "./pages/admin/RolesAndPermissions";
+import AuditLog from "./pages/admin/AuditLog";
+import Approvals from "./pages/admin/Approvals";
+
+import { TrackingScripts } from "./components/common/TrackingScripts";
+
+import NotFound from "./pages/NotFound";
+
+const queryClient = new QueryClient();
+
+const App = () => {
+  // Re-render the whole tree when the global currency symbol changes.
+  useSyncExternalStore(subscribeCurrency, getCurrencySymbol, getCurrencySymbol);
+  return (
+  <QueryClientProvider client={queryClient}>
+    <TooltipProvider>
+      <Toaster />
+      <Sonner position="top-center" dir="rtl" />
+      <BrowserRouter>
+        <AuthProvider>
+          <TrackingScripts />
+          <Routes>
+            <Route element={<PublicLayout />}>
+              <Route path="/" element={<Home />} />
+              <Route path="/features" element={<Features />} />
+              <Route path="/pricing" element={<Pricing />} />
+              <Route path="/about" element={<About />} />
+              <Route path="/contact" element={<Contact />} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/register" element={<Register />} />
+              <Route path="/forgot-password" element={<ForgotPassword />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
+            </Route>
+
+            <Route path="/invoice/:publicId" element={<PublicInvoice />} />
+            <Route path="/accept-invite" element={<AcceptInvite />} />
+
+            <Route path="/app" element={<AppLayout kind="company" />}>
+              <Route index element={<Overview />} />
+              <Route path="clients" element={<Clients />} />
+              <Route path="clients/:id" element={<ClientDetail />} />
+              <Route path="invoices" element={<Invoices />} />
+              <Route path="invoices/new" element={<NewInvoice />} />
+              <Route path="invoices/:id" element={<InvoiceDetails />} />
+              <Route path="payments" element={<Payments />} />
+              <Route path="accounts" element={<Accounts />} />
+              <Route path="products" element={<Products />} />
+              <Route path="reports" element={<Reports />} />
+              <Route path="reports/:type" element={<ReportDetail />} />
+              <Route path="notifications" element={<Notifications />} />
+              <Route path="alerts-log" element={<AlertsLog />} />
+              <Route path="users" element={<Users />} />
+              <Route path="subscription" element={<Subscription />} />
+              <Route path="settings" element={<Settings />} />
+              <Route path="activity" element={<ActivityLog />} />
+            </Route>
+
+            <Route path="/admin" element={<AppLayout kind="admin" />}>
+              <Route index element={<AdminOverview />} />
+              <Route path="companies" element={<CompaniesAndUsers />} />
+              <Route path="plans" element={<Plans />} />
+              <Route path="subscriptions" element={<Subscriptions />} />
+              
+              <Route path="wallets" element={<PlatformWallets />} />
+              <Route path="feature-access" element={<FeatureAccess />} />
+              <Route path="notifications" element={<SystemNotifications />} />
+              <Route path="landing" element={<LandingContent />} />
+              <Route path="tracking" element={<TrackingSettings />} />
+              <Route path="analytics" element={<Analytics />} />
+              <Route path="users" element={<CompaniesAndUsers />} />
+              <Route path="users/:id" element={<UserDetail360 />} />
+              <Route path="roles" element={<RolesAndPermissions />} />
+              <Route path="audit-log" element={<AuditLog />} />
+              <Route path="approvals" element={<Approvals />} />
+              <Route path="settings" element={<SystemSettings />} />
+            </Route>
+
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </AuthProvider>
+      </BrowserRouter>
+    </TooltipProvider>
+  </QueryClientProvider>
+  );
+};
+
+export default App;

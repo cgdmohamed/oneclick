@@ -1,0 +1,178 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Hesabat Design System — Arabic SaaS, calm professional palette. All HSL. */
+
+@layer base {
+  :root {
+    /* Slate-50 base — corporate minimalist */
+    --background: 210 40% 98%;
+    --foreground: 222 47% 11%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+
+    /* Refined corporate blue */
+    --primary: 221 83% 53%;
+    --primary-foreground: 210 40% 99%;
+    --primary-glow: 217 91% 60%;
+
+    --secondary: 215 25% 96%;
+    --secondary-foreground: 222 47% 15%;
+
+    --muted: 215 25% 96%;
+    --muted-foreground: 215 16% 47%;
+
+    --accent: 214 32% 94%;
+    --accent-foreground: 222 47% 15%;
+
+    --destructive: 0 75% 50%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 152 60% 36%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 30 80% 15%;
+    --info: 210 90% 50%;
+    --info-foreground: 0 0% 100%;
+
+    --border: 215 20% 91%;
+    --input: 215 20% 91%;
+    --ring: 221 83% 53%;
+
+    --radius: 0.875rem;
+
+    --gradient-hero: linear-gradient(135deg, hsl(222 47% 11%) 0%, hsl(221 60% 22%) 60%, hsl(221 83% 53%) 100%);
+    --gradient-soft: linear-gradient(180deg, hsl(210 40% 99%) 0%, hsl(215 25% 96%) 100%);
+    --shadow-soft: 0 1px 2px hsl(222 47% 11% / 0.04), 0 2px 8px -2px hsl(222 47% 11% / 0.04);
+    --shadow-elev: 0 10px 40px -12px hsl(221 83% 53% / 0.25), 0 4px 12px -4px hsl(222 47% 11% / 0.06);
+
+    --sidebar-background: 230 40% 14%;
+    --sidebar-foreground: 220 20% 88%;
+    --sidebar-primary: 230 75% 55%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 230 35% 20%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 230 30% 22%;
+    --sidebar-ring: 230 75% 55%;
+
+    /* Per-page accent tokens (h s l) — used by PageHeader banner */
+    --page-accent: 230 65% 35%;
+    --page-accent-2: 230 75% 55%;
+  }
+
+  /* Admin shell theme — emerald/teal to clearly distinguish from company shell */
+  [data-shell="admin"] {
+    --sidebar-background: 168 55% 12%;
+    --sidebar-foreground: 165 25% 88%;
+    --sidebar-primary: 165 75% 45%;
+    --sidebar-primary-foreground: 168 55% 8%;
+    --sidebar-accent: 168 45% 18%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 168 40% 20%;
+    --sidebar-ring: 165 75% 45%;
+  }
+  [data-shell="admin"] .shell-header {
+    background: linear-gradient(90deg, hsl(168 55% 12% / 0.04), hsl(165 75% 45% / 0.06));
+  }
+
+  /* Per-route page accents — applied via [data-page] on shell root */
+  [data-page="overview"]      { --page-accent: 230 65% 35%; --page-accent-2: 230 80% 55%; }
+  [data-page="clients"]       { --page-accent: 200 80% 40%; --page-accent-2: 195 90% 55%; }
+  [data-page="invoices"]      { --page-accent: 250 65% 50%; --page-accent-2: 265 80% 65%; }
+  [data-page="payments"]      { --page-accent: 152 60% 36%; --page-accent-2: 158 70% 48%; }
+  [data-page="accounts"]      { --page-accent: 28 90% 48%;  --page-accent-2: 38 95% 58%; }
+  [data-page="products"]      { --page-accent: 280 55% 48%; --page-accent-2: 295 65% 60%; }
+  [data-page="reports"]       { --page-accent: 340 70% 48%; --page-accent-2: 350 80% 62%; }
+  [data-page="notifications"] { --page-accent: 40 92% 48%;  --page-accent-2: 32 95% 58%; }
+  [data-page="users"]         { --page-accent: 12 78% 50%;  --page-accent-2: 18 85% 60%; }
+  [data-page="settings"]      { --page-accent: 215 18% 38%; --page-accent-2: 220 25% 52%; }
+
+  [data-page="admin-overview"]      { --page-accent: 168 70% 32%; --page-accent-2: 165 75% 45%; }
+  [data-page="admin-companies"]     { --page-accent: 200 80% 38%; --page-accent-2: 198 85% 50%; }
+  [data-page="admin-plans"]         { --page-accent: 270 60% 48%; --page-accent-2: 285 70% 60%; }
+  [data-page="admin-subscriptions"] { --page-accent: 190 70% 38%; --page-accent-2: 188 78% 50%; }
+  [data-page="admin-feature-access"]{ --page-accent: 320 60% 48%; --page-accent-2: 330 72% 60%; }
+  [data-page="admin-notifications"] { --page-accent: 30 90% 48%;  --page-accent-2: 22 95% 58%; }
+  [data-page="admin-settings"]      { --page-accent: 215 25% 32%; --page-accent-2: 220 30% 48%; }
+
+  /* Public route accents for header underline + hero tint */
+  [data-public="home"]     { --page-accent: 230 65% 38%; --page-accent-2: 220 80% 55%; }
+  [data-public="features"] { --page-accent: 280 55% 48%; --page-accent-2: 295 65% 60%; }
+  [data-public="pricing"]  { --page-accent: 152 60% 36%; --page-accent-2: 158 70% 48%; }
+  [data-public="about"]    { --page-accent: 28 90% 48%;  --page-accent-2: 38 95% 58%; }
+  [data-public="contact"]  { --page-accent: 200 80% 40%; --page-accent-2: 195 90% 55%; }
+  [data-public="login"]    { --page-accent: 250 65% 50%; --page-accent-2: 265 80% 65%; }
+  [data-public="register"] { --page-accent: 340 70% 48%; --page-accent-2: 350 80% 62%; }
+
+  .dark {
+    --background: 222 47% 8%;
+    --foreground: 210 40% 98%;
+    --card: 222 40% 11%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222 40% 11%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 230 75% 60%;
+    --primary-foreground: 222 47% 11%;
+    --secondary: 222 30% 16%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 222 30% 16%;
+    --muted-foreground: 220 15% 65%;
+    --accent: 222 30% 18%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 70% 45%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 222 30% 18%;
+    --input: 222 30% 18%;
+    --ring: 230 75% 60%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  html, body {
+    @apply bg-background text-foreground;
+    font-family: 'IBM Plex Sans Arabic', 'Cairo', system-ui, sans-serif;
+    font-feature-settings: "kern", "liga", "ss01";
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  h1, h2, h3, h4, h5 {
+    font-family: 'IBM Plex Sans Arabic', 'Cairo', system-ui, sans-serif;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+}
+
+@layer utilities {
+  .gradient-hero { background: var(--gradient-hero); }
+  .gradient-soft { background: var(--gradient-soft); }
+  .shadow-soft { box-shadow: var(--shadow-soft); }
+  .shadow-elev { box-shadow: var(--shadow-elev); }
+  .bg-grid {
+    background-image: radial-gradient(hsl(var(--border)) 1px, transparent 1px);
+    background-size: 22px 22px;
+  }
+  .gradient-page {
+    background: linear-gradient(135deg, hsl(var(--page-accent) / 0.10) 0%, hsl(var(--page-accent-2) / 0.06) 100%);
+  }
+  .gradient-page-strong {
+    background: linear-gradient(135deg, hsl(var(--page-accent)) 0%, hsl(var(--page-accent-2)) 100%);
+  }
+  .text-page-accent { color: hsl(var(--page-accent)); }
+  .border-page-accent { border-color: hsl(var(--page-accent) / 0.25); }
+  .ring-page-accent { --tw-ring-color: hsl(var(--page-accent) / 0.3); }
+}
+
+@media print {
+  .no-print { display: none !important; }
+  body { background: white; direction: rtl; }
+  .print-area { box-shadow: none !important; border: none !important; }
+  @page { size: A4; margin: 16mm; }
+}
