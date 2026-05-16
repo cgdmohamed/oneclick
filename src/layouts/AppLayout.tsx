@@ -217,7 +217,19 @@ const AppShellInner = ({ kind }: { kind: 'company' | 'admin' }) => {
           </DropdownMenu>
         </header>
         <main className="flex-1 p-4 md:p-6 lg:p-8">
-          <Outlet />
+          {kind === 'company' && (() => {
+            const blocking = companyNav.find(n => n.feature && n.to !== '/app' && pathname.startsWith(n.to) && !featureSet.has(n.feature));
+            if (!blocking) return <Outlet />;
+            return (
+              <div className="max-w-xl mx-auto mt-12 rounded-2xl border border-border/60 bg-card p-8 text-center shadow-soft">
+                <Crown className="h-10 w-10 mx-auto text-warning mb-3" />
+                <h2 className="text-xl font-bold mb-2">هذه الميزة غير مفعّلة في باقتك</h2>
+                <p className="text-sm text-muted-foreground mb-5">«{blocking.label}» متاحة في باقات أعلى. يمكنك ترقية الاشتراك للوصول إليها.</p>
+                <Button onClick={() => navigate('/app/subscription')}>ترقية الباقة</Button>
+              </div>
+            );
+          })()}
+          {kind === 'admin' && <Outlet />}
         </main>
       </div>
     </div>
