@@ -11,6 +11,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { roleLabel } from '@/lib/format';
 import { useEffect } from 'react';
 import type { Role } from '@/types';
+import { useCurrentFeatureSet } from '@/hooks/usePlanAccess';
 
 const companyNav: { to: string; label: string; icon: typeof LayoutDashboard; end?: boolean; feature?: string }[] = [
   { to: '/app', label: 'الرئيسية', icon: LayoutDashboard, end: true },
