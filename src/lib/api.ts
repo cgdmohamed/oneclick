@@ -119,7 +119,6 @@ export const resolveAssetUrl = (url?: string | null): string | undefined => {
 /* ---------- Auth helpers ---------- */
 export interface LoginResponse {
   access_token: string;
-  refresh_token: string;
   user: { id: string; email: string; name: string; isSuperAdmin?: boolean };
   company: { id: string; name: string } | null;
   roles: { role: string; company_id: string | null }[];
@@ -128,23 +127,20 @@ export interface LoginResponse {
 export async function loginRequest(email: string, password: string) {
   const res = await api.post<LoginResponse>('/api/auth/login', { email, password });
   setAccessToken(res.access_token);
-  setRefreshToken(res.refresh_token);
   if (res.company?.id) setActiveCompanyId(res.company.id);
   return res;
 }
 
 export async function logoutRequest() {
-  const refresh = getRefreshToken();
-  try { await api.post('/api/auth/logout', { refresh_token: refresh }); } catch { /* ignore */ }
+  try { await api.post('/api/auth/logout'); } catch { /* ignore */ }
   setAccessToken(null);
-  setRefreshToken(null);
   setActiveCompanyId(null);
 }
 
 export async function registerRequest(input: { email: string; password: string; name: string; companyName: string }) {
   const res = await api.post<LoginResponse>('/api/auth/register', input);
   setAccessToken(res.access_token);
-  setRefreshToken(res.refresh_token);
   if (res.company?.id) setActiveCompanyId(res.company.id);
   return res;
 }
+
