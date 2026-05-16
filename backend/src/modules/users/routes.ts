@@ -12,7 +12,7 @@ const router = Router();
 router.get('/', requireRole('company_admin'), async (req, res, next) => {
   try {
     const t = req.tenant!;
-    const rs = await pool.query(`
+    const rs = await t.db.query(`
       SELECT u.id, u.email, u.name, u.created_at, array_agg(ur.role) AS roles
       FROM user_companies uc
       JOIN users u ON u.id = uc.user_id

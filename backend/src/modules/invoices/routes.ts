@@ -165,7 +165,7 @@ async function loadInvoicePdfData(db: { query: typeof pool.query }, invoiceId: s
 router.get('/:id/pdf', async (req, res, next) => {
   try {
     const t = req.tenant!;
-    const data = await loadInvoicePdfData(pool, req.params.id, t.companyId);
+    const data = await loadInvoicePdfData(t.db, req.params.id, t.companyId);
     const buf = await renderInvoicePdf(data);
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `inline; filename="invoice-${data.number}.pdf"`);
@@ -182,8 +182,8 @@ router.post('/:id/send-email', async (req, res, next) => {
       message: z.string().optional(),
     }).parse(req.body ?? {});
 
-    const data = await loadInvoicePdfData(pool, req.params.id, t.companyId);
-    const inv = await pool.query(`SELECT public_id FROM invoices WHERE id = $1`, [req.params.id]);
+    const data = await loadInvoicePdfData(t.db, req.params.id, t.companyId);
+    const inv = await t.db.query(`SELECT public_id FROM invoices WHERE id = $1`, [req.params.id]);
     const publicUrl = `${env.APP_URL}/i/${inv.rows[0].public_id}`;
     const recipient = to ?? data.client.email;
     if (!recipient) throw badRequest('Client has no email — supply "to"');
@@ -210,7 +210,7 @@ router.post('/:id/send-email', async (req, res, next) => {
 router.get('/:id/whatsapp-link', async (req, res, next) => {
   try {
     const t = req.tenant!;
-    const inv = await pool.query(
+    const inv = await t.db.query(
       `SELECT i.number, i.total, i.public_id, c.phone FROM invoices i
        JOIN clients c ON c.id = i.client_id WHERE i.id = $1 AND i.company_id = $2`,
       [req.params.id, t.companyId],
