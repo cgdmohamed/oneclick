@@ -23,8 +23,9 @@ const Login = () => {
       if (isApiConfigured()) {
         await loginRequest(email, password);
         toast.success('تم تسجيل الدخول');
-        // user state will be hydrated from /api/auth/me by AuthProvider
-        navigate('/app');
+        // Full reload so AuthProvider re-runs its /api/auth/me hydration
+        // effect with the newly saved token in localStorage.
+        window.location.href = '/app';
       } else {
         // Demo mode (no backend configured): require a non-empty password and
         // never grant super_admin via the local mock list.
