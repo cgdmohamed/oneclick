@@ -58,7 +58,18 @@ async function loadByPublicId(publicId: string): Promise<PublicInvoicePayload> {
 router.get('/invoices/:publicId', async (req, res, next) => {
   try {
     const { invoice, items } = await loadByPublicId(req.params.publicId);
-    res.json({ data: { ...invoice, items } });
+    res.json({
+      data: {
+        ...invoice,
+        currency_symbol: null,
+        items: items.map((r, i) => ({
+          id: String(i),
+          name: r.description,
+          quantity: Number(r.quantity),
+          unit_price: Number(r.unit_price),
+        })),
+      },
+    });
   } catch (e) { next(e); }
 });
 
