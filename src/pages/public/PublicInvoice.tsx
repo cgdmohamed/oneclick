@@ -3,7 +3,8 @@ import { useEffect, useState } from 'react';
 import { invoices as mockInvoices, clients as mockClients, companies as mockCompanies } from '@/data/mock';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Calculator, Printer, ArrowRight, Download } from 'lucide-react';
+import { Printer, ArrowRight, Download } from 'lucide-react';
+import { BrandLogo } from '@/components/common/BrandLogo';
 import { toast } from 'sonner';
 import { formatCurrency, formatDate, invoiceStatusLabel } from '@/lib/format';
 import { StatusBadge } from '@/components/common/StatusBadge';
@@ -139,9 +140,7 @@ const PublicInvoice = () => {
                 {data.company_logo ? (
                   <img src={data.company_logo} alt={data.company_name} className="h-10 w-10 rounded-xl object-contain" />
                 ) : (
-                  <span className="h-10 w-10 rounded-xl gradient-hero text-primary-foreground flex items-center justify-center">
-                    <Calculator className="h-5 w-5" />
-                  </span>
+                  <BrandLogo size="md" textOnly />
                 )}
                 <span className="font-bold text-lg">{data.company_name}</span>
               </div>

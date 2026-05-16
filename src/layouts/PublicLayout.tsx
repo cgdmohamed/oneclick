@@ -1,6 +1,7 @@
 import { Outlet, NavLink, Link, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Calculator, Menu, X } from 'lucide-react';
+import { Menu, X } from 'lucide-react';
+import { BrandLogo } from '@/components/common/BrandLogo';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 
@@ -30,11 +31,8 @@ const PublicLayout = () => {
     <div className="min-h-screen flex flex-col bg-background" data-public={publicKey(pathname)}>
       <header className="sticky top-0 z-40 bg-background/85 backdrop-blur-md border-b border-border/60">
         <div className="container flex items-center justify-between h-16">
-          <Link to="/" className="flex items-center gap-2.5 font-bold text-lg">
-            <span className="h-9 w-9 rounded-xl bg-primary text-primary-foreground flex items-center justify-center shadow-soft">
-              <Calculator className="h-5 w-5" />
-            </span>
-            <span className="tracking-tight">ون كليك</span>
+          <Link to="/" className="flex items-center gap-2.5 font-bold text-lg" aria-label="الصفحة الرئيسية">
+            <BrandLogo size="md" />
           </Link>
           <nav className="hidden md:flex items-center gap-1">
             {links.map(l => (
@@ -74,11 +72,8 @@ const PublicLayout = () => {
       <footer className="border-t border-border/60 bg-card/50 mt-16">
         <div className="container py-10 grid md:grid-cols-4 gap-8">
           <div>
-            <div className="flex items-center gap-2 font-bold text-lg mb-3">
-              <span className="h-9 w-9 rounded-xl gradient-hero text-primary-foreground flex items-center justify-center">
-                <Calculator className="h-5 w-5" />
-              </span>
-              ون كليك
+            <div className="mb-3">
+              <BrandLogo size="md" />
             </div>
             <p className="text-sm text-muted-foreground">ون كليك: منصة محاسبة سحابية للشركات الصغيرة والمتوسطة. أدِر فواتيرك ومدفوعاتك ومخزونك بنقرة واحدة.</p>
           </div>

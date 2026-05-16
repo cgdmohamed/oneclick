@@ -4,7 +4,8 @@ import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { Calculator, CheckCircle2, AlertCircle, Loader2, Mail, ShieldCheck } from 'lucide-react';
+import { CheckCircle2, AlertCircle, Loader2, Mail, ShieldCheck } from 'lucide-react';
+import { BrandLogo } from '@/components/common/BrandLogo';
 import { toast } from 'sonner';
 import { acceptInvitation, findInvitationByToken, type Invitation } from '@/lib/invitations';
 import { useUsers } from '@/hooks/entities';
@@ -128,11 +129,8 @@ const AcceptInvite = () => {
     <div className="min-h-[calc(100vh-4rem)] grid lg:grid-cols-2">
       <div className="flex items-center justify-center p-6 sm:p-8">
         <Card className="w-full max-w-md p-7 border-border/60 shadow-soft">
-          <div className="flex items-center gap-2 mb-5">
-            <span className="h-10 w-10 rounded-xl gradient-hero text-primary-foreground flex items-center justify-center">
-              <Calculator className="h-5 w-5" />
-            </span>
-            <span className="font-bold text-lg">ون كليك</span>
+          <div className="mb-5">
+            <BrandLogo size="lg" />
           </div>
 
           <div className="rounded-xl border border-primary/20 bg-primary/5 p-3.5 mb-5">
