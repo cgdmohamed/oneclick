@@ -8,6 +8,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { SentAlertsCenter } from '@/components/common/SentAlertsCenter';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
   ArrowRight, Phone, Mail, MapPin, FileBadge2, FileText, CreditCard,
@@ -276,6 +277,7 @@ const ClientDetail = () => {
           <TabsTrigger value="overview">نظرة عامة</TabsTrigger>
           <TabsTrigger value="invoices">الفواتير ({clientInvoices.length})</TabsTrigger>
           <TabsTrigger value="payments">المدفوعات ({clientPayments.length})</TabsTrigger>
+          <TabsTrigger value="alerts">التنبيهات</TabsTrigger>
           <TabsTrigger value="activity">سجل النشاط</TabsTrigger>
         </TabsList>
 
@@ -363,6 +365,20 @@ const ClientDetail = () => {
           ) : (
             <DataTable data={clientPayments} columns={paymentCols} searchKeys={['invoiceNumber']} />
           )}
+        </TabsContent>
+
+        {/* Sent alerts */}
+        <TabsContent value="alerts" className="mt-4">
+          <Card className="p-5 border-border/60">
+            <SentAlertsCenter
+              recipientKind="client"
+              recipientId={client.id}
+              title="تنبيهات هذا العميل"
+              description="جميع التنبيهات التلقائية المُرسَلة لهذا العميل مع حالة القراءة."
+              emptyDescription="لم يُرسل أي تنبيه لهذا العميل بعد."
+              compact
+            />
+          </Card>
         </TabsContent>
 
         {/* Activity timeline */}
