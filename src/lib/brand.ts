@@ -1,24 +1,24 @@
 /**
  * Brand settings — super-admin–controlled SaaS identity.
  * Persists to localStorage, syncs across tabs via custom event.
- * Logo is typographic by default: brand name renders in the configured font.
- * An optional uploaded image (PNG/SVG/JPEG, base64 data URL) overrides the
- * text when provided.
+ *
+ * Two logo variants:
+ *  - logoFullUrl: wide/horizontal lockup (headers, footers, auth, PDFs).
+ *  - logoIconUrl: square mark (collapsed sidebar, compact chips).
+ * If a variant is missing it falls back to the other, then to the
+ * typographic wordmark rendered in the configured font.
  */
 import { useCallback, useEffect, useState } from 'react';
 
 export interface BrandSettings {
-  /** Display name shown as the typographic logo when no image is set. */
   name: string;
-  /** Short tagline under the brand in the app sidebar / footer. */
   tagline: string;
-  /** Optional data-URL or absolute URL to a logo image (PNG/SVG/JPEG). */
-  logoUrl: string;
-  /** CSS font-family stack applied to the typographic wordmark. */
+  /** Wide/horizontal logo (data URL or absolute URL). */
+  logoFullUrl: string;
+  /** Square/compact icon mark (data URL or absolute URL). */
+  logoIconUrl: string;
   fontFamily: string;
-  /** Tailwind font-weight class for the wordmark. */
   fontWeight: 'font-semibold' | 'font-bold' | 'font-extrabold' | 'font-black';
-  /** Letter-spacing class. */
   tracking: 'tracking-tighter' | 'tracking-tight' | 'tracking-normal' | 'tracking-wide';
 }
 
@@ -28,7 +28,8 @@ const EVT = 'hesabat-brand-change';
 export const DEFAULT_BRAND: BrandSettings = {
   name: 'ون كليك',
   tagline: 'منصة محاسبة سحابية',
-  logoUrl: '',
+  logoFullUrl: '',
+  logoIconUrl: '',
   fontFamily: "'Cairo', 'Tajawal', 'Inter', system-ui, sans-serif",
   fontWeight: 'font-extrabold',
   tracking: 'tracking-tight',
@@ -38,7 +39,13 @@ const read = (): BrandSettings => {
   try {
     const raw = localStorage.getItem(KEY);
     if (!raw) return DEFAULT_BRAND;
-    return { ...DEFAULT_BRAND, ...(JSON.parse(raw) as Partial<BrandSettings>) };
+    const parsed = JSON.parse(raw) as Partial<BrandSettings> & { logoUrl?: string };
+    // Migrate legacy single-logo field.
+    if (parsed.logoUrl && !parsed.logoFullUrl) {
+      parsed.logoFullUrl = parsed.logoUrl;
+    }
+    delete parsed.logoUrl;
+    return { ...DEFAULT_BRAND, ...parsed };
   } catch {
     return DEFAULT_BRAND;
   }
@@ -75,4 +82,13 @@ export const useBrand = () => {
   }, []);
 
   return { brand, save, reset };
+};
+
+/** First 1–2 chars of brand name — used as a monogram fallback for icon variant. */
+export const brandMonogram = (name: string): string => {
+  const trimmed = (name || '').trim();
+  if (!trimmed) return '•';
+  // Take the first non-space char of the first 1–2 words.
+  const parts = trimmed.split(/\s+/).slice(0, 2);
+  return parts.map(p => Array.from(p)[0] ?? '').join('');
 };

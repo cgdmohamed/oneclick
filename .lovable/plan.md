@@ -1,46 +1,57 @@
-## المشكلة
+# Two Logo Variants: Icon + Full
 
-`src/components/common/PageHeader.tsx` يحتوي على عناصر زخرفية كثيرة تجعله يبدو غير احترافي:
+Extend the brand system so super-admins can upload **two** logo images instead of one, and let the platform pick the right one per context.
 
-- إطار ملوّن (`border-page-accent`) + خلفية متدرجة (`gradient-page`)
-- شريط علوي ملوّن بارتفاع 1px (`gradient-page-strong`)
-- بقعة ضوء متدرجة في الزاوية (blob)
-- مربع أيقونة كبير بخلفية متدرجة (12–14 بكسل) مع ظل
-- زوايا مدورة كبيرة (`rounded-2xl`) وحشو سخي
+## 1. Brand model (`src/lib/brand.ts`)
 
-## الحل
+Replace the single `logoUrl` field with two:
 
-تبسيط `PageHeader` ليصبح هادئاً واحترافياً بنمط لوحات تحكم SaaS الحديثة:
+- `logoFullUrl` — wide/horizontal lockup (wordmark + optional mark). Used in headers, footers, auth pages, invoice PDFs, sidebar when expanded.
+- `logoIconUrl` — square/compact mark. Used in collapsed sidebar, favicon-like spots, small chips, mobile compact header.
 
-- إزالة: الخلفية المتدرجة، الإطار، الـ blob الزخرفي، الشريط العلوي، مربع الأيقونة الملوّن، الظل، الزوايا المدورة الكبيرة.
-- استبداله بـ:
-  - عنوان `h1` نظيف بحجم `text-2xl font-semibold tracking-tight`
-  - وصف `text-sm text-muted-foreground` تحته
-  - أيقونة صغيرة اختيارية بجانب العنوان بلون `text-muted-foreground` (بدون مربع/خلفية)، أو حذفها بالكامل لو الأيقونة لا تضيف قيمة
-  - فاصل سفلي خفيف `border-b border-border` بدل الإطار الكامل
-  - مساحة `actions` على الجانب الآخر بنفس المحاذاة
+Keep typographic fallback unchanged: if a needed variant is missing, fall back to the other variant, then to the typographic wordmark.
 
-### الشكل النهائي المقترح
+Add a one-time migration in `read()`: if old `logoUrl` exists in localStorage, copy it into `logoFullUrl`.
 
-```tsx
-<div className="mb-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 pb-4 border-b border-border">
-  <div className="min-w-0">
-    <h1 className="text-2xl font-semibold tracking-tight truncate">{title}</h1>
-    {description && (
-      <p className="text-sm text-muted-foreground mt-1">{description}</p>
-    )}
-  </div>
-  {actions && <div className="flex items-center gap-2 flex-wrap shrink-0">{actions}</div>}
-</div>
-```
+## 2. BrandLogo component (`src/components/common/BrandLogo.tsx`)
 
-- لن نعرض الأيقونة افتراضياً (الأيقونات تظهر بالفعل في الشريط الجانبي)، لكن سنُبقي الـ prop `icon` متاحاً للحالات التي تمرّر أيقونة صريحة، وفي هذه الحالة تُعرض كأيقونة صغيرة `h-5 w-5 text-muted-foreground` بجانب العنوان.
-- إزالة منطق `routeIcon` تماماً (لم يعد ضرورياً) لتقليص الملف.
+Add a `variant` prop:
 
-## التحقق
+- `variant="full"` (default) — prefers `logoFullUrl`, falls back to icon, then text.
+- `variant="icon"` — prefers `logoIconUrl`, falls back to full, then to a 1–2 char text monogram derived from `brand.name`.
+- `variant="auto"` — picks based on a `compact` boolean (used by sidebar collapse).
 
-أخذ لقطات بعد التعديل لمسارات: `/app/subscription`, `/app/reports`, `/app/users`, `/admin` للتأكد من أن العناوين أصبحت موحّدة وهادئة في كل الصفحات.
+Icon variant renders square (`h-X w-X`), full variant keeps current `h-X w-auto` behavior.
 
-## ملاحظة
+## 3. Admin editor (`src/pages/admin/SystemSettings.tsx`)
 
-`PageHeader` مستخدم في كل الصفحات تقريباً، فالتعديل في ملف واحد سيُحدِّث كل العناوين تلقائياً دون لمس باقي الصفحات.
+Split the upload section into two side-by-side uploaders:
+
+- "الشعار الكامل (أفقي)" — full lockup, recommended ratio ~3:1 or 4:1.
+- "أيقونة الشعار (مربعة)" — square mark, recommended 1:1.
+
+Each has its own upload / remove buttons, its own 512KB limit, and its own live preview. Add a combined preview row showing both variants side by side at their real rendered sizes.
+
+## 4. Usage sweep
+
+Update the places that should prefer the icon over the full lockup:
+
+- `src/layouts/AppLayout.tsx` — collapsed sidebar uses icon; expanded uses full.
+- Any small/compact spot in the header on narrow mobile widths.
+
+All other usages (`PublicLayout`, `Login`, `Register`, `ForgotPassword`, `ResetPassword`, `AcceptInvite`, `PublicInvoice`, invoice PDF header) stay on `variant="full"`.
+
+## 5. Backwards compatibility
+
+- Old saved brand JSON with `logoUrl` is migrated to `logoFullUrl` on first read.
+- `DEFAULT_BRAND` has both URLs empty → typographic fallback continues to work everywhere.
+
+## Out of scope
+
+- No backend changes (brand still lives in localStorage as today).
+- No new pages or routes.
+- No business logic changes.
+
+---
+
+Confirm and I'll implement, or tell me if you'd rather have a third "favicon" slot too.

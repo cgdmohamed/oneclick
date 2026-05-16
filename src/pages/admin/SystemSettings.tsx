@@ -22,7 +22,8 @@ const FONT_PRESETS: { label: string; value: string }[] = [
 const SystemSettings = () => {
   const { brand, save: saveBrand, reset: resetBrand } = useBrand();
   const [local, setLocal] = useState<BrandSettings>(brand);
-  const fileRef = useRef<HTMLInputElement>(null);
+  const fullFileRef = useRef<HTMLInputElement>(null);
+  const iconFileRef = useRef<HTMLInputElement>(null);
 
   const [s, setS] = useState({
     appName: 'ون كليك',
@@ -31,13 +32,13 @@ const SystemSettings = () => {
     invoicePrefix: 'INV',
   });
 
-  const onFile = (f: File) => {
+  const onFile = (f: File, key: 'logoFullUrl' | 'logoIconUrl') => {
     if (f.size > 512 * 1024) {
       toast.error('حجم الشعار يجب أن يكون أقل من 512KB');
       return;
     }
     const reader = new FileReader();
-    reader.onload = () => setLocal(v => ({ ...v, logoUrl: String(reader.result) }));
+    reader.onload = () => setLocal(v => ({ ...v, [key]: String(reader.result) }));
     reader.readAsDataURL(f);
   };
 
@@ -116,28 +117,66 @@ const SystemSettings = () => {
           </div>
         </div>
 
-        <div>
-          <Label>صورة الشعار (اختياري — SVG/PNG/JPG، حتى 512KB)</Label>
-          <div className="flex items-center gap-3 mt-1.5">
-            <input
-              ref={fileRef}
-              type="file"
-              accept="image/png,image/svg+xml,image/jpeg,image/webp"
-              className="hidden"
-              onChange={e => { const f = e.target.files?.[0]; if (f) onFile(f); }}
-            />
-            <Button variant="outline" type="button" onClick={() => fileRef.current?.click()}>
-              <Upload className="h-4 w-4 ml-2" /> رفع شعار
-            </Button>
-            {local.logoUrl && (
-              <Button variant="ghost" type="button" onClick={() => setLocal(v => ({ ...v, logoUrl: '' }))}>
-                <Trash2 className="h-4 w-4 ml-2" /> إزالة الصورة
+        <div className="grid sm:grid-cols-2 gap-4">
+          {/* Full logo uploader */}
+          <div className="rounded-lg border border-border/60 p-4 space-y-2">
+            <div>
+              <Label>الشعار الكامل (أفقي)</Label>
+              <p className="text-xs text-muted-foreground mt-0.5">يُستخدم في الهيدر، صفحات الدخول، والفواتير. النسبة المقترحة 3:1 أو 4:1.</p>
+            </div>
+            <div className="h-16 rounded bg-muted/40 flex items-center justify-center overflow-hidden">
+              {local.logoFullUrl
+                ? <img src={local.logoFullUrl} alt="full" className="h-12 w-auto object-contain" />
+                : <span className="text-xs text-muted-foreground">لا توجد صورة — يُستخدم النص</span>}
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                ref={fullFileRef}
+                type="file"
+                accept="image/png,image/svg+xml,image/jpeg,image/webp"
+                className="hidden"
+                onChange={e => { const f = e.target.files?.[0]; if (f) onFile(f, 'logoFullUrl'); }}
+              />
+              <Button size="sm" variant="outline" type="button" onClick={() => fullFileRef.current?.click()}>
+                <Upload className="h-4 w-4 ml-2" /> رفع
               </Button>
-            )}
+              {local.logoFullUrl && (
+                <Button size="sm" variant="ghost" type="button" onClick={() => setLocal(v => ({ ...v, logoFullUrl: '' }))}>
+                  <Trash2 className="h-4 w-4 ml-2" /> إزالة
+                </Button>
+              )}
+            </div>
           </div>
-          {local.logoUrl && (
-            <p className="text-xs text-muted-foreground mt-2">سيتم استخدام الصورة بدل النص في كل المنصة.</p>
-          )}
+
+          {/* Icon uploader */}
+          <div className="rounded-lg border border-border/60 p-4 space-y-2">
+            <div>
+              <Label>أيقونة الشعار (مربعة)</Label>
+              <p className="text-xs text-muted-foreground mt-0.5">تُستخدم في الشريط الجانبي المطوي والاستخدامات المضغوطة. النسبة 1:1.</p>
+            </div>
+            <div className="h-16 rounded bg-muted/40 flex items-center justify-center overflow-hidden">
+              {local.logoIconUrl
+                ? <img src={local.logoIconUrl} alt="icon" className="h-12 w-12 object-contain" />
+                : <span className="text-xs text-muted-foreground">لا توجد أيقونة — يُستخدم الحرف الأول</span>}
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                ref={iconFileRef}
+                type="file"
+                accept="image/png,image/svg+xml,image/jpeg,image/webp"
+                className="hidden"
+                onChange={e => { const f = e.target.files?.[0]; if (f) onFile(f, 'logoIconUrl'); }}
+              />
+              <Button size="sm" variant="outline" type="button" onClick={() => iconFileRef.current?.click()}>
+                <Upload className="h-4 w-4 ml-2" /> رفع
+              </Button>
+              {local.logoIconUrl && (
+                <Button size="sm" variant="ghost" type="button" onClick={() => setLocal(v => ({ ...v, logoIconUrl: '' }))}>
+                  <Trash2 className="h-4 w-4 ml-2" /> إزالة
+                </Button>
+              )}
+            </div>
+          </div>
         </div>
 
         <div className="flex flex-wrap gap-2 pt-2 border-t border-border/60">
@@ -178,18 +217,43 @@ const SystemSettings = () => {
 
 /** Inline preview that reflects unsaved edits without committing them. */
 const BrandLogoPreview = ({ value }: { value: BrandSettings }) => {
-  if (value.logoUrl) {
-    return <img src={value.logoUrl} alt={value.name} className="h-12 w-auto object-contain" />;
-  }
+  const fullSrc = value.logoFullUrl || value.logoIconUrl;
   return (
-    <div className="flex flex-col items-center gap-1">
-      <span
-        className={`text-2xl leading-none ${value.fontWeight} ${value.tracking}`}
-        style={{ fontFamily: value.fontFamily }}
-      >
-        {value.name}
-      </span>
-      {value.tagline && <span className="text-xs text-muted-foreground">{value.tagline}</span>}
+    <div className="flex items-center gap-8 flex-wrap justify-center">
+      {/* Full lockup */}
+      <div className="flex flex-col items-center gap-2">
+        {fullSrc ? (
+          <img src={fullSrc} alt={value.name} className="h-12 w-auto object-contain" />
+        ) : (
+          <div className="flex flex-col items-center gap-1">
+            <span
+              className={`text-2xl leading-none ${value.fontWeight} ${value.tracking}`}
+              style={{ fontFamily: value.fontFamily }}
+            >
+              {value.name}
+            </span>
+            {value.tagline && <span className="text-xs text-muted-foreground">{value.tagline}</span>}
+          </div>
+        )}
+        <span className="text-[10px] text-muted-foreground">شعار كامل</span>
+      </div>
+
+      {/* Icon */}
+      <div className="flex flex-col items-center gap-2">
+        {value.logoIconUrl ? (
+          <img src={value.logoIconUrl} alt={value.name} className="h-12 w-12 object-contain" />
+        ) : value.logoFullUrl ? (
+          <img src={value.logoFullUrl} alt={value.name} className="h-12 w-12 object-contain" />
+        ) : (
+          <span
+            className={`h-12 w-12 inline-flex items-center justify-center rounded-md bg-primary/10 text-primary text-xl ${value.fontWeight}`}
+            style={{ fontFamily: value.fontFamily }}
+          >
+            {(value.name || '•').trim().split(/\s+/).slice(0, 2).map(p => Array.from(p)[0] ?? '').join('')}
+          </span>
+        )}
+        <span className="text-[10px] text-muted-foreground">أيقونة</span>
+      </div>
     </div>
   );
 };
