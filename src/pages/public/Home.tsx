@@ -131,18 +131,39 @@ const Home = () => {
         </section>
       )}
 
-      {/* ============= LOGOS / SOCIAL PROOF ============= */}
+      {/* ============= LOGOS / SOCIAL PROOF (Marquee) ============= */}
       {c.logos.enabled && c.logos.items.length > 0 && (
-        <section className="border-y border-border/60 bg-muted/30">
+        <section className="border-y border-border/60 bg-muted/30 overflow-hidden">
           <div className="container py-10">
             <p className="text-center text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-6">{c.logos.title}</p>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-6 items-center">
-              {c.logos.items.map(l => (
-                <div key={l.id} className="flex items-center justify-center gap-2 text-muted-foreground opacity-70 hover:opacity-100 transition-opacity">
-                  <div className="h-8 w-8 rounded-lg bg-foreground/5 flex items-center justify-center">
-                    <Building2 className="h-4 w-4" />
-                  </div>
-                  <span className="font-bold text-sm">{l.name}</span>
+          </div>
+          <div
+            className="group relative w-full overflow-hidden"
+            style={{
+              maskImage: 'linear-gradient(to right, transparent, black 8%, black 92%, transparent)',
+              WebkitMaskImage: 'linear-gradient(to right, transparent, black 8%, black 92%, transparent)',
+            }}
+          >
+            <div className="flex w-max gap-10 px-6 pb-10 animate-marquee-ltr rtl:animate-marquee-rtl group-hover:[animation-play-state:paused]">
+              {[...c.logos.items, ...c.logos.items].map((l, i) => (
+                <div
+                  key={`${l.id}-${i}`}
+                  className="flex items-center justify-center gap-3 text-muted-foreground hover:text-foreground transition-colors shrink-0 min-w-[180px]"
+                >
+                  {l.logoUrl ? (
+                    <img
+                      src={l.logoUrl}
+                      alt={l.name}
+                      className="h-10 w-auto max-w-[140px] object-contain opacity-70 hover:opacity-100 transition-opacity"
+                    />
+                  ) : (
+                    <>
+                      <div className="h-9 w-9 rounded-lg bg-foreground/5 flex items-center justify-center">
+                        <Building2 className="h-4 w-4" />
+                      </div>
+                      <span className="font-bold text-sm whitespace-nowrap">{l.name}</span>
+                    </>
+                  )}
                 </div>
               ))}
             </div>
