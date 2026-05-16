@@ -56,7 +56,11 @@ export function crudRouter(opts: {
   r.post('/', async (req, res, next) => {
     try {
       const t = req.tenant!;
-      const body = opts.schema.parse(req.body) as Record<string, unknown>;
+      const parsed = opts.schema.parse(req.body) as Record<string, unknown>;
+      // SEC-09: enforce field whitelist on create too.
+      const allowed = new Set(opts.fields);
+      const body: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(parsed)) if (allowed.has(k)) body[k] = v;
       const merged = { ...(opts.defaults ?? {}), ...body, company_id: t.companyId };
       const fields = Object.keys(merged);
       const values = Object.values(merged);
@@ -72,7 +76,12 @@ export function crudRouter(opts: {
   r.patch('/:id', async (req, res, next) => {
     try {
       const t = req.tenant!;
-      const body = (opts.patchSchema ?? opts.schema.partial?.() ?? opts.schema).parse(req.body) as Record<string, unknown>;
+      const parsed = (opts.patchSchema ?? opts.schema.partial?.() ?? opts.schema).parse(req.body) as Record<string, unknown>;
+      // SEC-09: hard whitelist — only opts.fields can be mutated, even if the
+      // zod schema accidentally lets extra keys through.
+      const allowed = new Set(opts.fields);
+      const body: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(parsed)) if (allowed.has(k)) body[k] = v;
       const fields = Object.keys(body);
       if (fields.length === 0) return res.json({ data: null });
       const set = fields.map((f, i) => `${f} = $${i + 1}`).join(', ');

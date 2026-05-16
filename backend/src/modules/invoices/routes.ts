@@ -8,6 +8,7 @@ import { sendEmail } from '../../utils/email.js';
 import { env } from '../../config/env.js';
 import { enforceInvoiceLimit } from '../../middleware/planLimits.js';
 import { parsePagination } from '../../utils/pagination.js';
+import { round2 } from '../../utils/money.js';
 
 const router = Router();
 
@@ -106,11 +107,12 @@ router.post('/', enforceInvoiceLimit(), async (req, res, next) => {
 
     let subtotal = 0, vat = 0;
     for (const it of body.items) {
-      const line = it.quantity * it.unit_price;
-      subtotal += line;
-      vat += line * (it.vat_rate / 100);
+      const line = round2(it.quantity * it.unit_price);
+      subtotal = round2(subtotal + line);
+      vat = round2(vat + line * (it.vat_rate / 100));
     }
-    const total = Math.max(0, subtotal + vat - body.discount);
+    const discount = round2(body.discount);
+    const total = round2(Math.max(0, subtotal + vat - discount));
 
     const invRes = await t.db.query(`
       INSERT INTO invoices (company_id, number, client_id, issue_date, due_date, status,
@@ -118,11 +120,11 @@ router.post('/', enforceInvoiceLimit(), async (req, res, next) => {
       VALUES ($1,$2,$3,$4,$5,'sent',$6,$7,$8,$9,0,$9,$10,$11)
       RETURNING *
     `, [t.companyId, number, body.client_id, issueDate, body.due_date ?? null,
-        subtotal, vat, body.discount, total, body.notes ?? null, req.auth!.userId]);
+        subtotal, vat, discount, total, body.notes ?? null, req.auth!.userId]);
     const invoice = invRes.rows[0];
 
     for (const it of body.items) {
-      const line = it.quantity * it.unit_price * (1 + it.vat_rate / 100);
+      const line = round2(it.quantity * it.unit_price * (1 + it.vat_rate / 100));
       await t.db.query(`
         INSERT INTO invoice_items (company_id, invoice_id, product_id, description, quantity, unit_price, vat_rate, line_total)
         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)

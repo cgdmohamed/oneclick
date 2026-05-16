@@ -4,6 +4,7 @@ import { pool } from '../../db/client.js';
 import { badRequest, notFound } from '../../utils/errors.js';
 import { audit } from '../../utils/audit.js';
 import { parsePagination } from '../../utils/pagination.js';
+import { round2, lte2 } from '../../utils/money.js';
 
 const router = Router();
 
@@ -41,19 +42,20 @@ router.post('/', async (req, res, next) => {
 
     const inv = await t.db.query(`SELECT total, paid FROM invoices WHERE id = $1 FOR UPDATE`, [body.invoice_id]);
     if (!inv.rowCount) throw notFound('Invoice not found');
-    const total = Number(inv.rows[0].total);
-    const alreadyPaid = Number(inv.rows[0].paid);
-    if (alreadyPaid + body.amount > total + 0.0001) throw badRequest('Payment exceeds remaining amount');
+    const total = round2(Number(inv.rows[0].total));
+    const alreadyPaid = round2(Number(inv.rows[0].paid));
+    const amount = round2(body.amount);
+    if (!lte2(alreadyPaid + amount, total)) throw badRequest('Payment exceeds remaining amount');
 
     const payRes = await t.db.query(`
       INSERT INTO payments (company_id, invoice_id, account_id, amount, paid_at, method, reference, notes, created_by)
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *
-    `, [t.companyId, body.invoice_id, body.account_id, body.amount,
+    `, [t.companyId, body.invoice_id, body.account_id, amount,
         body.paid_at ?? new Date(), body.method, body.reference ?? null, body.notes ?? null, req.auth!.userId]);
 
-    const newPaid = alreadyPaid + body.amount;
-    const remaining = Math.max(0, total - newPaid);
-    const status = remaining <= 0.0001 ? 'paid' : 'partial';
+    const newPaid = round2(alreadyPaid + amount);
+    const remaining = round2(Math.max(0, total - newPaid));
+    const status = remaining <= 0.005 ? 'paid' : 'partial';
     await t.db.query(
       `UPDATE invoices SET paid = $1, remaining = $2, status = $3 WHERE id = $4`,
       [newPaid, remaining, status, body.invoice_id],
@@ -61,13 +63,13 @@ router.post('/', async (req, res, next) => {
 
     await t.db.query(
       `UPDATE accounts SET balance = balance + $1 WHERE id = $2`,
-      [body.amount, body.account_id],
+      [amount, body.account_id],
     );
 
     await audit(pool, {
       companyId: t.companyId, userId: req.auth!.userId,
       action: 'payment.create', entity: 'payment', entityId: payRes.rows[0].id,
-      data: { invoice_id: body.invoice_id, amount: body.amount, account_id: body.account_id, method: body.method },
+      data: { invoice_id: body.invoice_id, amount, account_id: body.account_id, method: body.method },
     });
     res.status(201).json({ data: payRes.rows[0] });
   } catch (e) { next(e); }

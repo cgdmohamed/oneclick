@@ -33,7 +33,62 @@ function signAccess(userId: string) {
 function signRefresh(userId: string) {
   return jwt.sign({ sub: userId, t: 'r' }, env.JWT_REFRESH_SECRET, { expiresIn: '30d' });
 }
+function signVerify(userId: string) {
+  return jwt.sign({ sub: userId, t: 'v' }, env.JWT_SECRET, { expiresIn: '24h' });
+}
 const sha = (s: string) => crypto.createHash('sha256').update(s).digest('hex');
+
+/**
+ * SEC-07: In-memory failed-login tracker. Per-email sliding 15-min window;
+ * after MAX_ATTEMPTS failures the address is locked for LOCK_MS regardless of
+ * password correctness. Resets on successful login.
+ *
+ * Single-process only — matches the existing in-memory rate-limit posture
+ * (see SCL-01 in the audit). When we move to multi-instance, swap to Redis.
+ */
+const MAX_ATTEMPTS = 5;
+const WINDOW_MS = 15 * 60 * 1000;
+const LOCK_MS = 15 * 60 * 1000;
+const attempts = new Map<string, { count: number; firstAt: number; lockedUntil: number }>();
+
+function checkLock(email: string) {
+  const key = email.toLowerCase();
+  const rec = attempts.get(key);
+  if (!rec) return;
+  const now = Date.now();
+  if (rec.lockedUntil > now) {
+    const mins = Math.ceil((rec.lockedUntil - now) / 60000);
+    throw unauthorized(`Account temporarily locked. Try again in ${mins} minute(s).`);
+  }
+  if (now - rec.firstAt > WINDOW_MS) attempts.delete(key);
+}
+
+function noteFailure(email: string) {
+  const key = email.toLowerCase();
+  const now = Date.now();
+  const rec = attempts.get(key);
+  if (!rec || now - rec.firstAt > WINDOW_MS) {
+    attempts.set(key, { count: 1, firstAt: now, lockedUntil: 0 });
+    return;
+  }
+  rec.count += 1;
+  if (rec.count >= MAX_ATTEMPTS) rec.lockedUntil = now + LOCK_MS;
+}
+
+function noteSuccess(email: string) {
+  attempts.delete(email.toLowerCase());
+}
+
+async function sendVerificationEmail(userId: string, email: string) {
+  const token = signVerify(userId);
+  const link = `${env.APP_URL}/verify-email?token=${token}`;
+  await sendEmail({
+    to: email,
+    subject: 'Verify your Hesabat email',
+    html: `<p>Welcome! Confirm your email to finish setting up your account (link valid for 24 hours):</p>
+           <p><a href="${link}">${link}</a></p>`,
+  });
+}
 
 /**
  * Issue a refresh token, persist it (hashed) and start a new rotation family.
@@ -110,6 +165,8 @@ router.post('/register', async (req, res, next) => {
         action: 'auth.register', entity: 'user', entityId: userId,
         data: { email: body.email, companyName: body.companyName },
       });
+      // SEC-08: fire-and-forget verification email; failure must not block signup.
+      sendVerificationEmail(userId, body.email).catch(() => { /* logged by email util */ });
       setRefreshCookie(res, refresh);
       setCsrfCookie(res);
       res.json({
@@ -129,10 +186,12 @@ router.post('/register', async (req, res, next) => {
 router.post('/login', async (req, res, next) => {
   try {
     const body = loginSchema.parse(req.body);
-    const u = await pool.query(`SELECT id, password_hash, name, is_super_admin FROM users WHERE email = $1`, [body.email]);
-    if (!u.rowCount) throw unauthorized('Invalid credentials');
+    checkLock(body.email); // SEC-07
+    const u = await pool.query(`SELECT id, password_hash, name, is_super_admin, email_verified_at FROM users WHERE email = $1`, [body.email]);
+    if (!u.rowCount) { noteFailure(body.email); throw unauthorized('Invalid credentials'); }
     const ok = await bcrypt.compare(body.password, u.rows[0].password_hash);
-    if (!ok) throw unauthorized('Invalid credentials');
+    if (!ok) { noteFailure(body.email); throw unauthorized('Invalid credentials'); }
+    noteSuccess(body.email);
 
     const userId = u.rows[0].id;
     const access = signAccess(userId);
@@ -156,10 +215,46 @@ router.post('/login', async (req, res, next) => {
     setCsrfCookie(res);
     res.json({
       access_token: access,
-      user: { id: userId, email: body.email, name: u.rows[0].name, isSuperAdmin: u.rows[0].is_super_admin },
+      user: {
+        id: userId, email: body.email, name: u.rows[0].name,
+        isSuperAdmin: u.rows[0].is_super_admin,
+        emailVerified: !!u.rows[0].email_verified_at,
+      },
       company: comp.rows[0] ?? null,
       roles: roles.rows,
     });
+  } catch (e) { next(e); }
+});
+
+/** SEC-08: confirm an email-verification token. */
+router.post('/verify-email', async (req, res, next) => {
+  try {
+    const { token } = z.object({ token: z.string().min(10) }).parse(req.body);
+    let payload: { sub: string; t?: string };
+    try { payload = jwt.verify(token, env.JWT_SECRET) as { sub: string; t?: string }; }
+    catch { throw badRequest('Invalid or expired token'); }
+    if (payload.t !== 'v') throw badRequest('Invalid token');
+    await pool.query(
+      `UPDATE users SET email_verified_at = COALESCE(email_verified_at, now()) WHERE id = $1`,
+      [payload.sub],
+    );
+    await audit(pool, {
+      companyId: null, userId: payload.sub,
+      action: 'auth.email_verified', entity: 'user', entityId: payload.sub,
+    });
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
+/** SEC-08: re-issue a verification email to the authenticated user. */
+router.post('/resend-verification', requireAuth, async (req, res, next) => {
+  try {
+    const userId = req.auth!.userId;
+    const u = await pool.query(`SELECT email, email_verified_at FROM users WHERE id = $1`, [userId]);
+    if (!u.rowCount) throw unauthorized();
+    if (u.rows[0].email_verified_at) return res.json({ ok: true, already: true });
+    await sendVerificationEmail(userId, u.rows[0].email);
+    res.json({ ok: true });
   } catch (e) { next(e); }
 });
 
