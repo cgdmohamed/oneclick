@@ -59,7 +59,19 @@ export function createApp() {
   app.use(cookieParser());
 
   app.get('/', (_req, res) => res.json({ name: 'hesabat-api', status: 'ok' }));
+  // Liveness: process is up. Used by orchestrator restart loops.
   app.get('/health', (_req, res) => res.json({ ok: true }));
+  // OPS-03 Readiness: process is up AND can reach the database. Used by
+  // load-balancers to decide whether to route traffic to this instance.
+  app.get('/readyz', async (_req, res) => {
+    try {
+      const { pool } = await import('./db/client.js');
+      await pool.query('SELECT 1');
+      res.json({ ok: true, db: 'up' });
+    } catch (e) {
+      res.status(503).json({ ok: false, db: 'down', error: (e as Error).message });
+    }
+  });
 
   // Static uploads — ONLY public assets (logos/stamps). Private attachments
   // are served by the authenticated /api/uploads/file/:id handler (SEC-04).
