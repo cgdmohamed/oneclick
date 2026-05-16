@@ -36,66 +36,72 @@ const Home = () => {
         <section className="relative overflow-hidden bg-gradient-to-b from-secondary/40 to-background">
           <div className="absolute inset-0 bg-grid opacity-[0.35] [mask-image:radial-gradient(ellipse_at_center,black_30%,transparent_70%)]" />
           <div className="container relative py-20 md:py-28">
-            <div className={`grid gap-12 items-center ${c.hero.showImage ? 'lg:grid-cols-2' : 'lg:grid-cols-1'}`}>
-              <div className={`flex flex-col ${c.hero.showImage ? 'items-start text-start' : 'items-center text-center max-w-3xl mx-auto'}`}>
-                <span className="inline-flex items-center gap-2 rounded-full bg-primary/5 border border-primary/15 px-3 py-1 text-xs font-semibold text-primary">
-                  <span className="relative flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary/60 opacity-75" />
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
-                  </span>
-                  {c.hero.eyebrow}
+            {/* Centered copy */}
+            <div className="flex flex-col items-center text-center max-w-3xl mx-auto">
+              <span className="inline-flex items-center gap-2 rounded-full bg-primary/5 border border-primary/15 px-3 py-1 text-xs font-semibold text-primary">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary/60 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
                 </span>
-                <h1 className="mt-6 text-4xl md:text-5xl lg:text-6xl font-bold leading-[1.15] tracking-tight text-foreground">
-                  {c.hero.title}
-                  {c.hero.titleHighlight && (<><br /><span className="text-primary">{c.hero.titleHighlight}</span></>)}
-                </h1>
-                <p className="mt-6 text-lg text-muted-foreground leading-relaxed max-w-2xl">{c.hero.subtitle}</p>
-                <div className={`mt-10 flex flex-col sm:flex-row items-stretch gap-3 w-full ${c.hero.showImage ? '' : 'justify-center'}`}>
-                  <Button asChild size="lg" className="h-12 px-8 shadow-elev">
-                    <Link to={c.hero.primary.url}>{c.hero.primary.label}<ArrowLeft className="h-4 w-4 ms-2" /></Link>
-                  </Button>
-                  <Button asChild size="lg" variant="outline" className="h-12 px-8 bg-card">
-                    <Link to={c.hero.secondary.url}>{c.hero.secondary.label}</Link>
-                  </Button>
-                </div>
-                <div className="mt-8 flex items-center gap-3 text-sm text-muted-foreground">
-                  <div className="flex -space-x-2 space-x-reverse">
-                    {['س','م','ن','ع'].map((l, i) => (
-                      <span key={i} className="h-7 w-7 rounded-full bg-primary/15 text-primary text-xs font-bold flex items-center justify-center border-2 border-background">{l}</span>
-                    ))}
-                  </div>
-                  <span>تجربة مجانية بلا بطاقة ائتمان</span>
-                </div>
+                {c.hero.eyebrow}
+              </span>
+              <h1 className="mt-6 text-4xl md:text-5xl lg:text-6xl font-bold leading-[1.15] tracking-tight text-foreground">
+                {c.hero.title}
+                {c.hero.titleHighlight && (<><br /><span className="text-primary">{c.hero.titleHighlight}</span></>)}
+              </h1>
+              <p className="mt-6 text-lg text-muted-foreground leading-relaxed max-w-2xl">{c.hero.subtitle}</p>
+              <div className="mt-10 flex flex-col sm:flex-row items-stretch gap-3 justify-center">
+                <Button asChild size="lg" className="h-12 px-8 shadow-elev">
+                  <Link to={c.hero.primary.url}>{c.hero.primary.label}<ArrowLeft className="h-4 w-4 ms-2" /></Link>
+                </Button>
+                <Button asChild size="lg" variant="outline" className="h-12 px-8 bg-card">
+                  <Link to={c.hero.secondary.url}>{c.hero.secondary.label}</Link>
+                </Button>
               </div>
-
-              {c.hero.showImage && c.hero.imageUrl && (
-                <div className="relative">
-                  <div className="absolute -inset-6 bg-primary/10 rounded-3xl blur-3xl" />
-                  <div className="relative rounded-2xl overflow-hidden border border-border/60 shadow-elev bg-card">
-                    <img
-                      src={c.hero.imageUrl}
-                      alt="معاينة منصة حسابات"
-                      width={1280}
-                      height={960}
-                      className="w-full h-auto"
-                    />
-                  </div>
-                  <Card className="absolute -bottom-4 -start-4 hidden md:flex items-center gap-3 p-3 shadow-elev border-border/60 bg-card/95 backdrop-blur">
-                    <div className="h-9 w-9 rounded-lg bg-success/15 text-success flex items-center justify-center"><Check className="h-5 w-5" /></div>
-                    <div>
-                      <div className="text-xs text-muted-foreground">فاتورة جديدة</div>
-                      <div className="text-sm font-bold">تم الدفع بالكامل</div>
-                    </div>
-                  </Card>
+              <div className="mt-8 flex items-center gap-3 text-sm text-muted-foreground">
+                <div className="flex -space-x-2 space-x-reverse">
+                  {['س','م','ن','ع'].map((l, i) => (
+                    <span key={i} className="h-7 w-7 rounded-full bg-primary/15 text-primary text-xs font-bold flex items-center justify-center border-2 border-background">{l}</span>
+                  ))}
                 </div>
-              )}
+                <span>تجربة مجانية بلا بطاقة ائتمان</span>
+              </div>
             </div>
+
+            {/* Screenshot mockup below */}
+            {c.hero.showImage && c.hero.imageUrl && (
+              <div className="relative mt-16 max-w-5xl mx-auto">
+                <div className="absolute -inset-8 bg-primary/10 rounded-[2rem] blur-3xl" />
+                <div className="relative rounded-2xl overflow-hidden border border-border/60 shadow-elev bg-card">
+                  {/* macOS-style title bar */}
+                  <div className="flex items-center gap-1.5 px-4 py-3 bg-muted/60 border-b border-border/60">
+                    <span className="h-3 w-3 rounded-full bg-[#ff5f57]" />
+                    <span className="h-3 w-3 rounded-full bg-[#febc2e]" />
+                    <span className="h-3 w-3 rounded-full bg-[#28c840]" />
+                  </div>
+                  <img
+                    src={c.hero.imageUrl}
+                    alt="معاينة منصة حسابات"
+                    width={1920}
+                    height={1200}
+                    className="w-full h-auto block"
+                  />
+                </div>
+                <Card className="absolute -bottom-5 -start-4 hidden md:flex items-center gap-3 p-3 shadow-elev border-border/60 bg-card/95 backdrop-blur">
+                  <div className="h-9 w-9 rounded-lg bg-success/15 text-success flex items-center justify-center"><Check className="h-5 w-5" /></div>
+                  <div>
+                    <div className="text-xs text-muted-foreground">فاتورة جديدة</div>
+                    <div className="text-sm font-bold">تم الدفع بالكامل</div>
+                  </div>
+                </Card>
+              </div>
+            )}
 
             {/* Stats inside hero */}
             {c.stats.enabled && c.stats.items.length > 0 && (
               <div className="mt-16 grid grid-cols-2 md:grid-cols-4 gap-6 border-t border-border pt-10">
                 {c.stats.items.map(s => (
-                  <div key={s.id} className="text-center md:text-start">
+                  <div key={s.id} className="text-center">
                     <div className="text-2xl md:text-3xl font-bold text-foreground">{s.value}</div>
                     <div className="text-xs md:text-sm text-muted-foreground font-medium mt-1">{s.label}</div>
                   </div>
