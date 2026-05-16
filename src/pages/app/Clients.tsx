@@ -99,6 +99,7 @@ const Clients = () => {
           <div className="grid sm:grid-cols-2 gap-4">
             <Field label="الاسم *" value={editing.name} onChange={v => setEditing(e => ({ ...e, name: v }))} />
             <Field label="رقم الهاتف *" value={editing.phone} onChange={v => setEditing(e => ({ ...e, phone: v }))} />
+            <Field label="رقم واتساب" value={editing.whatsapp ?? ''} onChange={v => setEditing(e => ({ ...e, whatsapp: v }))} />
             <Field label="البريد الإلكتروني" value={editing.email ?? ''} onChange={v => setEditing(e => ({ ...e, email: v }))} />
             <Field label="الرقم الضريبي" value={editing.taxNumber ?? ''} onChange={v => setEditing(e => ({ ...e, taxNumber: v }))} />
             <div className="sm:col-span-2"><Field label="العنوان" value={editing.address ?? ''} onChange={v => setEditing(e => ({ ...e, address: v }))} /></div>
