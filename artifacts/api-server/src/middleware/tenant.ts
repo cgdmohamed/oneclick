@@ -6,7 +6,8 @@ import type pg from 'pg';
 declare module 'express-serve-static-core' {
   interface Request {
     tenant?: {
-      companyId: string;
+      /** Null only for super-admin requests that operate without a company scope. */
+      companyId: string | null;
       isSuperAdmin: boolean;
       roles: string[];
       /**
@@ -60,6 +61,11 @@ export async function tenantContext(req: Request, res: Response, next: NextFunct
     if (!ok.rowCount) return next(forbidden('Not a member of this company'));
   }
 
+  // Non-super-admin users must have a valid company association.
+  if (!companyId && !isSuperAdmin) {
+    return next(forbidden('No company associated with this account'));
+  }
+
   const rolesRes = await pool.query(
     `SELECT role FROM user_roles WHERE user_id = $1 AND (company_id = $2 OR company_id IS NULL)`,
     [userId, companyId],
@@ -90,7 +96,7 @@ export async function tenantContext(req: Request, res: Response, next: NextFunct
   }
 
   req.tenant = {
-    companyId: companyId ?? '',
+    companyId,
     isSuperAdmin,
     roles,
     db: client,
