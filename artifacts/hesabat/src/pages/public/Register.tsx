@@ -8,7 +8,6 @@ import { Link } from 'react-router-dom';
 import { useState } from 'react';
 import { isApiConfigured, registerRequest, ApiError } from '@/lib/api';
 import { submitSignupRequest } from '@/hooks/usePendingSignups';
-import { logActivity } from '@/lib/activityLog';
 import { toast } from 'sonner';
 
 const Register = () => {
@@ -35,11 +34,6 @@ const Register = () => {
         ownerName: form.owner,
         email: form.email,
         phone: form.phone,
-      });
-      logActivity({
-        module: 'user', action: 'create',
-        description: `طلب تسجيل جديد من ${form.company} (${form.email}) — بانتظار المراجعة`,
-        userName: form.owner, userEmail: form.email,
       });
       toast.success('تم إرسال طلب تسجيل شركتك للمراجعة');
       setSubmitted(true);

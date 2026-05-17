@@ -15,7 +15,6 @@ import { Check, X, RotateCcw, Trash2, Mail, Phone, Building2, Hourglass, ShieldC
 import { usePendingSignups, type PendingSignup, type SignupStatus } from '@/hooks/usePendingSignups';
 import { plans as mockPlans } from '@/data/mock';
 import { formatCurrency, formatDate } from '@/lib/format';
-import { logActivity } from '@/lib/activityLog';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
@@ -249,12 +248,6 @@ const Approvals = () => {
   const handleApproveConfirm = (planId: string, cycle: 'monthly' | 'yearly' | 'trial', trialDays: number) => {
     if (!target) return;
     approve(target.id, { planId, cycle, trialDays });
-    const planName = mockPlans.find(p => p.id === planId)?.name ?? planId;
-    logActivity({
-      module: 'user', action: 'grant',
-      description: `اعتماد تسجيل ${target.companyName} على باقة «${planName}» (${cycle === 'yearly' ? 'سنوي' : cycle === 'trial' ? `تجربة ${trialDays} يوماً` : 'شهري'})`,
-      userName: 'مالك المنصة', userEmail: 'owner@oneclick.eg',
-    });
     toast.success(`تم اعتماد ${target.companyName}`);
     setApproveOpen(false);
     setTarget(null);
@@ -263,11 +256,6 @@ const Approvals = () => {
   const handleDeclineConfirm = (reason: string) => {
     if (!target) return;
     decline(target.id, { reason });
-    logActivity({
-      module: 'user', action: 'revoke',
-      description: `رفض تسجيل ${target.companyName} — السبب: ${reason}`,
-      userName: 'مالك المنصة', userEmail: 'owner@oneclick.eg',
-    });
     toast.success('تم رفض الطلب');
     setDeclineOpen(false);
     setTarget(null);

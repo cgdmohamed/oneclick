@@ -247,6 +247,35 @@ router.post('/:id/send-email', async (req, res, next) => {
       action: 'invoice.email', entity: 'invoice', entityId: req.params.id,
       data: { to: recipient },
     });
+
+    // Record sent alert in notifications table for audit trail
+    const clientRow = await t.db.query(
+      `SELECT client_id FROM invoices WHERE id = $1 AND company_id = $2`,
+      [req.params.id, t.companyId],
+    );
+    const clientId = clientRow.rows[0]?.client_id ?? null;
+    await t.db.query(
+      `INSERT INTO notifications (company_id, user_id, title, body, kind)
+       VALUES ($1, NULL, $2, $3, 'invoice_email')`,
+      [
+        t.companyId,
+        subject ?? `Invoice ${data.number} from ${data.company.name}`,
+        JSON.stringify({
+          event: 'onCreated',
+          channel: 'email',
+          recipientKind: 'client',
+          clientId,
+          recipientId: clientId,
+          recipientName: data.client.name,
+          recipientContact: recipient,
+          invoiceId: req.params.id,
+          invoiceNumber: data.number,
+          amount: Number(data.total),
+          messageBody: message ?? `Please find attached invoice ${data.number}.`,
+        }),
+      ],
+    );
+
     res.json({ ok: true, to: recipient });
   } catch (e) { next(e); }
 });

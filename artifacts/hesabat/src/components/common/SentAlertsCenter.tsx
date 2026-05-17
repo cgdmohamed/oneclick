@@ -1,26 +1,22 @@
-import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Bell, BellRing, CheckCheck, Mail, FileText, Clock, AlertTriangle, CheckCircle2, Inbox } from 'lucide-react';
-import {
-  getSentAlerts, subscribeSentAlerts, markAlertRead, markAllAlertsRead, eventLabel,
-  type SentAlert, type AlertRecipientKind, type AlertEventKind,
-} from '@/lib/sentAlerts';
+import { eventLabel, type SentAlert, type AlertRecipientKind, type AlertEventKind } from '@/lib/sentAlerts';
 import { formatCurrency } from '@/lib/format';
 import { EmptyState } from '@/components/common/EmptyState';
 import { cn } from '@/lib/utils';
+import { useInvoiceAlerts } from '@/hooks/useNotificationsAlerts';
+import { isApiConfigured } from '@/lib/api';
 
 interface Props {
-  /** Limit to a specific recipient kind (e.g. only show alerts to clients). */
   recipientKind?: AlertRecipientKind;
-  /** Limit to a single recipient (e.g. one client/user id). */
   recipientId?: string;
   title?: string;
   description?: string;
   emptyDescription?: string;
-  /** Compact card layout (used inside a client tab) */
   compact?: boolean;
 }
 
@@ -53,10 +49,12 @@ const timeAgo = (iso: string): string => {
 export const SentAlertsCenter = ({
   recipientKind, recipientId, title, description, emptyDescription, compact,
 }: Props) => {
-  const all = useSyncExternalStore(subscribeSentAlerts, getSentAlerts, getSentAlerts);
+  const apiOn = isApiConfigured();
+  const { alerts: all, markAlertRead, markAllAlertsRead } = useInvoiceAlerts();
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
   const [page, setPage] = useState(1);
   const pageSize = compact ? 5 : 8;
+  const isScoped = !!(recipientKind || recipientId);
 
   const scoped = useMemo(() => all.filter(a =>
     (!recipientKind || a.recipientKind === recipientKind) &&
@@ -70,10 +68,23 @@ export const SentAlertsCenter = ({
   const pageItems = list.slice((safePage - 1) * pageSize, safePage * pageSize);
   useEffect(() => { setPage(1); }, [filter, recipientKind, recipientId]);
 
-  const onMarkAll = () => markAllAlertsRead(a =>
-    (!recipientKind || a.recipientKind === recipientKind) &&
-    (!recipientId || a.recipientId === recipientId)
-  );
+  const onMarkAll = () => {
+    if (isScoped) {
+      scoped.filter(a => !a.read).forEach(a => markAlertRead(a.id));
+    } else {
+      markAllAlertsRead();
+    }
+  };
+
+  if (!apiOn) {
+    return (
+      <EmptyState
+        icon={Inbox}
+        title="غير متصل بالخادم"
+        description="تتطلب التنبيهات الاتصال بالخادم."
+      />
+    );
+  }
 
   return (
     <div className="space-y-4">

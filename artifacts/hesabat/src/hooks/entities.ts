@@ -124,7 +124,7 @@ const kindToCategory = (k: string): NotificationCategory => {
   return 'system';
 };
 export const notificationsCfg: ResourceConfig<Notification, NotificationRow> = {
-  path: '/api/notifications',
+  path: '/api/notifications?exclude_kind=invoice_email',
   key: 'notifications',
   initial: mockNotifications,
   fromRow: (r) => ({

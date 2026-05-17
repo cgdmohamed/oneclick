@@ -14,6 +14,7 @@ import { requireActiveSubscription } from './middleware/planLimits.js';
 import { requestContext } from './middleware/requestContext.js';
 
 import authRoutes from './modules/auth/routes.js';
+import auditRoutes from './modules/audit/routes.js';
 import companiesRoutes from './modules/companies/routes.js';
 import usersRoutes from './modules/users/routes.js';
 import clientsRoutes from './modules/clients/routes.js';
@@ -103,6 +104,7 @@ app.use('/api/payments', paymentsRoutes);
 app.use('/api/notifications', notificationsRoutes);
 app.use('/api/reports', reportsRoutes);
 app.use('/api/subscriptions', subscriptionsRoutes);
+app.use('/api/audit-log', auditRoutes);
 app.use('/api/uploads', uploadsRoutes);
 app.use('/api/platform', platformRoutes);
 app.use('/api/invitations', invitationsAdminRouter);

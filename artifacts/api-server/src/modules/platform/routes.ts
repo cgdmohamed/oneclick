@@ -218,6 +218,40 @@ router.delete('/subscription-payments/:id', async (req, res, next) => {
   }
 });
 
+/* ---------------- Audit Log (super-admin) ---------------- */
+router.get('/audit-log', async (req, res, next) => {
+  try {
+    const q = req.query as Record<string, string | undefined>;
+    const p = parsePagination(req);
+
+    const conditions: string[] = [];
+    const params: unknown[] = [];
+    let idx = 1;
+
+    if (q.company_id) { conditions.push(`a.company_id = $${idx++}`); params.push(q.company_id); }
+    if (q.entity) { conditions.push(`a.entity = $${idx++}`); params.push(q.entity); }
+    if (q.action) { conditions.push(`a.action = $${idx++}`); params.push(q.action); }
+
+    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    const totalQ = await pool.query(
+      `SELECT count(*)::int AS count FROM audit_log a ${where}`,
+      params,
+    );
+    const a = p.applyTo(
+      `SELECT a.*, u.name AS user_name, u.email AS user_email, c.name AS company_name
+       FROM audit_log a
+       LEFT JOIN users u ON u.id = a.user_id
+       LEFT JOIN companies c ON c.id = a.company_id
+       ${where}
+       ORDER BY a.created_at DESC`,
+      params,
+    );
+    const rs = await pool.query(a.sql, a.params);
+    res.json(p.respond(rs.rows, Number(totalQ.rows[0].count)));
+  } catch (e) { next(e); }
+});
+
 /* ---------------- Companies (super-admin) ---------------- */
 router.get('/companies', async (_req, res, next) => {
   try {

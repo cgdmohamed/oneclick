@@ -18,7 +18,6 @@ import { users as mockUsers, companies as mockCompanies } from '@/data/mock';
 import { roleLabel } from '@/lib/format';
 import { useCustomRoles, type CustomRole } from '@/hooks/useCustomRoles';
 import { useUserRoleOverrides } from '@/hooks/useUserRoleOverrides';
-import { logActivity } from '@/lib/activityLog';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import type { Role } from '@/types';
@@ -271,18 +270,11 @@ const RoleGenerator = () => {
   const handleSave = (r: CustomRole) => {
     const existed = roles.some(x => x.id === r.id);
     upsert(r);
-    logActivity({
-      module: 'role',
-      action: existed ? 'update' : 'create',
-      description: existed ? `تم تعديل الدور «${r.name}»` : `تم إنشاء الدور المخصص «${r.name}» (${r.permissions.length} صلاحية)`,
-      userName: 'مالك المنصة', userEmail: 'owner@oneclick.eg',
-    });
     toast.success(existed ? 'تم حفظ الدور' : 'تم إنشاء الدور');
   };
 
   const handleDelete = (r: CustomRole) => {
     remove(r.id);
-    logActivity({ module: 'role', action: 'delete', description: `حذف الدور «${r.name}»`, userName: 'مالك المنصة', userEmail: 'owner@oneclick.eg' });
     toast.success('تم حذف الدور');
   };
 
@@ -365,26 +357,11 @@ const UsersAndRoles = () => {
     return allUsers.filter(u => u.name.toLowerCase().includes(n) || u.email.toLowerCase().includes(n) || u.companyName.toLowerCase().includes(n));
   }, [allUsers, q]);
 
-  const handleAssign = (userId: string, userName: string, newRole: string) => {
-    const prev = overrides[userId] ?? mockUsers.find(u => u.id === userId)?.role ?? 'viewer';
+  const handleAssign = (userId: string, _userName: string, newRole: string) => {
     if (newRole === '__reset__') {
       clear(userId);
-      const original = mockUsers.find(u => u.id === userId)?.role ?? 'viewer';
-      logActivity({
-        module: 'user', action: 'assign',
-        description: `استعادة الدور الافتراضي «${roleLabel(original)}» للمستخدم ${userName}`,
-        userName: 'مالك المنصة', userEmail: 'owner@oneclick.eg',
-      });
     } else {
       set(userId, newRole);
-      const newLabel = matrixRoles.find(r => r.role === newRole)?.label
-        ?? custom.find(r => r.id === newRole)?.name
-        ?? roleLabel(newRole);
-      logActivity({
-        module: 'user', action: 'assign',
-        description: `تغيير دور ${userName} من «${roleLabel(prev)}» إلى «${newLabel}»`,
-        userName: 'مالك المنصة', userEmail: 'owner@oneclick.eg',
-      });
     }
     toast.success('تم تحديث الدور');
   };

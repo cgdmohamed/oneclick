@@ -1,100 +1,157 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { PageHeader } from '@/components/common/PageHeader';
 import { DataTable, Column } from '@/components/common/DataTable';
-import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Trash2 } from 'lucide-react';
-import { ActivityEntry, ActivityModule, clearActivity, useActivityLog } from '@/lib/activityLog';
-import { StatusBadge } from '@/components/common/StatusBadge';
-import { toast } from 'sonner';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Activity } from 'lucide-react';
+import { useAuditLog } from '@/hooks/useAuditLog';
+import { isApiConfigured } from '@/lib/api';
+import type { AuditLogRow } from '@/lib/activityLog';
+import { cn } from '@/lib/utils';
 
-const moduleLabel: Record<ActivityModule, string> = {
-  product: 'منتجات',
-  category: 'تصنيفات',
+const entityLabel: Record<string, string> = {
   invoice: 'فواتير',
   payment: 'مدفوعات',
   client: 'عملاء',
-  system: 'النظام',
-  role: 'الأدوار',
-  user: 'المستخدمون',
-  auth: 'المصادقة',
-  permission: 'الصلاحيات',
+  product: 'منتجات',
+  account: 'حسابات',
+  user: 'مستخدمون',
+  company: 'الشركة',
 };
 
-const actionLabel: Record<string, string> = {
-  create: 'إنشاء',
-  update: 'تعديل',
-  delete: 'حذف',
-  pay: 'دفع',
-  login: 'دخول',
-  logout: 'خروج',
+const actionVerb = (action: string): string => {
+  const verb = action.split('.').pop() ?? action;
+  const map: Record<string, string> = {
+    create: 'إنشاء',
+    update: 'تعديل',
+    delete: 'حذف',
+    email: 'إرسال بريد',
+    pay: 'دفع',
+    login: 'دخول',
+    logout: 'خروج',
+  };
+  return map[verb] ?? verb;
 };
 
-const actionStatus = (a: string): 'active' | 'expired' | 'partial' | 'unpaid' => {
-  if (a === 'create' || a === 'pay' || a === 'login') return 'active';
-  if (a === 'delete' || a === 'logout') return 'expired';
-  return 'partial';
+const actionTone = (action: string): string => {
+  const verb = action.split('.').pop() ?? action;
+  if (['create', 'pay', 'login'].includes(verb)) return 'bg-success/15 text-success';
+  if (['delete', 'logout'].includes(verb)) return 'bg-destructive/15 text-destructive';
+  if (['update', 'email'].includes(verb)) return 'bg-warning/15 text-warning';
+  return 'bg-muted text-muted-foreground';
 };
 
 const formatDateTime = (iso: string) => {
-  try { return new Date(iso).toLocaleString('ar-SA', { dateStyle: 'short', timeStyle: 'short' }); }
-  catch { return iso; }
+  try {
+    return new Date(iso).toLocaleString('ar-SA', { dateStyle: 'short', timeStyle: 'short' });
+  } catch { return iso; }
 };
 
+const ENTITIES = Object.keys(entityLabel);
+
 const ActivityLog = () => {
-  const entries = useActivityLog();
-  const [mod, setMod] = useState<string>('all');
+  const apiOn = isApiConfigured();
+  const [entity, setEntity] = useState('all');
+  const [page, setPage] = useState(1);
+  const pageSize = 50;
 
-  const filtered = useMemo(
-    () => mod === 'all' ? entries : entries.filter(e => e.module === mod),
-    [mod, entries],
-  );
+  const { data, isLoading } = useAuditLog({
+    entity: entity !== 'all' ? entity : undefined,
+    page,
+    page_size: pageSize,
+  });
 
-  const columns: Column<ActivityEntry>[] = [
-    { key: 'date', header: 'التاريخ', cell: r => <span className="text-muted-foreground text-sm">{formatDateTime(r.date)}</span> },
-    { key: 'user', header: 'المستخدم', cell: r => (
-      <div className="min-w-0">
-        <div className="font-medium text-sm truncate">{r.userName ?? '—'}</div>
-        {r.userEmail && <div className="text-xs text-muted-foreground truncate">{r.userEmail}</div>}
-      </div>
-    )},
-    { key: 'mod', header: 'القسم', cell: r => moduleLabel[r.module] ?? r.module },
-    { key: 'action', header: 'الإجراء', cell: r => <StatusBadge status={actionStatus(r.action)} label={actionLabel[r.action] ?? r.action} /> },
-    { key: 'desc', header: 'التفاصيل', cell: r => <span className="text-sm">{r.description}</span> },
+  const rows: AuditLogRow[] = data?.data ?? [];
+  const total = data?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+  const columns: Column<AuditLogRow>[] = [
+    {
+      key: 'date',
+      header: 'التاريخ',
+      cell: r => <span className="text-muted-foreground text-xs whitespace-nowrap">{formatDateTime(r.created_at)}</span>,
+    },
+    {
+      key: 'user',
+      header: 'المستخدم',
+      cell: r => (
+        <div className="min-w-0">
+          <div className="font-medium text-sm truncate">{r.user_name ?? '—'}</div>
+          {r.user_email && <div className="text-xs text-muted-foreground truncate">{r.user_email}</div>}
+        </div>
+      ),
+    },
+    {
+      key: 'entity',
+      header: 'القسم',
+      cell: r => <span className="text-sm">{entityLabel[r.entity] ?? r.entity}</span>,
+    },
+    {
+      key: 'action',
+      header: 'الإجراء',
+      cell: r => (
+        <Badge variant="secondary" className={cn('border-0', actionTone(r.action))}>
+          {actionVerb(r.action)}
+        </Badge>
+      ),
+    },
+    {
+      key: 'detail',
+      header: 'التفاصيل',
+      cell: r => (
+        <span className="text-sm text-muted-foreground">
+          {r.entity} {r.entity_id ? `#${r.entity_id.slice(0, 8)}` : ''}
+          {r.data ? ` — ${JSON.stringify(r.data).slice(0, 80)}` : ''}
+        </span>
+      ),
+    },
   ];
+
+  if (!apiOn) {
+    return (
+      <div>
+        <PageHeader title="سجل الأنشطة" description="سجل بكل العمليات التي تتم في النظام" />
+        <div className="text-center py-16 text-muted-foreground">
+          <Activity className="h-10 w-10 mx-auto opacity-40 mb-3" />
+          <p>يتطلب الاتصال بالخادم لعرض سجل الأنشطة.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>
       <PageHeader
         title="سجل الأنشطة"
         description="سجل بكل العمليات التي تتم في النظام ومن قام بها"
-        actions={
-          <Button
-            variant="outline"
-            onClick={() => { clearActivity(); toast.success('تم مسح السجل'); }}
-            disabled={entries.length === 0}
-          >
-            <Trash2 className="h-4 w-4 ml-1" /> مسح السجل
-          </Button>
-        }
       />
       <DataTable
-        data={filtered}
+        data={rows}
         columns={columns}
-        searchKeys={['description']}
-        searchPlaceholder="ابحث في الوصف..."
+        searchKeys={['action', 'entity']}
+        searchPlaceholder="ابحث في الإجراء أو القسم..."
+        emptyTitle={isLoading ? 'جارٍ التحميل...' : 'لا توجد أحداث'}
+        pageSize={50}
         rightToolbar={
-          <Select value={mod} onValueChange={setMod}>
+          <Select value={entity} onValueChange={v => { setEntity(v); setPage(1); }}>
             <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">كل الأقسام</SelectItem>
-              {Object.entries(moduleLabel).map(([k, v]) => (
-                <SelectItem key={k} value={k}>{v}</SelectItem>
+              {ENTITIES.map(k => (
+                <SelectItem key={k} value={k}>{entityLabel[k]}</SelectItem>
               ))}
             </SelectContent>
           </Select>
         }
       />
+      {totalPages > 1 && (
+        <div className="flex justify-end gap-2 mt-2">
+          <Button variant="outline" size="sm" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}>السابق</Button>
+          <span className="text-xs text-muted-foreground self-center tabular-nums">{page} / {totalPages}</span>
+          <Button variant="outline" size="sm" onClick={() => setPage(p => p + 1)} disabled={page >= totalPages}>التالي</Button>
+        </div>
+      )}
     </div>
   );
 };

@@ -18,8 +18,6 @@ import { Card } from '@/components/ui/card';
 import { useResource } from '@/hooks/useResource';
 import { useInvoices } from '@/hooks/entities';
 import { api, isApiConfigured, resolveAssetUrl } from '@/lib/api';
-import { useAuth } from '@/lib/auth';
-import { logActivity } from '@/lib/activityLog';
 
 interface ProductRow {
   id: string;
@@ -71,9 +69,6 @@ const Products = () => {
   const [customCats, setCustomCats] = useState<string[]>([]);
   const [catFilter, setCatFilter] = useState<string>('all');
   const { list: invoices } = useInvoices();
-  const { user } = useAuth();
-  const who = { userId: user?.id, userName: user?.name, userEmail: user?.email };
-
   const categories = useMemo(() => {
     const fromProducts = list.map(p => p.category).filter((c): c is string => !!c);
     return Array.from(new Set([...fromProducts, ...customCats])).sort();
@@ -87,7 +82,6 @@ const Products = () => {
     if (categories.includes(name)) { toast.error('التصنيف موجود مسبقاً'); return; }
     setCustomCats(prev => [...prev, name]);
     setNewCat('');
-    logActivity({ module: 'category', action: 'create', description: `إضافة تصنيف "${name}"`, ...who });
   };
 
   const removeCategory = (cat: string) => {
@@ -96,19 +90,12 @@ const Products = () => {
       return;
     }
     setCustomCats(prev => prev.filter(c => c !== cat));
-    logActivity({ module: 'category', action: 'delete', description: `حذف تصنيف "${cat}"`, ...who });
   };
 
   const submit = async () => {
     if (!editing.name || !editing.code) return toast.error('أكمل بيانات المنتج');
     const isNew = !list.find(p => p.id === editing.id);
     await save(editing);
-    logActivity({
-      module: 'product',
-      action: isNew ? 'create' : 'update',
-      description: `${isNew ? 'إضافة' : 'تعديل'} منتج "${editing.name}" (${editing.code})`,
-      ...who,
-    });
     setOpen(false);
   };
 
@@ -128,7 +115,6 @@ const Products = () => {
       return;
     }
     await remove(toDelete.id);
-    logActivity({ module: 'product', action: 'delete', description: `حذف منتج "${toDelete.name}" (${toDelete.code})`, ...who });
     setToDelete(null);
   };
 

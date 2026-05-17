@@ -1,4 +1,4 @@
-import { useMemo, useState, useSyncExternalStore } from 'react';
+import { useMemo, useState } from 'react';
 import { PageHeader } from '@/components/common/PageHeader';
 import { DataTable, Column } from '@/components/common/DataTable';
 import { StatCard } from '@/components/common/StatCard';
@@ -11,12 +11,11 @@ import {
   Bell, Mail, CheckCheck, AlertTriangle, CheckCircle2, FileText, Clock,
   Users, UserCog, Download, BellRing,
 } from 'lucide-react';
-import {
-  getSentAlerts, subscribeSentAlerts, markAlertRead, markAllAlertsRead, eventLabel,
-  type SentAlert, type AlertEventKind, type AlertChannel, type AlertRecipientKind,
-} from '@/lib/sentAlerts';
+import { eventLabel, type SentAlert, type AlertEventKind, type AlertChannel, type AlertRecipientKind } from '@/lib/sentAlerts';
 import { formatCurrency } from '@/lib/format';
 import { toast } from 'sonner';
+import { useInvoiceAlerts } from '@/hooks/useNotificationsAlerts';
+import { isApiConfigured } from '@/lib/api';
 
 const eventIcon: Record<AlertEventKind, typeof FileText> = {
   onCreated: FileText,
@@ -47,7 +46,9 @@ type AudienceFilter = 'all' | AlertRecipientKind;
 type StatusFilter = 'all' | 'read' | 'unread';
 
 const AlertsLog = () => {
-  const all = useSyncExternalStore(subscribeSentAlerts, getSentAlerts, getSentAlerts);
+  const apiOn = isApiConfigured();
+  const { alerts: all, isLoading, markAlertRead, markAllAlertsRead } = useInvoiceAlerts();
+
   const [event, setEvent] = useState<EventFilter>('all');
   const [channel, setChannel] = useState<ChannelFilter>('all');
   const [audience, setAudience] = useState<AudienceFilter>('all');
@@ -162,6 +163,18 @@ const AlertsLog = () => {
     },
   ];
 
+  if (!apiOn) {
+    return (
+      <div>
+        <PageHeader title="سجل التنبيهات" description="جميع التنبيهات التلقائية الصادرة من النظام." />
+        <div className="text-center py-16 text-muted-foreground">
+          <BellRing className="h-10 w-10 mx-auto opacity-40 mb-3" />
+          <p>يتطلب الاتصال بالخادم لعرض سجل التنبيهات.</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div>
       <PageHeader
@@ -239,7 +252,7 @@ const AlertsLog = () => {
         columns={columns}
         searchKeys={['recipientName', 'recipientContact', 'invoiceNumber', 'subject']}
         searchPlaceholder="ابحث بالمستلم أو رقم الفاتورة أو الموضوع..."
-        emptyTitle="لا توجد تنبيهات بهذه المعايير"
+        emptyTitle={isLoading ? 'جارٍ التحميل...' : 'لا توجد تنبيهات بهذه المعايير'}
       />
     </div>
   );

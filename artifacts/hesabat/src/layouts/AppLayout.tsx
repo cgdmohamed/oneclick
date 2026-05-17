@@ -10,8 +10,8 @@ import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { roleLabel } from '@/lib/format';
-import { useEffect, useState, useSyncExternalStore } from 'react';
-import { getSentAlerts, subscribeSentAlerts } from '@/lib/sentAlerts';
+import { useEffect, useState } from 'react';
+import { useUnreadNotificationsCount } from '@/hooks/useNotificationsAlerts';
 
 import { useCurrentFeatureSet } from '@/hooks/usePlanAccess';
 import { OnboardingWizard, isOnboardingDone, resetOnboarding } from '@/components/common/OnboardingWizard';
@@ -102,8 +102,7 @@ const AppShellInner = ({ kind }: { kind: 'company' | 'admin' }) => {
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const featureSet = useCurrentFeatureSet();
-  const sentAlerts = useSyncExternalStore(subscribeSentAlerts, getSentAlerts, getSentAlerts);
-  const unreadCount = sentAlerts.filter(a => !a.read).length;
+  const unreadCount = useUnreadNotificationsCount();
   const [onboardingOpen, setOnboardingOpen] = useState(false);
 
   useEffect(() => {
