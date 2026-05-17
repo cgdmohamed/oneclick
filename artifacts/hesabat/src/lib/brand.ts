@@ -1,6 +1,6 @@
 /**
  * Brand settings — super-admin–controlled SaaS identity.
- * Persists to localStorage, syncs across tabs via custom event.
+ * Persisted to the database via /api/platform/settings/branding.
  *
  * Two logo variants:
  *  - logoFullUrl: wide/horizontal lockup (headers, footers, auth, PDFs).
@@ -9,21 +9,17 @@
  * typographic wordmark rendered in the configured font.
  */
 import { useCallback, useEffect, useState } from 'react';
+import { API_URL, api, isApiConfigured } from '@/lib/api';
 
 export interface BrandSettings {
   name: string;
   tagline: string;
-  /** Wide/horizontal logo (data URL or absolute URL). */
   logoFullUrl: string;
-  /** Square/compact icon mark (data URL or absolute URL). */
   logoIconUrl: string;
   fontFamily: string;
   fontWeight: 'font-semibold' | 'font-bold' | 'font-extrabold' | 'font-black';
   tracking: 'tracking-tighter' | 'tracking-tight' | 'tracking-normal' | 'tracking-wide';
 }
-
-const KEY = 'hesabat.brand.v1';
-const EVT = 'hesabat-brand-change';
 
 export const DEFAULT_BRAND: BrandSettings = {
   name: 'ون كليك',
@@ -35,12 +31,16 @@ export const DEFAULT_BRAND: BrandSettings = {
   tracking: 'tracking-tight',
 };
 
-const read = (): BrandSettings => {
+const SETTINGS_KEY = 'branding';
+
+async function fetchBranding(): Promise<BrandSettings> {
   try {
-    const raw = localStorage.getItem(KEY);
-    if (!raw) return DEFAULT_BRAND;
-    const parsed = JSON.parse(raw) as Partial<BrandSettings> & { logoUrl?: string };
-    // Migrate legacy single-logo field.
+    const res = await fetch(`${API_URL}/api/platform/settings/${SETTINGS_KEY}`, {
+      credentials: 'include',
+    });
+    if (!res.ok) return DEFAULT_BRAND;
+    const json = await res.json() as { data: Partial<BrandSettings> & { logoUrl?: string } };
+    const parsed = json.data ?? {};
     if (parsed.logoUrl && !parsed.logoFullUrl) {
       parsed.logoFullUrl = parsed.logoUrl;
     }
@@ -49,46 +49,37 @@ const read = (): BrandSettings => {
   } catch {
     return DEFAULT_BRAND;
   }
-};
+}
 
-const write = (data: BrandSettings) => {
-  localStorage.setItem(KEY, JSON.stringify(data));
-  window.dispatchEvent(new CustomEvent(EVT));
-};
-
-export const getBrand = (): BrandSettings => read();
+export const getBrand = (): BrandSettings => DEFAULT_BRAND;
 
 export const useBrand = () => {
-  const [brand, setBrand] = useState<BrandSettings>(read);
+  const [brand, setBrand] = useState<BrandSettings>(DEFAULT_BRAND);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const sync = () => setBrand(read());
-    window.addEventListener(EVT, sync);
-    window.addEventListener('storage', sync);
-    return () => {
-      window.removeEventListener(EVT, sync);
-      window.removeEventListener('storage', sync);
-    };
+    if (!isApiConfigured()) { setLoading(false); return; }
+    fetchBranding().then((b) => { setBrand(b); setLoading(false); });
   }, []);
 
-  const save = useCallback((next: BrandSettings) => {
+  const save = useCallback(async (next: BrandSettings) => {
     setBrand(next);
-    write(next);
+    if (!isApiConfigured()) return;
+    await api.put(`/api/platform/settings/${SETTINGS_KEY}`, next);
   }, []);
 
-  const reset = useCallback(() => {
+  const reset = useCallback(async () => {
     setBrand(DEFAULT_BRAND);
-    write(DEFAULT_BRAND);
+    if (!isApiConfigured()) return;
+    await api.put(`/api/platform/settings/${SETTINGS_KEY}`, DEFAULT_BRAND);
   }, []);
 
-  return { brand, save, reset };
+  return { brand, save, reset, loading };
 };
 
-/** First 1–2 chars of brand name — used as a monogram fallback for icon variant. */
 export const brandMonogram = (name: string): string => {
   const trimmed = (name || '').trim();
   if (!trimmed) return '•';
-  // Take the first non-space char of the first 1–2 words.
   const parts = trimmed.split(/\s+/).slice(0, 2);
   return parts.map(p => Array.from(p)[0] ?? '').join('');
 };

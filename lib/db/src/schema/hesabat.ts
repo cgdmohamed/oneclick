@@ -320,3 +320,9 @@ export const subscriptionPayments = pgTable('subscription_payments', {
   bySubscription: index('sub_payments_subscription_idx').on(t.subscriptionId),
   byWallet: index('sub_payments_wallet_idx').on(t.walletId),
 }));
+
+export const platformSettings = pgTable('platform_settings', {
+  key: varchar('key', { length: 100 }).primaryKey(),
+  value: jsonb('value').notNull().default(sql`'{}'::jsonb`),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});

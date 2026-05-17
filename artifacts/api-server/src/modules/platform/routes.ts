@@ -12,9 +12,13 @@ import { pool } from '../../db/client.js';
 import { requireSuperAdmin } from '../../middleware/rbac.js';
 import { badRequest, notFound } from '../../utils/errors.js';
 import { audit } from '../../utils/audit.js';
+import { adminSettingsRouter } from './settingsRoutes.js';
 
 const router = Router();
 router.use(requireSuperAdmin);
+
+/* ---- Platform settings (branding / landing_content / tracking) ---- */
+router.use('/settings', adminSettingsRouter);
 
 /* ---------------- Wallets ---------------- */
 const walletSchema = z.object({

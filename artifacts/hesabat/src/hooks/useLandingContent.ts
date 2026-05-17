@@ -1,9 +1,10 @@
 /**
  * useLandingContent — Super-admin–controlled CMS for the public marketing pages.
- * Persists to localStorage and syncs across tabs via a custom event.
+ * Persisted to the database via /api/platform/settings/landing_content.
  */
 import { useEffect, useState, useCallback } from 'react';
 import heroDefault from '@/assets/landing-hero.jpg';
+import { API_URL, api, isApiConfigured } from '@/lib/api';
 
 export interface CTA { label: string; url: string }
 export interface StatItem { id: string; value: string; label: string }
@@ -24,8 +25,8 @@ export interface LandingContent {
     imageUrl: string;
     showImage: boolean;
     showBrowserFrame: boolean;
-    borderWidth: number;        // 0–4 px
-    borderRadius: number;       // 8–32 px
+    borderWidth: number;
+    borderRadius: number;
     shadowIntensity: 'none' | 'soft' | 'elev' | 'glow';
   };
   stats: { enabled: boolean; items: StatItem[] };
@@ -37,8 +38,7 @@ export interface LandingContent {
   cta: { enabled: boolean; title: string; subtitle: string; primary: CTA; secondary: CTA };
 }
 
-const KEY = 'hesabat.landing.v1';
-const EVT = 'hesabat-landing-change';
+const SETTINGS_KEY = 'landing_content';
 
 export const DEFAULT_LANDING: LandingContent = {
   hero: {
@@ -124,53 +124,50 @@ export const DEFAULT_LANDING: LandingContent = {
   },
 };
 
-const read = (): LandingContent => {
+function mergeContent(stored: Partial<LandingContent>): LandingContent {
+  return {
+    hero: { ...DEFAULT_LANDING.hero, ...(stored.hero ?? {}) },
+    stats: { ...DEFAULT_LANDING.stats, ...(stored.stats ?? {}) },
+    logos: { ...DEFAULT_LANDING.logos, ...(stored.logos ?? {}) },
+    bento: { ...DEFAULT_LANDING.bento, ...(stored.bento ?? {}) },
+    showcase: { ...DEFAULT_LANDING.showcase, ...(stored.showcase ?? {}) },
+    testimonials: { ...DEFAULT_LANDING.testimonials, ...(stored.testimonials ?? {}) },
+    faq: { ...DEFAULT_LANDING.faq, ...(stored.faq ?? {}) },
+    cta: { ...DEFAULT_LANDING.cta, ...(stored.cta ?? {}) },
+  };
+}
+
+async function fetchLandingContent(): Promise<LandingContent> {
   try {
-    const raw = localStorage.getItem(KEY);
-    if (!raw) return DEFAULT_LANDING;
-    const parsed = JSON.parse(raw) as Partial<LandingContent>;
-    // shallow-merge each top-level section to absorb future additions
-    return {
-      hero: { ...DEFAULT_LANDING.hero, ...(parsed.hero ?? {}) },
-      stats: { ...DEFAULT_LANDING.stats, ...(parsed.stats ?? {}) },
-      logos: { ...DEFAULT_LANDING.logos, ...(parsed.logos ?? {}) },
-      bento: { ...DEFAULT_LANDING.bento, ...(parsed.bento ?? {}) },
-      showcase: { ...DEFAULT_LANDING.showcase, ...(parsed.showcase ?? {}) },
-      testimonials: { ...DEFAULT_LANDING.testimonials, ...(parsed.testimonials ?? {}) },
-      faq: { ...DEFAULT_LANDING.faq, ...(parsed.faq ?? {}) },
-      cta: { ...DEFAULT_LANDING.cta, ...(parsed.cta ?? {}) },
-    };
+    const res = await fetch(`${API_URL}/api/platform/settings/${SETTINGS_KEY}`, {
+      credentials: 'include',
+    });
+    if (!res.ok) return DEFAULT_LANDING;
+    const json = await res.json() as { data: Partial<LandingContent> };
+    return mergeContent(json.data ?? {});
   } catch {
     return DEFAULT_LANDING;
   }
-};
-
-const write = (data: LandingContent) => {
-  localStorage.setItem(KEY, JSON.stringify(data));
-  window.dispatchEvent(new CustomEvent(EVT));
-};
+}
 
 export const useLandingContent = () => {
-  const [content, setContent] = useState<LandingContent>(read);
+  const [content, setContent] = useState<LandingContent>(DEFAULT_LANDING);
 
   useEffect(() => {
-    const sync = () => setContent(read());
-    window.addEventListener(EVT, sync);
-    window.addEventListener('storage', sync);
-    return () => {
-      window.removeEventListener(EVT, sync);
-      window.removeEventListener('storage', sync);
-    };
+    if (!isApiConfigured()) return;
+    fetchLandingContent().then(setContent);
   }, []);
 
-  const save = useCallback((next: LandingContent) => {
+  const save = useCallback(async (next: LandingContent) => {
     setContent(next);
-    write(next);
+    if (!isApiConfigured()) return;
+    await api.put(`/api/platform/settings/${SETTINGS_KEY}`, next);
   }, []);
 
-  const reset = useCallback(() => {
+  const reset = useCallback(async () => {
     setContent(DEFAULT_LANDING);
-    write(DEFAULT_LANDING);
+    if (!isApiConfigured()) return;
+    await api.put(`/api/platform/settings/${SETTINGS_KEY}`, DEFAULT_LANDING);
   }, []);
 
   return { content, save, reset };

@@ -24,8 +24,14 @@ const TrackingSettingsAdmin = () => {
   const update = <K extends keyof TrackingSettings>(key: K, val: TrackingSettings[K]) =>
     setDraft(d => ({ ...d, [key]: val }));
 
-  const onSave = () => { save(draft); toast.success('تم حفظ إعدادات التتبع'); };
-  const onReset = () => { reset(); toast.message('تمت الاستعادة للإعدادات الافتراضية'); };
+  const onSave = async () => {
+    try { await save(draft); toast.success('تم حفظ إعدادات التتبع'); }
+    catch { toast.error('تعذّر حفظ إعدادات التتبع'); }
+  };
+  const onReset = async () => {
+    try { await reset(); toast.message('تمت الاستعادة للإعدادات الافتراضية'); }
+    catch { toast.error('تعذّر استعادة الافتراضي'); }
+  };
 
   return (
     <div dir="rtl">

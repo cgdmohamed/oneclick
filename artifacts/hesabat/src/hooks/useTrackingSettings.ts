@@ -1,30 +1,28 @@
 /**
  * useTrackingSettings — CMS for marketing/analytics IDs.
- * Persists to localStorage and syncs across tabs via a custom event.
+ * Persisted to the database via /api/platform/settings/tracking.
  *
- * IDs are intentionally stored client-side: they are public identifiers
- * (e.g. GA4 Measurement IDs, Pixel IDs) meant to be embedded in browser code.
+ * IDs are public identifiers (e.g. GA4 Measurement IDs, Pixel IDs) meant
+ * to be embedded in browser code — storing them server-side is fine.
  */
 import { useCallback, useEffect, useState } from 'react';
+import { API_URL, api, isApiConfigured } from '@/lib/api';
 
 export interface TrackingSettings {
-  /** Apply tracking only after user consent (cookie banner). */
   consentRequired: boolean;
-  /** Disable all tracking inside /app and /admin routes (privacy default). */
   privateAppRoutes: boolean;
 
-  ga4: { enabled: boolean; measurementId: string };          // G-XXXXXXXXXX
-  gtm: { enabled: boolean; containerId: string };            // GTM-XXXXXXX
-  metaPixel: { enabled: boolean; pixelId: string };          // numeric
-  linkedinInsight: { enabled: boolean; partnerId: string };  // numeric
-  microsoftClarity: { enabled: boolean; projectId: string }; // 10 chars
+  ga4: { enabled: boolean; measurementId: string };
+  gtm: { enabled: boolean; containerId: string };
+  metaPixel: { enabled: boolean; pixelId: string };
+  linkedinInsight: { enabled: boolean; partnerId: string };
+  microsoftClarity: { enabled: boolean; projectId: string };
   tiktokPixel: { enabled: boolean; pixelId: string };
   hotjar: { enabled: boolean; siteId: string; version: string };
   posthog: { enabled: boolean; apiKey: string; apiHost: string };
 }
 
-const KEY = 'hesabat.tracking.v1';
-const EVT = 'hesabat-tracking-change';
+const SETTINGS_KEY = 'tracking';
 
 export const DEFAULT_TRACKING: TrackingSettings = {
   consentRequired: true,
@@ -39,43 +37,37 @@ export const DEFAULT_TRACKING: TrackingSettings = {
   posthog: { enabled: false, apiKey: '', apiHost: 'https://us.i.posthog.com' },
 };
 
-const read = (): TrackingSettings => {
+async function fetchTracking(): Promise<TrackingSettings> {
   try {
-    const raw = localStorage.getItem(KEY);
-    if (!raw) return DEFAULT_TRACKING;
-    const p = JSON.parse(raw) as Partial<TrackingSettings>;
-    return { ...DEFAULT_TRACKING, ...p };
+    const res = await fetch(`${API_URL}/api/platform/settings/${SETTINGS_KEY}`, {
+      credentials: 'include',
+    });
+    if (!res.ok) return DEFAULT_TRACKING;
+    const json = await res.json() as { data: Partial<TrackingSettings> };
+    return { ...DEFAULT_TRACKING, ...(json.data ?? {}) };
   } catch {
     return DEFAULT_TRACKING;
   }
-};
-
-const write = (data: TrackingSettings) => {
-  localStorage.setItem(KEY, JSON.stringify(data));
-  window.dispatchEvent(new CustomEvent(EVT));
-};
+}
 
 export const useTrackingSettings = () => {
-  const [settings, setSettings] = useState<TrackingSettings>(read);
+  const [settings, setSettings] = useState<TrackingSettings>(DEFAULT_TRACKING);
 
   useEffect(() => {
-    const sync = () => setSettings(read());
-    window.addEventListener(EVT, sync);
-    window.addEventListener('storage', sync);
-    return () => {
-      window.removeEventListener(EVT, sync);
-      window.removeEventListener('storage', sync);
-    };
+    if (!isApiConfigured()) return;
+    fetchTracking().then(setSettings);
   }, []);
 
-  const save = useCallback((next: TrackingSettings) => {
+  const save = useCallback(async (next: TrackingSettings) => {
     setSettings(next);
-    write(next);
+    if (!isApiConfigured()) return;
+    await api.put(`/api/platform/settings/${SETTINGS_KEY}`, next);
   }, []);
 
-  const reset = useCallback(() => {
+  const reset = useCallback(async () => {
     setSettings(DEFAULT_TRACKING);
-    write(DEFAULT_TRACKING);
+    if (!isApiConfigured()) return;
+    await api.put(`/api/platform/settings/${SETTINGS_KEY}`, DEFAULT_TRACKING);
   }, []);
 
   return { settings, save, reset };

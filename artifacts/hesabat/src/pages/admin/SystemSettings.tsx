@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -20,8 +20,10 @@ const FONT_PRESETS: { label: string; value: string }[] = [
 ];
 
 const SystemSettings = () => {
-  const { brand, save: saveBrand, reset: resetBrand } = useBrand();
+  const { brand, save: saveBrand, reset: resetBrand, loading: brandLoading } = useBrand();
   const [local, setLocal] = useState<BrandSettings>(brand);
+
+  useEffect(() => { setLocal(brand); }, [brand]);
   const fullFileRef = useRef<HTMLInputElement>(null);
   const iconFileRef = useRef<HTMLInputElement>(null);
 
@@ -180,13 +182,19 @@ const SystemSettings = () => {
         </div>
 
         <div className="flex flex-wrap gap-2 pt-2 border-t border-border/60">
-          <Button onClick={() => { saveBrand(local); toast.success('تم حفظ هوية العلامة'); }}>
+          <Button onClick={async () => {
+            try { await saveBrand(local); toast.success('تم حفظ هوية العلامة'); }
+            catch { toast.error('تعذّر حفظ هوية العلامة'); }
+          }}>
             حفظ هوية العلامة
           </Button>
           <Button variant="outline" onClick={() => setLocal(brand)}>تراجع</Button>
           <Button
             variant="ghost"
-            onClick={() => { resetBrand(); setLocal(DEFAULT_BRAND); toast.success('تمت الاستعادة للافتراضي'); }}
+            onClick={async () => {
+              try { await resetBrand(); setLocal(DEFAULT_BRAND); toast.success('تمت الاستعادة للافتراضي'); }
+              catch { toast.error('تعذّر استعادة الافتراضي'); }
+            }}
           >
             <RotateCcw className="h-4 w-4 ml-2" /> استعادة الافتراضي
           </Button>

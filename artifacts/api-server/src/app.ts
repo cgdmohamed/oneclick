@@ -28,6 +28,7 @@ import subscriptionsRoutes from './modules/subscriptions/routes.js';
 import publicRoutes from './modules/public/routes.js';
 import uploadsRoutes from './modules/uploads/routes.js';
 import platformRoutes from './modules/platform/routes.js';
+import { publicSettingsRouter } from './modules/platform/settingsRoutes.js';
 import { invitationsAdminRouter, invitationsPublicRouter } from './modules/invitations/routes.js';
 
 const UPLOAD_PUBLIC = path.resolve(process.cwd(), 'uploads/public');
@@ -87,6 +88,7 @@ app.use('/api/public', publicRoutes);
 app.use('/api/public/invitations', invitationsPublicRouter);
 app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/plans', publicPlansRouter);
+app.use('/api/platform/settings', publicSettingsRouter);
 
 // Protected API
 app.use('/api', apiLimiter, requireAuth, tenantContext, requireActiveSubscription);

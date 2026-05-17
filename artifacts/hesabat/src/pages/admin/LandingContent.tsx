@@ -1,6 +1,6 @@
 /**
  * Landing CMS — super-admin controlled content for the public marketing pages.
- * All edits are stored locally (via useLandingContent) until backend is wired up.
+ * Content is persisted to the database via /api/platform/settings/landing_content.
  */
 import { useState, useEffect } from 'react';
 import { PageHeader } from '@/components/common/PageHeader';
@@ -34,14 +34,14 @@ const LandingContentAdmin = () => {
     setDraft(d => ({ ...d, [key]: { ...d[key], ...partial } }));
   };
 
-  const onSave = () => {
-    save(draft);
-    toast.success('تم حفظ محتوى الصفحة العامة');
+  const onSave = async () => {
+    try { await save(draft); toast.success('تم حفظ محتوى الصفحة العامة'); }
+    catch { toast.error('تعذّر حفظ المحتوى'); }
   };
 
-  const onReset = () => {
-    reset();
-    toast.message('تمت الاستعادة للإعدادات الافتراضية');
+  const onReset = async () => {
+    try { await reset(); toast.message('تمت الاستعادة للإعدادات الافتراضية'); }
+    catch { toast.error('تعذّر استعادة الافتراضي'); }
   };
 
   return (
