@@ -4,6 +4,16 @@ import { enqueueEmail } from './emailQueue.js';
 
 let cached: Transporter | null = null;
 
+export interface SmtpOverride {
+  host: string;
+  port: number;
+  secure: boolean;
+  username?: string;
+  password?: string;
+  fromName?: string;
+  fromEmail?: string;
+}
+
 export interface EmailAttachment {
   filename: string;
   content: Buffer | string;
@@ -16,6 +26,7 @@ export interface EmailPayload {
   html?: string;
   text?: string;
   attachments?: EmailAttachment[];
+  smtpOverride?: SmtpOverride;
 }
 
 export function getTransporter(): Transporter | null {
@@ -30,16 +41,29 @@ export function getTransporter(): Transporter | null {
   return cached;
 }
 
+function buildOverrideTransporter(override: SmtpOverride): Transporter {
+  return nodemailer.createTransport({
+    host: override.host,
+    port: override.port,
+    secure: override.secure,
+    auth: override.username ? { user: override.username, pass: override.password ?? '' } : undefined,
+  });
+}
+
 /**
  * Direct/synchronous send — used by the queue worker and as a fallback.
  * Application code should generally call `sendEmail()` which enqueues.
  */
 export async function sendEmailNow(opts: EmailPayload) {
-  const tr = getTransporter();
+  const override = opts.smtpOverride;
+  const tr = (override?.host) ? buildOverrideTransporter(override) : getTransporter();
   if (!tr) {
     console.log('[email] SMTP not configured — would send:', { to: opts.to, subject: opts.subject });
     return { skipped: true };
   }
+  const fromAddr = override?.fromEmail
+    ? (override.fromName ? `"${override.fromName}" <${override.fromEmail}>` : override.fromEmail)
+    : (env.SMTP_FROM ?? 'no-reply@hesabat.local');
   // Re-hydrate attachments if they were JSON-serialised through the queue.
   const attachments = opts.attachments?.map((a) => ({
     filename: a.filename,
@@ -51,7 +75,7 @@ export async function sendEmailNow(opts: EmailPayload) {
         : Buffer.from((a.content as { data: number[] }).data ?? []),
   }));
   return tr.sendMail({
-    from: env.SMTP_FROM ?? 'no-reply@hesabat.local',
+    from: fromAddr,
     to: opts.to,
     subject: opts.subject,
     html: opts.html,

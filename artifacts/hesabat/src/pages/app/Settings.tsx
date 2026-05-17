@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { loadSmtp, saveSmtp, type SmtpSettings, emptySmtp } from '@/lib/smtpSettings';
 import { Switch } from '@/components/ui/switch';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -571,37 +570,90 @@ const InvoicePreview = ({ profile, cfg, address, client }: { profile: CompanyPro
 
 export default Settings;
 
-const SmtpTab = () => {
-  const [s, setS] = useState<SmtpSettings>(() => loadSmtp());
-  const [showPwd, setShowPwd] = useState(false);
-  const set = (patch: Partial<SmtpSettings>) => setS(v => ({ ...v, ...patch }));
+interface SmtpFormState {
+  host: string;
+  port: number;
+  secure: boolean;
+  username: string;
+  password: string;
+  fromName: string;
+  fromEmail: string;
+  hasPassword: boolean;
+}
 
-  const save = () => {
+const emptySmtpForm: SmtpFormState = {
+  host: '', port: 587, secure: false, username: '', password: '', fromName: '', fromEmail: '', hasPassword: false,
+};
+
+const SmtpTab = () => {
+  const [s, setS] = useState<SmtpFormState>(emptySmtpForm);
+  const [showPwd, setShowPwd] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const set = (patch: Partial<SmtpFormState>) => setS(v => ({ ...v, ...patch }));
+
+  useEffect(() => {
+    if (!isApiConfigured()) { setLoading(false); return; }
+    (async () => {
+      try {
+        const res = await api.get<{ data: Omit<SmtpFormState, 'password'> & { hasPassword: boolean } }>('/api/companies/smtp-settings');
+        if (res?.data) setS(v => ({ ...v, ...res.data, password: '' }));
+      } catch { /* keep defaults */ }
+      finally { setLoading(false); }
+    })();
+  }, []);
+
+  const save = async () => {
     if (!s.host || !s.username || !s.fromEmail) {
       toast.error('أكمل الحقول الأساسية: الخادم، اسم المستخدم، والمرسل');
       return;
     }
-    saveSmtp(s);
-    toast.success('تم حفظ إعدادات البريد');
+    if (!isApiConfigured()) {
+      toast.error('يتطلب الحفظ الاتصال بالخادم');
+      return;
+    }
+    setSaving(true);
+    try {
+      const body: Record<string, unknown> = {
+        host: s.host, port: s.port, secure: s.secure,
+        username: s.username, fromName: s.fromName, fromEmail: s.fromEmail,
+      };
+      if (s.password) body.password = s.password;
+      const res = await api.put<{ data: Omit<SmtpFormState, 'password'> & { hasPassword: boolean } }>('/api/companies/smtp-settings', body);
+      if (res?.data) setS(v => ({ ...v, ...res.data, password: '' }));
+      toast.success('تم حفظ إعدادات البريد');
+    } catch {
+      toast.error('تعذّر حفظ إعدادات البريد');
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const reset = () => {
-    setS(emptySmtp);
-    saveSmtp(emptySmtp);
-    toast.success('تم مسح إعدادات البريد');
+  const reset = async () => {
+    if (!isApiConfigured()) { setS(emptySmtpForm); return; }
+    setSaving(true);
+    try {
+      // Send empty string for password to explicitly clear the stored secret
+      await api.put('/api/companies/smtp-settings', { host: '', port: 587, secure: false, username: '', password: '', fromName: '', fromEmail: '' });
+      setS(emptySmtpForm);
+      toast.success('تم مسح إعدادات البريد');
+    } catch {
+      toast.error('تعذّر مسح الإعدادات');
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const sendTest = () => {
-    if (!s.host || !s.fromEmail) return toast.error('أكمل إعدادات SMTP أولاً');
-    toast.success(`تم إرسال رسالة تجريبية إلى ${s.fromEmail}`);
-  };
+  if (loading) {
+    return <Card className="p-6 border-border/60 max-w-3xl flex items-center justify-center h-40"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></Card>;
+  }
 
   return (
     <Card className="p-6 border-border/60 max-w-3xl space-y-4">
       <div>
         <h3 className="font-semibold">إعدادات خادم البريد (SMTP)</h3>
         <p className="text-sm text-muted-foreground mt-1">
-          استخدم خادم البريد الخاص بك لإرسال الفواتير والإشعارات إلى عملائك مباشرة من حسابك.
+          استخدم خادم البريد الخاص بشركتك لإرسال الفواتير. تُحفظ هذه الإعدادات بشكل آمن على الخادم ولا تُخزَّن في المتصفح.
         </p>
       </div>
       <div className="grid sm:grid-cols-2 gap-4">
@@ -611,7 +663,7 @@ const SmtpTab = () => {
         </div>
         <div>
           <Label>المنفذ</Label>
-          <Input type="number" className="mt-1.5" value={s.port} onChange={e => set({ port: Number(e.target.value) || 0 })} />
+          <Input type="number" className="mt-1.5" value={s.port} onChange={e => set({ port: Number(e.target.value) || 587 })} />
         </div>
         <div className="flex items-center gap-3 sm:mt-7">
           <Switch checked={s.secure} onCheckedChange={(v) => set({ secure: v })} id="smtp-secure" />
@@ -624,9 +676,18 @@ const SmtpTab = () => {
         <div>
           <Label>كلمة المرور</Label>
           <div className="mt-1.5 flex gap-2">
-            <Input type={showPwd ? 'text' : 'password'} autoComplete="off" value={s.password} onChange={e => set({ password: e.target.value })} />
+            <Input
+              type={showPwd ? 'text' : 'password'}
+              autoComplete="new-password"
+              placeholder={s.hasPassword ? '••••••••' : ''}
+              value={s.password}
+              onChange={e => set({ password: e.target.value })}
+            />
             <Button type="button" variant="outline" onClick={() => setShowPwd(v => !v)}>{showPwd ? 'إخفاء' : 'إظهار'}</Button>
           </div>
+          {s.hasPassword && !s.password && (
+            <p className="text-xs text-muted-foreground mt-1">كلمة المرور محفوظة — اتركها فارغة للإبقاء عليها</p>
+          )}
         </div>
         <div>
           <Label>اسم المرسل</Label>
@@ -639,13 +700,12 @@ const SmtpTab = () => {
       </div>
 
       <div className="rounded-lg border border-border/60 bg-muted/30 p-3 text-xs text-muted-foreground">
-        يتم حفظ هذه البيانات بشكل خاص لحسابك وتُستخدم فقط لإرسال البريد من تطبيقك.
+        تُحفظ بيانات البريد بشكل آمن في قاعدة البيانات على الخادم، ولا تُخزَّن في المتصفح أبداً. كلمة المرور لا تُعرض مجدداً بعد الحفظ.
       </div>
 
       <div className="flex gap-2 flex-wrap">
-        <Button onClick={save}>حفظ الإعدادات</Button>
-        <Button variant="outline" onClick={sendTest}>إرسال رسالة تجريبية</Button>
-        <Button variant="ghost" onClick={reset}>مسح</Button>
+        <Button onClick={save} disabled={saving}>{saving ? <><Loader2 className="h-4 w-4 animate-spin ml-1" />جارٍ الحفظ...</> : 'حفظ الإعدادات'}</Button>
+        <Button variant="ghost" onClick={reset} disabled={saving}>مسح</Button>
       </div>
     </Card>
   );

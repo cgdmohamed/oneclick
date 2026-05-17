@@ -214,6 +214,24 @@ router.post('/:id/send-email', async (req, res, next) => {
     const recipient = to ?? data.client.email;
     if (!recipient) throw badRequest('Client has no email — supply "to"');
 
+    // Load per-tenant SMTP settings if configured
+    const smtpRow = await t.db.query(
+      `SELECT smtp_settings FROM companies WHERE id = $1`,
+      [t.companyId],
+    );
+    const smtpSettings = smtpRow.rows[0]?.smtp_settings as Record<string, unknown> | null;
+    const smtpOverride = smtpSettings?.host
+      ? {
+          host: smtpSettings.host as string,
+          port: Number(smtpSettings.port ?? 587),
+          secure: Boolean(smtpSettings.secure),
+          username: smtpSettings.username as string | undefined,
+          password: smtpSettings.password as string | undefined,
+          fromName: smtpSettings.fromName as string | undefined,
+          fromEmail: smtpSettings.fromEmail as string | undefined,
+        }
+      : undefined;
+
     const buf = await renderInvoicePdf(data);
     await sendEmail({
       to: recipient,
@@ -221,6 +239,7 @@ router.post('/:id/send-email', async (req, res, next) => {
       html: `<p>${message ?? `Please find attached invoice ${data.number}.`}</p>
              <p>You can also view it online: <a href="${publicUrl}">${publicUrl}</a></p>`,
       attachments: [{ filename: `invoice-${data.number}.pdf`, content: buf, contentType: 'application/pdf' }],
+      smtpOverride,
     });
 
     await audit(pool, {

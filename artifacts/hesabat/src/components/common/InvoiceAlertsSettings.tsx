@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogD
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AlertTriangle, BellRing, CalendarClock, Eye, Mail, MailWarning, RotateCcw, Sparkles, Users, UserCog, CheckCircle2, FileText, Moon } from 'lucide-react';
 import { useInvoiceAlerts, type AlertsAudience, type ScheduleMode, type WeekDay, type InvoiceAlertsSettings } from '@/hooks/useInvoiceAlerts';
-import { loadSmtp } from '@/lib/smtpSettings';
+import { isApiConfigured } from '@/lib/api';
 import { formatCurrency } from '@/lib/format';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -38,10 +38,7 @@ const featureBullets = [
 export const InvoiceAlertsSettingsPanel = () => {
   const { settings, setSettings, update, reset } = useInvoiceAlerts();
   const [previewOpen, setPreviewOpen] = useState(false);
-  const smtpConfigured = useMemo(() => {
-    const s = loadSmtp();
-    return Boolean(s?.host && s?.fromEmail);
-  }, []);
+  const smtpConfigured = useMemo(() => isApiConfigured(), []);
 
   const emailBlocked = settings.requireEmailConfigured && settings.channels.email && !smtpConfigured;
   const featureActive = settings.enabled;

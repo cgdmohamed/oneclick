@@ -58,4 +58,81 @@ router.patch('/me', requireRole('company_admin'), async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+/* ---------- SMTP settings (per-tenant, write-protected) ---------- */
+
+const smtpSchema = z.object({
+  host: z.string().max(255).default(''),
+  port: z.coerce.number().int().min(1).max(65535).default(587),
+  secure: z.boolean().default(false),
+  username: z.string().max(255).default(''),
+  password: z.string().max(500).optional(),
+  fromName: z.string().max(120).default(''),
+  fromEmail: z.string().max(255).default(''),
+});
+
+/**
+ * GET /api/company/smtp-settings
+ * Returns SMTP config with the password field omitted (write-only).
+ */
+router.get('/smtp-settings', async (req, res, next) => {
+  try {
+    const t = req.tenant!;
+    const rs = await t.db.query(
+      `SELECT smtp_settings FROM companies WHERE id = $1`,
+      [t.companyId],
+    );
+    if (!rs.rowCount) throw notFound();
+    const raw = rs.rows[0].smtp_settings as Record<string, unknown> | null;
+    if (!raw) {
+      return res.json({ data: { host: '', port: 587, secure: false, username: '', fromName: '', fromEmail: '', hasPassword: false } });
+    }
+    const { password, ...rest } = raw;
+    res.json({ data: { ...rest, hasPassword: !!password } });
+  } catch (e) { next(e); }
+});
+
+/**
+ * PUT /api/company/smtp-settings
+ * Saves SMTP config. Password is only updated when a non-empty value is supplied;
+ * omitting it preserves the existing stored password.
+ */
+router.put('/smtp-settings', requireRole('company_admin'), async (req, res, next) => {
+  try {
+    const t = req.tenant!;
+    const body = smtpSchema.parse(req.body);
+
+    // Build settings object — preserve existing password if caller omits it
+    const settings: Record<string, unknown> = {
+      host: body.host,
+      port: body.port,
+      secure: body.secure,
+      username: body.username,
+      fromName: body.fromName,
+      fromEmail: body.fromEmail,
+    };
+
+    if (body.password === undefined) {
+      // Password not sent — preserve whatever is already stored
+      const existing = await t.db.query(
+        `SELECT smtp_settings->>'password' AS pwd FROM companies WHERE id = $1`,
+        [t.companyId],
+      );
+      const existingPwd = existing.rows[0]?.pwd;
+      if (existingPwd) settings.password = existingPwd;
+    } else if (body.password !== '') {
+      // Non-empty password supplied — update it
+      settings.password = body.password;
+    }
+    // body.password === '' means explicitly clear — leave settings.password unset
+
+    await t.db.query(
+      `UPDATE companies SET smtp_settings = $1, updated_at = now() WHERE id = $2`,
+      [JSON.stringify(settings), t.companyId],
+    );
+
+    const { password: _pw, ...safe } = settings;
+    res.json({ data: { ...safe, hasPassword: !!settings.password } });
+  } catch (e) { next(e); }
+});
+
 export default router;
