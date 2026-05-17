@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { PageHeader } from '@/components/common/PageHeader';
 import { StatCard } from '@/components/common/StatCard';
 import { StatusBadge } from '@/components/common/StatusBadge';
@@ -16,6 +17,7 @@ import {
 } from 'lucide-react';
 import { useClients, useInvoices } from '@/hooks/entities';
 import { payments as mockPayments, accounts as mockAccounts } from '@/data/mock';
+import { api, isApiConfigured } from '@/lib/api';
 import { formatCurrency, formatDateShort, invoiceStatusLabel, paymentMethodLabel } from '@/lib/format';
 import type { Invoice, PaymentMethod } from '@/types';
 
@@ -47,6 +49,7 @@ const ClientDetail = () => {
   const navigate = useNavigate();
   const { list: clients } = useClients();
   const { list: invoices } = useInvoices();
+  const apiOn = isApiConfigured();
 
   const client = clients.find((c) => c.id === id);
   const fc = (n: number) => formatCurrency(n, client?.currencySymbol);
@@ -56,10 +59,29 @@ const ClientDetail = () => {
     [invoices, id],
   );
 
-  // Build per-client payment ledger from mock (per-split rows). In real API
-  // mode the payments page exposes a flattened list; we recompute here from
-  // mock for the demo since no per-client endpoint exists yet.
-  const clientPayments: PaymentRecord[] = useMemo(() => {
+  const paymentsQuery = useQuery({
+    enabled: apiOn && Boolean(id),
+    queryKey: ['payments-client', id],
+    queryFn: async () => {
+      const res = await api.get<{ data: Array<{
+        id: string; invoice_id: string; account_id: string;
+        amount: string | number; method: string; paid_at: string;
+        invoice_number?: string; account_name?: string;
+      }> }>(`/api/payments?client_id=${encodeURIComponent(id)}`);
+      return res.data.map<PaymentRecord>((p) => ({
+        id: p.id,
+        invoiceId: p.invoice_id,
+        invoiceNumber: p.invoice_number ?? '—',
+        date: p.paid_at,
+        amount: Number(p.amount),
+        method: (p.method ?? 'cash') as PaymentMethod,
+        accountName: p.account_name ?? '—',
+      }));
+    },
+  });
+
+  // Mock fallback: build per-client payment ledger from mock data
+  const mockClientPayments: PaymentRecord[] = useMemo(() => {
     const invIds = new Set(clientInvoices.map((i) => i.id));
     return mockPayments
       .filter((p) => invIds.has(p.invoiceId))
@@ -76,6 +98,13 @@ const ClientDetail = () => {
       )
       .sort((a, b) => +new Date(b.date) - +new Date(a.date));
   }, [clientInvoices]);
+
+  const clientPayments: PaymentRecord[] = useMemo(() => {
+    if (apiOn) {
+      return (paymentsQuery.data ?? []).sort((a, b) => +new Date(b.date) - +new Date(a.date));
+    }
+    return mockClientPayments;
+  }, [apiOn, paymentsQuery.data, mockClientPayments]);
 
   /* ----- Aggregates ----- */
   const totals = useMemo(() => {

@@ -1,24 +1,91 @@
+import { useQuery } from '@tanstack/react-query';
 import { StatCard } from '@/components/common/StatCard';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Card } from '@/components/ui/card';
-import { invoices, clients, products, payments } from '@/data/mock';
 import { FileText, CreditCard, TrendingDown, Users, Package, Wallet, AlertTriangle } from 'lucide-react';
 import { formatCurrency, formatDateShort, invoiceStatusLabel } from '@/lib/format';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { LineChart, Line, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
+import { api, isApiConfigured } from '@/lib/api';
+import { useInvoices, useClients, useProducts } from '@/hooks/entities';
+import {
+  invoices as mockInvoices,
+  clients as mockClients,
+  products as mockProducts,
+} from '@/data/mock';
+
+const ARABIC_MONTHS: Record<string, string> = {
+  '01': 'يناير', '02': 'فبراير', '03': 'مارس', '04': 'أبريل',
+  '05': 'مايو', '06': 'يونيو', '07': 'يوليو', '08': 'أغسطس',
+  '09': 'سبتمبر', '10': 'أكتوبر', '11': 'نوفمبر', '12': 'ديسمبر',
+};
+
+interface OverviewData {
+  totals: {
+    total_sales: string | number;
+    total_paid: string | number;
+    total_remaining: string | number;
+    invoices_count: string | number;
+  };
+  low_stock: number;
+  clients: number;
+  monthly_sales: Array<{ month: string; total: string | number }>;
+}
 
 const Overview = () => {
-  const totalSales = invoices.reduce((s, i) => s + i.total, 0);
-  const totalPaid = invoices.reduce((s, i) => s + i.paid, 0);
-  const totalRemaining = invoices.reduce((s, i) => s + i.remaining, 0);
-  const lowStock = products.filter(p => p.quantity <= p.alertLevel);
+  const apiOn = isApiConfigured();
 
-  const monthly = [
-    { m: 'يناير', v: 32500 },{ m: 'فبراير', v: 41200 },{ m: 'مارس', v: 38700 },
-    { m: 'أبريل', v: 52100 },{ m: 'مايو', v: 47800 },{ m: 'يونيو', v: 61400 },
-  ];
+  const overviewQuery = useQuery({
+    enabled: apiOn,
+    queryKey: ['reports-overview'],
+    queryFn: async () => {
+      const res = await api.get<{ data: OverviewData }>('/api/reports/overview');
+      return res.data;
+    },
+  });
+
+  const { list: invoices } = useInvoices();
+  const { list: clients } = useClients();
+  const { list: products } = useProducts();
+
+  const data = overviewQuery.data;
+
+  const totalSales = data
+    ? Number(data.totals.total_sales)
+    : mockInvoices.reduce((s, i) => s + i.total, 0);
+  const totalPaid = data
+    ? Number(data.totals.total_paid)
+    : mockInvoices.reduce((s, i) => s + i.paid, 0);
+  const totalRemaining = data
+    ? Number(data.totals.total_remaining)
+    : mockInvoices.reduce((s, i) => s + i.remaining, 0);
+  const invoicesCount = data
+    ? Number(data.totals.invoices_count)
+    : mockInvoices.length;
+  const clientsCount = data ? data.clients : mockClients.length;
+  const lowStockCount = data
+    ? data.low_stock
+    : mockProducts.filter((p) => p.quantity <= p.alertLevel).length;
+
+  const monthly = data
+    ? data.monthly_sales.map((row) => ({
+        m: ARABIC_MONTHS[row.month.slice(5, 7)] ?? row.month,
+        v: Number(row.total),
+      }))
+    : [
+        { m: 'يناير', v: 32500 }, { m: 'فبراير', v: 41200 },
+        { m: 'مارس', v: 38700 }, { m: 'أبريل', v: 52100 },
+        { m: 'مايو', v: 47800 }, { m: 'يونيو', v: 61400 },
+      ];
+
+  const lowStock = apiOn
+    ? products.filter((p) => p.quantity <= p.alertLevel)
+    : mockProducts.filter((p) => p.quantity <= p.alertLevel);
+
+  const recentInvoices = apiOn ? invoices.slice(0, 6) : mockInvoices.slice(0, 6);
+  const clientsMap = new Map((apiOn ? clients : mockClients).map((c) => [c.id, c]));
 
   return (
     <div className="space-y-6">
@@ -27,9 +94,9 @@ const Overview = () => {
         <StatCard title="إجمالي المبيعات" value={formatCurrency(totalSales)} icon={Wallet} accent="primary" />
         <StatCard title="إجمالي المدفوع" value={formatCurrency(totalPaid)} icon={CreditCard} accent="success" />
         <StatCard title="إجمالي المتبقي" value={formatCurrency(totalRemaining)} icon={TrendingDown} accent="warning" />
-        <StatCard title="عدد الفواتير" value={invoices.length} icon={FileText} accent="info" />
-        <StatCard title="العملاء" value={clients.length} icon={Users} accent="primary" />
-        <StatCard title="مخزون منخفض" value={lowStock.length} icon={AlertTriangle} accent="destructive" />
+        <StatCard title="عدد الفواتير" value={invoicesCount} icon={FileText} accent="info" />
+        <StatCard title="العملاء" value={clientsCount} icon={Users} accent="primary" />
+        <StatCard title="مخزون منخفض" value={lowStockCount} icon={AlertTriangle} accent="destructive" />
       </div>
 
       <div className="grid lg:grid-cols-3 gap-5">
@@ -92,12 +159,12 @@ const Overview = () => {
               </tr>
             </thead>
             <tbody>
-              {invoices.slice(0, 6).map(inv => {
-                const c = clients.find(x => x.id === inv.clientId);
+              {recentInvoices.map(inv => {
+                const c = clientsMap.get(inv.clientId);
                 return (
                   <tr key={inv.id} className="border-b border-border/60 hover:bg-muted/20">
                     <td className="py-3 font-medium"><Link to={`/app/invoices/${inv.id}`} className="text-primary">{inv.number}</Link></td>
-                    <td className="py-3">{c?.name}</td>
+                    <td className="py-3">{(inv as { clientName?: string }).clientName ?? c?.name}</td>
                     <td className="py-3 text-muted-foreground">{formatDateShort(inv.issueDate)}</td>
                     <td className="py-3">{formatCurrency(inv.total)}</td>
                     <td className="py-3">{formatCurrency(inv.remaining)}</td>

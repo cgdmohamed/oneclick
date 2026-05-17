@@ -22,6 +22,30 @@ router.get('/', async (req, res, next) => {
   try {
     const t = req.tenant!;
     const p = parsePagination(req);
+    const clientId = typeof req.query.client_id === 'string' ? req.query.client_id : null;
+
+    if (clientId) {
+      // Filter payments by client via the invoices join
+      const totalQ = await t.db.query(
+        `SELECT count(p.*)::int AS count
+         FROM payments p
+         JOIN invoices i ON i.id = p.invoice_id
+         WHERE p.company_id = $1 AND i.client_id = $2`,
+        [t.companyId, clientId],
+      );
+      const a = p.applyTo(
+        `SELECT p.*, i.number AS invoice_number, a.name AS account_name
+         FROM payments p
+         JOIN invoices i ON i.id = p.invoice_id
+         JOIN accounts a ON a.id = p.account_id
+         WHERE p.company_id = $1 AND i.client_id = $2
+         ORDER BY p.paid_at DESC`,
+        [t.companyId, clientId],
+      );
+      const rs = await t.db.query(a.sql, a.params);
+      return res.json(p.respond(rs.rows, Number(totalQ.rows[0].count)));
+    }
+
     const totalQ = await t.db.query(`SELECT count(*)::int AS count FROM payments WHERE company_id = $1`, [t.companyId]);
     const a = p.applyTo(`
       SELECT p.*, i.number AS invoice_number, a.name AS account_name
