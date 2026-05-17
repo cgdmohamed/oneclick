@@ -344,8 +344,8 @@ const ProductImageField = ({ value, onChange }: { value?: string; onChange: (url
       setUploading(true);
       try {
         const form = new FormData();
-        form.append('file', file);
         form.append('kind', 'attachment');
+        form.append('file', file);
         const res = await api.upload<{ data: { url: string } }>('/api/uploads', form);
         onChange(res.data.url);
       } catch {

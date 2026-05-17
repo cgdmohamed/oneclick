@@ -16,6 +16,7 @@ import { Plus, Trash2, RefreshCw, Save, ExternalLink, Eye, Upload, Image as Imag
 import { toast } from 'sonner';
 import { Link } from 'react-router-dom';
 import { useLandingContent, DEFAULT_LANDING, type LandingContent, type BentoItem } from '@/hooks/useLandingContent';
+import { api, isApiConfigured } from '@/lib/api';
 
 const BENTO_ICONS = ['FileText', 'CreditCard', 'BarChart3', 'Package', 'ShieldCheck', 'Wallet', 'Bell', 'Users', 'Cloud', 'Sparkles', 'Receipt', 'Building2'];
 
@@ -369,7 +370,7 @@ function ListEditor<T extends { id: string }>({ items, onChange, addLabel, creat
 
 const ImageUploadField = ({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) => {
   const [uploading, setUploading] = useState(false);
-  const onFile = (file: File | undefined) => {
+  const onFile = async (file: File | undefined) => {
     if (!file) return;
     if (!file.type.startsWith('image/')) {
       toast.error('الرجاء اختيار ملف صورة صالح');
@@ -380,6 +381,21 @@ const ImageUploadField = ({ label, value, onChange }: { label: string; value: st
       return;
     }
     setUploading(true);
+    if (isApiConfigured()) {
+      try {
+        const form = new FormData();
+        form.append('kind', 'image');
+        form.append('file', file);
+        const res = await api.upload<{ data: { url: string } }>('/api/uploads', form);
+        onChange(res.data.url);
+        toast.success('تم رفع الصورة');
+      } catch {
+        toast.error('تعذّر رفع الصورة على الخادم');
+      } finally {
+        setUploading(false);
+      }
+      return;
+    }
     const reader = new FileReader();
     reader.onload = () => {
       onChange(String(reader.result));

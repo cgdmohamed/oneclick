@@ -716,8 +716,8 @@ const ImageUploadField = ({ label, hint, value, onChange, kind = 'attachment' }:
       setUploading(true);
       try {
         const form = new FormData();
-        form.append('file', file);
         form.append('kind', kind);
+        form.append('file', file);
         const res = await api.upload<{ data: { url: string } }>('/api/uploads', form);
         onChange(res.data.url);
         toast.success('تم رفع الصورة');

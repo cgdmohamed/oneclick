@@ -28,11 +28,13 @@ const MIME_EXT: Record<string, string[]> = {
   'image/webp':      ['.webp'],
   'application/pdf': ['.pdf'],
 };
-const PUBLIC_KINDS = new Set(['logo', 'stamp']);
+const PUBLIC_KINDS = new Set(['logo', 'stamp', 'image']);
 
 const storage = multer.diskStorage({
   destination: (req, _file, cb) => {
-    const kind = (req.body?.kind as string | undefined) ?? 'attachment';
+    const kind = (req.body?.kind as string | undefined)
+      ?? (req.query?.kind as string | undefined)
+      ?? 'attachment';
     cb(null, PUBLIC_KINDS.has(kind) ? UPLOAD_PUBLIC : UPLOAD_PRIVATE);
   },
   filename: (_req, file, cb) => {
@@ -61,7 +63,9 @@ router.post('/', upload.single('file'), async (req, res, next) => {
   try {
     const t = req.tenant!;
     if (!req.file) throw badRequest('Missing file');
-    const kind     = (req.body.kind as string | undefined) ?? 'attachment';
+    const kind     = (req.body.kind as string | undefined)
+      ?? (req.query.kind as string | undefined)
+      ?? 'attachment';
     const isPublic = PUBLIC_KINDS.has(kind);
     const disk     = req.file.filename;            // random opaque on-disk name
 
