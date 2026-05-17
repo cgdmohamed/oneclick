@@ -100,8 +100,24 @@ router.post('/', enforceInvoiceLimit(), async (req, res, next) => {
     const cfg = compRes.rows[0];
     const newSeq = cfg.invoice_sequence + 1;
     const issueDate = body.issue_date ? new Date(body.issue_date) : new Date();
+
+    // Resolve prefix: company-level customisation → platform general setting → 'INV'
+    // A company prefix that still equals the schema default 'INV' is treated as
+    // "not customised" so the platform setting can supply the intended default.
+    let resolvedPrefix: string = cfg.invoice_prefix;
+    if (resolvedPrefix === 'INV') {
+      const platformRow = await pool.query(
+        `SELECT value FROM platform_settings WHERE key = 'general'`,
+      );
+      const platformPrefix =
+        (platformRow.rows[0]?.value as Record<string, unknown> | undefined)?.invoicePrefix;
+      if (typeof platformPrefix === 'string' && platformPrefix.trim()) {
+        resolvedPrefix = platformPrefix.trim();
+      }
+    }
+
     const number = buildNumber(
-      cfg.invoice_prefix, newSeq, issueDate.getFullYear(),
+      resolvedPrefix, newSeq, issueDate.getFullYear(),
       cfg.invoice_year_format, cfg.invoice_separator, cfg.invoice_padding,
     );
     await t.db.query(`UPDATE companies SET invoice_sequence = $1 WHERE id = $2`, [newSeq, t.companyId]);

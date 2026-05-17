@@ -141,9 +141,20 @@ router.post('/register', async (req, res, next) => {
       );
       const userId = userRes.rows[0].id;
 
+      // Seed invoice_prefix from platform general settings so new companies
+      // inherit the admin-configured default rather than the hardcoded 'INV'.
+      const platformGeneral = await pool.query(
+        `SELECT value FROM platform_settings WHERE key = 'general'`,
+      );
+      const platformPrefix =
+        (platformGeneral.rows[0]?.value as Record<string, unknown> | undefined)?.invoicePrefix;
+      const invoicePrefix =
+        typeof platformPrefix === 'string' && platformPrefix.trim() ? platformPrefix.trim() : 'INV';
+
       const compRes = await c.query(
-        `INSERT INTO companies (name, email, is_active, review_status) VALUES ($1,$2,false,'pending') RETURNING id`,
-        [body.companyName, body.email],
+        `INSERT INTO companies (name, email, is_active, review_status, invoice_prefix)
+         VALUES ($1,$2,false,'pending',$3) RETURNING id`,
+        [body.companyName, body.email, invoicePrefix],
       );
       const companyId = compRes.rows[0].id;
 
