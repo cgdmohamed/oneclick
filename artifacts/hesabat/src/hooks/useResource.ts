@@ -44,7 +44,10 @@ export function useResource<T extends { id: string }, Row = Record<string, unkno
     },
   });
 
-  const invalidate = () => qc.invalidateQueries({ queryKey: [cfg.key] });
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: [cfg.key] });
+    qc.invalidateQueries({ queryKey: ['reports-overview'] });
+  };
 
   const createMut = useMutation({
     mutationFn: async (item: Partial<T>) => {

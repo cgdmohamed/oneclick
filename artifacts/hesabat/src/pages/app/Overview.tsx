@@ -44,6 +44,7 @@ const Overview = () => {
       const res = await api.get<{ data: OverviewData }>('/api/reports/overview');
       return res.data;
     },
+    refetchInterval: 60_000,
   });
 
   const { list: invoices } = useInvoices();
