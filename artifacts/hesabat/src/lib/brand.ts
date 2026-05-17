@@ -57,25 +57,26 @@ export const getBrand = (): BrandSettings => DEFAULT_BRAND;
 export const useBrand = () => {
   const [brand, setBrand] = useState<BrandSettings>(DEFAULT_BRAND);
   const [loading, setLoading] = useState(true);
-  const [pendingRemoteUpdate, setPendingRemoteUpdate] = useState(false);
+  const [pendingRemoteUpdate, setPendingRemoteUpdate] = useState(0);
 
   useEffect(() => {
     if (!isApiConfigured()) { setLoading(false); return; }
     fetchBranding().then((b) => { setBrand(b); setLoading(false); });
 
     return onSettingsUpdate(SETTINGS_KEY, () => {
-      setPendingRemoteUpdate(true);
+      setPendingRemoteUpdate(v => v + 1);
     });
   }, []);
 
   const applyRemoteUpdate = useCallback(async () => {
     const fresh = await fetchBranding();
     setBrand(fresh);
-    setPendingRemoteUpdate(false);
+    setPendingRemoteUpdate(0);
   }, []);
 
   const save = useCallback(async (next: BrandSettings) => {
     setBrand(next);
+    setPendingRemoteUpdate(0);
     if (!isApiConfigured()) return;
     await api.put(`/api/platform/settings/${SETTINGS_KEY}`, next);
     postSettingsUpdate(SETTINGS_KEY);
@@ -83,6 +84,7 @@ export const useBrand = () => {
 
   const reset = useCallback(async () => {
     setBrand(DEFAULT_BRAND);
+    setPendingRemoteUpdate(0);
     if (!isApiConfigured()) return;
     await api.put(`/api/platform/settings/${SETTINGS_KEY}`, DEFAULT_BRAND);
     postSettingsUpdate(SETTINGS_KEY);

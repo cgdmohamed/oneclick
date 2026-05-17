@@ -53,25 +53,26 @@ async function fetchTracking(): Promise<TrackingSettings> {
 
 export const useTrackingSettings = () => {
   const [settings, setSettings] = useState<TrackingSettings>(DEFAULT_TRACKING);
-  const [pendingRemoteUpdate, setPendingRemoteUpdate] = useState(false);
+  const [pendingRemoteUpdate, setPendingRemoteUpdate] = useState(0);
 
   useEffect(() => {
     if (!isApiConfigured()) return;
     fetchTracking().then(setSettings);
 
     return onSettingsUpdate(SETTINGS_KEY, () => {
-      setPendingRemoteUpdate(true);
+      setPendingRemoteUpdate(v => v + 1);
     });
   }, []);
 
   const applyRemoteUpdate = useCallback(async () => {
     const fresh = await fetchTracking();
     setSettings(fresh);
-    setPendingRemoteUpdate(false);
+    setPendingRemoteUpdate(0);
   }, []);
 
   const save = useCallback(async (next: TrackingSettings) => {
     setSettings(next);
+    setPendingRemoteUpdate(0);
     if (!isApiConfigured()) return;
     await api.put(`/api/platform/settings/${SETTINGS_KEY}`, next);
     postSettingsUpdate(SETTINGS_KEY);
@@ -79,6 +80,7 @@ export const useTrackingSettings = () => {
 
   const reset = useCallback(async () => {
     setSettings(DEFAULT_TRACKING);
+    setPendingRemoteUpdate(0);
     if (!isApiConfigured()) return;
     await api.put(`/api/platform/settings/${SETTINGS_KEY}`, DEFAULT_TRACKING);
     postSettingsUpdate(SETTINGS_KEY);
