@@ -3,13 +3,14 @@ import type { Role, User } from '@/types';
 import { users, companies } from '@/data/mock';
 import {
   isApiConfigured, getAccessToken, setAccessToken, setRefreshToken,
-  setActiveCompanyId, api,
+  setActiveCompanyId, api, setPendingApprovalCallback,
 } from '@/lib/api';
 import { setCompanyCurrencyCode } from '@/lib/currency';
 
 interface AuthState {
   user: User | null;
   onboardingDone: boolean;
+  pendingApproval: boolean;
   markOnboardingDone: () => Promise<void>;
   login: (email: string, password?: string) => boolean;
   logout: () => void;
@@ -39,6 +40,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } catch { return null; }
   });
   const [onboardingDone, setOnboardingDone] = useState(false);
+  const [pendingApproval, setPendingApproval] = useState(false);
   const [apiCompanyName, setApiCompanyName] = useState<string | null>(null);
 
   useEffect(() => {
@@ -47,12 +49,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, [user]);
 
   useEffect(() => {
+    setPendingApprovalCallback(() => setPendingApproval(true));
+    return () => { setPendingApprovalCallback(null); };
+  }, []);
+
+  useEffect(() => {
     let cancelled = false;
     if (!isApiConfigured() || !getAccessToken()) return;
     (async () => {
       try {
         const me = await api.get<MeResponse>('/api/auth/me');
         if (cancelled) return;
+        setPendingApproval(false);
         const defaultCompany = me.companies.find((c) => c.is_default) ?? me.companies[0];
         if (defaultCompany) setActiveCompanyId(defaultCompany.id);
         const role: Role = me.user.is_super_admin
@@ -76,9 +84,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             }
           } catch { /* ignore — currency stays at default */ }
         }
-      } catch {
-        setAccessToken(null);
-        setRefreshToken(null);
+      } catch (err: unknown) {
+        if (cancelled) return;
+        const e = err as { status?: number; message?: string };
+        if (e?.status === 403 && e?.message?.toLowerCase().includes('pending review')) {
+          setPendingApproval(true);
+        } else {
+          setAccessToken(null);
+          setRefreshToken(null);
+        }
       }
     })();
     return () => { cancelled = true; };
@@ -96,6 +110,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const value = useMemo<AuthState>(() => ({
     user,
     onboardingDone,
+    pendingApproval,
     markOnboardingDone,
     login: (email: string, password?: string) => {
       if (isApiConfigured()) return false;
@@ -109,6 +124,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     logout: () => {
       setUser(null);
       setOnboardingDone(false);
+      setPendingApproval(false);
       if (isApiConfigured()) {
         setAccessToken(null);
         setRefreshToken(null);
@@ -131,7 +147,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const co = companyId ? companies.find(c => c.id === companyId) : null;
       return co?.name ?? 'شركتي';
     })(),
-  }), [user, onboardingDone, markOnboardingDone, apiCompanyName]);
+  }), [user, onboardingDone, pendingApproval, markOnboardingDone, apiCompanyName]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

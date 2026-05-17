@@ -47,6 +47,22 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * Global hook: called whenever any API response returns 403 with a
+ * "pending review" message from the tenant middleware. AuthProvider
+ * subscribes to this to show the PendingApproval screen without
+ * needing each page/hook to handle it individually.
+ */
+let _pendingApprovalCb: (() => void) | null = null;
+export const setPendingApprovalCallback = (cb: (() => void) | null) => {
+  _pendingApprovalCb = cb;
+};
+
+/** True when the backend tenant middleware rejected with the canonical pending-review message. */
+function isPendingReview(status: number, message: string): boolean {
+  return status === 403 && message.toLowerCase().includes('pending review');
+}
+
 /** SEC-03: read the non-httpOnly CSRF cookie set by the backend. */
 function getCsrfToken(): string | null {
   if (typeof document === 'undefined') return null;
@@ -84,6 +100,7 @@ async function request<T>(method: string, path: string, body?: unknown, retry = 
   const payload = isJson ? await res.json() : await res.text();
   if (!res.ok) {
     const msg = (payload as { message?: string })?.message ?? `HTTP ${res.status}`;
+    if (isPendingReview(res.status, msg)) _pendingApprovalCb?.();
     throw new ApiError(res.status, msg, payload);
   }
   return payload as T;
@@ -126,6 +143,7 @@ export const api = {
     const payload = isJson ? await res.json() : await res.text();
     if (!res.ok) {
       const msg = (payload as { message?: string })?.message ?? `HTTP ${res.status}`;
+      if (isPendingReview(res.status, msg)) _pendingApprovalCb?.();
       throw new ApiError(res.status, msg, payload);
     }
     return payload as T;

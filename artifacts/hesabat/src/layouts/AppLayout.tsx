@@ -16,6 +16,7 @@ import { useUnreadNotificationsCount } from '@/hooks/useNotificationsAlerts';
 import { useCurrentFeatureSet } from '@/hooks/usePlanAccess';
 import { OnboardingWizard } from '@/components/common/OnboardingWizard';
 import { Sparkles } from 'lucide-react';
+import PendingApproval from '@/pages/app/PendingApproval';
 
 const companyNav: { to: string; label: string; icon: typeof LayoutDashboard; end?: boolean; feature?: string }[] = [
   { to: '/app', label: 'الرئيسية', icon: LayoutDashboard, end: true },
@@ -265,19 +266,20 @@ const DEMO_AUTO_LOGIN =
   import.meta.env.DEV && import.meta.env.VITE_DEMO_MODE === '1';
 
 const AppLayout = ({ kind = 'company' as 'company' | 'admin' }) => {
-  const { user, login } = useAuth();
+  const { user, login, pendingApproval } = useAuth();
   const navigate = useNavigate();
   useEffect(() => {
-    if (user) return;
+    if (user || pendingApproval) return;
     if (DEMO_AUTO_LOGIN) {
       login(kind === 'admin' ? 'owner@oneclick.eg' : 'admin@alofok.eg');
     } else {
       navigate('/login', { replace: true });
     }
-  }, [user, login, kind, navigate]);
+  }, [user, pendingApproval, login, kind, navigate]);
   useEffect(() => {
     if (user && kind === 'admin' && user.role !== 'super_admin') navigate('/app');
   }, [user, kind, navigate]);
+  if (pendingApproval) return <PendingApproval />;
   if (!user) return null;
   return (
     <SidebarProvider defaultOpen>
