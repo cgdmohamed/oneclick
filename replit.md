@@ -6,8 +6,17 @@ Arabic-first multi-tenant SaaS accounting platform. Companies can issue invoices
 
 - Frontend (Vite/React): `artifacts/hesabat` — workflow `artifacts/hesabat: web` (port 18627, proxied to `/`)
 - API Server (Express): `artifacts/api-server` — workflow `artifacts/api-server: API Server` (port 8080)
-- `pnpm --filter @workspace/db run push` — push Drizzle schema changes to the DB (dev only)
+- `pnpm --filter @workspace/db run push` — push Drizzle schema changes to the DB (dev only, not for production)
 - Required env: `DATABASE_URL`, `JWT_SECRET`, `JWT_REFRESH_SECRET`, `VITE_API_URL=same-origin`
+
+### Schema migrations (production)
+
+SQL migration files live in `artifacts/api-server/src/db/migrations/` numbered `001_...sql`, `002_...sql`, etc. They are idempotent (`IF NOT EXISTS` / `ADD COLUMN IF NOT EXISTS`) and safe to re-run.
+
+- **Deploy**: `pnpm --filter @workspace/api-server run deploy` — builds the server then runs all migrations in order.
+- **Migrate only** (manual fallback): `node artifacts/api-server/scripts/migrate.mjs` with `DATABASE_URL` set to the production connection string.
+- **Add a new migration**: drop a new numbered `.sql` file in `src/db/migrations/` — the runner picks it up automatically on the next deploy.
+- **Do not use `drizzle-kit push` in production** — it prompts interactively and exits 1 in non-TTY environments.
 
 ## Stack
 
