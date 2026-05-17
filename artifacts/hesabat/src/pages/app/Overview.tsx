@@ -178,16 +178,30 @@ const Overview = () => {
               </tr>
             </thead>
             <tbody>
-              {recentInvoices.map(inv => (
-                <tr key={inv.id} className="border-b border-border/60 hover:bg-muted/20">
-                  <td className="py-3 font-medium"><Link to={`/app/invoices/${inv.id}`} className="text-primary">{inv.number}</Link></td>
-                  <td className="py-3">{inv.client_name ?? '—'}</td>
-                  <td className="py-3 text-muted-foreground">{formatDateShort(inv.issue_date)}</td>
-                  <td className="py-3">{formatCurrency(Number(inv.total))}</td>
-                  <td className="py-3">{formatCurrency(Number(inv.remaining))}</td>
-                  <td className="py-3"><StatusBadge status={inv.status} label={invoiceStatusLabel(inv.status)} /></td>
+              {!overviewQuery.isLoading && recentInvoices.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="py-12 text-center">
+                    <div className="flex flex-col items-center gap-3 text-muted-foreground">
+                      <FileText className="w-10 h-10 opacity-30" />
+                      <p className="text-sm">لا توجد فواتير بعد</p>
+                      <Button asChild size="sm" variant="outline">
+                        <Link to="/app/invoices/new">إنشاء فاتورة</Link>
+                      </Button>
+                    </div>
+                  </td>
                 </tr>
-              ))}
+              ) : (
+                recentInvoices.map(inv => (
+                  <tr key={inv.id} className="border-b border-border/60 hover:bg-muted/20">
+                    <td className="py-3 font-medium"><Link to={`/app/invoices/${inv.id}`} className="text-primary">{inv.number}</Link></td>
+                    <td className="py-3">{inv.client_name ?? '—'}</td>
+                    <td className="py-3 text-muted-foreground">{formatDateShort(inv.issue_date)}</td>
+                    <td className="py-3">{formatCurrency(Number(inv.total))}</td>
+                    <td className="py-3">{formatCurrency(Number(inv.remaining))}</td>
+                    <td className="py-3"><StatusBadge status={inv.status} label={invoiceStatusLabel(inv.status)} /></td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
