@@ -6,6 +6,7 @@
  * to be embedded in browser code — storing them server-side is fine.
  */
 import { useCallback, useEffect, useState } from 'react';
+import { toast } from 'sonner';
 import { API_URL, api, isApiConfigured } from '@/lib/api';
 import { onSettingsUpdate, postSettingsUpdate } from '@/lib/platformSettingsChannel';
 
@@ -59,7 +60,11 @@ export const useTrackingSettings = () => {
     fetchTracking().then(setSettings);
 
     return onSettingsUpdate(SETTINGS_KEY, () => {
-      fetchTracking().then(setSettings);
+      toast('تم تحديث إعدادات التتبع والتحليلات من تبويب آخر', {
+        description: 'قد تكون مسوداتك الحالية قديمة.',
+        action: { label: 'تحديث', onClick: () => fetchTracking().then(setSettings) },
+        duration: 12000,
+      });
     });
   }, []);
 

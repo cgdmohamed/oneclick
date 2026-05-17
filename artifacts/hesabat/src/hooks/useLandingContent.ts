@@ -3,6 +3,7 @@
  * Persisted to the database via /api/platform/settings/landing_content.
  */
 import { useEffect, useState, useCallback } from 'react';
+import { toast } from 'sonner';
 import heroDefault from '@/assets/landing-hero.jpg';
 import { API_URL, api, isApiConfigured } from '@/lib/api';
 import { onSettingsUpdate, postSettingsUpdate } from '@/lib/platformSettingsChannel';
@@ -159,7 +160,11 @@ export const useLandingContent = () => {
     fetchLandingContent().then(setContent);
 
     return onSettingsUpdate(SETTINGS_KEY, () => {
-      fetchLandingContent().then(setContent);
+      toast('تم تحديث محتوى الصفحة الرئيسية من تبويب آخر', {
+        description: 'قد تكون مسوداتك الحالية قديمة.',
+        action: { label: 'تحديث', onClick: () => fetchLandingContent().then(setContent) },
+        duration: 12000,
+      });
     });
   }, []);
 

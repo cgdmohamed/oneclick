@@ -9,6 +9,7 @@
  * typographic wordmark rendered in the configured font.
  */
 import { useCallback, useEffect, useState } from 'react';
+import { toast } from 'sonner';
 import { API_URL, api, isApiConfigured } from '@/lib/api';
 import { onSettingsUpdate, postSettingsUpdate } from '@/lib/platformSettingsChannel';
 
@@ -63,7 +64,11 @@ export const useBrand = () => {
     fetchBranding().then((b) => { setBrand(b); setLoading(false); });
 
     return onSettingsUpdate(SETTINGS_KEY, () => {
-      fetchBranding().then(setBrand);
+      toast('تم تحديث إعدادات العلامة التجارية من تبويب آخر', {
+        description: 'قد تكون مسوداتك الحالية قديمة.',
+        action: { label: 'تحديث', onClick: () => fetchBranding().then(setBrand) },
+        duration: 12000,
+      });
     });
   }, []);
 
