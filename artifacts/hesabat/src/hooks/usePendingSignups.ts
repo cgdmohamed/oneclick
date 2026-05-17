@@ -85,8 +85,21 @@ export const usePendingSignupsCount = () => {
 
   useEffect(() => {
     fetch();
+
+    const interval = setInterval(fetch, 60_000);
+
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') fetch();
+    };
+
     window.addEventListener(CHANGE_EVENT, fetch);
-    return () => window.removeEventListener(CHANGE_EVENT, fetch);
+    document.addEventListener('visibilitychange', onVisibility);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener(CHANGE_EVENT, fetch);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
   }, [fetch]);
 
   return count;
