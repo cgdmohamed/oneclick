@@ -14,7 +14,7 @@ import { cn } from '@/lib/utils';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import { toast } from 'sonner';
-import { api, isApiConfigured, resolveAssetUrl } from '@/lib/api';
+import { api, isApiConfigured, resolveAssetUrl, ApiError } from '@/lib/api';
 import { setCurrencySymbol, getCurrencySymbol, setCompanyCurrencyCode } from '@/lib/currency';
 import { InvoiceAlertsSettingsPanel } from '@/components/common/InvoiceAlertsSettings';
 
@@ -143,6 +143,7 @@ const Settings = () => {
     }
   };
 
+  const [hydrationError, setHydrationError] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   const hasHydrated = useRef(false);
   const isHydrating = useRef(false);
@@ -209,7 +210,13 @@ const Settings = () => {
           stampUrl: (r.stamp_url as string) ?? c.stampUrl,
         }));
         hasHydrated.current = true;
-      } catch { /* keep defaults */ hasHydrated.current = true; }
+      } catch (e) {
+        hasHydrated.current = true;
+        if (e instanceof ApiError && e.status === 404) {
+          setHydrationError(true);
+          toast.error('تعذّر تحميل إعدادات الشركة — لم يُعثر على سجل الشركة');
+        }
+      }
     })();
     return () => { cancelled = true; };
   }, []);
@@ -225,6 +232,7 @@ const Settings = () => {
     latestInvoiceCfgRef.current = invoiceCfg;
 
     const doSave = async () => {
+      if (hydrationError) return;
       const p = latestProfileRef.current;
       const cfg = latestInvoiceCfgRef.current;
       if (isApiConfigured()) {
@@ -285,7 +293,7 @@ const Settings = () => {
         debounceRef.current = null;
       }
     };
-  }, [profile, invoiceCfg]);
+  }, [profile, invoiceCfg, hydrationError]);
 
   // Flush any pending debounced save when the component unmounts so that
   // changes made just before navigating away are never silently discarded.
@@ -320,6 +328,11 @@ const Settings = () => {
         description="بيانات الشركة والعنوان والعملة ومعاينة الفاتورة"
         actions={<SaveIndicator status={saveStatus} />}
       />
+      {hydrationError && (
+        <div className="mb-4 rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          تعذّر تحميل إعدادات الشركة — لم يُعثر على سجل الشركة. لن يتم حفظ أي تغييرات حتى يتم حل هذه المشكلة.
+        </div>
+      )}
       <Tabs dir="rtl" value={tab} onValueChange={(v) => setSearch({ tab: v }, { replace: true })}>
         <TabsList>
           <TabsTrigger value="company">بيانات الشركة</TabsTrigger>

@@ -65,6 +65,7 @@ router.patch('/me', requireRole('company_admin'), async (req, res, next) => {
       `UPDATE companies SET ${set}, updated_at = now() WHERE id = $${values.length} RETURNING *`,
       values,
     );
+    if (!rs.rowCount) throw notFound();
     res.json({ data: rs.rows[0] });
   } catch (e) { next(e); }
 });
