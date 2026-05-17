@@ -7,6 +7,14 @@
 // Before starting, build both packages:
 //   pnpm --filter @workspace/hesabat run build
 //   pnpm --filter @workspace/api-server run build
+//
+// Environment variables are loaded automatically from env.production in the
+// project root. Edit that file to manage all secrets and config in one place.
+// After changing env.production, run:
+//   pm2 restart oneclick-api --update-env
+
+const path = require('path');
+require('dotenv').config({ path: path.resolve(__dirname, 'env.production') });
 
 module.exports = {
   apps: [
@@ -16,12 +24,7 @@ module.exports = {
       cwd: 'artifacts/api-server',
       interpreter: 'node',
       env_production: {
-        NODE_ENV: 'production',
-        PORT: 7000,
-        // DATABASE_URL: 'postgres://user:password@localhost:5432/hesabat',
-        // JWT_SECRET: '<random-string-min-32-chars>',
-        // JWT_REFRESH_SECRET: '<different-random-string-min-32-chars>',
-        // CORS_ORIGIN: 'same-origin',
+        ...process.env,
       },
     },
   ],
