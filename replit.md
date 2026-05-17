@@ -9,6 +9,28 @@ Arabic-first multi-tenant SaaS accounting platform. Companies can issue invoices
 - `pnpm --filter @workspace/db run push` — push Drizzle schema changes to the DB (dev only, not for production)
 - Required env: `DATABASE_URL`, `JWT_SECRET`, `JWT_REFRESH_SECRET`, `VITE_API_URL=same-origin`
 
+### Environment variables (production)
+
+Copy `env.production.example` (project root) to `env.production` and fill in real values — `ecosystem.config.cjs` loads it automatically when PM2 starts the API server. Never commit `env.production`; it contains secrets.
+
+```bash
+cp env.production.example env.production
+# Edit env.production, then:
+pm2 start ecosystem.config.cjs --env production
+```
+
+Required keys (the server will refuse to start without them):
+
+| Variable | Notes |
+|---|---|
+| `DATABASE_URL` | PostgreSQL connection string |
+| `JWT_SECRET` | ≥ 32 chars, random |
+| `JWT_REFRESH_SECRET` | ≥ 32 chars, different from JWT_SECRET |
+| `APP_URL` | Public URL (used in email links) |
+| `SMTP_ENCRYPTION_KEY` | Exactly 64 hex chars — generate with `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` |
+
+See `env.production.example` for all optional variables and their defaults.
+
 ### SMTP password back-fill (one-time, production)
 
 Any company that saved an SMTP password before encryption was introduced has it stored as plaintext. Run this script once to encrypt all such rows:
