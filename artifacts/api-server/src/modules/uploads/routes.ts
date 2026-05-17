@@ -58,8 +58,14 @@ const upload = multer({
 
 const router = Router();
 
+/** Middleware: reject requests without a company context before any file work. */
+function requireCompanyContext(req: import('express').Request, _res: import('express').Response, next: import('express').NextFunction) {
+  if (!req.tenant?.companyId) return next(badRequest('Company context required for uploads'));
+  next();
+}
+
 /** POST /api/uploads  multipart  field=file, kind=logo|stamp|attachment */
-router.post('/', upload.single('file'), async (req, res, next) => {
+router.post('/', requireCompanyContext, upload.single('file'), async (req, res, next) => {
   try {
     const t = req.tenant!;
     if (!req.file) throw badRequest('Missing file');
@@ -95,6 +101,7 @@ router.post('/', upload.single('file'), async (req, res, next) => {
 router.get('/', async (req, res, next) => {
   try {
     const t = req.tenant!;
+    if (!t.companyId) throw badRequest('Company context required for uploads');
     const p = parsePagination(req);
     const totalQ = await t.db.query(
       `SELECT count(*)::int AS count FROM uploads WHERE company_id = $1`,
