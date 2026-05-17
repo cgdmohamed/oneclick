@@ -282,7 +282,7 @@ export const invitations = pgTable('invitations', {
 /* ---------- File uploads ---------- */
 export const uploads = pgTable('uploads', {
   id: uuid('id').primaryKey().defaultRandom(),
-  companyId: uuid('company_id').notNull().references(() => companies.id, { onDelete: 'cascade' }),
+  companyId: uuid('company_id').references(() => companies.id, { onDelete: 'set null' }),
   userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
   filename: varchar('filename', { length: 255 }).notNull(),
   mimeType: varchar('mime_type', { length: 100 }).notNull(),

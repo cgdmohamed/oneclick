@@ -58,9 +58,9 @@ const upload = multer({
 
 const router = Router();
 
-/** Middleware: reject requests without a company context before any file work. */
+/** Middleware: reject requests without a company context, unless the caller is a super admin. */
 function requireCompanyContext(req: import('express').Request, _res: import('express').Response, next: import('express').NextFunction) {
-  if (!req.tenant?.companyId) return next(badRequest('Company context required for uploads'));
+  if (!req.tenant?.companyId && !req.tenant?.isSuperAdmin) return next(badRequest('Company context required for uploads'));
   next();
 }
 
@@ -75,13 +75,16 @@ router.post('/', requireCompanyContext, upload.single('file'), async (req, res, 
     const isPublic = PUBLIC_KINDS.has(kind);
     const disk     = req.file.filename;            // random opaque on-disk name
 
+    // Super admins operating at platform level have no company context; use null.
+    const companyId = t.companyId ?? null;
+
     // Insert with placeholder url then patch it once we have the row id.
     const ins = await t.db.query(
       `INSERT INTO uploads
          (company_id, user_id, filename, mime_type, size, url, kind, is_public, disk_name)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
       [
-        t.companyId, req.auth!.userId, req.file.originalname,
+        companyId, req.auth!.userId, req.file.originalname,
         req.file.mimetype, req.file.size, '', kind, isPublic, disk,
       ],
     );
@@ -90,7 +93,7 @@ router.post('/', requireCompanyContext, upload.single('file'), async (req, res, 
     await t.db.query(`UPDATE uploads SET url = $1 WHERE id = $2`, [url, id]);
 
     await audit(pool, {
-      companyId: t.companyId, userId: req.auth!.userId,
+      companyId, userId: req.auth!.userId,
       action: 'upload.create', entity: 'upload', entityId: id,
       data: { kind, size: req.file.size, mime: req.file.mimetype, is_public: isPublic },
     });
