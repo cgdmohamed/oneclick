@@ -10,6 +10,7 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import { API_URL, api, isApiConfigured } from '@/lib/api';
+import { onSettingsUpdate, postSettingsUpdate } from '@/lib/platformSettingsChannel';
 
 export interface BrandSettings {
   name: string;
@@ -60,18 +61,24 @@ export const useBrand = () => {
   useEffect(() => {
     if (!isApiConfigured()) { setLoading(false); return; }
     fetchBranding().then((b) => { setBrand(b); setLoading(false); });
+
+    return onSettingsUpdate(SETTINGS_KEY, () => {
+      fetchBranding().then(setBrand);
+    });
   }, []);
 
   const save = useCallback(async (next: BrandSettings) => {
     setBrand(next);
     if (!isApiConfigured()) return;
     await api.put(`/api/platform/settings/${SETTINGS_KEY}`, next);
+    postSettingsUpdate(SETTINGS_KEY);
   }, []);
 
   const reset = useCallback(async () => {
     setBrand(DEFAULT_BRAND);
     if (!isApiConfigured()) return;
     await api.put(`/api/platform/settings/${SETTINGS_KEY}`, DEFAULT_BRAND);
+    postSettingsUpdate(SETTINGS_KEY);
   }, []);
 
   return { brand, save, reset, loading };

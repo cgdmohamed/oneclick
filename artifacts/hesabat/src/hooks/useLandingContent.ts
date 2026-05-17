@@ -5,6 +5,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import heroDefault from '@/assets/landing-hero.jpg';
 import { API_URL, api, isApiConfigured } from '@/lib/api';
+import { onSettingsUpdate, postSettingsUpdate } from '@/lib/platformSettingsChannel';
 
 export interface CTA { label: string; url: string }
 export interface StatItem { id: string; value: string; label: string }
@@ -156,18 +157,24 @@ export const useLandingContent = () => {
   useEffect(() => {
     if (!isApiConfigured()) return;
     fetchLandingContent().then(setContent);
+
+    return onSettingsUpdate(SETTINGS_KEY, () => {
+      fetchLandingContent().then(setContent);
+    });
   }, []);
 
   const save = useCallback(async (next: LandingContent) => {
     setContent(next);
     if (!isApiConfigured()) return;
     await api.put(`/api/platform/settings/${SETTINGS_KEY}`, next);
+    postSettingsUpdate(SETTINGS_KEY);
   }, []);
 
   const reset = useCallback(async () => {
     setContent(DEFAULT_LANDING);
     if (!isApiConfigured()) return;
     await api.put(`/api/platform/settings/${SETTINGS_KEY}`, DEFAULT_LANDING);
+    postSettingsUpdate(SETTINGS_KEY);
   }, []);
 
   return { content, save, reset };

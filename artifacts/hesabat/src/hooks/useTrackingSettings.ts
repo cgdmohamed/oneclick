@@ -7,6 +7,7 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import { API_URL, api, isApiConfigured } from '@/lib/api';
+import { onSettingsUpdate, postSettingsUpdate } from '@/lib/platformSettingsChannel';
 
 export interface TrackingSettings {
   consentRequired: boolean;
@@ -56,18 +57,24 @@ export const useTrackingSettings = () => {
   useEffect(() => {
     if (!isApiConfigured()) return;
     fetchTracking().then(setSettings);
+
+    return onSettingsUpdate(SETTINGS_KEY, () => {
+      fetchTracking().then(setSettings);
+    });
   }, []);
 
   const save = useCallback(async (next: TrackingSettings) => {
     setSettings(next);
     if (!isApiConfigured()) return;
     await api.put(`/api/platform/settings/${SETTINGS_KEY}`, next);
+    postSettingsUpdate(SETTINGS_KEY);
   }, []);
 
   const reset = useCallback(async () => {
     setSettings(DEFAULT_TRACKING);
     if (!isApiConfigured()) return;
     await api.put(`/api/platform/settings/${SETTINGS_KEY}`, DEFAULT_TRACKING);
+    postSettingsUpdate(SETTINGS_KEY);
   }, []);
 
   return { settings, save, reset };
