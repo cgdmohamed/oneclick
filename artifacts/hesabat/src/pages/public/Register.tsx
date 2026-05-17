@@ -27,6 +27,7 @@ const Register = () => {
         await registerRequest({
           email: form.email, password: form.password,
           name: form.owner, companyName: form.company,
+          website: '',
         });
       }
       toast.success('تم إرسال طلب تسجيل شركتك للمراجعة');
@@ -71,6 +72,16 @@ const Register = () => {
             <p className="text-muted-foreground mt-2">أرسل طلبك وسيقوم فريقنا بمراجعته وتفعيل حسابك خلال 24 ساعة.</p>
           </div>
           <form onSubmit={submit} className="grid sm:grid-cols-2 gap-4">
+            {/* Honeypot: hidden from real users; bots fill it and get silently rejected */}
+            <input
+              type="text"
+              name="website"
+              defaultValue=""
+              tabIndex={-1}
+              autoComplete="off"
+              aria-hidden="true"
+              style={{ position: 'absolute', left: '-9999px', width: '1px', height: '1px', overflow: 'hidden' }}
+            />
             <Field label="اسم الشركة" name="company" form={form} setForm={setForm} />
             <Field label="اسم المسؤول" name="owner" form={form} setForm={setForm} />
             <Field label="البريد الإلكتروني" name="email" type="email" form={form} setForm={setForm} />

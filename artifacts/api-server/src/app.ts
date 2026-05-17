@@ -7,6 +7,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { env } from './config/env.js';
+import { logger } from './utils/logger.js';
 import { errorHandler } from './middleware/error.js';
 import { requireAuth } from './middleware/auth.js';
 import { tenantContext } from './middleware/tenant.js';
@@ -41,6 +42,21 @@ const authLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { message: 'Too many auth attempts, try again later.' },
+});
+
+const registerLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: false,
+  handler(req, res) {
+    logger.warn(
+      { ip: req.ip, event: 'reg_rate_limit', path: req.path },
+      'Registration blocked: hourly IP rate limit exceeded',
+    );
+    res.status(429).json({ message: 'تم تجاوز الحد المسموح به لإنشاء الحسابات. حاول مجدداً بعد ساعة.' });
+  },
 });
 
 const apiLimiter = rateLimit({
@@ -87,6 +103,7 @@ app.use('/uploads/public', express.static(UPLOAD_PUBLIC, { maxAge: '7d', immutab
 // Public routes
 app.use('/api/public', publicRoutes);
 app.use('/api/public/invitations', invitationsPublicRouter);
+app.post('/api/auth/register', registerLimiter);
 app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/plans', publicPlansRouter);
 app.use('/api/platform/settings', publicSettingsRouter);

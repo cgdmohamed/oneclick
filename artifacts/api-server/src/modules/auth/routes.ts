@@ -12,6 +12,8 @@ import { sendEmail } from '../../utils/email.js';
 import { audit } from '../../utils/audit.js';
 import { REFRESH_COOKIE, setRefreshCookie, clearRefreshCookie } from '../../utils/cookies.js';
 import { setCsrfCookie, clearCsrfCookie, requireCsrf } from '../../middleware/csrf.js';
+import { logger } from '../../utils/logger.js';
+import { DISPOSABLE_EMAIL_DOMAINS } from '../../config/disposableEmailDomains.js';
 
 const router = Router();
 
@@ -20,7 +22,59 @@ const registerSchema = z.object({
   password: z.string().min(8),
   name: z.string().min(2),
   companyName: z.string().min(2),
+  website: z.string().optional(),
 });
+
+/**
+ * Per-IP registration attempt tracker (SEC-REG-01).
+ * After REG_MAX_ATTEMPTS within REG_WINDOW_MS from the same IP, that IP is
+ * locked out of the register endpoint for REG_LOCK_MS.
+ * Single-process — matches the login tracker posture; swap to Redis for multi-instance.
+ */
+const REG_MAX_ATTEMPTS = 5;
+const REG_WINDOW_MS = 15 * 60 * 1000;
+const REG_LOCK_MS = 30 * 60 * 1000;
+const regAttempts = new Map<string, { count: number; firstAt: number; lockedUntil: number }>();
+
+/** Returns the number of minutes remaining in the lockout, or 0 if not locked. */
+function checkRegLock(ip: string): number {
+  const rec = regAttempts.get(ip);
+  if (!rec) return 0;
+  const now = Date.now();
+  if (rec.lockedUntil > now) return Math.ceil((rec.lockedUntil - now) / 60000);
+  if (now - rec.firstAt > REG_WINDOW_MS) regAttempts.delete(ip);
+  return 0;
+}
+
+/**
+ * Increment the IP counter.
+ * Returns the number of minutes remaining in lockout (> 0 means the threshold
+ * was just reached on this increment, or was already set).
+ * Callers should check the return value and return 429 immediately if > 0.
+ */
+function noteRegAttempt(ip: string): number {
+  const now = Date.now();
+  const rec = regAttempts.get(ip);
+  if (!rec || now - rec.firstAt > REG_WINDOW_MS) {
+    regAttempts.set(ip, { count: 1, firstAt: now, lockedUntil: 0 });
+    return 0;
+  }
+  rec.count += 1;
+  if (rec.count >= REG_MAX_ATTEMPTS) {
+    rec.lockedUntil = now + REG_LOCK_MS;
+    return Math.ceil(REG_LOCK_MS / 60000);
+  }
+  return 0;
+}
+
+function clearRegAttempts(ip: string) {
+  regAttempts.delete(ip);
+}
+
+/** Build an Arabic 429 message for the given lockout duration in minutes. */
+function regLockMsg(mins: number): string {
+  return `تم تجاوز الحد المسموح به. حاول مجدداً بعد ${mins} دقيقة.`;
+}
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -127,7 +181,66 @@ function readRefreshToken(req: Request): string | null {
 
 router.post('/register', async (req, res, next) => {
   try {
-    const body = registerSchema.parse(req.body);
+    const ip = (req.ip ?? 'unknown').slice(0, 64);
+
+    // SEC-REG-01a: Reject immediately if this IP is already locked.
+    const existingLock = checkRegLock(ip);
+    if (existingLock > 0) {
+      logger.warn({ ip, event: 'reg_ip_locked' }, 'Registration blocked: IP already locked out');
+      res.status(429).json({ message: regLockMsg(existingLock) });
+      return;
+    }
+
+    // Wrap schema parse so validation failures count toward the lockout threshold.
+    let body: z.infer<typeof registerSchema>;
+    try {
+      body = registerSchema.parse(req.body);
+    } catch (parseErr: unknown) {
+      const lockMins = noteRegAttempt(ip);
+      if (lockMins > 0) {
+        logger.warn({ ip, event: 'reg_ip_threshold' }, 'Registration blocked: IP hit lockout threshold on parse failure');
+        res.status(429).json({ message: regLockMsg(lockMins) });
+        return;
+      }
+      throw parseErr;
+    }
+
+    // SEC-REG-02: Honeypot — bots fill hidden fields; real users never see them.
+    // Count toward lockout. If threshold just hit, return 429; otherwise silent 200.
+    if (body.website && body.website.trim() !== '') {
+      const lockMins = noteRegAttempt(ip);
+      if (lockMins > 0) {
+        logger.warn({ ip, event: 'reg_ip_threshold' }, 'Registration blocked: IP hit lockout threshold via honeypot');
+        res.status(429).json({ message: regLockMsg(lockMins) });
+        return;
+      }
+      logger.warn({ ip, event: 'reg_honeypot' }, 'Registration blocked: honeypot field filled');
+      res.json({ ok: true, pendingReview: true });
+      return;
+    }
+
+    // SEC-REG-03: Disposable email domain blocklist.
+    // Count toward lockout; if threshold just hit return 429, otherwise 400.
+    const emailDomain = body.email.split('@')[1]?.toLowerCase() ?? '';
+    if (DISPOSABLE_EMAIL_DOMAINS.has(emailDomain)) {
+      const lockMins = noteRegAttempt(ip);
+      if (lockMins > 0) {
+        logger.warn({ ip, email: body.email, domain: emailDomain, event: 'reg_ip_threshold' }, 'Registration blocked: IP hit lockout threshold via disposable domain');
+        res.status(429).json({ message: regLockMsg(lockMins) });
+        return;
+      }
+      logger.warn({ ip, email: body.email, domain: emailDomain, event: 'reg_disposable_email' }, 'Registration blocked: disposable email domain');
+      throw badRequest('يُرجى استخدام بريد إلكتروني دائم. لا يُقبل البريد المؤقت أو المجهول.');
+    }
+
+    // Count this as a regular attempt; block immediately if threshold just reached.
+    const lockMins = noteRegAttempt(ip);
+    if (lockMins > 0) {
+      logger.warn({ ip, event: 'reg_ip_threshold' }, 'Registration blocked: IP hit lockout threshold');
+      res.status(429).json({ message: regLockMsg(lockMins) });
+      return;
+    }
+
     const c = await pool.connect();
     try {
       await c.query('BEGIN');
@@ -176,6 +289,8 @@ router.post('/register', async (req, res, next) => {
       });
       // SEC-08: fire-and-forget verification email; failure must not block signup.
       sendVerificationEmail(userId, body.email).catch(() => { /* logged by email util */ });
+      // Successful registration — reset IP attempt counter
+      clearRegAttempts(ip);
       // Company is pending admin approval — do not issue tokens yet.
       res.json({ ok: true, pendingReview: true });
     } catch (e) {
