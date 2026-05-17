@@ -144,13 +144,17 @@ const Settings = () => {
   };
 
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
-  const isFirstRun = useRef(true);
+  const hasHydrated = useRef(false);
+  const isHydrating = useRef(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Hydrate from backend when API is configured
   useEffect(() => {
-    if (!isApiConfigured()) return;
+    if (!isApiConfigured()) {
+      hasHydrated.current = true;
+      return;
+    }
     let cancelled = false;
     (async () => {
       try {
@@ -162,6 +166,9 @@ const Settings = () => {
         const rawAddress = (r.address as string) ?? '';
         const addressParts = rawAddress ? rawAddress.split('، ') : [];
 
+        // Mark hydrating BEFORE state updates so the save effect can detect and skip
+        // the re-render these updates will cause.
+        isHydrating.current = true;
         setProfile((p) => ({
           ...p,
           name: (r.name as string) ?? p.name,
@@ -197,16 +204,17 @@ const Settings = () => {
           logoUrl: (r.logo_url as string) ?? c.logoUrl,
           stampUrl: (r.stamp_url as string) ?? c.stampUrl,
         }));
-      } catch { /* keep defaults */ }
+        hasHydrated.current = true;
+      } catch { /* keep defaults */ hasHydrated.current = true; }
     })();
     return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {
-    if (isFirstRun.current) {
-      isFirstRun.current = false;
-      return;
-    }
+    // Block all saves before hydration has run at least once.
+    if (!hasHydrated.current) return;
+    // Block the single re-render triggered by hydration state updates.
+    if (isHydrating.current) { isHydrating.current = false; return; }
     setSaveStatus('saving');
     if (debounceRef.current) clearTimeout(debounceRef.current);
     if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
@@ -214,7 +222,7 @@ const Settings = () => {
       if (isApiConfigured()) {
         try {
           await api.patch('/api/companies/me', {
-            name: profile.name,
+            name: profile.name || undefined,
             owner_name: profile.ownerName || null,
             email: profile.email || null,
             phone: profile.phone || null,

@@ -27,7 +27,7 @@ const UPDATABLE = [
 ] as const;
 
 const updateSchema = z.object({
-  name: z.string().min(1).optional(),
+  name: z.string().min(1).optional().or(z.literal('').transform(() => undefined)),
   legal_name: z.string().optional().nullable(),
   tax_number: z.string().optional().nullable(),
   commercial_register: z.string().optional().nullable(),
@@ -57,7 +57,7 @@ router.patch('/me', requireRole('company_admin'), async (req, res, next) => {
     const t = req.tenant!;
     const body = updateSchema.parse(req.body);
     const fields = (Object.keys(body) as Array<keyof typeof body>)
-      .filter((k) => (UPDATABLE as readonly string[]).includes(k as string));
+      .filter((k) => (UPDATABLE as readonly string[]).includes(k as string) && (body as Record<string, unknown>)[k as string] !== undefined);
     if (fields.length === 0) return res.json({ data: null });
     const set = fields.map((f, i) => `${f} = $${i + 1}`).join(', ');
     const values = [...fields.map((f) => (body as Record<string, unknown>)[f as string]), t.companyId];
