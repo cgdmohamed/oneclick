@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
+import { api } from '@/lib/api';
 import { getCurrencySymbol, setCurrencySymbol } from '@/lib/currency';
 import { useBrand, DEFAULT_BRAND, type BrandSettings } from '@/lib/brand';
 import { BrandLogo } from '@/components/common/BrandLogo';
@@ -266,12 +267,7 @@ const SystemSettings = () => {
           onClick={async () => {
             setGeneralSaving(true);
             try {
-              const res = await fetch('/api/platform/settings/general', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(s),
-              });
-              if (!res.ok) throw new Error();
+              await api.put('/api/platform/settings/general', s);
               setCurrencySymbol(s.currency);
               toast.success('تم حفظ الإعدادات');
             } catch {
