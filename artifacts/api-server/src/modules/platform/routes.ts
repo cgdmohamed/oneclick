@@ -646,7 +646,9 @@ router.patch('/signups/:id/decline', async (req, res, next) => {
             ${body.reason && body.reason !== 'بدون سبب محدد'
               ? `<p style="background:#f9fafb;border-right:4px solid #e5e7eb;padding:12px 16px;border-radius:4px"><strong>السبب:</strong> ${body.reason}</p>`
               : ''}
-            <p>إذا كانت لديك أسئلة أو تريد الاستفسار، لا تتردد في التواصل معنا.</p>
+            <p>إذا كانت لديك أسئلة أو تريد الاستفسار، لا تتردد في
+              <a href="${env.APP_URL}/contact" style="color:#2563eb;text-decoration:none">التواصل معنا</a>.
+            </p>
             <p style="color:#6b7280;font-size:13px;margin-top:32px">فريق ون كليك</p>
           </div>`,
       }).catch((e: unknown) => console.error('[platform] decline email failed:', (e as Error).message));
