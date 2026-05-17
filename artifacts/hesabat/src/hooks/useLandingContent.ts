@@ -3,7 +3,6 @@
  * Persisted to the database via /api/platform/settings/landing_content.
  */
 import { useEffect, useState, useCallback } from 'react';
-import { toast } from 'sonner';
 import heroDefault from '@/assets/landing-hero.jpg';
 import { API_URL, api, isApiConfigured } from '@/lib/api';
 import { onSettingsUpdate, postSettingsUpdate } from '@/lib/platformSettingsChannel';
@@ -154,18 +153,21 @@ async function fetchLandingContent(): Promise<LandingContent> {
 
 export const useLandingContent = () => {
   const [content, setContent] = useState<LandingContent>(DEFAULT_LANDING);
+  const [pendingRemoteUpdate, setPendingRemoteUpdate] = useState(false);
 
   useEffect(() => {
     if (!isApiConfigured()) return;
     fetchLandingContent().then(setContent);
 
     return onSettingsUpdate(SETTINGS_KEY, () => {
-      toast('تم تحديث محتوى الصفحة الرئيسية من تبويب آخر', {
-        description: 'قد تكون مسوداتك الحالية قديمة.',
-        action: { label: 'تحديث', onClick: () => fetchLandingContent().then(setContent) },
-        duration: 12000,
-      });
+      setPendingRemoteUpdate(true);
     });
+  }, []);
+
+  const applyRemoteUpdate = useCallback(async () => {
+    const fresh = await fetchLandingContent();
+    setContent(fresh);
+    setPendingRemoteUpdate(false);
   }, []);
 
   const save = useCallback(async (next: LandingContent) => {
@@ -182,5 +184,5 @@ export const useLandingContent = () => {
     postSettingsUpdate(SETTINGS_KEY);
   }, []);
 
-  return { content, save, reset };
+  return { content, save, reset, pendingRemoteUpdate, applyRemoteUpdate };
 };

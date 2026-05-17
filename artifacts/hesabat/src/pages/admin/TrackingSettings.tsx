@@ -2,7 +2,7 @@
  * Tracking & Marketing settings — super-admin controlled.
  * Configures the IDs that TrackingScripts injects into the public site.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -15,11 +15,26 @@ import { toast } from 'sonner';
 import { useTrackingSettings, type TrackingSettings } from '@/hooks/useTrackingSettings';
 
 const TrackingSettingsAdmin = () => {
-  const { settings, save, reset } = useTrackingSettings();
+  const { settings, save, reset, pendingRemoteUpdate, applyRemoteUpdate } = useTrackingSettings();
   const [draft, setDraft] = useState<TrackingSettings>(settings);
   useEffect(() => { setDraft(settings); }, [settings]);
 
   const dirty = JSON.stringify(draft) !== JSON.stringify(settings);
+  const dirtyRef = useRef(dirty);
+  dirtyRef.current = dirty;
+
+  useEffect(() => {
+    if (!pendingRemoteUpdate) return;
+    if (dirtyRef.current) {
+      toast('تم تحديث إعدادات التتبع والتحليلات من تبويب آخر', {
+        description: 'قد تكون مسوداتك الحالية قديمة — انقر «تحديث» لتطبيق التغييرات.',
+        action: { label: 'تحديث', onClick: applyRemoteUpdate },
+        duration: 12000,
+      });
+    } else {
+      applyRemoteUpdate();
+    }
+  }, [pendingRemoteUpdate, applyRemoteUpdate]);
 
   const update = <K extends keyof TrackingSettings>(key: K, val: TrackingSettings[K]) =>
     setDraft(d => ({ ...d, [key]: val }));

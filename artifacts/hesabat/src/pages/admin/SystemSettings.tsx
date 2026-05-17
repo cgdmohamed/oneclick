@@ -20,10 +20,27 @@ const FONT_PRESETS: { label: string; value: string }[] = [
 ];
 
 const SystemSettings = () => {
-  const { brand, save: saveBrand, reset: resetBrand, loading: brandLoading } = useBrand();
+  const { brand, save: saveBrand, reset: resetBrand, loading: brandLoading, pendingRemoteUpdate, applyRemoteUpdate } = useBrand();
   const [local, setLocal] = useState<BrandSettings>(brand);
 
   useEffect(() => { setLocal(brand); }, [brand]);
+
+  const isDirty = JSON.stringify(local) !== JSON.stringify(brand);
+  const dirtyRef = useRef(isDirty);
+  dirtyRef.current = isDirty;
+
+  useEffect(() => {
+    if (!pendingRemoteUpdate) return;
+    if (dirtyRef.current) {
+      toast('تم تحديث إعدادات العلامة التجارية من تبويب آخر', {
+        description: 'قد تكون مسوداتك الحالية قديمة — انقر «تحديث» لتطبيق التغييرات.',
+        action: { label: 'تحديث', onClick: applyRemoteUpdate },
+        duration: 12000,
+      });
+    } else {
+      applyRemoteUpdate();
+    }
+  }, [pendingRemoteUpdate, applyRemoteUpdate]);
   const fullFileRef = useRef<HTMLInputElement>(null);
   const iconFileRef = useRef<HTMLInputElement>(null);
 

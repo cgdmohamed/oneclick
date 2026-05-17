@@ -6,7 +6,6 @@
  * to be embedded in browser code — storing them server-side is fine.
  */
 import { useCallback, useEffect, useState } from 'react';
-import { toast } from 'sonner';
 import { API_URL, api, isApiConfigured } from '@/lib/api';
 import { onSettingsUpdate, postSettingsUpdate } from '@/lib/platformSettingsChannel';
 
@@ -54,18 +53,21 @@ async function fetchTracking(): Promise<TrackingSettings> {
 
 export const useTrackingSettings = () => {
   const [settings, setSettings] = useState<TrackingSettings>(DEFAULT_TRACKING);
+  const [pendingRemoteUpdate, setPendingRemoteUpdate] = useState(false);
 
   useEffect(() => {
     if (!isApiConfigured()) return;
     fetchTracking().then(setSettings);
 
     return onSettingsUpdate(SETTINGS_KEY, () => {
-      toast('تم تحديث إعدادات التتبع والتحليلات من تبويب آخر', {
-        description: 'قد تكون مسوداتك الحالية قديمة.',
-        action: { label: 'تحديث', onClick: () => fetchTracking().then(setSettings) },
-        duration: 12000,
-      });
+      setPendingRemoteUpdate(true);
     });
+  }, []);
+
+  const applyRemoteUpdate = useCallback(async () => {
+    const fresh = await fetchTracking();
+    setSettings(fresh);
+    setPendingRemoteUpdate(false);
   }, []);
 
   const save = useCallback(async (next: TrackingSettings) => {
@@ -82,7 +84,7 @@ export const useTrackingSettings = () => {
     postSettingsUpdate(SETTINGS_KEY);
   }, []);
 
-  return { settings, save, reset };
+  return { settings, save, reset, pendingRemoteUpdate, applyRemoteUpdate };
 };
 
 /* ---------- Consent helpers ---------- */

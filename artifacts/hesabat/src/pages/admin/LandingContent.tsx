@@ -2,7 +2,7 @@
  * Landing CMS — super-admin controlled content for the public marketing pages.
  * Content is persisted to the database via /api/platform/settings/landing_content.
  */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -23,12 +23,27 @@ const BENTO_ICONS = ['FileText', 'CreditCard', 'BarChart3', 'Package', 'ShieldCh
 const newId = (p: string) => `${p}-${Date.now().toString(36)}`;
 
 const LandingContentAdmin = () => {
-  const { content, save, reset } = useLandingContent();
+  const { content, save, reset, pendingRemoteUpdate, applyRemoteUpdate } = useLandingContent();
   const [draft, setDraft] = useState<LandingContent>(content);
 
   useEffect(() => { setDraft(content); }, [content]);
 
   const dirty = JSON.stringify(draft) !== JSON.stringify(content);
+  const dirtyRef = useRef(dirty);
+  dirtyRef.current = dirty;
+
+  useEffect(() => {
+    if (!pendingRemoteUpdate) return;
+    if (dirtyRef.current) {
+      toast('تم تحديث محتوى الصفحة الرئيسية من تبويب آخر', {
+        description: 'قد تكون مسوداتك الحالية قديمة — انقر «تحديث» لتطبيق التغييرات.',
+        action: { label: 'تحديث', onClick: applyRemoteUpdate },
+        duration: 12000,
+      });
+    } else {
+      applyRemoteUpdate();
+    }
+  }, [pendingRemoteUpdate, applyRemoteUpdate]);
 
   const update = <K extends keyof LandingContent>(key: K, partial: Partial<LandingContent[K]>) => {
     setDraft(d => ({ ...d, [key]: { ...d[key], ...partial } }));

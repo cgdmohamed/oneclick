@@ -9,7 +9,6 @@
  * typographic wordmark rendered in the configured font.
  */
 import { useCallback, useEffect, useState } from 'react';
-import { toast } from 'sonner';
 import { API_URL, api, isApiConfigured } from '@/lib/api';
 import { onSettingsUpdate, postSettingsUpdate } from '@/lib/platformSettingsChannel';
 
@@ -58,18 +57,21 @@ export const getBrand = (): BrandSettings => DEFAULT_BRAND;
 export const useBrand = () => {
   const [brand, setBrand] = useState<BrandSettings>(DEFAULT_BRAND);
   const [loading, setLoading] = useState(true);
+  const [pendingRemoteUpdate, setPendingRemoteUpdate] = useState(false);
 
   useEffect(() => {
     if (!isApiConfigured()) { setLoading(false); return; }
     fetchBranding().then((b) => { setBrand(b); setLoading(false); });
 
     return onSettingsUpdate(SETTINGS_KEY, () => {
-      toast('تم تحديث إعدادات العلامة التجارية من تبويب آخر', {
-        description: 'قد تكون مسوداتك الحالية قديمة.',
-        action: { label: 'تحديث', onClick: () => fetchBranding().then(setBrand) },
-        duration: 12000,
-      });
+      setPendingRemoteUpdate(true);
     });
+  }, []);
+
+  const applyRemoteUpdate = useCallback(async () => {
+    const fresh = await fetchBranding();
+    setBrand(fresh);
+    setPendingRemoteUpdate(false);
   }, []);
 
   const save = useCallback(async (next: BrandSettings) => {
@@ -86,7 +88,7 @@ export const useBrand = () => {
     postSettingsUpdate(SETTINGS_KEY);
   }, []);
 
-  return { brand, save, reset, loading };
+  return { brand, save, reset, loading, pendingRemoteUpdate, applyRemoteUpdate };
 };
 
 export const brandMonogram = (name: string): string => {
