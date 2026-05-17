@@ -30,6 +30,36 @@ DATABASE_URL=<prod_connection_string> \
 - `SMTP_ENCRYPTION_KEY` must be the same 64-hex-char key the server uses so the API can decrypt passwords afterwards.
 - Safe to re-run at any time; running it again after all rows are encrypted is a no-op.
 
+### SMTP encryption key rotation (production)
+
+Use this when you need to replace `SMTP_ENCRYPTION_KEY` with a new key without losing access to already-encrypted passwords. The script decrypts every stored SMTP password with the old key and re-encrypts it with the new key inside a single atomic database transaction. Plaintext passwords (legacy back-fill stragglers) are encrypted with the new key in the same pass.
+
+```bash
+# Generate a new key
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+
+# 1. Dry-run first — prints what would change, writes nothing
+DRY_RUN=true \
+  OLD_KEY=<current-64-hex-chars> \
+  NEW_KEY=<new-64-hex-chars> \
+  DATABASE_URL=<prod_connection_string> \
+  node artifacts/api-server/scripts/rotate-smtp-key.mjs
+
+# 2. Apply for real
+OLD_KEY=<current-64-hex-chars> \
+  NEW_KEY=<new-64-hex-chars> \
+  DATABASE_URL=<prod_connection_string> \
+  node artifacts/api-server/scripts/rotate-smtp-key.mjs
+
+# 3. After the script reports success, update SMTP_ENCRYPTION_KEY in your
+#    environment/secrets to the new value and redeploy the API server.
+```
+
+- The rotation is **atomic** — all rows are updated in one transaction; a failure rolls everything back.
+- **Idempotent** — safe to re-run. If `OLD_KEY` and `NEW_KEY` are the same, rows are simply re-encrypted with no effective change.
+- If any row cannot be decrypted with `OLD_KEY` the script aborts before writing anything.
+- Script lives at `artifacts/api-server/scripts/rotate-smtp-key.mjs`.
+
 ### Schema migrations (production)
 
 SQL migration files live in `artifacts/api-server/src/db/migrations/` numbered `001_...sql`, `002_...sql`, etc. They are idempotent (`IF NOT EXISTS` / `ADD COLUMN IF NOT EXISTS`) and safe to re-run.
