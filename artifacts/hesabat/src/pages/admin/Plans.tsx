@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '@/components/common/PageHeader';
 import { PlanCard } from '@/components/common/PlanCard';
@@ -7,7 +7,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Textarea } from '@/components/ui/textarea';
 import { plans as mockPlans } from '@/data/mock';
 import { Button } from '@/components/ui/button';
-import { Plus } from 'lucide-react';
+import { Plus, AlertTriangle } from 'lucide-react';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -55,8 +55,16 @@ const Plans = () => {
   const [yearly, setYearly] = useState(false);
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<EditState>(emptyEdit);
+  const [hasPlans, setHasPlans] = useState<boolean | null>(null);
   const accessStore = usePlanAccessStore();
   const setAccess = useSetPlanAccess();
+
+  useEffect(() => {
+    if (!apiOn) return;
+    api.get<{ hasPlans: boolean }>('/api/platform/plans/health')
+      .then(r => setHasPlans(r.hasPlans))
+      .catch(() => setHasPlans(null));
+  }, [apiOn]);
 
   const q = useQuery({
     enabled: apiOn,
@@ -98,6 +106,7 @@ const Plans = () => {
       qc.invalidateQueries({ queryKey: ['public-plans'] });
       toast.success('تم الحفظ وتطبيق الصلاحيات على المشتركين');
       setOpen(false);
+      setHasPlans(true);
     },
     onError: (e) => toast.error(e instanceof ApiError ? e.message : 'تعذّر الحفظ'),
   });
@@ -128,6 +137,20 @@ const Plans = () => {
     <div>
       <PageHeader title="الباقات" description="إدارة باقات الاشتراك والصلاحيات المضمّنة فيها"
         actions={<Button onClick={() => { setDraft(emptyEdit); setOpen(true); }}><Plus className="h-4 w-4 ml-1" /> باقة جديدة</Button>} />
+
+      {hasPlans === false && (
+        <div className="mb-6 flex items-start gap-3 rounded-lg border border-warning/40 bg-warning/10 p-4 text-sm" dir="rtl">
+          <AlertTriangle className="h-5 w-5 text-warning shrink-0 mt-0.5" />
+          <div>
+            <p className="font-semibold text-warning">لا توجد باقات مُضافة بعد</p>
+            <p className="text-muted-foreground mt-0.5">
+              يجب إضافة باقة واحدة على الأقل حتى يتمكن المدير من اعتماد طلبات التسجيل.
+              أضف باقة الآن باستخدام زر "باقة جديدة" أعلاه.
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center gap-3 mb-6 text-sm">
         <span className={!yearly ? 'font-semibold' : 'text-muted-foreground'}>شهري</span>
         <Switch checked={yearly} onCheckedChange={setYearly} />

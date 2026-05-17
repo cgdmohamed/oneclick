@@ -20,6 +20,7 @@ export interface PendingSignup {
   companyName: string;
   ownerName: string;
   email: string;
+  emailVerifiedAt?: string | null;
   phone?: string;
   requestedAt: string;
   status: SignupStatus;
@@ -36,6 +37,7 @@ interface ApiSignup {
   id: string;
   name: string;
   email: string;
+  email_verified_at: string | null;
   phone: string | null;
   review_status: SignupStatus;
   review_notes: string | null;
@@ -56,6 +58,7 @@ function mapSignup(s: ApiSignup): PendingSignup {
     companyName: s.name,
     ownerName: s.owner_name ?? '',
     email: s.email,
+    emailVerifiedAt: s.email_verified_at,
     phone: s.phone ?? undefined,
     requestedAt: s.created_at,
     status: s.review_status,

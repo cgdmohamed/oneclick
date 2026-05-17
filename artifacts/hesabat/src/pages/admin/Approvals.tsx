@@ -12,9 +12,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Check, X, RotateCcw, Trash2, Mail, Phone, Building2, Hourglass, ShieldCheck, ShieldX, Search, Loader2 } from 'lucide-react';
+import { Check, X, RotateCcw, Trash2, Mail, Phone, Building2, Hourglass, ShieldCheck, ShieldX, Search, Loader2, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { usePendingSignups, type PendingSignup, type SignupStatus } from '@/hooks/usePendingSignups';
-import { api } from '@/lib/api';
+import { api, isApiConfigured } from '@/lib/api';
 import { formatCurrency, formatDate } from '@/lib/format';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -216,7 +216,19 @@ const SignupCard = ({
       </div>
 
       <div className="space-y-1 text-sm mb-3">
-        <div className="flex items-center gap-1.5 text-muted-foreground"><Mail className="h-3.5 w-3.5" /> {signup.email}</div>
+        <div className="flex items-center gap-1.5 text-muted-foreground flex-wrap">
+          <Mail className="h-3.5 w-3.5 shrink-0" />
+          <span className="truncate">{signup.email}</span>
+          {signup.emailVerifiedAt ? (
+            <span className="inline-flex items-center gap-0.5 text-xs font-medium text-success bg-success/10 rounded-full px-1.5 py-0.5">
+              <CheckCircle2 className="h-3 w-3" /> موثّق
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-0.5 text-xs font-medium text-warning bg-warning/10 rounded-full px-1.5 py-0.5">
+              <AlertTriangle className="h-3 w-3" /> غير موثّق
+            </span>
+          )}
+        </div>
         {signup.phone && <div className="flex items-center gap-1.5 text-muted-foreground"><Phone className="h-3.5 w-3.5" /> {signup.phone}</div>}
         <div className="text-xs text-muted-foreground">طلب بتاريخ {formatDate(signup.requestedAt)}</div>
       </div>
@@ -260,6 +272,7 @@ const SignupCard = ({
 const Approvals = () => {
   const { signups, loading, approve, decline, reset, remove } = usePendingSignups();
   const [plans, setPlans] = useState<Plan[]>([]);
+  const [hasPlans, setHasPlans] = useState<boolean | null>(null);
   const [tab, setTab] = useState<SignupStatus | 'all'>('pending');
   const [q, setQ] = useState('');
   const [target, setTarget] = useState<PendingSignup | null>(null);
@@ -270,6 +283,10 @@ const Approvals = () => {
   const [removing, setRemoving] = useState(false);
 
   useEffect(() => {
+    if (!isApiConfigured()) return;
+    api.get<{ hasPlans: boolean }>('/api/platform/plans/health')
+      .then(r => setHasPlans(r.hasPlans))
+      .catch(() => setHasPlans(null));
     api.get<{ data: Plan[] }>('/api/plans/all')
       .then(r => setPlans(r.data.filter(p => p.is_active)))
       .catch(() => {
@@ -325,6 +342,20 @@ const Approvals = () => {
         title="طلبات تسجيل الشركات"
         description="راجع طلبات الانضمام الجديدة، اعتمد العميل وعيّن له الباقة، أو ارفض الطلب مع توضيح السبب"
       />
+
+      {hasPlans === false && (
+        <div className="mb-5 flex items-start gap-3 rounded-lg border border-warning/40 bg-warning/10 p-4 text-sm" dir="rtl">
+          <AlertTriangle className="h-5 w-5 text-warning shrink-0 mt-0.5" />
+          <div>
+            <p className="font-semibold text-warning">لم يتم إضافة أي باقات بعد — الاعتمادات ستفشل</p>
+            <p className="text-muted-foreground mt-0.5">
+              لا يمكن اعتماد الشركات بدون باقات مُضافة. أضف باقة واحدة على الأقل من{' '}
+              <a href="/admin/plans" className="underline text-foreground hover:text-primary">صفحة الباقات</a>{' '}
+              قبل اعتماد أي طلب.
+            </p>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
         <StatCard title="بانتظار المراجعة" value={stats.pending} icon={Hourglass} accent="warning" />

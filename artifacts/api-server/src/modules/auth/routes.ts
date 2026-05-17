@@ -274,12 +274,6 @@ router.post('/register', async (req, res, next) => {
       await c.query(`INSERT INTO user_companies (user_id, company_id, is_default) VALUES ($1,$2,true)`, [userId, companyId]);
       await c.query(`INSERT INTO user_roles (user_id, company_id, role) VALUES ($1,$2,'company_admin')`, [userId, companyId]);
 
-      // free plan trial
-      await c.query(`
-        INSERT INTO subscriptions (company_id, plan_id, status, expires_at)
-        SELECT $1, id, 'trialing', now() + interval '14 days' FROM plans WHERE code='free' LIMIT 1
-      `, [companyId]);
-
       await c.query('COMMIT');
 
       await audit(pool, {

@@ -22,6 +22,16 @@ router.use(requireSuperAdmin);
 /* ---- Platform settings (branding / landing_content / tracking) ---- */
 router.use('/settings', adminSettingsRouter);
 
+/* ---- Plans health (returns whether any active plans are seeded) ---- */
+router.get('/plans/health', async (_req, res, next) => {
+  try {
+    const rs = await pool.query(
+      `SELECT EXISTS(SELECT 1 FROM plans WHERE is_active = true) AS has_plans`,
+    );
+    res.json({ hasPlans: rs.rows[0].has_plans });
+  } catch (e) { next(e); }
+});
+
 /* ---------------- Wallets ---------------- */
 const walletSchema = z.object({
   name: z.string().min(1).max(120),
@@ -488,6 +498,9 @@ const SIGNUP_COLS = `
   (SELECT u.name FROM users u
    JOIN user_companies uc ON uc.user_id = u.id
    WHERE uc.company_id = c.id AND uc.is_default = true LIMIT 1) AS owner_name,
+  (SELECT u.email_verified_at FROM users u
+   JOIN user_companies uc ON uc.user_id = u.id
+   WHERE uc.company_id = c.id AND uc.is_default = true LIMIT 1) AS email_verified_at,
   (SELECT p.name FROM subscriptions s
    JOIN plans p ON p.id = s.plan_id
    WHERE s.company_id = c.id ORDER BY s.created_at DESC LIMIT 1) AS plan_name,
