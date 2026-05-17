@@ -27,7 +27,7 @@ const toneClass = (tone: BentoItem['tone']) => {
 };
 
 const Home = () => {
-  const { content: c } = useLandingContent();
+  const { content: c, isLoading: contentLoading } = useLandingContent();
 
   return (
     <div>
@@ -70,7 +70,7 @@ const Home = () => {
             </div>
 
             {/* Screenshot mockup below */}
-            {c.hero.showImage && c.hero.imageUrl && (() => {
+            {!contentLoading && c.hero.showImage && c.hero.imageUrl && (() => {
               const shadowClass = {
                 none: '',
                 soft: 'shadow-soft',

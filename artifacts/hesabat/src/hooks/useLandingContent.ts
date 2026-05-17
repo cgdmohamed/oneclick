@@ -153,11 +153,12 @@ async function fetchLandingContent(): Promise<LandingContent> {
 
 export const useLandingContent = () => {
   const [content, setContent] = useState<LandingContent>(DEFAULT_LANDING);
+  const [isLoading, setIsLoading] = useState(true);
   const [pendingRemoteUpdate, setPendingRemoteUpdate] = useState(0);
 
   useEffect(() => {
-    if (!isApiConfigured()) return;
-    fetchLandingContent().then(setContent);
+    if (!isApiConfigured()) { setIsLoading(false); return; }
+    fetchLandingContent().then(c => { setContent(c); setIsLoading(false); });
 
     return onSettingsUpdate(SETTINGS_KEY, () => {
       setPendingRemoteUpdate(v => v + 1);
@@ -186,5 +187,5 @@ export const useLandingContent = () => {
     postSettingsUpdate(SETTINGS_KEY);
   }, []);
 
-  return { content, save, reset, pendingRemoteUpdate, applyRemoteUpdate };
+  return { content, isLoading, save, reset, pendingRemoteUpdate, applyRemoteUpdate };
 };
