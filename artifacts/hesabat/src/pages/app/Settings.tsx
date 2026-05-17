@@ -148,6 +148,10 @@ const Settings = () => {
   const isHydrating = useRef(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingSaveRef = useRef(false);
+  const latestProfileRef = useRef(profile);
+  const latestInvoiceCfgRef = useRef(invoiceCfg);
+  const saveNowRef = useRef<() => Promise<void>>(async () => {});
 
   // Hydrate from backend when API is configured
   useEffect(() => {
@@ -215,34 +219,38 @@ const Settings = () => {
     if (!hasHydrated.current) return;
     // Block the single re-render triggered by hydration state updates.
     if (isHydrating.current) { isHydrating.current = false; return; }
-    setSaveStatus('saving');
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
-    debounceRef.current = setTimeout(async () => {
+
+    // Keep latest state snapshot accessible from refs so unmount flush can read it.
+    latestProfileRef.current = profile;
+    latestInvoiceCfgRef.current = invoiceCfg;
+
+    const doSave = async () => {
+      const p = latestProfileRef.current;
+      const cfg = latestInvoiceCfgRef.current;
       if (isApiConfigured()) {
         try {
           await api.patch('/api/companies/me', {
-            name: profile.name || undefined,
-            owner_name: profile.ownerName || null,
-            email: profile.email || null,
-            phone: profile.phone || null,
-            tax_number: profile.taxNumber || null,
-            commercial_register: profile.commercialReg || null,
-            address: [profile.street, profile.district, profile.city, profile.country, profile.postalCode].filter(Boolean).join('، ') || null,
-            invoice_prefix: invoiceCfg.prefix,
-            invoice_year_format: invoiceCfg.yearFormat,
-            invoice_sequence_start: invoiceCfg.sequenceStart,
-            invoice_padding: invoiceCfg.padding,
-            invoice_separator: invoiceCfg.separator,
-            currency: invoiceCfg.currency,
-            invoice_currency_symbol: invoiceCfg.currencySymbol || null,
-            vat_rate: invoiceCfg.taxRate,
-            invoice_template: invoiceCfg.template,
-            invoice_accent_color: invoiceCfg.accentColor,
-            invoice_terms: invoiceCfg.terms || null,
-            invoice_footer: invoiceCfg.footer || null,
-            logo_url: invoiceCfg.logoUrl ?? null,
-            stamp_url: invoiceCfg.stampUrl ?? null,
+            name: p.name || undefined,
+            owner_name: p.ownerName || null,
+            email: p.email || null,
+            phone: p.phone || null,
+            tax_number: p.taxNumber || null,
+            commercial_register: p.commercialReg || null,
+            address: [p.street, p.district, p.city, p.country, p.postalCode].filter(Boolean).join('، ') || null,
+            invoice_prefix: cfg.prefix,
+            invoice_year_format: cfg.yearFormat,
+            invoice_sequence_start: cfg.sequenceStart,
+            invoice_padding: cfg.padding,
+            invoice_separator: cfg.separator,
+            currency: cfg.currency,
+            invoice_currency_symbol: cfg.currencySymbol || null,
+            vat_rate: cfg.taxRate,
+            invoice_template: cfg.template,
+            invoice_accent_color: cfg.accentColor,
+            invoice_terms: cfg.terms || null,
+            invoice_footer: cfg.footer || null,
+            logo_url: cfg.logoUrl ?? null,
+            stamp_url: cfg.stampUrl ?? null,
           });
         } catch {
           toast.error('تعذّر الحفظ على الخادم');
@@ -253,11 +261,48 @@ const Settings = () => {
       setSaveStatus('saved');
       toast.success('تم حفظ التغييرات تلقائياً');
       savedTimerRef.current = setTimeout(() => setSaveStatus('idle'), 2000);
+    };
+
+    // Expose the latest save function so the unmount flush can call it.
+    saveNowRef.current = doSave;
+
+    setSaveStatus('saving');
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+
+    pendingSaveRef.current = true;
+    debounceRef.current = setTimeout(async () => {
+      // If the unmount flush already ran, skip to avoid double-save.
+      if (!pendingSaveRef.current) return;
+      pendingSaveRef.current = false;
+      debounceRef.current = null;
+      await doSave();
     }, 800);
+
     return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+        debounceRef.current = null;
+      }
     };
   }, [profile, invoiceCfg]);
+
+  // Flush any pending debounced save when the component unmounts so that
+  // changes made just before navigating away are never silently discarded.
+  // This effect has empty deps so its cleanup only runs on unmount.
+  // React runs effect cleanups in reverse registration order on unmount, so
+  // this cleanup fires before the save-effect cleanup above — meaning the
+  // debounce timer is still live and pendingSaveRef is still accurate.
+  useEffect(() => {
+    return () => {
+      if (pendingSaveRef.current) {
+        pendingSaveRef.current = false;
+        saveNowRef.current().catch(() => {
+          toast.error('تعذّر الحفظ على الخادم');
+        });
+      }
+    };
+  }, []);
 
   const fullAddress = [profile.street, profile.district, profile.city, profile.country, profile.postalCode]
     .filter(Boolean)
