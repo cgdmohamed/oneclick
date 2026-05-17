@@ -1,0 +1,61 @@
+testcceg-oneclick@testcceg:~/htdocs/oneclick.testcceg.com$ cd ~/htdocs/oneclick.testcceg.com/artifacts/api-server
+
+DATABASE_URL="postgres://oneclick:your_password@127.0.0.1:5432/hesabat" \
+node --input-type=module << 'EOF'
+import bcrypt from 'bcryptjs';
+import pg from 'pg';
+
+const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+
+const hash = await bcrypt.hash('Aa123456!', 12);
+
+// Insert super admin user
+const { rows } = await pool.query(`
+  INSERT INTO users (email, password_hash, name, is_super_admin, email_verified_at)
+  VALUES ('owner@hesabat.eg', $1, 'مالك حسابات', true, now())
+  ON CONFLICT (email) DO UPDATE
+    SET password_hash = $1, is_super_admin = true, email_verified_at = now()
+  RETURNING id
+`, [hash]);
+
+const userId = rows[0].id;
+
+// Assign super_admin role
+await pool.query(`
+  INSERT INTO user_roles (user_id, company_id, role)
+  VALUES ($1, NULL, 'super_admin')
+  ON CONFLICT DO NOTHING
+`, [userId]);
+
+console.log('Done — super admin seeded: owner@hesabat.eg / Aa123456!');
+await pool.end();
+EOF
+/home/testcceg-oneclick/htdocs/oneclick.testcceg.com/node_modules/.pnpm/pg-pool@3.13.0_pg@8.20.0/node_modules/pg-pool/index.js:45
+    Error.captureStackTrace(err)
+          ^
+
+error: password authentication failed for user "oneclick"
+    at /home/testcceg-oneclick/htdocs/oneclick.testcceg.com/node_modules/.pnpm/pg-pool@3.13.0_pg@8.20.0/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async file:///home/testcceg-oneclick/htdocs/oneclick.testcceg.com/artifacts/api-server/[eval1]:9:18 {
+  length: 104,
+  severity: 'FATAL',
+  code: '28P01',
+  detail: undefined,
+  hint: undefined,
+  position: undefined,
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'auth.c',
+  line: '331',
+  routine: 'auth_failed'
+}
+
+Node.js v20.20.2
+testcceg-oneclick@testcceg:~/htdocs/oneclick.testcceg.com/artifacts/api-server$

@@ -1,0 +1,84 @@
+testcceg-oneclick@testcceg:~/htdocs/oneclick.testcceg.com$ pnpm install
+Scope: all 9 workspace projects
+Lockfile is up to date, resolution step is skipped
+Packages: +665
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+   ╭─────────────────────────────────────────╮
+   │                                         │
+   │   Update available! 10.33.4 → 11.1.2.   │
+   │   Changelog: https://pnpm.io/v/11.1.2   │
+   │    To update, run: pnpm add -g pnpm     │
+   │                                         │
+   ╰─────────────────────────────────────────╯
+
+Downloading react-icons@5.6.0: 22.42 MB/22.42 MB, done
+ WARN  GET https://registry.npmjs.org/react-icons/-/react-icons-5.6.0.tgz error (ERR_PNPM_ENOSPC). Will retry in 10 seconds. 2 retries left.
+ WARN  GET https://registry.npmjs.org/@tabby_ai/hijri-converter/-/hijri-converter-1.0.5.tgz error (ERR_PNPM_ENOSPC). Will retry in 10 seconds. 2 retries left.
+ WARN  GET https://registry.npmjs.org/react-smooth/-/react-smooth-4.0.4.tgz error (ERR_PNPM_ENOSPC). Will retry in 10 seconds. 2 retries left.
+ WARN  GET https://registry.npmjs.org/fast-equals/-/fast-equals-5.4.0.tgz error (ERR_PNPM_ENOSPC). Will retry in 10 seconds. 2 retries left.
+ WARN  GET https://registry.npmjs.org/prop-types/-/prop-types-15.8.1.tgz error (ERR_PNPM_ENOSPC). Will retry in 10 seconds. 2 retries left.
+ WARN  GET https://registry.npmjs.org/react-transition-group/-/react-transition-group-4.4.5.tgz error (ERR_PNPM_ENOSPC). Will retry in 10 seconds. 2 retries left.
+ WARN  GET https://registry.npmjs.org/react-is/-/react-is-16.13.1.tgz error (ERR_PNPM_ENOSPC). Will retry in 10 seconds. 2 retries left.
+ WARN  GET https://registry.npmjs.org/dom-helpers/-/dom-helpers-5.2.1.tgz error (ERR_PNPM_ENOSPC). Will retry in 10 seconds. 2 retries left.
+ WARN  GET https://registry.npmjs.org/loose-envify/-/loose-envify-1.4.0.tgz error (ERR_PNPM_ENOSPC). Will retry in 10 seconds. 2 retries left.
+ WARN  GET https://registry.npmjs.org/recharts-scale/-/recharts-scale-0.4.5.tgz error (ERR_PNPM_ENOSPC). Will retry in 10 seconds. 2 retries left.
+ WARN  GET https://registry.npmjs.org/decimal.js-light/-/decimal.js-light-2.5.1.tgz error (ERR_PNPM_ENOSPC). Will retry in 10 seconds. 2 retries left.
+ WARN  GET https://registry.npmjs.org/tiny-invariant/-/tiny-invariant-1.3.3.tgz error (ERR_PNPM_ENOSPC). Will retry in 10 seconds. 2 retries left.
+ WARN  GET https://registry.npmjs.org/victory-vendor/-/victory-vendor-36.9.2.tgz error (ERR_PNPM_ENOSPC). Will retry in 10 seconds. 2 retries left.
+ WARN  GET https://registry.npmjs.org/@types/d3-interpolate/-/d3-interpolate-3.0.4.tgz error (ERR_PNPM_ENOSPC). Will retry in 10 seconds. 2 retries left.
+ WARN  GET https://registry.npmjs.org/@types/d3-array/-/d3-array-3.2.2.tgz error (ERR_PNPM_ENOSPC). Will retry in 10 seconds. 2 retries left.
+ WARN  GET https://registry.npmjs.org/@types/d3-ease/-/d3-ease-3.0.2.tgz error (ERR_PNPM_ENOSPC). Will retry in 10 seconds. 2 retries left.
+ ERR_PNPM_ENOSPC  [importPackage /home/testcceg-oneclick/htdocs/oneclick.testcceg.com/node_modules/.pnpm/embla-carousel@8.6.0/node_modules/embla-carousel] ENOSPC: no space left on device, mkdir '/home/testcceg-oneclick/htdocs/oneclick.testcceg.com/node_modules/.pnpm/embla-carousel@8.6.0/node_modules/embla-carousel_tmp_312195_1'
+Progress: resolved 665, reused 0, downloaded 479, added 460
+testcceg-oneclick@testcceg:~/htdocs/oneclick.testcceg.com$ pnpm install --frozen-lockfile
+Scope: all 9 workspace projects
+ ENOENT  ENOENT: no such file or directory, mkdir '/home/testcceg-oneclick/.pnpm-store'
+
+pnpm: ENOENT: no such file or directory, mkdir '/home/testcceg-oneclick/.pnpm-store'
+    at async Object.mkdir (node:internal/fs/promises:856:10)
+    at async createNewStoreController (/home/testcceg-oneclick/.nvm/versions/node/v20.20.2/lib/node_modules/pnpm/dist/pnpm.cjs:106822:7)
+    at async installDeps (/home/testcceg-oneclick/.nvm/versions/node/v20.20.2/lib/node_modules/pnpm/dist/pnpm.cjs:165523:21)
+    at async /home/testcceg-oneclick/.nvm/versions/node/v20.20.2/lib/node_modules/pnpm/dist/pnpm.cjs:202454:23
+    at async main (/home/testcceg-oneclick/.nvm/versions/node/v20.20.2/lib/node_modules/pnpm/dist/pnpm.cjs:202412:34)
+    at async runPnpm (/home/testcceg-oneclick/.nvm/versions/node/v20.20.2/lib/node_modules/pnpm/dist/pnpm.cjs:202777:5)
+    at async /home/testcceg-oneclick/.nvm/versions/node/v20.20.2/lib/node_modules/pnpm/dist/pnpm.cjs:202769:7
+testcceg-oneclick@testcceg:~/htdocs/oneclick.testcceg.com$ ls
+ artifacts              lib            package.json     pnpm-workspace.yaml   scripts              tsconfig.json       'wasl-mal-hseb-main (1).zip'
+ ecosystem.config.cjs   node_modules   pnpm-lock.yaml   replit.md             tsconfig.base.json   wasl-mal-hseb-main
+testcceg-oneclick@testcceg:~/htdocs/oneclick.testcceg.com$ ls -a
+ .         artifacts              lib                 .npmrc           pnpm-workspace.yaml   replit.md            tsconfig.json
+ ..        ecosystem.config.cjs   .migration-backup   package.json     .replit               scripts              wasl-mal-hseb-main
+ .agents   .gitignore             node_modules        pnpm-lock.yaml   .replitignore         tsconfig.base.json  'wasl-mal-hseb-main (1).zip'
+testcceg-oneclick@testcceg:~/htdocs/oneclick.testcceg.com$ cd artifacts
+testcceg-oneclick@testcceg:~/htdocs/oneclick.testcceg.com/artifacts$ cd hesabat
+testcceg-oneclick@testcceg:~/htdocs/oneclick.testcceg.com/artifacts/hesabat$ pnpm install --frozen-lockfile
+Scope: all 9 workspace projects
+ ENOENT  ENOENT: no such file or directory, mkdir '/home/testcceg-oneclick/.pnpm-store'
+
+pnpm: ENOENT: no such file or directory, mkdir '/home/testcceg-oneclick/.pnpm-store'
+    at async Object.mkdir (node:internal/fs/promises:856:10)
+    at async createNewStoreController (/home/testcceg-oneclick/.nvm/versions/node/v20.20.2/lib/node_modules/pnpm/dist/pnpm.cjs:106822:7)
+    at async installDeps (/home/testcceg-oneclick/.nvm/versions/node/v20.20.2/lib/node_modules/pnpm/dist/pnpm.cjs:165523:21)
+    at async /home/testcceg-oneclick/.nvm/versions/node/v20.20.2/lib/node_modules/pnpm/dist/pnpm.cjs:202454:23
+    at async main (/home/testcceg-oneclick/.nvm/versions/node/v20.20.2/lib/node_modules/pnpm/dist/pnpm.cjs:202412:34)
+    at async runPnpm (/home/testcceg-oneclick/.nvm/versions/node/v20.20.2/lib/node_modules/pnpm/dist/pnpm.cjs:202777:5)
+    at async /home/testcceg-oneclick/.nvm/versions/node/v20.20.2/lib/node_modules/pnpm/dist/pnpm.cjs:202769:7
+testcceg-oneclick@testcceg:~/htdocs/oneclick.testcceg.com/artifacts/hesabat$ cd ..
+testcceg-oneclick@testcceg:~/htdocs/oneclick.testcceg.com/artifacts$ cd ..
+testcceg-oneclick@testcceg:~/htdocs/oneclick.testcceg.com$ ls
+ artifacts              lib            package.json     pnpm-workspace.yaml   scripts              tsconfig.json       'wasl-mal-hseb-main (1).zip'
+ ecosystem.config.cjs   node_modules   pnpm-lock.yaml   replit.md             tsconfig.base.json   wasl-mal-hseb-main
+testcceg-oneclick@testcceg:~/htdocs/oneclick.testcceg.com$ pnpm install --frozen-lockfile
+Scope: all 9 workspace projects
+ ENOENT  ENOENT: no such file or directory, mkdir '/home/testcceg-oneclick/.pnpm-store'
+
+pnpm: ENOENT: no such file or directory, mkdir '/home/testcceg-oneclick/.pnpm-store'
+    at async Object.mkdir (node:internal/fs/promises:856:10)
+    at async createNewStoreController (/home/testcceg-oneclick/.nvm/versions/node/v20.20.2/lib/node_modules/pnpm/dist/pnpm.cjs:106822:7)
+    at async installDeps (/home/testcceg-oneclick/.nvm/versions/node/v20.20.2/lib/node_modules/pnpm/dist/pnpm.cjs:165523:21)
+    at async /home/testcceg-oneclick/.nvm/versions/node/v20.20.2/lib/node_modules/pnpm/dist/pnpm.cjs:202454:23
+    at async main (/home/testcceg-oneclick/.nvm/versions/node/v20.20.2/lib/node_modules/pnpm/dist/pnpm.cjs:202412:34)
+    at async runPnpm (/home/testcceg-oneclick/.nvm/versions/node/v20.20.2/lib/node_modules/pnpm/dist/pnpm.cjs:202777:5)
+    at async /home/testcceg-oneclick/.nvm/versions/node/v20.20.2/lib/node_modules/pnpm/dist/pnpm.cjs:202769:7
+testcceg-oneclick@testcceg:~/htdocs/oneclick.testcceg.com$

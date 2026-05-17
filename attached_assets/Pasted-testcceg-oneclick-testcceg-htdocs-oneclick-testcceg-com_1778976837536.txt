@@ -1,0 +1,28 @@
+testcceg-oneclick@testcceg:~/htdocs/oneclick.testcceg.com$ cd /home/testcceg-oneclick/hesabat
+-bash: cd: /home/testcceg-oneclick/hesabat: No such file or directory
+testcceg-oneclick@testcceg:~/htdocs/oneclick.testcceg.com$ cd /hesabat
+-bash: cd: /hesabat: No such file or directory
+testcceg-oneclick@testcceg:~/htdocs/oneclick.testcceg.com$ ls
+ artifacts              lib            package.json     pnpm-workspace.yaml   scripts              tsconfig.json       'wasl-mal-hseb-main (1).zip'
+ ecosystem.config.cjs   node_modules   pnpm-lock.yaml   replit.md             tsconfig.base.json   wasl-mal-hseb-main
+testcceg-oneclick@testcceg:~/htdocs/oneclick.testcceg.com$ pnpm --filter @workspace/hesabat run build
+
+> @workspace/hesabat@0.0.0 build /home/testcceg-oneclick/htdocs/oneclick.testcceg.com/artifacts/hesabat
+> vite build --config vite.config.ts
+
+failed to load config from /home/testcceg-oneclick/htdocs/oneclick.testcceg.com/artifacts/hesabat/vite.config.ts
+error during build:
+Error: PORT environment variable is required but was not provided.
+    at file:///home/testcceg-oneclick/htdocs/oneclick.testcceg.com/artifacts/hesabat/node_modules/.vite-temp/vite.config.ts.timestamp-1778976823589-f8083d77b827a.mjs:9:9
+    at ModuleJob.run (node:internal/modules/esm/module_job:325:25)
+    at async ModuleLoader.import (node:internal/modules/esm/loader:606:24)
+    at async loadConfigFromBundledFile (file:///home/testcceg-oneclick/htdocs/oneclick.testcceg.com/node_modules/.pnpm/vite@7.3.3_@types+node@25.6.2_jiti@2.7.0_lightningcss@1.32.0_tsx@4.21.0_yaml@2.8.4/node_modules/vite/dist/node/chunks/config.js:35936:12)
+    at async bundleAndLoadConfigFile (file:///home/testcceg-oneclick/htdocs/oneclick.testcceg.com/node_modules/.pnpm/vite@7.3.3_@types+node@25.6.2_jiti@2.7.0_lightningcss@1.32.0_tsx@4.21.0_yaml@2.8.4/node_modules/vite/dist/node/chunks/config.js:35824:17)
+    at async loadConfigFromFile (file:///home/testcceg-oneclick/htdocs/oneclick.testcceg.com/node_modules/.pnpm/vite@7.3.3_@types+node@25.6.2_jiti@2.7.0_lightningcss@1.32.0_tsx@4.21.0_yaml@2.8.4/node_modules/vite/dist/node/chunks/config.js:35791:42)
+    at async resolveConfig (file:///home/testcceg-oneclick/htdocs/oneclick.testcceg.com/node_modules/.pnpm/vite@7.3.3_@types+node@25.6.2_jiti@2.7.0_lightningcss@1.32.0_tsx@4.21.0_yaml@2.8.4/node_modules/vite/dist/node/chunks/config.js:35440:22)
+    at async createBuilder (file:///home/testcceg-oneclick/htdocs/oneclick.testcceg.com/node_modules/.pnpm/vite@7.3.3_@types+node@25.6.2_jiti@2.7.0_lightningcss@1.32.0_tsx@4.21.0_yaml@2.8.4/node_modules/vite/dist/node/chunks/config.js:33895:19)
+    at async CAC.<anonymous> (file:///home/testcceg-oneclick/htdocs/oneclick.testcceg.com/node_modules/.pnpm/vite@7.3.3_@types+node@25.6.2_jiti@2.7.0_lightningcss@1.32.0_tsx@4.21.0_yaml@2.8.4/node_modules/vite/dist/node/cli.js:629:10)
+/home/testcceg-oneclick/htdocs/oneclick.testcceg.com/artifacts/hesabat:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @workspace/hesabat@0.0.0 build: `vite build --config vite.config.ts`
+Exit status 1
+testcceg-oneclick@testcceg:~/htdocs/oneclick.testcceg.com$
