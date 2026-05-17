@@ -22,12 +22,22 @@ router.get('/overview', async (req, res, next) => {
       WHERE company_id = $1 AND issue_date >= now() - interval '6 months'
       GROUP BY 1 ORDER BY 1
     `, [t.companyId]);
+    const recentInvoices = await t.db.query(`
+      SELECT i.id, i.number, i.issue_date, i.total, i.remaining, i.status,
+             c.name AS client_name
+      FROM invoices i
+      LEFT JOIN clients c ON c.id = i.client_id
+      WHERE i.company_id = $1
+      ORDER BY i.created_at DESC
+      LIMIT 6
+    `, [t.companyId]);
     res.json({
       data: {
         totals: totals.rows[0],
         low_stock: lowStock.rows[0].n,
         clients: clients.rows[0].n,
         monthly_sales: monthly.rows,
+        recent_invoices: recentInvoices.rows,
       },
     });
   } catch (e) { next(e); }

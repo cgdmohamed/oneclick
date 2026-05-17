@@ -9,7 +9,7 @@ import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { LineChart, Line, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import { api, isApiConfigured } from '@/lib/api';
-import { useInvoices, useClients, useProducts } from '@/hooks/entities';
+import { useProducts } from '@/hooks/entities';
 import {
   invoices as mockInvoices,
   clients as mockClients,
@@ -22,6 +22,16 @@ const ARABIC_MONTHS: Record<string, string> = {
   '09': 'سبتمبر', '10': 'أكتوبر', '11': 'نوفمبر', '12': 'ديسمبر',
 };
 
+interface RecentInvoice {
+  id: string;
+  number: string;
+  issue_date: string;
+  total: string | number;
+  remaining: string | number;
+  status: string;
+  client_name: string | null;
+}
+
 interface OverviewData {
   totals: {
     total_sales: string | number;
@@ -32,6 +42,7 @@ interface OverviewData {
   low_stock: number;
   clients: number;
   monthly_sales: Array<{ month: string; total: string | number }>;
+  recent_invoices: RecentInvoice[];
 }
 
 const Overview = () => {
@@ -47,8 +58,6 @@ const Overview = () => {
     refetchInterval: 60_000,
   });
 
-  const { list: invoices } = useInvoices();
-  const { list: clients } = useClients();
   const { list: products } = useProducts();
 
   const data = overviewQuery.data;
@@ -85,8 +94,17 @@ const Overview = () => {
     ? products.filter((p) => p.quantity <= p.alertLevel)
     : mockProducts.filter((p) => p.quantity <= p.alertLevel);
 
-  const recentInvoices = apiOn ? invoices.slice(0, 6) : mockInvoices.slice(0, 6);
-  const clientsMap = new Map((apiOn ? clients : mockClients).map((c) => [c.id, c]));
+  const recentInvoices: RecentInvoice[] = data?.recent_invoices ?? (
+    apiOn ? [] : mockInvoices.slice(0, 6).map((inv) => ({
+      id: String(inv.id),
+      number: inv.number,
+      issue_date: inv.issueDate,
+      total: inv.total,
+      remaining: inv.remaining,
+      status: inv.status,
+      client_name: mockClients.find((c) => c.id === inv.clientId)?.name ?? null,
+    }))
+  );
 
   return (
     <div className="space-y-6">
@@ -160,19 +178,16 @@ const Overview = () => {
               </tr>
             </thead>
             <tbody>
-              {recentInvoices.map(inv => {
-                const c = clientsMap.get(inv.clientId);
-                return (
-                  <tr key={inv.id} className="border-b border-border/60 hover:bg-muted/20">
-                    <td className="py-3 font-medium"><Link to={`/app/invoices/${inv.id}`} className="text-primary">{inv.number}</Link></td>
-                    <td className="py-3">{(inv as { clientName?: string }).clientName ?? c?.name}</td>
-                    <td className="py-3 text-muted-foreground">{formatDateShort(inv.issueDate)}</td>
-                    <td className="py-3">{formatCurrency(inv.total)}</td>
-                    <td className="py-3">{formatCurrency(inv.remaining)}</td>
-                    <td className="py-3"><StatusBadge status={inv.status} label={invoiceStatusLabel(inv.status)} /></td>
-                  </tr>
-                );
-              })}
+              {recentInvoices.map(inv => (
+                <tr key={inv.id} className="border-b border-border/60 hover:bg-muted/20">
+                  <td className="py-3 font-medium"><Link to={`/app/invoices/${inv.id}`} className="text-primary">{inv.number}</Link></td>
+                  <td className="py-3">{inv.client_name ?? '—'}</td>
+                  <td className="py-3 text-muted-foreground">{formatDateShort(inv.issue_date)}</td>
+                  <td className="py-3">{formatCurrency(Number(inv.total))}</td>
+                  <td className="py-3">{formatCurrency(Number(inv.remaining))}</td>
+                  <td className="py-3"><StatusBadge status={inv.status} label={invoiceStatusLabel(inv.status)} /></td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
