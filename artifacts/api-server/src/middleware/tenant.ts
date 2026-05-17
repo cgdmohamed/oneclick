@@ -66,6 +66,21 @@ export async function tenantContext(req: Request, res: Response, next: NextFunct
     return next(forbidden('No company associated with this account'));
   }
 
+  // Block access for non-super-admins when the company is inactive.
+  if (companyId && !isSuperAdmin) {
+    const companyCheck = await pool.query(
+      `SELECT is_active, review_status FROM companies WHERE id = $1`,
+      [companyId],
+    );
+    if (companyCheck.rowCount && !companyCheck.rows[0].is_active) {
+      const reviewStatus: string = companyCheck.rows[0].review_status ?? 'pending';
+      if (reviewStatus === 'pending') {
+        return next(forbidden('Your account is pending review. You will be notified once approved.'));
+      }
+      return next(forbidden('Your account has been suspended. Please contact support.'));
+    }
+  }
+
   const rolesRes = await pool.query(
     `SELECT role FROM user_roles WHERE user_id = $1 AND (company_id = $2 OR company_id IS NULL)`,
     [userId, companyId],

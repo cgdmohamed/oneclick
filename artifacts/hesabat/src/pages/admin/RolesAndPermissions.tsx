@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -11,16 +11,38 @@ import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Check, Minus, ShieldCheck, Plus, Pencil, Trash2, Copy, Sparkles, Search } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Check, Minus, ShieldCheck, Plus, Pencil, Trash2, Copy, Sparkles, Search, Loader2 } from 'lucide-react';
 import { permissionRows, matrixRoles, rolePermissionMap } from '@/data/permissions';
-import { users as mockUsers, companies as mockCompanies } from '@/data/mock';
 import { roleLabel } from '@/lib/format';
 import { useCustomRoles, type CustomRole } from '@/hooks/useCustomRoles';
 import { useUserRoleOverrides } from '@/hooks/useUserRoleOverrides';
+import { api } from '@/lib/api';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import type { Role } from '@/types';
+
+interface PlatformUser {
+  id: string;
+  email: string;
+  name: string;
+  is_super_admin: boolean;
+  created_at: string;
+  companies: Array<{
+    company_id: string;
+    company_name: string;
+    role: string;
+  }> | null;
+}
+
+interface UserRow {
+  userId: string;
+  userName: string;
+  userEmail: string;
+  companyId: string | null;
+  companyName: string;
+  currentRole: string;
+}
 
 // ---------- Permission Matrix ----------
 const PermissionMatrix = ({ customRoles }: { customRoles: CustomRole[] }) => {
@@ -160,8 +182,8 @@ const RoleEditorDialog = ({
   };
 
   const submit = () => {
-    if (!draft.name.trim()) return toast.error('أدخل اسم الدور');
-    if (draft.permissions.length === 0) return toast.error('اختر صلاحية واحدة على الأقل');
+    if (!draft.name.trim()) { toast.error('أدخل اسم الدور'); return; }
+    if (draft.permissions.length === 0) { toast.error('اختر صلاحية واحدة على الأقل'); return; }
     onSave(draft);
     onOpenChange(false);
   };
@@ -267,15 +289,31 @@ const RoleGenerator = () => {
   const [editing, setEditing] = useState<CustomRole | null>(null);
   const [open, setOpen] = useState(false);
 
-  const handleSave = (r: CustomRole) => {
+  const handleSave = async (r: CustomRole) => {
     const existed = roles.some(x => x.id === r.id);
-    upsert(r);
-    toast.success(existed ? 'تم حفظ الدور' : 'تم إنشاء الدور');
+    try {
+      await upsert(r);
+      toast.success(existed ? 'تم حفظ الدور' : 'تم إنشاء الدور');
+    } catch {
+      toast.error(existed ? 'فشل حفظ الدور' : 'فشل إنشاء الدور');
+    }
   };
 
-  const handleDelete = (r: CustomRole) => {
-    remove(r.id);
-    toast.success('تم حذف الدور');
+  const handleDelete = async (r: CustomRole) => {
+    try {
+      await remove(r.id);
+      toast.success('تم حذف الدور');
+    } catch {
+      toast.error('فشل حذف الدور');
+    }
+  };
+
+  const handleToggle = async (id: string) => {
+    try {
+      await toggle(id);
+    } catch {
+      toast.error('فشل تغيير حالة الدور');
+    }
   };
 
   return (
@@ -283,7 +321,7 @@ const RoleGenerator = () => {
       <div className="flex items-center justify-between">
         <div>
           <h3 className="font-semibold">الأدوار المخصصة</h3>
-          <p className="text-sm text-muted-foreground">{roles.length} دور — يمكنك إنشاء أدوار جديدة بصلاحيات مخصصة</p>
+          <p className="text-sm text-muted-foreground">{roles.length} دور — تُستخدم لتحديد مصفوفة الصلاحيات وللمرجعية فقط (لا تُسنَد مباشرةً للمستخدمين)</p>
         </div>
         <Button onClick={() => { setEditing(null); setOpen(true); }}>
           <Plus className="h-4 w-4 ml-1" /> دور جديد
@@ -310,7 +348,7 @@ const RoleGenerator = () => {
                     <Badge variant="outline" className="text-[10px] mt-0.5">{r.scope === 'platform' ? 'المنصة' : 'الشركات'}</Badge>
                   </div>
                 </div>
-                <Switch checked={r.enabled} onCheckedChange={() => toggle(r.id)} />
+                <Switch checked={r.enabled} onCheckedChange={() => { void handleToggle(r.id); }} />
               </div>
               {r.description && <p className="text-xs text-muted-foreground mb-3 line-clamp-2">{r.description}</p>}
               <div className="text-xs text-muted-foreground mb-3">{r.permissions.length} صلاحية مفعّلة</div>
@@ -342,28 +380,67 @@ const RoleGenerator = () => {
 // ---------- Users & Roles ----------
 const UsersAndRoles = () => {
   const { roles: custom } = useCustomRoles();
-  const { overrides, set, clear } = useUserRoleOverrides();
+  const { set: setRoleOverride } = useUserRoleOverrides();
+  const [users, setUsers] = useState<PlatformUser[]>([]);
+  const [loading, setLoading] = useState(false);
   const [q, setQ] = useState('');
+  const [busyId, setBusyId] = useState<string | null>(null);
 
-  const allUsers = useMemo(() => mockUsers.map(u => {
-    const company = u.companyId ? mockCompanies.find(c => c.id === u.companyId) : null;
-    const currentRole = overrides[u.id] ?? u.role;
-    return { ...u, companyName: company?.name ?? 'منصة ون كليك', currentRole };
-  }), [overrides]);
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await api.get<{ data: PlatformUser[] }>('/api/platform/users?page_size=200');
+      setUsers(res.data);
+    } catch {
+      /* silently ignore when not logged in as super_admin */
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const allRows = useMemo<UserRow[]>(() => users.flatMap<UserRow>(u => {
+    const companiesArr = u.companies ?? [];
+    if (companiesArr.length === 0) {
+      return [{ userId: u.id, userName: u.name, userEmail: u.email, companyId: null, companyName: 'منصة ون كليك', currentRole: u.is_super_admin ? 'super_admin' : 'viewer' }];
+    }
+    return companiesArr.map<UserRow>(c => ({
+      userId: u.id,
+      userName: u.name,
+      userEmail: u.email,
+      companyId: c.company_id,
+      companyName: c.company_name,
+      currentRole: c.role,
+    }));
+  }), [users]);
 
   const filtered = useMemo(() => {
-    if (!q) return allUsers;
+    if (!q) return allRows;
     const n = q.toLowerCase();
-    return allUsers.filter(u => u.name.toLowerCase().includes(n) || u.email.toLowerCase().includes(n) || u.companyName.toLowerCase().includes(n));
-  }, [allUsers, q]);
+    return allRows.filter(r => r.userName.toLowerCase().includes(n) || r.userEmail.toLowerCase().includes(n) || r.companyName.toLowerCase().includes(n));
+  }, [allRows, q]);
 
-  const handleAssign = (userId: string, _userName: string, newRole: string) => {
-    if (newRole === '__reset__') {
-      clear(userId);
-    } else {
-      set(userId, newRole);
+  const handleAssign = async (userId: string, companyId: string | null, newRole: string) => {
+    if (!companyId || newRole === '__reset__') return;
+    setBusyId(`${userId}:${companyId}`);
+    try {
+      await setRoleOverride(userId, companyId, newRole);
+      setUsers(prev => prev.map(u => {
+        if (u.id !== userId) return u;
+        return {
+          ...u,
+          companies: (u.companies ?? []).map(c =>
+            c.company_id === companyId ? { ...c, role: newRole } : c,
+          ),
+        };
+      }));
+      toast.success('تم تحديث الدور');
+    } catch (e) {
+      toast.error((e as Error).message ?? 'فشل تحديث الدور');
+    } finally {
+      setBusyId(null);
     }
-    toast.success('تم تحديث الدور');
   };
 
   return (
@@ -371,7 +448,7 @@ const UsersAndRoles = () => {
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
           <h3 className="font-semibold">المستخدمون والأدوار</h3>
-          <p className="text-sm text-muted-foreground">{allUsers.length} مستخدم — قم بإسناد دور افتراضي أو مخصص لكل مستخدم</p>
+          <p className="text-sm text-muted-foreground">{users.length} مستخدم — قم بإسناد الدور المناسب لكل مستخدم</p>
         </div>
         <div className="relative w-72 max-w-full">
           <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -379,67 +456,72 @@ const UsersAndRoles = () => {
         </div>
       </div>
 
-      <Card className="p-0 border-border/60 shadow-soft overflow-hidden">
-        <table dir="rtl" className="w-full text-sm">
-          <thead className="bg-muted/40 text-xs text-muted-foreground">
-            <tr>
-              <th className="text-start px-4 py-2.5 font-semibold">المستخدم</th>
-              <th className="text-start px-4 py-2.5 font-semibold">الشركة</th>
-              <th className="text-start px-4 py-2.5 font-semibold">الدور الحالي</th>
-              <th className="text-start px-4 py-2.5 font-semibold w-72">تغيير الدور</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map(u => {
-              const isOverride = u.id in overrides;
-              const currentCustom = custom.find(c => c.id === u.currentRole);
-              const currentLabel = currentCustom?.name ?? roleLabel(u.currentRole);
-              return (
-                <tr key={u.id} className="border-t border-border/60 hover:bg-muted/20">
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2.5">
-                      <Avatar className="h-9 w-9"><AvatarFallback className="bg-primary text-primary-foreground text-xs">{u.name[0]}</AvatarFallback></Avatar>
-                      <div className="min-w-0">
-                        <div className="font-medium truncate">{u.name}</div>
-                        <div className="text-xs text-muted-foreground truncate">{u.email}</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground">{u.companyName}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <Badge variant={currentCustom ? 'default' : 'secondary'}>{currentLabel}</Badge>
-                      {isOverride && <span className="text-[10px] text-warning">(مخصص)</span>}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <Select value={u.currentRole} onValueChange={(v) => handleAssign(u.id, u.name, v)}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <div className="px-2 py-1.5 text-[10px] uppercase text-muted-foreground font-semibold">أدوار افتراضية</div>
-                        {matrixRoles.map(r => <SelectItem key={r.role} value={r.role}>{r.label}</SelectItem>)}
-                        <SelectItem value="super_admin">مشرف عام</SelectItem>
-                        {custom.length > 0 && (
-                          <>
-                            <div className="px-2 py-1.5 text-[10px] uppercase text-muted-foreground font-semibold border-t mt-1 pt-2">أدوار مخصصة</div>
-                            {custom.filter(c => c.enabled).map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                          </>
-                        )}
-                        {isOverride && (
-                          <>
-                            <div className="border-t mt-1" />
-                            <SelectItem value="__reset__">↺ إعادة للدور الأصلي</SelectItem>
-                          </>
-                        )}
-                      </SelectContent>
-                    </Select>
+      {loading ? (
+        <div className="flex justify-center py-12">
+          <Loader2 className="h-7 w-7 animate-spin text-muted-foreground" />
+        </div>
+      ) : (
+        <Card className="p-0 border-border/60 shadow-soft overflow-hidden">
+          <table dir="rtl" className="w-full text-sm">
+            <thead className="bg-muted/40 text-xs text-muted-foreground">
+              <tr>
+                <th className="text-start px-4 py-2.5 font-semibold">المستخدم</th>
+                <th className="text-start px-4 py-2.5 font-semibold">الشركة</th>
+                <th className="text-start px-4 py-2.5 font-semibold">الدور الحالي</th>
+                <th className="text-start px-4 py-2.5 font-semibold w-72">تغيير الدور</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="text-center text-muted-foreground py-10">
+                    {users.length === 0 ? 'لا توجد بيانات مستخدمين' : 'لا توجد نتائج'}
                   </td>
                 </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </Card>
+              ) : filtered.map((row, idx) => {
+                const currentCustom = custom.find(c => c.id === row.currentRole);
+                const currentLabel = currentCustom?.name ?? roleLabel(row.currentRole);
+                const isBusy = busyId === `${row.userId}:${row.companyId}`;
+                return (
+                  <tr key={`${row.userId}:${row.companyId ?? idx}`} className="border-t border-border/60 hover:bg-muted/20">
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2.5">
+                        <Avatar className="h-9 w-9"><AvatarFallback className="bg-primary text-primary-foreground text-xs">{row.userName[0]}</AvatarFallback></Avatar>
+                        <div className="min-w-0">
+                          <div className="font-medium truncate">{row.userName}</div>
+                          <div className="text-xs text-muted-foreground truncate">{row.userEmail}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground">{row.companyName}</td>
+                    <td className="px-4 py-3">
+                      <Badge variant={currentCustom ? 'default' : 'secondary'}>{currentLabel}</Badge>
+                    </td>
+                    <td className="px-4 py-3">
+                      {row.companyId ? (
+                        <Select
+                          value={row.currentRole}
+                          onValueChange={(v) => handleAssign(row.userId, row.companyId, v)}
+                          disabled={isBusy}
+                        >
+                          <SelectTrigger>
+                            {isBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <SelectValue />}
+                          </SelectTrigger>
+                          <SelectContent>
+                            {matrixRoles.map(r => <SelectItem key={r.role} value={r.role}>{r.label}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">مشرف منصة</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </Card>
+      )}
     </div>
   );
 };

@@ -142,7 +142,7 @@ router.post('/register', async (req, res, next) => {
       const userId = userRes.rows[0].id;
 
       const compRes = await c.query(
-        `INSERT INTO companies (name, email) VALUES ($1,$2) RETURNING id`,
+        `INSERT INTO companies (name, email, is_active, review_status) VALUES ($1,$2,false,'pending') RETURNING id`,
         [body.companyName, body.email],
       );
       const companyId = compRes.rows[0].id;

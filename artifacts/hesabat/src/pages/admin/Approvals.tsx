@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { PageHeader } from '@/components/common/PageHeader';
 import { StatCard } from '@/components/common/StatCard';
 import { Card } from '@/components/ui/card';
@@ -11,12 +11,21 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Check, X, RotateCcw, Trash2, Mail, Phone, Building2, Hourglass, ShieldCheck, ShieldX, Search } from 'lucide-react';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { Check, X, RotateCcw, Trash2, Mail, Phone, Building2, Hourglass, ShieldCheck, ShieldX, Search, Loader2 } from 'lucide-react';
 import { usePendingSignups, type PendingSignup, type SignupStatus } from '@/hooks/usePendingSignups';
-import { plans as mockPlans } from '@/data/mock';
+import { api } from '@/lib/api';
 import { formatCurrency, formatDate } from '@/lib/format';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+
+interface Plan {
+  id: string;
+  name: string;
+  price_monthly: number;
+  price_yearly: number;
+  is_active: boolean;
+}
 
 const statusMeta: Record<SignupStatus, { label: string; tone: string; icon: typeof Hourglass }> = {
   pending: { label: 'بانتظار المراجعة', tone: 'bg-warning/15 text-warning', icon: Hourglass },
@@ -25,21 +34,38 @@ const statusMeta: Record<SignupStatus, { label: string; tone: string; icon: type
 };
 
 const ApproveDialog = ({
-  open, onOpenChange, signup, onConfirm,
+  open, onOpenChange, signup, plans, onConfirm,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   signup: PendingSignup | null;
-  onConfirm: (planId: string, cycle: 'monthly' | 'yearly' | 'trial', trialDays: number) => void;
+  plans: Plan[];
+  onConfirm: (planId: string, cycle: 'monthly' | 'yearly' | 'trial', trialDays: number) => Promise<void>;
 }) => {
-  const [planId, setPlanId] = useState(mockPlans.find(p => p.popular)?.id ?? mockPlans[0]?.id ?? '');
+  const [planId, setPlanId] = useState('');
   const [cycle, setCycle] = useState<'monthly' | 'yearly' | 'trial'>('monthly');
   const [trialDays, setTrialDays] = useState(14);
+  const [busy, setBusy] = useState(false);
 
-  const plan = mockPlans.find(p => p.id === planId);
-  const amount = cycle === 'trial' ? 0 : cycle === 'yearly' ? (plan?.yearlyPrice ?? 0) : (plan?.monthlyPrice ?? 0);
+  useEffect(() => {
+    if (open && plans.length) {
+      setPlanId(plans[0].id);
+    }
+  }, [open, plans]);
+
+  const plan = plans.find(p => p.id === planId);
+  const amount = cycle === 'trial' ? 0
+    : cycle === 'yearly' ? (plan?.price_yearly ?? 0)
+    : (plan?.price_monthly ?? 0);
 
   if (!signup) return null;
+
+  const handleConfirm = async () => {
+    if (!planId) return;
+    setBusy(true);
+    try { await onConfirm(planId, cycle, trialDays); }
+    finally { setBusy(false); }
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -52,11 +78,11 @@ const ApproveDialog = ({
           <div>
             <Label>الباقة</Label>
             <Select value={planId} onValueChange={setPlanId}>
-              <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="mt-1.5"><SelectValue placeholder="اختر الباقة..." /></SelectTrigger>
               <SelectContent>
-                {mockPlans.map(p => (
+                {plans.map(p => (
                   <SelectItem key={p.id} value={p.id}>
-                    {p.name} — {formatCurrency(p.monthlyPrice)} / شهر
+                    {p.name} — {formatCurrency(p.price_monthly)} / شهر
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -92,9 +118,10 @@ const ApproveDialog = ({
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>إلغاء</Button>
-          <Button onClick={() => onConfirm(planId, cycle, trialDays)} disabled={!planId}>
-            <Check className="h-4 w-4 ml-1" /> اعتماد وتفعيل
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>إلغاء</Button>
+          <Button onClick={handleConfirm} disabled={!planId || busy}>
+            {busy ? <Loader2 className="h-4 w-4 ml-1 animate-spin" /> : <Check className="h-4 w-4 ml-1" />}
+            اعتماد وتفعيل
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -108,16 +135,25 @@ const DeclineDialog = ({
   open: boolean;
   onOpenChange: (v: boolean) => void;
   signup: PendingSignup | null;
-  onConfirm: (reason: string) => void;
+  onConfirm: (reason: string) => Promise<void>;
 }) => {
   const [reason, setReason] = useState('');
+  const [busy, setBusy] = useState(false);
+
   if (!signup) return null;
+
+  const handleConfirm = async () => {
+    setBusy(true);
+    try { await onConfirm(reason.trim() || 'بدون سبب محدد'); }
+    finally { setBusy(false); }
+  };
+
   return (
     <Dialog open={open} onOpenChange={(v) => { onOpenChange(v); if (!v) setReason(''); }}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>رفض {signup.companyName}</DialogTitle>
-          <DialogDescription>سبب الرفض سيُسجَّل في سجل التدقيق ويُرسل (لاحقاً) للعميل.</DialogDescription>
+          <DialogDescription>سبب الرفض سيُسجَّل في سجل التدقيق.</DialogDescription>
         </DialogHeader>
         <div>
           <Label>سبب الرفض</Label>
@@ -135,9 +171,10 @@ const DeclineDialog = ({
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>إلغاء</Button>
-          <Button variant="destructive" onClick={() => onConfirm(reason.trim() || 'بدون سبب محدد')}>
-            <X className="h-4 w-4 ml-1" /> رفض
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>إلغاء</Button>
+          <Button variant="destructive" onClick={handleConfirm} disabled={busy}>
+            {busy ? <Loader2 className="h-4 w-4 ml-1 animate-spin" /> : <X className="h-4 w-4 ml-1" />}
+            رفض
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -146,9 +183,10 @@ const DeclineDialog = ({
 };
 
 const SignupCard = ({
-  signup, onApprove, onDecline, onReset, onRemove,
+  signup, plans, onApprove, onDecline, onReset, onRemove,
 }: {
   signup: PendingSignup;
+  plans: Plan[];
   onApprove: (s: PendingSignup) => void;
   onDecline: (s: PendingSignup) => void;
   onReset: (s: PendingSignup) => void;
@@ -156,7 +194,7 @@ const SignupCard = ({
 }) => {
   const meta = statusMeta[signup.status];
   const Icon = meta.icon;
-  const planName = mockPlans.find(p => p.id === signup.planId)?.name;
+  const planName = signup.planName ?? plans.find(p => p.id === signup.planId)?.name;
 
   return (
     <Card dir="rtl" className="p-4 border-border/60 shadow-soft text-start">
@@ -185,7 +223,7 @@ const SignupCard = ({
 
       {signup.status === 'approved' && planName && (
         <div className="rounded-lg bg-success/5 border border-success/20 p-2.5 text-xs mb-3">
-          مُعتمد على باقة <b>{planName}</b> ({signup.cycle === 'yearly' ? 'سنوي' : signup.cycle === 'trial' ? `تجربة ${signup.trialDays} يوماً` : 'شهري'})
+          مُعتمد على باقة <b>{planName}</b>
           {signup.reviewedAt && <span className="text-muted-foreground"> • {formatDate(signup.reviewedAt)}</span>}
         </div>
       )}
@@ -205,16 +243,14 @@ const SignupCard = ({
             <Button size="sm" variant="outline" className="flex-1 text-destructive hover:text-destructive" onClick={() => onDecline(signup)}>
               <X className="h-4 w-4 ml-1" /> رفض
             </Button>
-          </>
-        ) : (
-          <>
-            <Button size="sm" variant="outline" className="flex-1" onClick={() => onReset(signup)}>
-              <RotateCcw className="h-4 w-4 ml-1" /> إعادة للمراجعة
-            </Button>
-            <Button size="sm" variant="ghost" className="text-destructive" onClick={() => onRemove(signup)}>
+            <Button size="sm" variant="ghost" className="text-destructive" title="حذف الطلب نهائياً" onClick={() => onRemove(signup)}>
               <Trash2 className="h-4 w-4" />
             </Button>
           </>
+        ) : (
+          <Button size="sm" variant="outline" className="flex-1" onClick={() => onReset(signup)}>
+            <RotateCcw className="h-4 w-4 ml-1" /> إعادة للمراجعة
+          </Button>
         )}
       </div>
     </Card>
@@ -222,12 +258,26 @@ const SignupCard = ({
 };
 
 const Approvals = () => {
-  const { signups, approve, decline, reset, remove } = usePendingSignups();
+  const { signups, loading, approve, decline, reset, remove } = usePendingSignups();
+  const [plans, setPlans] = useState<Plan[]>([]);
   const [tab, setTab] = useState<SignupStatus | 'all'>('pending');
   const [q, setQ] = useState('');
   const [target, setTarget] = useState<PendingSignup | null>(null);
   const [approveOpen, setApproveOpen] = useState(false);
   const [declineOpen, setDeclineOpen] = useState(false);
+  const [removeOpen, setRemoveOpen] = useState(false);
+  const [removeTarget, setRemoveTarget] = useState<PendingSignup | null>(null);
+  const [removing, setRemoving] = useState(false);
+
+  useEffect(() => {
+    api.get<{ data: Plan[] }>('/api/plans/all')
+      .then(r => setPlans(r.data.filter(p => p.is_active)))
+      .catch(() => {
+        api.get<{ data: Plan[] }>('/api/plans')
+          .then(r => setPlans(r.data))
+          .catch(() => {});
+      });
+  }, []);
 
   const stats = useMemo(() => ({
     pending: signups.filter(s => s.status === 'pending').length,
@@ -245,20 +295,28 @@ const Approvals = () => {
     });
   }, [signups, tab, q]);
 
-  const handleApproveConfirm = (planId: string, cycle: 'monthly' | 'yearly' | 'trial', trialDays: number) => {
+  const handleApproveConfirm = async (planId: string, cycle: 'monthly' | 'yearly' | 'trial', trialDays: number) => {
     if (!target) return;
-    approve(target.id, { planId, cycle, trialDays });
-    toast.success(`تم اعتماد ${target.companyName}`);
-    setApproveOpen(false);
-    setTarget(null);
+    try {
+      await approve(target.id, { planId, cycle, trialDays });
+      toast.success(`تم اعتماد ${target.companyName}`);
+      setApproveOpen(false);
+      setTarget(null);
+    } catch (e) {
+      toast.error((e as Error).message ?? 'فشل الاعتماد');
+    }
   };
 
-  const handleDeclineConfirm = (reason: string) => {
+  const handleDeclineConfirm = async (reason: string) => {
     if (!target) return;
-    decline(target.id, { reason });
-    toast.success('تم رفض الطلب');
-    setDeclineOpen(false);
-    setTarget(null);
+    try {
+      await decline(target.id, { reason });
+      toast.success('تم رفض الطلب');
+      setDeclineOpen(false);
+      setTarget(null);
+    } catch (e) {
+      toast.error((e as Error).message ?? 'فشل الرفض');
+    }
   };
 
   return (
@@ -292,7 +350,11 @@ const Approvals = () => {
         </div>
 
         <TabsContent value={tab}>
-          {filtered.length === 0 ? (
+          {loading ? (
+            <div className="flex justify-center py-16">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : filtered.length === 0 ? (
             <Card className="p-12 text-center border-dashed">
               <Hourglass className="h-10 w-10 mx-auto text-muted-foreground/50 mb-3" />
               <p className="text-muted-foreground">لا توجد طلبات في هذا التبويب.</p>
@@ -303,10 +365,14 @@ const Approvals = () => {
                 <SignupCard
                   key={s.id}
                   signup={s}
+                  plans={plans}
                   onApprove={(x) => { setTarget(x); setApproveOpen(true); }}
                   onDecline={(x) => { setTarget(x); setDeclineOpen(true); }}
-                  onReset={(x) => { reset(x.id); toast.success('أُعيد الطلب للمراجعة'); }}
-                  onRemove={(x) => { remove(x.id); toast.success('تم حذف الطلب'); }}
+                  onReset={async (x) => {
+                    try { await reset(x.id); toast.success('أُعيد الطلب للمراجعة'); }
+                    catch (e) { toast.error((e as Error).message); }
+                  }}
+                  onRemove={(x) => { setRemoveTarget(x); setRemoveOpen(true); }}
                 />
               ))}
             </div>
@@ -314,8 +380,55 @@ const Approvals = () => {
         </TabsContent>
       </Tabs>
 
-      <ApproveDialog open={approveOpen} onOpenChange={(v) => { setApproveOpen(v); if (!v) setTarget(null); }} signup={target} onConfirm={handleApproveConfirm} />
-      <DeclineDialog open={declineOpen} onOpenChange={(v) => { setDeclineOpen(v); if (!v) setTarget(null); }} signup={target} onConfirm={handleDeclineConfirm} />
+      <ApproveDialog
+        open={approveOpen}
+        onOpenChange={(v) => { setApproveOpen(v); if (!v) setTarget(null); }}
+        signup={target}
+        plans={plans}
+        onConfirm={handleApproveConfirm}
+      />
+      <DeclineDialog
+        open={declineOpen}
+        onOpenChange={(v) => { setDeclineOpen(v); if (!v) setTarget(null); }}
+        signup={target}
+        onConfirm={handleDeclineConfirm}
+      />
+
+      <AlertDialog open={removeOpen} onOpenChange={(v) => { setRemoveOpen(v); if (!v) setRemoveTarget(null); }}>
+        <AlertDialogContent dir="rtl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>حذف طلب التسجيل</AlertDialogTitle>
+            <AlertDialogDescription>
+              هل أنت متأكد من حذف طلب شركة <b>{removeTarget?.companyName}</b> نهائياً؟
+              لا يمكن التراجع عن هذا الإجراء.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>إلغاء</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={removing}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={async () => {
+                if (!removeTarget) return;
+                setRemoving(true);
+                try {
+                  await remove(removeTarget.id);
+                  toast.success('تم حذف الطلب');
+                  setRemoveOpen(false);
+                  setRemoveTarget(null);
+                } catch (e) {
+                  toast.error((e as Error).message ?? 'فشل الحذف');
+                } finally {
+                  setRemoving(false);
+                }
+              }}
+            >
+              {removing ? <Loader2 className="h-4 w-4 animate-spin ml-1" /> : null}
+              حذف نهائي
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

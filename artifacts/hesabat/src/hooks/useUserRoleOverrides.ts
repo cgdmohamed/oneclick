@@ -1,46 +1,13 @@
 /**
- * Per-user role assignments made by the super admin (overrides the user's
- * default role coming from mock data). Maps userId -> role identifier where the
- * identifier may be either a built-in Role or a custom-role id.
+ * Thin API action hook for updating a user's company role via the backend.
+ * No local override state — callers manage optimistic UI themselves.
  */
-import { useEffect, useState } from 'react';
-
-const KEY = 'oneclick.user-role-overrides.v1';
-const EVT = 'oneclick-user-role-overrides-change';
-
-type Overrides = Record<string, string>;
-
-const read = (): Overrides => {
-  try {
-    const raw = localStorage.getItem(KEY);
-    return raw ? (JSON.parse(raw) as Overrides) : {};
-  } catch { return {}; }
-};
-
-const write = (next: Overrides) => {
-  try { localStorage.setItem(KEY, JSON.stringify(next)); } catch { /* ignore */ }
-  window.dispatchEvent(new CustomEvent(EVT));
-};
+import { api } from '@/lib/api';
 
 export const useUserRoleOverrides = () => {
-  const [overrides, setOverrides] = useState<Overrides>(() => read());
-
-  useEffect(() => {
-    const sync = () => setOverrides(read());
-    window.addEventListener(EVT, sync);
-    window.addEventListener('storage', sync);
-    return () => {
-      window.removeEventListener(EVT, sync);
-      window.removeEventListener('storage', sync);
-    };
-  }, []);
-
-  const set = (userId: string, role: string) => write({ ...overrides, [userId]: role });
-  const clear = (userId: string) => {
-    const next = { ...overrides };
-    delete next[userId];
-    write(next);
+  const set = async (userId: string, companyId: string, role: string) => {
+    await api.patch(`/api/platform/users/${userId}/role`, { company_id: companyId, role });
   };
 
-  return { overrides, set, clear };
+  return { set };
 };

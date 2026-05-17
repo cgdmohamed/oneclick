@@ -1,10 +1,9 @@
 /**
- * Platform-level (super-admin) endpoints for MANUAL subscription billing.
- * - /wallets      : add / rename / toggle / delete platform wallets
- * - /subscription-payments : record a manual payment from a subscription
- *                             into a wallet, updating wallet balance.
- *
- * Intentionally no Stripe / Paddle here — billing is handled by a human.
+ * Platform-level (super-admin) endpoints.
+ * - /wallets             : add / rename / toggle / delete platform wallets
+ * - /subscription-payments : record a manual payment into a wallet
+ * - /signups             : company registration review (pending / approve / decline)
+ * - /users               : all users across all companies (super-admin view)
  */
 import { Router } from 'express';
 import { z } from 'zod';
@@ -13,6 +12,7 @@ import { requireSuperAdmin } from '../../middleware/rbac.js';
 import { badRequest, notFound } from '../../utils/errors.js';
 import { audit } from '../../utils/audit.js';
 import { adminSettingsRouter } from './settingsRoutes.js';
+import { parsePagination } from '../../utils/pagination.js';
 
 const router = Router();
 router.use(requireSuperAdmin);
@@ -398,6 +398,346 @@ router.post('/system-notifications', async (req, res, next) => {
       });
       res.status(201).json({ data: sn.rows[0] });
     } catch (err) { await c.query('ROLLBACK'); throw err; } finally { c.release(); }
+  } catch (e) { next(e); }
+});
+
+/* ------------------------------------------------------------------ */
+/* ---------------- Platform Custom Roles ---------------------------- */
+/* ------------------------------------------------------------------ */
+
+const customRoleSchema = z.object({
+  name:        z.string().min(1).max(100),
+  description: z.string().max(500).optional().nullable(),
+  permissions: z.array(z.string()).default([]),
+  color:       z.string().max(20).optional().nullable(),
+  scope:       z.enum(['company', 'platform']).default('company'),
+  enabled:     z.boolean().default(true),
+});
+
+router.get('/custom-roles', async (_req, res, next) => {
+  try {
+    const rs = await pool.query(`SELECT * FROM platform_custom_roles ORDER BY created_at DESC`);
+    res.json({ data: rs.rows });
+  } catch (e) { next(e); }
+});
+
+router.post('/custom-roles', async (req, res, next) => {
+  try {
+    const body = customRoleSchema.parse(req.body);
+    const rs = await pool.query(
+      `INSERT INTO platform_custom_roles (name, description, permissions, color, scope, enabled)
+       VALUES ($1,$2,$3::jsonb,$4,$5,$6) RETURNING *`,
+      [body.name, body.description ?? null, JSON.stringify(body.permissions),
+       body.color ?? null, body.scope, body.enabled],
+    );
+    await audit(pool, {
+      companyId: null, userId: req.auth!.userId,
+      action: 'custom_role.create', entity: 'platform_custom_role', entityId: rs.rows[0].id,
+      data: { name: body.name },
+    });
+    res.status(201).json({ data: rs.rows[0] });
+  } catch (e) { next(e); }
+});
+
+router.patch('/custom-roles/:id', async (req, res, next) => {
+  try {
+    const body = customRoleSchema.partial().parse(req.body);
+    const fields = Object.keys(body) as Array<keyof typeof body>;
+    if (!fields.length) return res.json({ data: null });
+    const sets = fields.map((f, i) =>
+      f === 'permissions' ? `permissions = $${i + 1}::jsonb` : `${f} = $${i + 1}`,
+    ).join(', ');
+    const values = fields.map(f =>
+      f === 'permissions' ? JSON.stringify((body as Record<string,unknown>)[f]) : (body as Record<string,unknown>)[f],
+    );
+    const rs = await pool.query(
+      `UPDATE platform_custom_roles SET ${sets}, updated_at = now()
+       WHERE id = $${fields.length + 1} RETURNING *`,
+      [...values, req.params.id],
+    );
+    if (!rs.rowCount) throw notFound();
+    res.json({ data: rs.rows[0] });
+  } catch (e) { next(e); }
+});
+
+router.delete('/custom-roles/:id', async (req, res, next) => {
+  try {
+    const rs = await pool.query(
+      `DELETE FROM platform_custom_roles WHERE id = $1 RETURNING id`, [req.params.id],
+    );
+    if (!rs.rowCount) throw notFound();
+    await audit(pool, {
+      companyId: null, userId: req.auth!.userId,
+      action: 'custom_role.delete', entity: 'platform_custom_role', entityId: req.params.id,
+    });
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
+/* ------------------------------------------------------------------ */
+/* ---------------- Company Signups / Registration Review ------------ */
+/* ------------------------------------------------------------------ */
+
+const SIGNUP_COLS = `
+  c.id, c.name, c.email, c.phone, c.is_active,
+  c.review_status, c.review_notes, c.reviewed_at, c.reviewed_by,
+  (SELECT u.name FROM users u WHERE u.id = c.reviewed_by LIMIT 1) AS reviewed_by_name,
+  c.created_at,
+  (SELECT u.name FROM users u
+   JOIN user_companies uc ON uc.user_id = u.id
+   WHERE uc.company_id = c.id AND uc.is_default = true LIMIT 1) AS owner_name,
+  (SELECT p.name FROM subscriptions s
+   JOIN plans p ON p.id = s.plan_id
+   WHERE s.company_id = c.id ORDER BY s.created_at DESC LIMIT 1) AS plan_name,
+  (SELECT s.plan_id FROM subscriptions s
+   WHERE s.company_id = c.id ORDER BY s.created_at DESC LIMIT 1) AS plan_id,
+  (SELECT s.status FROM subscriptions s
+   WHERE s.company_id = c.id ORDER BY s.created_at DESC LIMIT 1) AS sub_status
+`;
+
+router.get('/signups', async (req, res, next) => {
+  try {
+    const status = (req.query as Record<string, string>).status;
+    const p = parsePagination(req);
+    const params: unknown[] = [];
+    let where = '';
+    if (status) {
+      params.push(status);
+      where = `WHERE c.review_status = $1`;
+    }
+    const totalQ = await pool.query(
+      `SELECT count(*)::int AS count FROM companies c ${where}`,
+      params,
+    );
+    const a = p.applyTo(
+      `SELECT ${SIGNUP_COLS} FROM companies c ${where} ORDER BY c.created_at DESC`,
+      params,
+    );
+    const rs = await pool.query(a.sql, a.params);
+    res.json(p.respond(rs.rows, Number(totalQ.rows[0].count)));
+  } catch (e) { next(e); }
+});
+
+const approveSchema = z.object({
+  plan_id:    z.string().uuid(),
+  cycle:      z.enum(['monthly', 'yearly', 'trial']),
+  trial_days: z.coerce.number().int().min(1).max(365).optional().default(14),
+});
+
+router.patch('/signups/:id/approve', async (req, res, next) => {
+  const client = await pool.connect();
+  try {
+    const body = approveSchema.parse(req.body);
+    await client.query('BEGIN');
+
+    const co = await client.query(
+      `SELECT id FROM companies WHERE id = $1 FOR UPDATE`,
+      [req.params.id],
+    );
+    if (!co.rowCount) { await client.query('ROLLBACK'); throw notFound('Company not found'); }
+
+    const reviewedBy = req.auth!.userId;
+    await client.query(
+      `UPDATE companies
+         SET is_active = true, review_status = 'approved',
+             reviewed_at = now(), reviewed_by = $1, updated_at = now()
+       WHERE id = $2`,
+      [reviewedBy, req.params.id],
+    );
+
+    const daysMap = { monthly: 30, yearly: 365, trial: body.trial_days };
+    const days = daysMap[body.cycle];
+    const subStatus = body.cycle === 'trial' ? 'trialing' : 'active';
+    const expiresAt = new Date(Date.now() + days * 86400 * 1000);
+
+    // Cancel any existing active/trialing subscriptions so re-approvals
+    // don't accumulate duplicate rows.
+    await client.query(
+      `UPDATE subscriptions SET status = 'cancelled', updated_at = now()
+       WHERE company_id = $1 AND status IN ('active', 'trialing')`,
+      [req.params.id],
+    );
+
+    await client.query(
+      `INSERT INTO subscriptions (company_id, plan_id, status, started_at, expires_at)
+       VALUES ($1, $2, $3, now(), $4)`,
+      [req.params.id, body.plan_id, subStatus, expiresAt],
+    );
+
+    await client.query('COMMIT');
+    await audit(pool, {
+      companyId: req.params.id, userId: reviewedBy,
+      action: 'company.approve', entity: 'company', entityId: req.params.id,
+      data: { plan_id: body.plan_id, cycle: body.cycle, trial_days: body.trial_days },
+    });
+
+    const updated = await pool.query(
+      `SELECT ${SIGNUP_COLS} FROM companies c WHERE c.id = $1`,
+      [req.params.id],
+    );
+    res.json({ data: updated.rows[0] });
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    next(e);
+  } finally { client.release(); }
+});
+
+const declineSchema = z.object({
+  reason: z.string().min(1).max(500).optional().default('بدون سبب محدد'),
+});
+
+router.patch('/signups/:id/decline', async (req, res, next) => {
+  try {
+    const body = declineSchema.parse(req.body);
+    const reviewedBy = req.auth!.userId;
+    const rs = await pool.query(
+      `UPDATE companies
+         SET is_active = false, review_status = 'declined',
+             review_notes = $1, reviewed_at = now(), reviewed_by = $2, updated_at = now()
+       WHERE id = $3 RETURNING id`,
+      [body.reason, reviewedBy, req.params.id],
+    );
+    if (!rs.rowCount) throw notFound('Company not found');
+    await audit(pool, {
+      companyId: req.params.id, userId: reviewedBy,
+      action: 'company.decline', entity: 'company', entityId: req.params.id,
+      data: { reason: body.reason },
+    });
+    const updated = await pool.query(
+      `SELECT ${SIGNUP_COLS} FROM companies c WHERE c.id = $1`,
+      [req.params.id],
+    );
+    res.json({ data: updated.rows[0] });
+  } catch (e) { next(e); }
+});
+
+router.patch('/signups/:id/reset', async (req, res, next) => {
+  try {
+    const reviewedBy = req.auth!.userId;
+    const rs = await pool.query(
+      `UPDATE companies
+         SET is_active = false, review_status = 'pending',
+             review_notes = null, reviewed_at = null, reviewed_by = null, updated_at = now()
+       WHERE id = $1 RETURNING id`,
+      [req.params.id],
+    );
+    if (!rs.rowCount) throw notFound('Company not found');
+    await audit(pool, {
+      companyId: req.params.id, userId: reviewedBy,
+      action: 'company.reset_review', entity: 'company', entityId: req.params.id,
+    });
+    const updated = await pool.query(
+      `SELECT ${SIGNUP_COLS} FROM companies c WHERE c.id = $1`,
+      [req.params.id],
+    );
+    res.json({ data: updated.rows[0] });
+  } catch (e) { next(e); }
+});
+
+router.delete('/signups/:id', async (req, res, next) => {
+  try {
+    const company = await pool.query(
+      `SELECT id, review_status FROM companies WHERE id = $1`,
+      [req.params.id],
+    );
+    if (!company.rowCount) throw notFound('Company not found');
+
+    if (company.rows[0].review_status !== 'pending') {
+      throw badRequest('Only pending signups can be removed. Decline the company first.');
+    }
+
+    // Block deletion if the company has any operational data.
+    const hasData = await pool.query(
+      `SELECT EXISTS(SELECT 1 FROM invoices WHERE company_id = $1) AS has_invoices`,
+      [req.params.id],
+    );
+    if (hasData.rows[0].has_invoices) {
+      throw badRequest('This company has existing invoices and cannot be deleted. Decline it instead.');
+    }
+
+    await pool.query(`DELETE FROM companies WHERE id = $1`, [req.params.id]);
+    await audit(pool, {
+      companyId: null, userId: req.auth!.userId,
+      action: 'company.delete', entity: 'company', entityId: req.params.id,
+    });
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
+/* ------------------------------------------------------------------ */
+/* ---------------- Platform-wide Users (super-admin view) ----------- */
+/* ------------------------------------------------------------------ */
+
+router.get('/users', async (req, res, next) => {
+  try {
+    const p = parsePagination(req);
+    const q = (req.query as Record<string, string>).q ?? '';
+    const params: unknown[] = [];
+    let where = '';
+    if (q) {
+      params.push(`%${q.toLowerCase()}%`);
+      where = `WHERE lower(u.name) LIKE $1 OR lower(u.email) LIKE $1`;
+    }
+    const totalQ = await pool.query(
+      `SELECT count(*)::int AS count FROM users u ${where}`,
+      params,
+    );
+    const a = p.applyTo(`
+      SELECT
+        u.id, u.email, u.name, u.is_super_admin, u.created_at,
+        json_agg(
+          json_build_object(
+            'company_id', uc.company_id,
+            'company_name', c.name,
+            'role', COALESCE(
+              (SELECT ur.role FROM user_roles ur
+               WHERE ur.user_id = u.id AND ur.company_id = uc.company_id LIMIT 1),
+              'viewer'
+            )
+          )
+        ) FILTER (WHERE uc.company_id IS NOT NULL) AS companies
+      FROM users u
+      LEFT JOIN user_companies uc ON uc.user_id = u.id
+      LEFT JOIN companies c ON c.id = uc.company_id
+      ${where}
+      GROUP BY u.id
+      ORDER BY u.created_at DESC
+    `, params);
+    const rs = await pool.query(a.sql, a.params);
+    res.json(p.respond(rs.rows, Number(totalQ.rows[0].count)));
+  } catch (e) { next(e); }
+});
+
+const userRoleSchema = z.object({
+  company_id: z.string().uuid(),
+  role: z.enum(['super_admin', 'company_admin', 'accountant', 'sales', 'viewer']),
+});
+
+router.patch('/users/:id/role', async (req, res, next) => {
+  try {
+    const body = userRoleSchema.parse(req.body);
+    const existing = await pool.query(
+      `SELECT id FROM user_companies WHERE user_id = $1 AND company_id = $2`,
+      [req.params.id, body.company_id],
+    );
+    if (!existing.rowCount) throw notFound('User not in this company');
+    await pool.query(
+      `INSERT INTO user_roles (user_id, company_id, role)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (user_id, company_id, role) DO NOTHING`,
+      [req.params.id, body.company_id, body.role],
+    );
+    await pool.query(
+      `DELETE FROM user_roles
+       WHERE user_id = $1 AND company_id = $2 AND role != $3`,
+      [req.params.id, body.company_id, body.role],
+    );
+    await audit(pool, {
+      companyId: body.company_id, userId: req.auth!.userId,
+      action: 'user.role_change', entity: 'user', entityId: req.params.id,
+      data: { role: body.role },
+    });
+    res.json({ ok: true });
   } catch (e) { next(e); }
 });
 

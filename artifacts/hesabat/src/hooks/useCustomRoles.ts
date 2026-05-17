@@ -1,8 +1,10 @@
 /**
- * Custom platform roles created via the role generator.
- * Stored in localStorage so they persist across reloads in the mock environment.
+ * Platform custom roles — fetched from the real backend.
+ * Endpoints: GET/POST/PATCH/DELETE /api/platform/custom-roles
  */
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { api } from '@/lib/api';
+import { isApiConfigured } from '@/lib/api';
 
 export interface CustomRole {
   id: string;
@@ -16,68 +18,83 @@ export interface CustomRole {
   enabled: boolean;
 }
 
-const KEY = 'oneclick.custom-roles.v1';
-const EVT = 'oneclick-custom-roles-change';
+interface ApiRole {
+  id: string;
+  name: string;
+  description: string | null;
+  permissions: string[];
+  color: string | null;
+  scope: 'company' | 'platform';
+  created_at: string;
+  updated_at: string;
+  enabled: boolean;
+}
 
-const seed: CustomRole[] = [
-  {
-    id: 'r-cashier',
-    name: 'كاشير',
-    description: 'دور مخصص للكاشير: إصدار فواتير وتسجيل دفعات فقط.',
-    permissions: ['invoices.view', 'invoices.create', 'payments.view', 'payments.create', 'clients.view', 'products.view'],
-    color: '#3b82f6',
-    scope: 'company',
-    createdAt: new Date(Date.now() - 12 * 86400000).toISOString(),
-    updatedAt: new Date(Date.now() - 12 * 86400000).toISOString(),
-    enabled: true,
-  },
-  {
-    id: 'r-auditor',
-    name: 'مراجع مالي',
-    description: 'اطّلاع كامل على التقارير والفواتير دون أي تعديل.',
-    permissions: ['invoices.view', 'payments.view', 'clients.view', 'products.view', 'accounts.view', 'reports.view', 'reports.export'],
-    color: '#0ea5e9',
-    scope: 'company',
-    createdAt: new Date(Date.now() - 30 * 86400000).toISOString(),
-    updatedAt: new Date(Date.now() - 30 * 86400000).toISOString(),
-    enabled: true,
-  },
-];
-
-const read = (): CustomRole[] => {
-  try {
-    const raw = localStorage.getItem(KEY);
-    return raw ? (JSON.parse(raw) as CustomRole[]) : seed;
-  } catch { return seed; }
-};
-
-const write = (rows: CustomRole[]) => {
-  try { localStorage.setItem(KEY, JSON.stringify(rows)); } catch { /* ignore */ }
-  window.dispatchEvent(new CustomEvent(EVT));
-};
+function mapRole(r: ApiRole): CustomRole {
+  return {
+    id: r.id,
+    name: r.name,
+    description: r.description ?? undefined,
+    permissions: Array.isArray(r.permissions) ? r.permissions : [],
+    color: r.color ?? undefined,
+    scope: r.scope,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+    enabled: r.enabled,
+  };
+}
 
 export const useCustomRoles = () => {
-  const [roles, setRoles] = useState<CustomRole[]>(() => read());
+  const [roles, setRoles] = useState<CustomRole[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    const sync = () => setRoles(read());
-    window.addEventListener(EVT, sync);
-    window.addEventListener('storage', sync);
-    return () => {
-      window.removeEventListener(EVT, sync);
-      window.removeEventListener('storage', sync);
-    };
+  const load = useCallback(async () => {
+    if (!isApiConfigured()) return;
+    setLoading(true);
+    try {
+      const res = await api.get<{ data: ApiRole[] }>('/api/platform/custom-roles');
+      setRoles(res.data.map(mapRole));
+    } catch {
+      /* silently ignore when not super_admin or API unavailable */
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  const upsert = (role: CustomRole) => {
-    const next = roles.some(r => r.id === role.id)
-      ? roles.map(r => (r.id === role.id ? { ...role, updatedAt: new Date().toISOString() } : r))
-      : [{ ...role, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }, ...roles];
-    write(next);
+  useEffect(() => { load(); }, [load]);
+
+  const upsert = async (role: CustomRole) => {
+    const payload = {
+      name: role.name,
+      description: role.description ?? null,
+      permissions: role.permissions,
+      color: role.color ?? null,
+      scope: role.scope,
+      enabled: role.enabled,
+    };
+    const existed = roles.some(r => r.id === role.id);
+    if (existed) {
+      const res = await api.patch<{ data: ApiRole }>(`/api/platform/custom-roles/${role.id}`, payload);
+      setRoles(prev => prev.map(r => r.id === role.id ? mapRole(res.data) : r));
+    } else {
+      const res = await api.post<{ data: ApiRole }>('/api/platform/custom-roles', payload);
+      setRoles(prev => [mapRole(res.data), ...prev]);
+    }
   };
 
-  const remove = (id: string) => write(roles.filter(r => r.id !== id));
-  const toggle = (id: string) => write(roles.map(r => r.id === id ? { ...r, enabled: !r.enabled, updatedAt: new Date().toISOString() } : r));
+  const remove = async (id: string) => {
+    await api.delete(`/api/platform/custom-roles/${id}`);
+    setRoles(prev => prev.filter(r => r.id !== id));
+  };
 
-  return { roles, upsert, remove, toggle };
+  const toggle = async (id: string) => {
+    const role = roles.find(r => r.id === id);
+    if (!role) return;
+    const res = await api.patch<{ data: ApiRole }>(`/api/platform/custom-roles/${id}`, {
+      enabled: !role.enabled,
+    });
+    setRoles(prev => prev.map(r => r.id === id ? mapRole(res.data) : r));
+  };
+
+  return { roles, loading, upsert, remove, toggle };
 };

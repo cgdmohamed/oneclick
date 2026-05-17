@@ -7,7 +7,6 @@ import { BrandLogo } from '@/components/common/BrandLogo';
 import { Link } from 'react-router-dom';
 import { useState } from 'react';
 import { isApiConfigured, registerRequest, ApiError } from '@/lib/api';
-import { submitSignupRequest } from '@/hooks/usePendingSignups';
 import { toast } from 'sonner';
 
 const Register = () => {
@@ -19,7 +18,8 @@ const Register = () => {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.company || !form.owner || !form.email || !form.password) {
-      return toast.error('يرجى تعبئة كل الحقول المطلوبة');
+      toast.error('يرجى تعبئة كل الحقول المطلوبة');
+      return;
     }
     setLoading(true);
     try {
@@ -29,12 +29,6 @@ const Register = () => {
           name: form.owner, companyName: form.company,
         });
       }
-      submitSignupRequest({
-        companyName: form.company,
-        ownerName: form.owner,
-        email: form.email,
-        phone: form.phone,
-      });
       toast.success('تم إرسال طلب تسجيل شركتك للمراجعة');
       setSubmitted(true);
     } catch (err) {
