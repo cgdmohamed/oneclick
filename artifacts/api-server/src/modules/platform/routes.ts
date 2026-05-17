@@ -13,6 +13,8 @@ import { badRequest, notFound } from '../../utils/errors.js';
 import { audit } from '../../utils/audit.js';
 import { adminSettingsRouter } from './settingsRoutes.js';
 import { parsePagination } from '../../utils/pagination.js';
+import { sendEmail } from '../../utils/email.js';
+import { env } from '../../config/env.js';
 
 const router = Router();
 router.use(requireSuperAdmin);
@@ -575,7 +577,30 @@ router.patch('/signups/:id/approve', async (req, res, next) => {
       `SELECT ${SIGNUP_COLS} FROM companies c WHERE c.id = $1`,
       [req.params.id],
     );
-    res.json({ data: updated.rows[0] });
+
+    const approvedCompany = updated.rows[0];
+    if (approvedCompany?.email) {
+      const loginUrl = `${env.APP_URL}/login`;
+      sendEmail({
+        to: approvedCompany.email,
+        subject: 'تمت الموافقة على حسابك في ون كليك',
+        html: `
+          <div dir="rtl" style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;color:#1a1a1a">
+            <h2 style="color:#2563eb;margin-bottom:8px">مرحباً بك في ون كليك!</h2>
+            <p>تمت مراجعة طلب تسجيل شركتك <strong>${approvedCompany.name ?? ''}</strong> والموافقة عليه.</p>
+            <p>يمكنك الآن تسجيل الدخول والبدء في استخدام جميع مميزات المنصة.</p>
+            <p style="margin:32px 0">
+              <a href="${loginUrl}"
+                 style="background:#2563eb;color:#fff;padding:12px 28px;border-radius:6px;text-decoration:none;font-size:16px">
+                تسجيل الدخول
+              </a>
+            </p>
+            <p style="color:#6b7280;font-size:13px">إذا لم تطلب هذا الحساب، يمكنك تجاهل هذه الرسالة.</p>
+          </div>`,
+      }).catch((e: unknown) => console.error('[platform] approval email failed:', (e as Error).message));
+    }
+
+    res.json({ data: approvedCompany });
   } catch (e) {
     await client.query('ROLLBACK').catch(() => {});
     next(e);
@@ -607,7 +632,27 @@ router.patch('/signups/:id/decline', async (req, res, next) => {
       `SELECT ${SIGNUP_COLS} FROM companies c WHERE c.id = $1`,
       [req.params.id],
     );
-    res.json({ data: updated.rows[0] });
+
+    const co = updated.rows[0];
+    if (co?.email) {
+      sendEmail({
+        to: co.email,
+        subject: 'بشأن طلب تسجيلك في ون كليك',
+        html: `
+          <div dir="rtl" style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;color:#1a1a1a">
+            <h2 style="color:#1a1a1a;margin-bottom:8px">بشأن طلب تسجيلك</h2>
+            <p>شكراً لاهتمامك بمنصة ون كليك.</p>
+            <p>بعد مراجعة طلب تسجيل شركتك <strong>${co.name ?? ''}</strong>، نأسف لإبلاغك بأننا لن نتمكن من قبول الطلب في الوقت الحالي.</p>
+            ${body.reason && body.reason !== 'بدون سبب محدد'
+              ? `<p style="background:#f9fafb;border-right:4px solid #e5e7eb;padding:12px 16px;border-radius:4px"><strong>السبب:</strong> ${body.reason}</p>`
+              : ''}
+            <p>إذا كانت لديك أسئلة أو تريد الاستفسار، لا تتردد في التواصل معنا.</p>
+            <p style="color:#6b7280;font-size:13px;margin-top:32px">فريق ون كليك</p>
+          </div>`,
+      }).catch((e: unknown) => console.error('[platform] decline email failed:', (e as Error).message));
+    }
+
+    res.json({ data: co });
   } catch (e) { next(e); }
 });
 
