@@ -9,6 +9,27 @@ Arabic-first multi-tenant SaaS accounting platform. Companies can issue invoices
 - `pnpm --filter @workspace/db run push` — push Drizzle schema changes to the DB (dev only, not for production)
 - Required env: `DATABASE_URL`, `JWT_SECRET`, `JWT_REFRESH_SECRET`, `VITE_API_URL=same-origin`
 
+### SMTP password back-fill (one-time, production)
+
+Any company that saved an SMTP password before encryption was introduced has it stored as plaintext. Run this script once to encrypt all such rows:
+
+```bash
+# 1. Dry-run first — prints what would change, writes nothing
+DRY_RUN=true \
+  DATABASE_URL=<prod_connection_string> \
+  SMTP_ENCRYPTION_KEY=<64-hex-chars> \
+  node artifacts/api-server/scripts/encrypt-smtp-passwords.mjs
+
+# 2. Apply for real
+DATABASE_URL=<prod_connection_string> \
+  SMTP_ENCRYPTION_KEY=<64-hex-chars> \
+  node artifacts/api-server/scripts/encrypt-smtp-passwords.mjs
+```
+
+- The script is idempotent — already-encrypted rows (`enc:v1:` prefix) are skipped automatically.
+- `SMTP_ENCRYPTION_KEY` must be the same 64-hex-char key the server uses so the API can decrypt passwords afterwards.
+- Safe to re-run at any time; running it again after all rows are encrypted is a no-op.
+
 ### Schema migrations (production)
 
 SQL migration files live in `artifacts/api-server/src/db/migrations/` numbered `001_...sql`, `002_...sql`, etc. They are idempotent (`IF NOT EXISTS` / `ADD COLUMN IF NOT EXISTS`) and safe to re-run.

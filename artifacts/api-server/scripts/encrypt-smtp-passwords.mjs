@@ -6,6 +6,10 @@
  * Usage:
  *   DATABASE_URL=<connection_string> SMTP_ENCRYPTION_KEY=<64-hex-chars> \
  *     node artifacts/api-server/scripts/encrypt-smtp-passwords.mjs
+ *
+ * Dry-run (prints what would change, writes nothing):
+ *   DRY_RUN=true DATABASE_URL=<connection_string> SMTP_ENCRYPTION_KEY=<64-hex-chars> \
+ *     node artifacts/api-server/scripts/encrypt-smtp-passwords.mjs
  */
 
 import pg from 'pg';
@@ -15,12 +19,21 @@ const { Pool } = pg;
 
 const ENC_PREFIX = 'enc:v1:';
 const ALGO = 'aes-256-gcm';
+const DRY_RUN = process.env.DRY_RUN === 'true';
 
 function getKey() {
   const keyHex = process.env.SMTP_ENCRYPTION_KEY;
-  if (!keyHex) throw new Error('SMTP_ENCRYPTION_KEY is not set');
+  if (!keyHex) {
+    console.error('ERROR: SMTP_ENCRYPTION_KEY is not set.');
+    console.error('Generate one with:');
+    console.error("  node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\"");
+    process.exit(1);
+  }
   const buf = Buffer.from(keyHex, 'hex');
-  if (buf.length !== 32) throw new Error('SMTP_ENCRYPTION_KEY must be 64 hex characters (32 bytes)');
+  if (buf.length !== 32) {
+    console.error('ERROR: SMTP_ENCRYPTION_KEY must be exactly 64 hex characters (32 bytes).');
+    process.exit(1);
+  }
   return buf;
 }
 
@@ -33,37 +46,64 @@ function encrypt(plaintext, key) {
 }
 
 async function run() {
-  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  if (!process.env.DATABASE_URL) {
+    console.error('ERROR: DATABASE_URL is not set.');
+    process.exit(1);
+  }
 
   const key = getKey();
 
-  const { rows } = await pool.query(
-    `SELECT id, smtp_settings->>'password' AS pwd
-     FROM companies
-     WHERE smtp_settings->>'password' IS NOT NULL`
-  );
-
-  let updated = 0;
-  let skipped = 0;
-
-  for (const row of rows) {
-    if (row.pwd.startsWith(ENC_PREFIX)) {
-      skipped++;
-      continue;
-    }
-    const encrypted = encrypt(row.pwd, key);
-    await pool.query(
-      `UPDATE companies
-       SET smtp_settings = jsonb_set(smtp_settings, '{password}', to_jsonb($1::text)),
-           updated_at = now()
-       WHERE id = $2`,
-      [encrypted, row.id]
-    );
-    updated++;
+  if (DRY_RUN) {
+    console.log('[DRY RUN] No changes will be written to the database.');
   }
 
-  console.log(`Done. Encrypted: ${updated}, already encrypted (skipped): ${skipped}.`);
-  await pool.end();
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+
+  try {
+    const { rows } = await pool.query(
+      `SELECT id, name, smtp_settings->>'password' AS pwd
+       FROM companies
+       WHERE smtp_settings->>'password' IS NOT NULL
+         AND smtp_settings->>'password' <> ''`
+    );
+
+    console.log(`Found ${rows.length} company row(s) with a non-empty SMTP password.\n`);
+
+    let updated = 0;
+    let skipped = 0;
+
+    for (const row of rows) {
+      if (row.pwd.startsWith(ENC_PREFIX)) {
+        console.log(`  SKIP     [${row.id}] ${row.name} — already encrypted`);
+        skipped++;
+        continue;
+      }
+
+      if (DRY_RUN) {
+        console.log(`  WOULD ENCRYPT  [${row.id}] ${row.name}`);
+        updated++;
+        continue;
+      }
+
+      const encrypted = encrypt(row.pwd, key);
+      await pool.query(
+        `UPDATE companies
+         SET smtp_settings = jsonb_set(smtp_settings, '{password}', to_jsonb($1::text)),
+             updated_at = now()
+         WHERE id = $2`,
+        [encrypted, row.id]
+      );
+      console.log(`  ENCRYPTED  [${row.id}] ${row.name}`);
+      updated++;
+    }
+
+    console.log('');
+    console.log('Done.');
+    console.log(`  Plaintext passwords encrypted : ${updated}`);
+    console.log(`  Already encrypted (skipped)  : ${skipped}`);
+  } finally {
+    await pool.end();
+  }
 }
 
 run().catch((err) => {
