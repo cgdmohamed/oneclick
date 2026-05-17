@@ -1,6 +1,7 @@
 import nodemailer, { type Transporter } from 'nodemailer';
 import { env } from '../config/env.js';
 import { enqueueEmail } from './emailQueue.js';
+import { decryptSmtpPassword } from './crypto.js';
 
 let cached: Transporter | null = null;
 
@@ -42,11 +43,15 @@ export function getTransporter(): Transporter | null {
 }
 
 function buildOverrideTransporter(override: SmtpOverride): Transporter {
+  // Decrypt password here — at the last possible moment before use — so the
+  // encrypted form is what travels through the queue and is never written to
+  // logs or the pg-boss job payload in plaintext.
+  const pass = override.password ? decryptSmtpPassword(override.password) : '';
   return nodemailer.createTransport({
     host: override.host,
     port: override.port,
     secure: override.secure,
-    auth: override.username ? { user: override.username, pass: override.password ?? '' } : undefined,
+    auth: override.username ? { user: override.username, pass } : undefined,
   });
 }
 

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { notFound } from '../../utils/errors.js';
 import { requireRole } from '../../middleware/rbac.js';
+import { encryptSmtpPassword, isSmtpPasswordEncrypted } from '../../utils/crypto.js';
 
 const router = Router();
 
@@ -112,16 +113,22 @@ router.put('/smtp-settings', requireRole('company_admin'), async (req, res, next
     };
 
     if (body.password === undefined) {
-      // Password not sent — preserve whatever is already stored
+      // Password not sent — preserve whatever is already stored.
+      // If the stored value is still plaintext (legacy), opportunistically
+      // encrypt it now so it doesn't stay unprotected indefinitely.
       const existing = await t.db.query(
         `SELECT smtp_settings->>'password' AS pwd FROM companies WHERE id = $1`,
         [t.companyId],
       );
-      const existingPwd = existing.rows[0]?.pwd;
-      if (existingPwd) settings.password = existingPwd;
+      const existingPwd = existing.rows[0]?.pwd as string | null | undefined;
+      if (existingPwd) {
+        settings.password = isSmtpPasswordEncrypted(existingPwd)
+          ? existingPwd
+          : encryptSmtpPassword(existingPwd);
+      }
     } else if (body.password !== '') {
-      // Non-empty password supplied — update it
-      settings.password = body.password;
+      // Non-empty password supplied — encrypt before storing
+      settings.password = encryptSmtpPassword(body.password);
     }
     // body.password === '' means explicitly clear — leave settings.password unset
 

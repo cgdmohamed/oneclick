@@ -26,7 +26,12 @@ const schema = z.object({
   SMTP_PASS: z.string().optional(),
   SMTP_FROM: z.string().optional(),
 
+  SMTP_ENCRYPTION_KEY: z.string().regex(/^[0-9a-fA-F]{64}$/, {
+    message: 'SMTP_ENCRYPTION_KEY must be exactly 64 hex characters (32 bytes)',
+  }).optional(),
+
   COOKIE_SAMESITE: z.enum(['lax', 'strict', 'none']).default('lax'),
+
   COOKIE_SECURE: z
     .union([z.literal('true'), z.literal('false')])
     .transform((v) => v === 'true')
@@ -34,5 +39,16 @@ const schema = z.object({
   COOKIE_DOMAIN: z.string().optional(),
 });
 
-export const env = schema.parse(process.env);
+const parsed = schema.parse(process.env);
+
+// Require SMTP_ENCRYPTION_KEY in production so the server fails fast rather
+// than accepting SMTP passwords that can't be safely encrypted at rest.
+if (parsed.NODE_ENV === 'production' && !parsed.SMTP_ENCRYPTION_KEY) {
+  throw new Error(
+    'SMTP_ENCRYPTION_KEY must be set in production (64 hex characters). ' +
+    'Generate one with: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"',
+  );
+}
+
+export const env = parsed;
 export type Env = z.infer<typeof schema>;

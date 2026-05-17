@@ -8,6 +8,7 @@ import { sendEmail } from '../../utils/email.js';
 import { env } from '../../config/env.js';
 import { enforceInvoiceLimit } from '../../middleware/planLimits.js';
 import { parsePagination } from '../../utils/pagination.js';
+
 import { round2 } from '../../utils/money.js';
 
 const router = Router();
@@ -226,6 +227,8 @@ router.post('/:id/send-email', async (req, res, next) => {
           port: Number(smtpSettings.port ?? 587),
           secure: Boolean(smtpSettings.secure),
           username: smtpSettings.username as string | undefined,
+          // Keep encrypted form — email.ts decrypts at send-time so the
+          // plaintext password is never stored in the pg-boss queue payload.
           password: smtpSettings.password as string | undefined,
           fromName: smtpSettings.fromName as string | undefined,
           fromEmail: smtpSettings.fromEmail as string | undefined,
