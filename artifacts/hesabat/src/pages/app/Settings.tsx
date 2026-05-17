@@ -143,7 +143,7 @@ const Settings = () => {
     }
   };
 
-  const [hydrationError, setHydrationError] = useState(false);
+  const [hydrationError, setHydrationError] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   const hasHydrated = useRef(false);
   const isHydrating = useRef(false);
@@ -213,8 +213,13 @@ const Settings = () => {
       } catch (e) {
         hasHydrated.current = true;
         if (e instanceof ApiError && e.status === 404) {
-          setHydrationError(true);
+          const msg = 'لم يُعثر على سجل الشركة. لن يتم حفظ أي تغييرات حتى يتم حل هذه المشكلة.';
+          setHydrationError(msg);
           toast.error('تعذّر تحميل إعدادات الشركة — لم يُعثر على سجل الشركة');
+        } else {
+          const msg = 'تعذّر تحميل إعدادات الشركة — حاول تحديث الصفحة أو تسجيل الدخول من جديد.';
+          setHydrationError(msg);
+          toast.error(msg);
         }
       }
     })();
@@ -330,7 +335,7 @@ const Settings = () => {
       />
       {hydrationError && (
         <div className="mb-4 rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-          تعذّر تحميل إعدادات الشركة — لم يُعثر على سجل الشركة. لن يتم حفظ أي تغييرات حتى يتم حل هذه المشكلة.
+          {hydrationError}
         </div>
       )}
       <Tabs dir="rtl" value={tab} onValueChange={(v) => setSearch({ tab: v }, { replace: true })}>
