@@ -55,7 +55,7 @@ const SystemSettings = () => {
   const [generalLoading, setGeneralLoading] = useState(true);
   const [generalSaving, setGeneralSaving] = useState(false);
 
-  const [contact, setContact] = useState({ email: '', phone: '', address: '' });
+  const [contact, setContact] = useState({ email: '', phone: '', address: '', twitter: '', linkedin: '', whatsapp: '', mapsEmbedUrl: '' });
   const [contactLoading, setContactLoading] = useState(true);
   const [contactSaving, setContactSaving] = useState(false);
 
@@ -96,6 +96,10 @@ const SystemSettings = () => {
             email: json.data.email ?? '',
             phone: json.data.phone ?? '',
             address: json.data.address ?? '',
+            twitter: json.data.twitter ?? '',
+            linkedin: json.data.linkedin ?? '',
+            whatsapp: json.data.whatsapp ?? '',
+            mapsEmbedUrl: json.data.mapsEmbedUrl ?? '',
           });
         }
       } catch {
@@ -311,6 +315,52 @@ const SystemSettings = () => {
               onChange={e => setContact(v => ({ ...v, address: e.target.value }))}
               placeholder="الرياض، المملكة العربية السعودية"
             />
+          </div>
+        </div>
+        <div className="pt-2 border-t border-border/60">
+          <h3 className="text-sm font-medium mb-3">روابط التواصل الاجتماعي (اختيارية)</h3>
+          <div className="grid sm:grid-cols-2 gap-4">
+            <div>
+              <Label>Twitter / X</Label>
+              <Input
+                className="mt-1.5"
+                dir="ltr"
+                value={contact.twitter}
+                onChange={e => setContact(v => ({ ...v, twitter: e.target.value }))}
+                placeholder="https://x.com/yourhandle"
+              />
+            </div>
+            <div>
+              <Label>LinkedIn</Label>
+              <Input
+                className="mt-1.5"
+                dir="ltr"
+                value={contact.linkedin}
+                onChange={e => setContact(v => ({ ...v, linkedin: e.target.value }))}
+                placeholder="https://linkedin.com/company/yourpage"
+              />
+            </div>
+            <div>
+              <Label>WhatsApp</Label>
+              <Input
+                className="mt-1.5"
+                dir="ltr"
+                value={contact.whatsapp}
+                onChange={e => setContact(v => ({ ...v, whatsapp: e.target.value }))}
+                placeholder="+966 50 000 0000 أو رابط wa.me"
+              />
+            </div>
+            <div>
+              <Label>رابط تضمين خريطة Google Maps (اختياري)</Label>
+              <Input
+                className="mt-1.5"
+                dir="ltr"
+                value={contact.mapsEmbedUrl}
+                onChange={e => setContact(v => ({ ...v, mapsEmbedUrl: e.target.value }))}
+                placeholder="https://www.google.com/maps/embed?pb=..."
+              />
+              <p className="text-xs text-muted-foreground mt-1">من Google Maps: مشاركة ← تضمين خريطة ← انسخ رابط src من كود iframe</p>
+            </div>
           </div>
         </div>
         <Button

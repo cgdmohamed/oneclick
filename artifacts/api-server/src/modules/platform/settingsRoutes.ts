@@ -26,6 +26,10 @@ const KEY_DEFAULTS: Record<SettingsKey, Record<string, unknown>> = {
     email: '',
     phone: '',
     address: '',
+    twitter: '',
+    linkedin: '',
+    whatsapp: '',
+    mapsEmbedUrl: '',
   },
   general: {
     appName: 'ون كليك',
