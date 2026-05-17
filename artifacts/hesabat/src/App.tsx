@@ -1,11 +1,11 @@
-import { useSyncExternalStore } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/lib/auth";
-import { getCurrencySymbol, subscribeCurrency } from "@/lib/currency";
+import { getCurrencySymbol, setCurrencySymbol, subscribeCurrency } from "@/lib/currency";
 
 import PublicLayout from "./layouts/PublicLayout";
 import AppLayout from "./layouts/AppLayout";
@@ -68,6 +68,17 @@ const queryClient = new QueryClient();
 const App = () => {
   // Re-render the whole tree when the global currency symbol changes.
   useSyncExternalStore(subscribeCurrency, getCurrencySymbol, getCurrencySymbol);
+
+  // Seed the currency symbol from platform general settings on startup.
+  useEffect(() => {
+    fetch('/api/platform/settings/general')
+      .then(r => r.ok ? r.json() : null)
+      .then(json => {
+        if (json?.data?.currency) setCurrencySymbol(json.data.currency);
+      })
+      .catch(() => {});
+  }, []);
+
   return (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>

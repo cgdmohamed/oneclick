@@ -50,6 +50,33 @@ const SystemSettings = () => {
     currency: getCurrencySymbol(),
     invoicePrefix: 'INV',
   });
+  const [generalLoading, setGeneralLoading] = useState(true);
+  const [generalSaving, setGeneralSaving] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/platform/settings/general');
+        if (!res.ok) throw new Error();
+        const json = await res.json();
+        if (!cancelled && json.data) {
+          setS({
+            appName: json.data.appName ?? 'ون كليك',
+            supportEmail: json.data.supportEmail ?? 'support@oneclick.eg',
+            currency: json.data.currency ?? getCurrencySymbol(),
+            invoicePrefix: json.data.invoicePrefix ?? 'INV',
+          });
+          if (json.data.currency) setCurrencySymbol(json.data.currency);
+        }
+      } catch {
+        // silent — defaults remain
+      } finally {
+        if (!cancelled) setGeneralLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   const onFile = (f: File, key: 'logoFullUrl' | 'logoIconUrl') => {
     if (f.size > 512 * 1024) {
@@ -234,7 +261,28 @@ const SystemSettings = () => {
           </div>
           <div><Label>بادئة الفاتورة</Label><Input className="mt-1.5" value={s.invoicePrefix} onChange={e => setS(v => ({ ...v, invoicePrefix: e.target.value }))} /></div>
         </div>
-        <Button onClick={() => toast.success('تم حفظ الإعدادات')}>حفظ التغييرات</Button>
+        <Button
+          disabled={generalLoading || generalSaving}
+          onClick={async () => {
+            setGeneralSaving(true);
+            try {
+              const res = await fetch('/api/platform/settings/general', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(s),
+              });
+              if (!res.ok) throw new Error();
+              setCurrencySymbol(s.currency);
+              toast.success('تم حفظ الإعدادات');
+            } catch {
+              toast.error('تعذّر حفظ الإعدادات');
+            } finally {
+              setGeneralSaving(false);
+            }
+          }}
+        >
+          {generalSaving ? 'جاري الحفظ…' : 'حفظ التغييرات'}
+        </Button>
       </Card>
     </div>
   );
