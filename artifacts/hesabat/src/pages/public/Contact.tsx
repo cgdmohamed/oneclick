@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -16,9 +16,46 @@ const schema = z.object({
   message: z.string().trim().min(10, 'الرسالة قصيرة جداً').max(1000),
 });
 
+interface ContactSettings {
+  email: string;
+  phone: string;
+  address: string;
+}
+
+const DEFAULTS: ContactSettings = {
+  email: 'support@oneclick.eg',
+  phone: '+2 11 000 0000',
+  address: 'الرياض، المملكة العربية السعودية',
+};
+
 const Contact = () => {
   const [form, setForm] = useState({ name: '', email: '', phone: '', company: '', message: '' });
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [info, setInfo] = useState<ContactSettings | null>(null);
+  const [infoLoading, setInfoLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/platform/settings/contact');
+        if (!res.ok) throw new Error();
+        const json = await res.json();
+        if (!cancelled && json.data) {
+          setInfo({
+            email: json.data.email || DEFAULTS.email,
+            phone: json.data.phone || DEFAULTS.phone,
+            address: json.data.address || DEFAULTS.address,
+          });
+        }
+      } catch {
+        if (!cancelled) setInfo(DEFAULTS);
+      } finally {
+        if (!cancelled) setInfoLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,6 +70,8 @@ const Contact = () => {
     setForm({ name: '', email: '', phone: '', company: '', message: '' });
   };
 
+  const displayed = info ?? DEFAULTS;
+
   return (
     <div className="container py-16">
       <div className="text-center max-w-2xl mx-auto mb-12">
@@ -42,9 +81,19 @@ const Contact = () => {
       </div>
       <div className="grid lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
         <div className="space-y-4">
-          <ContactInfo icon={Mail} label="البريد الإلكتروني" value="support@oneclick.eg" />
-          <ContactInfo icon={Phone} label="الهاتف" value="+2 11 000 0000" />
-          <ContactInfo icon={MapPin} label="العنوان" value="الرياض، المملكة العربية السعودية" />
+          {infoLoading ? (
+            <>
+              <ContactInfoSkeleton />
+              <ContactInfoSkeleton />
+              <ContactInfoSkeleton />
+            </>
+          ) : (
+            <>
+              <ContactInfo icon={Mail} label="البريد الإلكتروني" value={displayed.email} />
+              <ContactInfo icon={Phone} label="الهاتف" value={displayed.phone} />
+              <ContactInfo icon={MapPin} label="العنوان" value={displayed.address} />
+            </>
+          )}
         </div>
         <Card className="lg:col-span-2 p-6 md:p-8 border-border/60 shadow-soft">
           <form onSubmit={submit} className="grid sm:grid-cols-2 gap-4">
@@ -81,6 +130,16 @@ const ContactInfo = ({ icon: Icon, label, value }: any) => (
     <div>
       <div className="text-xs text-muted-foreground">{label}</div>
       <div className="font-semibold mt-0.5">{value}</div>
+    </div>
+  </Card>
+);
+
+const ContactInfoSkeleton = () => (
+  <Card className="p-5 border-border/60 flex gap-3 items-start">
+    <div className="h-10 w-10 rounded-xl bg-muted animate-pulse shrink-0" />
+    <div className="flex-1 space-y-2 pt-1">
+      <div className="h-3 w-16 rounded bg-muted animate-pulse" />
+      <div className="h-4 w-32 rounded bg-muted animate-pulse" />
     </div>
   </Card>
 );

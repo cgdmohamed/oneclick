@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { getCurrencySymbol, setCurrencySymbol } from '@/lib/currency';
@@ -54,6 +55,10 @@ const SystemSettings = () => {
   const [generalLoading, setGeneralLoading] = useState(true);
   const [generalSaving, setGeneralSaving] = useState(false);
 
+  const [contact, setContact] = useState({ email: '', phone: '', address: '' });
+  const [contactLoading, setContactLoading] = useState(true);
+  const [contactSaving, setContactSaving] = useState(false);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -74,6 +79,29 @@ const SystemSettings = () => {
         // silent — defaults remain
       } finally {
         if (!cancelled) setGeneralLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/platform/settings/contact');
+        if (!res.ok) throw new Error();
+        const json = await res.json();
+        if (!cancelled && json.data) {
+          setContact({
+            email: json.data.email ?? '',
+            phone: json.data.phone ?? '',
+            address: json.data.address ?? '',
+          });
+        }
+      } catch {
+        // silent — defaults remain
+      } finally {
+        if (!cancelled) setContactLoading(false);
       }
     })();
     return () => { cancelled = true; };
@@ -244,6 +272,63 @@ const SystemSettings = () => {
             <RotateCcw className="h-4 w-4 ml-2" /> استعادة الافتراضي
           </Button>
         </div>
+      </Card>
+
+      {/* Contact Info */}
+      <Card className="p-6 border-border/60 max-w-3xl space-y-4">
+        <div>
+          <h2 className="text-lg font-semibold">معلومات التواصل</h2>
+          <p className="text-sm text-muted-foreground mt-1">تظهر هذه البيانات في صفحة «تواصل معنا» العامة.</p>
+        </div>
+        <div className="grid sm:grid-cols-2 gap-4">
+          <div>
+            <Label>البريد الإلكتروني</Label>
+            <Input
+              className="mt-1.5"
+              type="email"
+              dir="ltr"
+              value={contact.email}
+              onChange={e => setContact(v => ({ ...v, email: e.target.value }))}
+              placeholder="support@example.com"
+            />
+          </div>
+          <div>
+            <Label>رقم الهاتف</Label>
+            <Input
+              className="mt-1.5"
+              dir="ltr"
+              value={contact.phone}
+              onChange={e => setContact(v => ({ ...v, phone: e.target.value }))}
+              placeholder="+966 11 000 0000"
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <Label>العنوان</Label>
+            <Textarea
+              className="mt-1.5"
+              rows={2}
+              value={contact.address}
+              onChange={e => setContact(v => ({ ...v, address: e.target.value }))}
+              placeholder="الرياض، المملكة العربية السعودية"
+            />
+          </div>
+        </div>
+        <Button
+          disabled={contactLoading || contactSaving}
+          onClick={async () => {
+            setContactSaving(true);
+            try {
+              await api.put('/api/platform/settings/contact', contact);
+              toast.success('تم حفظ معلومات التواصل');
+            } catch {
+              toast.error('تعذّر حفظ معلومات التواصل');
+            } finally {
+              setContactSaving(false);
+            }
+          }}
+        >
+          {contactSaving ? 'جاري الحفظ…' : 'حفظ معلومات التواصل'}
+        </Button>
       </Card>
 
       {/* General */}

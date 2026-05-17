@@ -9,7 +9,7 @@ import { z } from 'zod';
 import { pool } from '../../db/client.js';
 import { audit } from '../../utils/audit.js';
 
-const ALLOWED_KEYS = ['branding', 'landing_content', 'tracking', 'general'] as const;
+const ALLOWED_KEYS = ['branding', 'landing_content', 'tracking', 'general', 'contact'] as const;
 type SettingsKey = typeof ALLOWED_KEYS[number];
 
 const isAllowedKey = (k: string): k is SettingsKey =>
@@ -22,6 +22,11 @@ const isAllowedKey = (k: string): k is SettingsKey =>
  * nested fields on a fresh install.
  */
 const KEY_DEFAULTS: Record<SettingsKey, Record<string, unknown>> = {
+  contact: {
+    email: '',
+    phone: '',
+    address: '',
+  },
   general: {
     appName: 'ون كليك',
     supportEmail: 'support@oneclick.eg',
