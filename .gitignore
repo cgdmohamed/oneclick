@@ -48,3 +48,6 @@ Thumbs.db
 .cache/
 .local/
 attached_assets
+
+# Production secrets — copy env.production.example → env.production and fill in values
+env.production
