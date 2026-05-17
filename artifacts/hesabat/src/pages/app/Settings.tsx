@@ -157,25 +157,43 @@ const Settings = () => {
         const res = await api.get<{ data: Record<string, unknown> }>('/api/companies/me');
         if (cancelled || !res?.data) return;
         const r = res.data as Record<string, string | number | null>;
+
+        // Split stored address (comma-separated: street، district، city، country، postalCode)
+        const rawAddress = (r.address as string) ?? '';
+        const addressParts = rawAddress ? rawAddress.split('، ') : [];
+
         setProfile((p) => ({
           ...p,
           name: (r.name as string) ?? p.name,
-          ownerName: p.ownerName,
+          ownerName: (r.owner_name as string) ?? p.ownerName,
           email: (r.email as string) ?? p.email,
           phone: (r.phone as string) ?? p.phone,
           taxNumber: (r.tax_number as string) ?? p.taxNumber,
           commercialReg: (r.commercial_register as string) ?? p.commercialReg,
+          street: addressParts[0] ?? p.street,
+          district: addressParts[1] ?? p.district,
+          city: addressParts[2] ?? p.city,
+          country: addressParts[3] ?? p.country,
+          postalCode: addressParts[4] ?? p.postalCode,
         }));
         const currencyCode = (r.currency as string) ?? null;
         if (currencyCode) setCompanyCurrencyCode(currencyCode);
+        const storedSymbol = (r.invoice_currency_symbol as string) ?? null;
+        if (storedSymbol) setCurrencySymbol(storedSymbol);
         setInvoiceCfg((c) => ({
           ...c,
           prefix: (r.invoice_prefix as string) ?? c.prefix,
           yearFormat: ((r.invoice_year_format as 'full' | 'short' | 'none') ?? c.yearFormat),
+          sequenceStart: Number(r.invoice_sequence_start ?? c.sequenceStart),
           padding: Number(r.invoice_padding ?? c.padding),
           separator: (r.invoice_separator as string) ?? c.separator,
           currency: currencyCode ?? c.currency,
+          currencySymbol: storedSymbol ?? (currencyCode ? (CURRENCIES.find(x => x.code === currencyCode)?.symbol ?? c.currencySymbol) : c.currencySymbol),
           taxRate: Number(r.vat_rate ?? c.taxRate),
+          template: ((r.invoice_template as InvoiceConfig['template']) ?? c.template),
+          accentColor: (r.invoice_accent_color as string) ?? c.accentColor,
+          terms: r.invoice_terms != null ? (r.invoice_terms as string) : c.terms,
+          footer: r.invoice_footer != null ? (r.invoice_footer as string) : c.footer,
           logoUrl: (r.logo_url as string) ?? c.logoUrl,
           stampUrl: (r.stamp_url as string) ?? c.stampUrl,
         }));
@@ -197,6 +215,7 @@ const Settings = () => {
         try {
           await api.patch('/api/companies/me', {
             name: profile.name,
+            owner_name: profile.ownerName || null,
             email: profile.email || null,
             phone: profile.phone || null,
             tax_number: profile.taxNumber || null,
@@ -204,10 +223,16 @@ const Settings = () => {
             address: [profile.street, profile.district, profile.city, profile.country, profile.postalCode].filter(Boolean).join('، ') || null,
             invoice_prefix: invoiceCfg.prefix,
             invoice_year_format: invoiceCfg.yearFormat,
+            invoice_sequence_start: invoiceCfg.sequenceStart,
             invoice_padding: invoiceCfg.padding,
             invoice_separator: invoiceCfg.separator,
             currency: invoiceCfg.currency,
+            invoice_currency_symbol: invoiceCfg.currencySymbol || null,
             vat_rate: invoiceCfg.taxRate,
+            invoice_template: invoiceCfg.template,
+            invoice_accent_color: invoiceCfg.accentColor,
+            invoice_terms: invoiceCfg.terms || null,
+            invoice_footer: invoiceCfg.footer || null,
             logo_url: invoiceCfg.logoUrl ?? null,
             stamp_url: invoiceCfg.stampUrl ?? null,
           });
@@ -224,7 +249,7 @@ const Settings = () => {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [profile, invoiceCfg, client]);
+  }, [profile, invoiceCfg]);
 
   const fullAddress = [profile.street, profile.district, profile.city, profile.country, profile.postalCode]
     .filter(Boolean)

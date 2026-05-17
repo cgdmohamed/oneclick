@@ -21,6 +21,9 @@ const UPDATABLE = [
   'email', 'phone', 'address', 'logo_url', 'stamp_url',
   'invoice_prefix', 'invoice_year_format', 'invoice_padding',
   'invoice_separator', 'currency', 'vat_rate',
+  'owner_name', 'invoice_template', 'invoice_accent_color',
+  'invoice_terms', 'invoice_footer', 'invoice_currency_symbol',
+  'invoice_sequence_start',
 ] as const;
 
 const updateSchema = z.object({
@@ -39,6 +42,13 @@ const updateSchema = z.object({
   invoice_separator: z.string().max(5).optional(),
   currency: z.string().optional(),
   vat_rate: z.coerce.number().min(0).max(100).optional(),
+  owner_name: z.string().optional().nullable(),
+  invoice_template: z.enum(['modern','classic','minimal']).optional(),
+  invoice_accent_color: z.string().max(20).optional(),
+  invoice_terms: z.string().optional().nullable(),
+  invoice_footer: z.string().optional().nullable(),
+  invoice_currency_symbol: z.string().max(20).optional().nullable(),
+  invoice_sequence_start: z.coerce.number().int().min(1).optional(),
 });
 
 // SEC-06: only company_admin may rewrite tax / numbering / branding data.
