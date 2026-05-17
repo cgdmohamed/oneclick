@@ -6,8 +6,6 @@ import { useNavigate } from 'react-router-dom';
 import { Sparkles, Building2, Users, Package, FileText, Bell, CheckCircle2, ArrowLeft, ArrowRight, Rocket } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 
-const STORAGE_PREFIX = 'hesabat.onboarding.done.';
-
 interface Step {
   key: string;
   icon: typeof Sparkles;
@@ -85,7 +83,7 @@ interface Props {
 }
 
 export const OnboardingWizard = ({ open, onOpenChange }: Props) => {
-  const { user, companyName } = useAuth();
+  const { companyName, markOnboardingDone } = useAuth();
   const navigate = useNavigate();
   const [index, setIndex] = useState(0);
   const steps = useMemo(() => buildSteps(companyName || 'نظامك المحاسبي'), [companyName]);
@@ -99,7 +97,7 @@ export const OnboardingWizard = ({ open, onOpenChange }: Props) => {
   const progress = ((index + 1) / steps.length) * 100;
 
   const finish = () => {
-    if (user?.id) localStorage.setItem(STORAGE_PREFIX + user.id, '1');
+    markOnboardingDone();
     onOpenChange(false);
   };
 
@@ -196,11 +194,4 @@ export const OnboardingWizard = ({ open, onOpenChange }: Props) => {
       </DialogContent>
     </Dialog>
   );
-};
-
-export const onboardingStorageKey = (userId: string) => STORAGE_PREFIX + userId;
-export const isOnboardingDone = (userId: string) =>
-  typeof window !== 'undefined' && localStorage.getItem(STORAGE_PREFIX + userId) === '1';
-export const resetOnboarding = (userId: string) => {
-  if (typeof window !== 'undefined') localStorage.removeItem(STORAGE_PREFIX + userId);
 };

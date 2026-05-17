@@ -10,6 +10,14 @@ import { parsePagination } from '../../utils/pagination.js';
 
 const router = Router();
 
+router.post('/me/onboarding-done', async (req, res, next) => {
+  try {
+    const userId = req.auth!.userId;
+    await pool.query(`UPDATE users SET onboarding_done = true WHERE id = $1`, [userId]);
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
 router.get('/', requireRole('company_admin'), async (req, res, next) => {
   try {
     const t = req.tenant!;

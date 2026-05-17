@@ -346,7 +346,7 @@ router.post('/logout', requireCsrf, async (req, res, next) => {
 router.get('/me', requireAuth, async (req, res, next) => {
   try {
     const userId = req.auth!.userId;
-    const u = await pool.query(`SELECT id, email, name, is_super_admin FROM users WHERE id = $1`, [userId]);
+    const u = await pool.query(`SELECT id, email, name, is_super_admin, onboarding_done FROM users WHERE id = $1`, [userId]);
     if (!u.rowCount) throw unauthorized();
     const comps = await pool.query(
       `SELECT c.id, c.name, uc.is_default FROM user_companies uc JOIN companies c ON c.id = uc.company_id WHERE uc.user_id = $1`,

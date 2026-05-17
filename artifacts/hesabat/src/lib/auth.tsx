@@ -1,13 +1,16 @@
-import { createContext, useContext, useEffect, useMemo, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState, useCallback, ReactNode } from 'react';
 import type { Role, User } from '@/types';
 import { users, companies } from '@/data/mock';
 import {
   isApiConfigured, getAccessToken, setAccessToken, setRefreshToken,
   setActiveCompanyId, api,
 } from '@/lib/api';
+import { setCompanyCurrencyCode } from '@/lib/currency';
 
 interface AuthState {
   user: User | null;
+  onboardingDone: boolean;
+  markOnboardingDone: () => Promise<void>;
   login: (email: string, password?: string) => boolean;
   logout: () => void;
   setRole: (role: Role) => void;
@@ -18,7 +21,7 @@ const AuthContext = createContext<AuthState | null>(null);
 const KEY = 'hesabat.auth';
 
 interface MeResponse {
-  user: { id: string; email: string; name: string; is_super_admin: boolean };
+  user: { id: string; email: string; name: string; is_super_admin: boolean; onboarding_done: boolean };
   companies: { id: string; name: string; is_default: boolean }[];
   roles: { role: Role; company_id: string | null }[];
 }
@@ -29,13 +32,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const raw = localStorage.getItem(KEY);
       const cached = raw ? (JSON.parse(raw) as User) : null;
       if (cached && !cached.companyId && cached.role !== 'super_admin') {
-        // Heal old cached users that were saved before companyId was tracked.
         const match = users.find(u => u.email.toLowerCase() === cached.email.toLowerCase());
         if (match?.companyId) return { ...cached, companyId: match.companyId };
       }
       return cached;
     } catch { return null; }
   });
+  const [onboardingDone, setOnboardingDone] = useState(false);
   const [apiCompanyName, setApiCompanyName] = useState<string | null>(null);
 
   useEffect(() => {
@@ -43,7 +46,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     else localStorage.removeItem(KEY);
   }, [user]);
 
-  // When API mode is on AND we have a token, hydrate from /api/auth/me
   useEffect(() => {
     let cancelled = false;
     if (!isApiConfigured() || !getAccessToken()) return;
@@ -63,9 +65,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           role,
           companyId: defaultCompany?.id,
         });
+        setOnboardingDone(!!me.user.onboarding_done);
         setApiCompanyName(defaultCompany?.name ?? null);
+
+        if (defaultCompany?.id) {
+          try {
+            const co = await api.get<{ data: { currency?: string } }>('/api/companies/me');
+            if (!cancelled && co?.data?.currency) {
+              setCompanyCurrencyCode(co.data.currency);
+            }
+          } catch { /* ignore — currency stays at default */ }
+        }
       } catch {
-        // token invalid — clear
         setAccessToken(null);
         setRefreshToken(null);
       }
@@ -73,13 +84,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return () => { cancelled = true; };
   }, []);
 
+  const markOnboardingDone = useCallback(async () => {
+    setOnboardingDone(true);
+    if (isApiConfigured()) {
+      try {
+        await api.post('/api/users/me/onboarding-done', {});
+      } catch { /* best-effort */ }
+    }
+  }, []);
+
   const value = useMemo<AuthState>(() => ({
     user,
+    onboardingDone,
+    markOnboardingDone,
     login: (email: string, password?: string) => {
-      // SEC-03: Mock-mode auto-login is DISABLED whenever a real backend is
-      // configured (i.e. in any deployed/preview environment). The legacy
-      // mock path only runs in pure local dev with no VITE_API_BASE_URL set,
-      // and even then refuses super_admin and empty passwords.
       if (isApiConfigured()) return false;
       if (import.meta.env.PROD) return false;
       if (!email || !password) return false;
@@ -90,6 +108,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     },
     logout: () => {
       setUser(null);
+      setOnboardingDone(false);
       if (isApiConfigured()) {
         setAccessToken(null);
         setRefreshToken(null);
@@ -104,9 +123,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (apiCompanyName) return apiCompanyName;
       if (!user) return '';
       if (user.role === 'super_admin') return 'منصة ون كليك';
-      // Try by companyId first
       let companyId = user.companyId;
-      // Fallback: resolve via email match in mock users
       if (!companyId) {
         const match = users.find(u => u.email.toLowerCase() === user.email.toLowerCase());
         companyId = match?.companyId;
@@ -114,7 +131,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const co = companyId ? companies.find(c => c.id === companyId) : null;
       return co?.name ?? 'شركتي';
     })(),
-  }), [user, apiCompanyName]);
+  }), [user, onboardingDone, markOnboardingDone, apiCompanyName]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

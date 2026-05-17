@@ -5,6 +5,22 @@ import { parsePagination } from '../../utils/pagination.js';
 
 const router = Router();
 
+router.get('/features', async (req, res, next) => {
+  try {
+    const t = req.tenant!;
+    const rs = await t.db.query(`
+      SELECT fa.feature_key
+      FROM subscriptions s
+      JOIN feature_access fa ON fa.plan_id = s.plan_id
+      WHERE s.company_id = $1
+        AND s.status IN ('active', 'trialing')
+        AND fa.enabled = true
+      ORDER BY s.created_at DESC
+    `, [t.companyId]);
+    res.json({ data: rs.rows.map((r: { feature_key: string }) => r.feature_key) });
+  } catch (e) { next(e); }
+});
+
 router.get('/me', async (req, res, next) => {
   try {
     const t = req.tenant!;

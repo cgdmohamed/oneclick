@@ -14,7 +14,7 @@ import { useEffect, useState } from 'react';
 import { useUnreadNotificationsCount } from '@/hooks/useNotificationsAlerts';
 
 import { useCurrentFeatureSet } from '@/hooks/usePlanAccess';
-import { OnboardingWizard, isOnboardingDone, resetOnboarding } from '@/components/common/OnboardingWizard';
+import { OnboardingWizard } from '@/components/common/OnboardingWizard';
 import { Sparkles } from 'lucide-react';
 
 const companyNav: { to: string; label: string; icon: typeof LayoutDashboard; end?: boolean; feature?: string }[] = [
@@ -98,7 +98,7 @@ const PendingBadge = () => {
 const AppShellInner = ({ kind }: { kind: 'company' | 'admin' }) => {
   const { state } = useSidebar();
   const collapsed = state === 'collapsed';
-  const { user, logout, companyName } = useAuth();
+  const { user, logout, companyName, onboardingDone } = useAuth();
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const featureSet = useCurrentFeatureSet();
@@ -107,11 +107,11 @@ const AppShellInner = ({ kind }: { kind: 'company' | 'admin' }) => {
 
   useEffect(() => {
     if (kind !== 'company' || !user?.id) return;
-    if (!isOnboardingDone(user.id)) {
+    if (!onboardingDone) {
       const t = setTimeout(() => setOnboardingOpen(true), 600);
       return () => clearTimeout(t);
     }
-  }, [kind, user?.id]);
+  }, [kind, user?.id, onboardingDone]);
 
   const nav = kind === 'admin'
     ? adminNav
@@ -228,7 +228,7 @@ const AppShellInner = ({ kind }: { kind: 'company' | 'admin' }) => {
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => navigate('/app/settings')}>الإعدادات</DropdownMenuItem>
               {kind === 'company' && (
-                <DropdownMenuItem onClick={() => { if (user?.id) resetOnboarding(user.id); setOnboardingOpen(true); }}>
+                <DropdownMenuItem onClick={() => setOnboardingOpen(true)}>
                   <Sparkles className="h-4 w-4 ml-2" />
                   إعادة الجولة التعريفية
                 </DropdownMenuItem>

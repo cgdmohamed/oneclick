@@ -15,7 +15,7 @@ import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import { toast } from 'sonner';
 import { api, isApiConfigured, resolveAssetUrl } from '@/lib/api';
-import { setCurrencySymbol, getCurrencySymbol } from '@/lib/currency';
+import { setCurrencySymbol, getCurrencySymbol, setCompanyCurrencyCode } from '@/lib/currency';
 import { InvoiceAlertsSettingsPanel } from '@/components/common/InvoiceAlertsSettings';
 
 interface CompanyProfile {
@@ -166,13 +166,15 @@ const Settings = () => {
           taxNumber: (r.tax_number as string) ?? p.taxNumber,
           commercialReg: (r.commercial_register as string) ?? p.commercialReg,
         }));
+        const currencyCode = (r.currency as string) ?? null;
+        if (currencyCode) setCompanyCurrencyCode(currencyCode);
         setInvoiceCfg((c) => ({
           ...c,
           prefix: (r.invoice_prefix as string) ?? c.prefix,
           yearFormat: ((r.invoice_year_format as 'full' | 'short' | 'none') ?? c.yearFormat),
           padding: Number(r.invoice_padding ?? c.padding),
           separator: (r.invoice_separator as string) ?? c.separator,
-          currency: (r.currency as string) ?? c.currency,
+          currency: currencyCode ?? c.currency,
           taxRate: Number(r.vat_rate ?? c.taxRate),
           logoUrl: (r.logo_url as string) ?? c.logoUrl,
           stampUrl: (r.stamp_url as string) ?? c.stampUrl,
