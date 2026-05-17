@@ -162,9 +162,7 @@ export async function logoutRequest() {
 }
 
 export async function registerRequest(input: { email: string; password: string; name: string; companyName: string }) {
-  const res = await api.post<LoginResponse>('/api/auth/register', input);
-  setAccessToken(res.access_token);
-  if (res.company?.id) setActiveCompanyId(res.company.id);
+  const res = await api.post<{ ok: boolean; pendingReview?: boolean }>('/api/auth/register', input);
   return res;
 }
 

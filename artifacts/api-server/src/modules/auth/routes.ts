@@ -6,7 +6,7 @@ import { z } from 'zod';
 import type { PoolClient } from 'pg';
 import { pool } from '../../db/client.js';
 import { env } from '../../config/env.js';
-import { badRequest, unauthorized } from '../../utils/errors.js';
+import { badRequest, unauthorized, forbidden } from '../../utils/errors.js';
 import { requireAuth } from '../../middleware/auth.js';
 import { sendEmail } from '../../utils/email.js';
 import { audit } from '../../utils/audit.js';
@@ -158,8 +158,6 @@ router.post('/register', async (req, res, next) => {
 
       await c.query('COMMIT');
 
-      const access = signAccess(userId);
-      const refresh = await issueRefreshToken(pool, userId, req);
       await audit(pool, {
         companyId, userId,
         action: 'auth.register', entity: 'user', entityId: userId,
@@ -167,13 +165,8 @@ router.post('/register', async (req, res, next) => {
       });
       // SEC-08: fire-and-forget verification email; failure must not block signup.
       sendVerificationEmail(userId, body.email).catch(() => { /* logged by email util */ });
-      setRefreshCookie(res, refresh);
-      setCsrfCookie(res);
-      res.json({
-        access_token: access,
-        user: { id: userId, email: body.email, name: body.name },
-        company: { id: companyId, name: body.companyName },
-      });
+      // Company is pending admin approval — do not issue tokens yet.
+      res.json({ ok: true, pendingReview: true });
     } catch (e) {
       await c.query('ROLLBACK');
       throw e;
@@ -194,14 +187,26 @@ router.post('/login', async (req, res, next) => {
     noteSuccess(body.email);
 
     const userId = u.rows[0].id;
+
+    const comp = await pool.query(
+      `SELECT c.id, c.name, c.is_active, c.review_status
+         FROM user_companies uc JOIN companies c ON c.id = uc.company_id
+        WHERE uc.user_id = $1 ORDER BY uc.is_default DESC LIMIT 1`,
+      [userId],
+    );
+
+    // Block login before issuing any tokens if the company is not yet approved.
+    if (comp.rows[0] && !comp.rows[0].is_active) {
+      const reviewStatus: string = comp.rows[0].review_status ?? 'pending';
+      if (reviewStatus === 'pending') {
+        throw forbidden('حسابك قيد المراجعة. سنُبلغك فور اعتماده من فريق ون كليك.');
+      }
+      throw forbidden('تم تعليق حسابك. يرجى التواصل مع الدعم الفني.');
+    }
+
     const access = signAccess(userId);
     const refresh = await issueRefreshToken(pool, userId, req);
 
-    const comp = await pool.query(
-      `SELECT c.id, c.name FROM user_companies uc JOIN companies c ON c.id = uc.company_id
-       WHERE uc.user_id = $1 ORDER BY uc.is_default DESC LIMIT 1`,
-      [userId],
-    );
     const roles = await pool.query(
       `SELECT role, company_id FROM user_roles WHERE user_id = $1`, [userId],
     );
