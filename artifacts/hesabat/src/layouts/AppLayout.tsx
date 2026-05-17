@@ -266,21 +266,22 @@ const DEMO_AUTO_LOGIN =
   import.meta.env.DEV && import.meta.env.VITE_DEMO_MODE === '1';
 
 const AppLayout = ({ kind = 'company' as 'company' | 'admin' }) => {
-  const { user, login, pendingApproval } = useAuth();
+  const { user, authLoading, login, pendingApproval } = useAuth();
   const navigate = useNavigate();
   useEffect(() => {
+    if (authLoading) return;
     if (user || pendingApproval) return;
     if (DEMO_AUTO_LOGIN) {
       login(kind === 'admin' ? 'owner@oneclick.eg' : 'admin@alofok.eg');
     } else {
       navigate('/login', { replace: true });
     }
-  }, [user, pendingApproval, login, kind, navigate]);
+  }, [authLoading, user, pendingApproval, login, kind, navigate]);
   useEffect(() => {
     if (user && kind === 'admin' && user.role !== 'super_admin') navigate('/app');
   }, [user, kind, navigate]);
   if (pendingApproval) return <PendingApproval />;
-  if (!user) return null;
+  if (authLoading || !user) return null;
   return (
     <SidebarProvider defaultOpen>
       <AppShellInner kind={kind} />

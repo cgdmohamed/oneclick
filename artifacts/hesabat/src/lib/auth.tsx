@@ -9,6 +9,7 @@ import { setCompanyCurrencyCode } from '@/lib/currency';
 
 interface AuthState {
   user: User | null;
+  authLoading: boolean;
   onboardingDone: boolean;
   pendingApproval: boolean;
   markOnboardingDone: () => Promise<void>;
@@ -39,6 +40,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       return cached;
     } catch { return null; }
   });
+  const [authLoading, setAuthLoading] = useState(() => !!(isApiConfigured() && getAccessToken()));
   const [onboardingDone, setOnboardingDone] = useState(false);
   const [pendingApproval, setPendingApproval] = useState(false);
   const [apiCompanyName, setApiCompanyName] = useState<string | null>(null);
@@ -93,6 +95,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           setAccessToken(null);
           setRefreshToken(null);
         }
+      } finally {
+        if (!cancelled) setAuthLoading(false);
       }
     })();
     return () => { cancelled = true; };
@@ -109,6 +113,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const value = useMemo<AuthState>(() => ({
     user,
+    authLoading,
     onboardingDone,
     pendingApproval,
     markOnboardingDone,
@@ -147,7 +152,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const co = companyId ? companies.find(c => c.id === companyId) : null;
       return co?.name ?? 'شركتي';
     })(),
-  }), [user, onboardingDone, pendingApproval, markOnboardingDone, apiCompanyName]);
+  }), [user, authLoading, onboardingDone, pendingApproval, markOnboardingDone, apiCompanyName]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
