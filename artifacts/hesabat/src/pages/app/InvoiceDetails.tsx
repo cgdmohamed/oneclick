@@ -120,6 +120,7 @@ const InvoiceDetails = () => {
         await qc.invalidateQueries({ queryKey: ['invoice', invoice.id] });
         await qc.invalidateQueries({ queryKey: ['invoices'] });
         await qc.invalidateQueries({ queryKey: ['payments'] });
+        await qc.invalidateQueries({ queryKey: ['reports-overview'] });
         toast.success('تم تسجيل الدفعة');
         setOpen(false);
       } catch (e) {

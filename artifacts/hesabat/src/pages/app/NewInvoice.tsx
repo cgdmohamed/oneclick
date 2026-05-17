@@ -13,11 +13,13 @@ import { InvoiceSummary } from '@/components/common/InvoiceSummary';
 import { useClients, useProducts } from '@/hooks/entities';
 import { api, ApiError, isApiConfigured } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface Item { id: string; name: string; quantity: number; unitPrice: number; productId?: string }
 
 const NewInvoice = () => {
   const navigate = useNavigate();
+  const qc = useQueryClient();
   const { list: clients } = useClients();
   const { list: products } = useProducts();
   const { user } = useAuth();
@@ -65,6 +67,8 @@ const NewInvoice = () => {
           })),
         };
         const res = await api.post<{ data: { id: string } }>('/api/invoices', body);
+        qc.invalidateQueries({ queryKey: ['invoices'] });
+        qc.invalidateQueries({ queryKey: ['reports-overview'] });
         toast.success('تم حفظ الفاتورة');
         navigate(`/app/invoices/${res.data.id}`);
       } else {
