@@ -215,7 +215,7 @@ const AppShellInner = ({ kind }: { kind: 'company' | 'admin' }) => {
               <DropdownMenuLabel>{user?.email}</DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => navigate(kind === 'admin' ? '/admin/settings/account' : '/app/settings/account')}>
-                <UserCog className="h-4 w-4 ml-2" />
+                <UserCog className="h-4 w-4 mr-2" />
                 الحساب الشخصي
               </DropdownMenuItem>
               {kind === 'company' && (
@@ -223,7 +223,7 @@ const AppShellInner = ({ kind }: { kind: 'company' | 'admin' }) => {
               )}
               {kind === 'company' && (
                 <DropdownMenuItem onClick={() => setOnboardingOpen(true)}>
-                  <Sparkles className="h-4 w-4 ml-2" />
+                  <Sparkles className="h-4 w-4 mr-2" />
                   إعادة الجولة التعريفية
                 </DropdownMenuItem>
               )}

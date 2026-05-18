@@ -165,16 +165,6 @@ export const OnboardingWizard = ({ open, onOpenChange }: Props) => {
         </div>
 
         <DialogFooter className="px-6 py-4 border-t border-border/60 bg-muted/20 flex-row justify-between gap-2 sm:justify-between">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setIndex((i) => Math.max(0, i - 1))}
-            disabled={isFirst}
-            className="gap-1"
-          >
-            <ArrowRight className="h-4 w-4" />
-            السابق
-          </Button>
           {isLast ? (
             <Button size="sm" onClick={finish} className="gap-1.5">
               <Rocket className="h-4 w-4" />
@@ -190,6 +180,16 @@ export const OnboardingWizard = ({ open, onOpenChange }: Props) => {
               <ArrowLeft className="h-4 w-4" />
             </Button>
           )}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setIndex((i) => Math.max(0, i - 1))}
+            disabled={isFirst}
+            className="gap-1"
+          >
+            <ArrowRight className="h-4 w-4" />
+            السابق
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
