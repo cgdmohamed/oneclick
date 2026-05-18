@@ -43,6 +43,7 @@ const KEY_DEFAULTS: Record<SettingsKey, Record<string, unknown>> = {
     tagline: 'منصة محاسبة سحابية',
     logoFullUrl: '',
     logoIconUrl: '',
+    primaryColor: '#2563eb',
     fontFamily: "'Cairo', 'Tajawal', 'Inter', system-ui, sans-serif",
     fontWeight: 'font-extrabold',
     tracking: 'tracking-tight',
