@@ -5,6 +5,7 @@ const schema = z.object({
   name: z.string().min(1),
   email: z.string().email().optional().nullable(),
   phone: z.string().optional().nullable(),
+  whatsapp: z.string().optional().nullable(),
   tax_number: z.string().optional().nullable(),
   address: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
@@ -13,7 +14,7 @@ const schema = z.object({
 
 export default crudRouter({
   table: 'clients',
-  fields: ['name','email','phone','tax_number','address','notes','currency'],
+  fields: ['name','email','phone','whatsapp','tax_number','address','notes','currency'],
   schema,
   patchSchema: schema.partial(),
   list: { orderBy: 'created_at DESC' },
