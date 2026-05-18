@@ -300,11 +300,12 @@ router.post('/login', async (req, res, next) => {
   try {
     const body = loginSchema.parse(req.body);
     checkLock(body.email); // SEC-07
-    const u = await pool.query(`SELECT id, password_hash, name, is_super_admin, email_verified_at FROM users WHERE email = $1`, [body.email]);
+    const u = await pool.query(`SELECT id, password_hash, name, is_super_admin, email_verified_at, disabled FROM users WHERE email = $1`, [body.email]);
     if (!u.rowCount) { noteFailure(body.email); throw unauthorized('Invalid credentials'); }
     const ok = await bcrypt.compare(body.password, u.rows[0].password_hash);
     if (!ok) { noteFailure(body.email); throw unauthorized('Invalid credentials'); }
     noteSuccess(body.email);
+    if (u.rows[0].disabled) throw forbidden('تم تعطيل حسابك. يرجى التواصل مع مدير الشركة.');
 
     const userId = u.rows[0].id;
 
@@ -436,6 +437,21 @@ router.post('/refresh', requireCsrf, async (req, res, next) => {
         await c.query('ROLLBACK');
         logger.warn({ refresh_401_reason: 'expired', userId: payload.sub, ip: req.ip }, 'refresh token expired');
         throw unauthorized('Refresh token expired');
+      }
+
+      // Guard: reject if user has been disabled since the token was issued
+      const userCheck = await c.query<{ disabled: boolean }>(
+        `SELECT disabled FROM users WHERE id = $1`, [payload.sub],
+      );
+      if (!userCheck.rowCount || userCheck.rows[0].disabled) {
+        await c.query(
+          `UPDATE refresh_tokens SET revoked_at = now()
+            WHERE family_id = $1 AND revoked_at IS NULL`,
+          [r.family_id],
+        );
+        await c.query('COMMIT');
+        clearRefreshCookie(res);
+        throw unauthorized('تم تعطيل حسابك. يرجى التواصل مع مدير الشركة.');
       }
 
       // Rotate: issue a new token in the same family, mark old as replaced+revoked

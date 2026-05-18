@@ -27,6 +27,7 @@ export const users = pgTable('users', {
   name: varchar('name', { length: 120 }).notNull(),
   isSuperAdmin: boolean('is_super_admin').notNull().default(false),
   onboardingDone: boolean('onboarding_done').notNull().default(false),
+  disabled: boolean('disabled').notNull().default(false),
   emailVerifiedAt: timestamp('email_verified_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

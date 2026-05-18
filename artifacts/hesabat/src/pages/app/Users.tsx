@@ -84,8 +84,10 @@ const Users = () => {
         await api.patch(`/api/users/${u.id}/status`, { disabled: next.disabled });
         qc.invalidateQueries({ queryKey: ['users'] });
         toast.success(next.disabled ? 'تم تعطيل الحساب' : 'تم تفعيل الحساب');
-        return;
-      } catch { /* fall through */ }
+      } catch (e) {
+        toast.error(e instanceof ApiError ? e.message : 'تعذّر تغيير حالة الحساب');
+      }
+      return;
     }
     await save(next);
     toast.success(next.disabled ? 'تم تعطيل الحساب' : 'تم تفعيل الحساب');

@@ -27,7 +27,7 @@ router.get('/', requireRole('company_admin'), async (req, res, next) => {
       [t.companyId],
     );
     const a = p.applyTo(`
-      SELECT u.id, u.email, u.name, u.created_at, array_agg(ur.role) AS roles
+      SELECT u.id, u.email, u.name, u.disabled, u.created_at, array_agg(ur.role) AS roles
       FROM user_companies uc
       JOIN users u ON u.id = uc.user_id
       LEFT JOIN user_roles ur ON ur.user_id = u.id AND ur.company_id = uc.company_id
@@ -84,6 +84,39 @@ router.post('/', requireRole('company_admin'), enforceUserLimit(), async (req, r
       });
       res.status(201).json({ data: { id: userId, email: body.email, name: body.name, role: body.role } });
     } catch (e) { try { await c.query('ROLLBACK'); } catch { /* ignore */ } throw e; } finally { c.release(); }
+  } catch (e) { next(e); }
+});
+
+const statusSchema = z.object({ disabled: z.boolean() });
+
+router.patch('/:id/status', requireRole('company_admin'), async (req, res, next) => {
+  try {
+    const t = req.tenant!;
+    const { id } = req.params;
+    if (id === req.auth!.userId) throw badRequest('Cannot disable yourself');
+    const body = statusSchema.parse(req.body);
+
+    const membership = await t.db.query(
+      `SELECT 1 FROM user_companies WHERE user_id = $1 AND company_id = $2`,
+      [id, t.companyId],
+    );
+    if (!membership.rowCount) throw badRequest('User not found in this company');
+
+    const updated = await pool.query(
+      `UPDATE users SET disabled = $1, updated_at = now() WHERE id = $2
+       RETURNING id, email, name, disabled`,
+      [body.disabled, id],
+    );
+    if (!updated.rowCount) throw badRequest('User not found');
+
+    await audit(t.db, {
+      companyId: t.companyId, userId: req.auth!.userId,
+      action: body.disabled ? 'user.disable' : 'user.enable',
+      entity: 'user', entityId: id,
+      data: { disabled: body.disabled },
+    });
+
+    res.json({ data: updated.rows[0] });
   } catch (e) { next(e); }
 });
 

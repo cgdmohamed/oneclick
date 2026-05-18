@@ -139,6 +139,7 @@ export const useNotifications = () => useResource(notificationsCfg);
 /* ---------- Users (company team) ---------- */
 interface UserRow {
   id: string; email: string; name: string;
+  disabled: boolean | null;
   created_at: string; roles: (Role | null)[] | null;
 }
 export const usersCfg: ResourceConfig<User, UserRow> = {
@@ -147,6 +148,7 @@ export const usersCfg: ResourceConfig<User, UserRow> = {
   initial: mockUsers.filter((u) => u.role !== 'super_admin'),
   fromRow: (r) => ({
     id: r.id, name: r.name, email: r.email,
+    disabled: r.disabled ?? false,
     role: ((r.roles ?? []).filter(Boolean)[0] as Role) ?? 'viewer',
   }),
   toRow: (u) => ({
