@@ -10,6 +10,7 @@ import { enforceInvoiceLimit } from '../../middleware/planLimits.js';
 import { parsePagination } from '../../utils/pagination.js';
 
 import { round2 } from '../../utils/money.js';
+import { internalKindSchema } from '../notifications/kinds.js';
 
 const router = Router();
 
@@ -273,9 +274,10 @@ router.post('/:id/send-email', async (req, res, next) => {
       [req.params.id, t.companyId],
     );
     const clientId = clientRow.rows[0]?.client_id ?? null;
+    const notificationKind = internalKindSchema.parse('invoice_email');
     await t.db.query(
       `INSERT INTO notifications (company_id, user_id, title, body, kind)
-       VALUES ($1, NULL, $2, $3, 'invoice_email')`,
+       VALUES ($1, NULL, $2, $3, $4)`,
       [
         t.companyId,
         subject ?? `Invoice ${data.number} from ${data.company.name}`,
@@ -292,6 +294,7 @@ router.post('/:id/send-email', async (req, res, next) => {
           amount: Number(data.total),
           messageBody: message ?? `Please find attached invoice ${data.number}.`,
         }),
+        notificationKind,
       ],
     );
 

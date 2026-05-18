@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { parsePagination } from '../../utils/pagination.js';
+import { publicKindSchema } from './kinds.js';
+export { ALL_KINDS, PUBLIC_KINDS } from './kinds.js';
 
 const router = Router();
 
@@ -90,7 +92,7 @@ const schema = z.object({
   user_id: z.string().uuid().optional().nullable(),
   title: z.string().min(1),
   body: z.string().optional().nullable(),
-  kind: z.enum(['info','warning','success','error']).default('info'),
+  kind: publicKindSchema.default('info'),
 });
 
 router.post('/', async (req, res, next) => {

@@ -170,11 +170,8 @@ const Subscriptions = () => {
                     {(walletsQuery.data ?? []).map((w) => (
                       <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>
                     ))}
-                    {apiOn && (walletsQuery.data ?? []).length === 0 && (
+                    {(walletsQuery.data ?? []).length === 0 && (
                       <SelectItem value="none" disabled>لا توجد محافظ — أنشئها من صفحة محافظ التحصيل</SelectItem>
-                    )}
-                    {!apiOn && (
-                      <SelectItem value="mock">محفظة تجريبية</SelectItem>
                     )}
                   </SelectContent>
                 </Select>
@@ -207,7 +204,7 @@ const Subscriptions = () => {
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>إلغاء</Button>
-            <Button onClick={submit}>تأكيد</Button>
+            <Button onClick={submit} disabled={apiOn && (walletsQuery.data ?? []).length === 0}>تأكيد</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

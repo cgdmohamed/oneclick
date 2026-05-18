@@ -106,7 +106,7 @@ const Subscription = () => {
     queryFn: async () => {
       if (!apiOn) return mockMineSub();
       const res = await api.get<{ data: SubRow | null }>('/api/subscriptions/me');
-      return res.data ?? mockMineSub();
+      return res.data ?? null;
     },
   });
   const paymentsQ = useQuery({
@@ -114,7 +114,7 @@ const Subscription = () => {
     queryFn: async () => {
       if (!apiOn) return mockMinePayments();
       const res = await api.get<{ data: SubPaymentRow[] }>('/api/subscriptions/me/payments');
-      return res.data;
+      return res.data ?? [];
     },
   });
   const plansQ = useQuery({
@@ -126,7 +126,7 @@ const Subscription = () => {
     },
   });
 
-  const sub = subQ.data;
+  const sub = subQ.data ?? null;
   const plans = plansQ.data ?? [];
   const payments = paymentsQ.data ?? [];
 
@@ -191,6 +191,14 @@ const Subscription = () => {
         title="الاشتراك والفوترة"
         description="تابع باقتك الحالية، فواتيرك الشهرية، وقم بترقية الخطة عند الحاجة."
       />
+
+      {apiOn && !subQ.isLoading && !sub && (
+        <Card className="p-10 mb-6 text-center border-dashed space-y-2">
+          <Crown className="h-10 w-10 mx-auto text-muted-foreground/40" />
+          <p className="font-semibold text-lg">لا توجد اشتراكات بعد</p>
+          <p className="text-sm text-muted-foreground">لم يتم تفعيل أي باقة لحسابك حتى الآن. تواصل مع الإدارة لتفعيل اشتراكك.</p>
+        </Card>
+      )}
 
       {sub && (
         <Card className="p-6 mb-6 border-border/60 relative overflow-hidden">
