@@ -8,6 +8,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { pool } from '../../db/client.js';
 import { audit } from '../../utils/audit.js';
+import { invalidateBrandingCache } from '../../utils/emailTemplate.js';
 
 const ALLOWED_KEYS = ['branding', 'landing_content', 'tracking', 'general', 'contact'] as const;
 type SettingsKey = typeof ALLOWED_KEYS[number];
@@ -131,6 +132,8 @@ adminSettingsRouter.put('/:key', async (req, res, next) => {
       entityId: null,
       data: { key },
     });
+
+    if (key === 'branding') invalidateBrandingCache();
 
     res.json({ ok: true });
   } catch (e) { next(e); }
