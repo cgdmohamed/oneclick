@@ -25,6 +25,8 @@ timeoutMs = 20000
 CORS_ORIGIN = "same-origin"
 VITE_API_URL = "same-origin"
 NODE_ENV = "development"
+JWT_SECRET = "f19f941651e3b205d72506086f38a8b8bc0d005519692e495e359cbcae1c6827b64effc351cdbbe5410844f6cd01aed8"
+JWT_REFRESH_SECRET = "02c073d9df6d8b2aa5908e505fc5c3bb85b51c620ae47343c11508f317fcf4f105bd784b9f68bfd14fb8650da99dc197"
 
 [[ports]]
 localPort = 5001
