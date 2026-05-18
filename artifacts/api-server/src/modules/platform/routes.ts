@@ -264,11 +264,16 @@ router.get('/audit-log', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+/* ---- SMTP health (returns whether system SMTP is configured) ---- */
+router.get('/settings/smtp-status', (_req, res) => {
+  res.json({ configured: Boolean(env.SMTP_HOST) });
+});
+
 /* ---------------- Companies (super-admin) ---------------- */
 router.get('/companies', async (_req, res, next) => {
   try {
     const rs = await pool.query(`
-      SELECT c.id, c.name, c.email, c.phone, c.is_active, c.created_at,
+      SELECT c.id, c.name, c.email, c.phone, c.is_active, c.review_status, c.created_at,
              (SELECT u.name FROM users u
               JOIN user_companies uc ON uc.user_id = u.id
               WHERE uc.company_id = c.id AND uc.is_default = true LIMIT 1) AS owner_name,
@@ -277,7 +282,7 @@ router.get('/companies', async (_req, res, next) => {
               WHERE s.company_id = c.id ORDER BY s.created_at DESC LIMIT 1) AS plan_name,
              (SELECT s.status FROM subscriptions s
               WHERE s.company_id = c.id ORDER BY s.created_at DESC LIMIT 1) AS sub_status
-      FROM companies c WHERE c.review_status = 'approved' ORDER BY c.created_at DESC
+      FROM companies c ORDER BY c.created_at DESC
     `);
     res.json({ data: rs.rows });
   } catch (e) { next(e); }

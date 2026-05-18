@@ -63,7 +63,7 @@ export async function sendEmailNow(opts: EmailPayload) {
   const override = opts.smtpOverride;
   const tr = (override?.host) ? buildOverrideTransporter(override) : getTransporter();
   if (!tr) {
-    console.log('[email] SMTP not configured — would send:', { to: opts.to, subject: opts.subject });
+    console.warn('[email] SMTP not configured — email skipped:', { to: opts.to, subject: opts.subject });
     return { skipped: true };
   }
   const fromAddr = override?.fromEmail

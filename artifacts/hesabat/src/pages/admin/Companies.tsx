@@ -12,13 +12,38 @@ import { api, isApiConfigured, ApiError } from '@/lib/api';
 
 interface CompanyRow {
   id: string; name: string; email: string | null; phone: string | null;
-  is_active: boolean; created_at: string;
+  is_active: boolean; review_status: string | null; created_at: string;
   owner_name: string | null; plan_name: string | null; sub_status: string | null;
 }
 interface UICompany {
   id: string; name: string; email: string; ownerName: string;
   planName: string; createdAt: string; status: 'active' | 'suspended' | 'expired';
+  reviewStatus: string | null;
 }
+
+function reviewStatusLabel(s: string | null): string {
+  switch (s) {
+    case 'approved': return 'مقبولة';
+    case 'pending':  return 'بانتظار المراجعة';
+    case 'declined': return 'مرفوضة';
+    default: return s ?? '—';
+  }
+}
+
+const REVIEW_STATUS_COLORS: Record<string, string> = {
+  approved: 'bg-green-100 text-green-800 border-green-200',
+  pending:  'bg-yellow-100 text-yellow-800 border-yellow-200',
+  declined: 'bg-red-100 text-red-800 border-red-200',
+};
+
+const ReviewBadge = ({ status }: { status: string | null }) => {
+  const cls = REVIEW_STATUS_COLORS[status ?? ''] ?? 'bg-gray-100 text-gray-700 border-gray-200';
+  return (
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${cls}`}>
+      {reviewStatusLabel(status)}
+    </span>
+  );
+};
 
 const Companies = () => {
   const apiOn = isApiConfigured();
@@ -39,12 +64,14 @@ const Companies = () => {
         status: !r.is_active
           ? 'suspended'
           : (r.sub_status === 'expired' ? 'expired' : 'active'),
+        reviewStatus: r.review_status,
       }));
     }
     return mockCompanies.map((c) => ({
       id: c.id, name: c.name, email: c.email, ownerName: c.ownerName,
       planName: mockPlans.find((p) => p.id === c.planId)?.name ?? '—',
       createdAt: c.createdAt, status: c.status,
+      reviewStatus: 'approved',
     }));
   }, [apiOn, q.data]);
 
@@ -65,6 +92,7 @@ const Companies = () => {
     { key: 'email', header: 'البريد', cell: r => <span className="text-muted-foreground text-sm">{r.email}</span> },
     { key: 'plan', header: 'الباقة', cell: r => r.planName },
     { key: 'created', header: 'التسجيل', cell: r => formatDateShort(r.createdAt) },
+    { key: 'review_status', header: 'حالة المراجعة', cell: r => <ReviewBadge status={r.reviewStatus} /> },
     { key: 'status', header: 'الحالة', cell: r => <StatusBadge status={r.status} label={companyStatusLabel(r.status)} /> },
     { key: 'actions', header: '', cell: r => (
       <div className="flex justify-end gap-1">
