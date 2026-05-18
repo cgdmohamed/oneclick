@@ -183,7 +183,7 @@ router.post('/subscription-payments', async (req, res, next) => {
     // Activate subscription on first qualifying payment
     if (sub.rows[0].status !== 'active') {
       await client.query(
-        `UPDATE subscriptions SET status = 'active' WHERE id = $1`,
+        `UPDATE subscriptions SET status = 'active', updated_at = now() WHERE id = $1`,
         [body.subscription_id],
       );
     }
@@ -568,7 +568,7 @@ router.patch('/signups/:id/approve', async (req, res, next) => {
     // Cancel any existing active/trialing subscriptions so re-approvals
     // don't accumulate duplicate rows.
     await client.query(
-      `UPDATE subscriptions SET status = 'cancelled', updated_at = now()
+      `UPDATE subscriptions SET status = 'cancelled', cancelled_at = now(), updated_at = now()
        WHERE company_id = $1 AND status IN ('active', 'trialing')`,
       [req.params.id],
     );
