@@ -28,7 +28,11 @@ router.get('/me', async (req, res, next) => {
   try {
     const t = req.tenant!;
     const rs = await t.db.query(`
-      SELECT s.*, p.code AS plan_code, p.name AS plan_name
+      SELECT s.*,
+             s.started_at  AS start_date,
+             s.expires_at  AS end_date,
+             p.code AS plan_code,
+             p.name AS plan_name
       FROM subscriptions s JOIN plans p ON p.id = s.plan_id
       WHERE s.company_id = $1 ORDER BY s.created_at DESC LIMIT 1
     `, [t.companyId]);
