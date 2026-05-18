@@ -9,9 +9,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { stockMovements } from '@/data/mock';
 import type { Product } from '@/types';
-import { formatCurrency, formatDateShort } from '@/lib/format';
+import { formatCurrency } from '@/lib/format';
 import { toast } from 'sonner';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { Card } from '@/components/ui/card';
@@ -260,16 +259,11 @@ const Products = () => {
           />
         </TabsContent>
         <TabsContent value="movements" className="mt-4">
-          <DataTable
-            data={stockMovements}
-            columns={[
-              { key: 'date', header: 'التاريخ', cell: r => formatDateShort(r.date) },
-              { key: 'product', header: 'المنتج', cell: r => list.find(p => p.id === r.productId)?.name ?? '—' },
-              { key: 'type', header: 'النوع', cell: r => <StatusBadge status={r.type === 'in' ? 'active' : 'expired'} label={r.type === 'in' ? 'إدخال' : 'إخراج'} /> },
-              { key: 'qty', header: 'الكمية', cell: r => r.quantity },
-              { key: 'reason', header: 'السبب', cell: r => <span className="text-sm text-muted-foreground">{r.reason}</span> },
-            ]}
-          />
+          <div className="flex flex-col items-center justify-center py-20 text-muted-foreground gap-2">
+            <Package className="h-10 w-10 opacity-30" />
+            <p className="text-lg font-medium">قريباً...</p>
+            <p className="text-sm">سيتم إضافة سجل حركة المخزون في تحديث قادم.</p>
+          </div>
         </TabsContent>
       </Tabs>
 

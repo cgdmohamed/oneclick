@@ -45,7 +45,7 @@ export function enforceInvoiceLimit() {
     if (!t || t.isSuperAdmin) return next();
     const plan = await getActivePlan(t.companyId);
     if (!plan) return next();
-    if (plan.max_invoices_monthly <= 0) return next();
+    if (plan.max_invoices_monthly < 0) return next(); // strictly negative = unlimited; 0 = no invoices allowed
     const cnt = await pool.query(
       `SELECT COUNT(*)::int AS n FROM invoices
        WHERE company_id = $1 AND date_trunc('month', issue_date) = date_trunc('month', now())`,

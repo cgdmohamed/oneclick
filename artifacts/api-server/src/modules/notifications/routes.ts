@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { parsePagination } from '../../utils/pagination.js';
-import { publicKindSchema } from './kinds.js';
+import { internalKindSchema } from './kinds.js';
 export { ALL_KINDS, PUBLIC_KINDS } from './kinds.js';
 
 const router = Router();
@@ -88,11 +88,13 @@ router.post('/:id/read', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// External (frontend) callers use: 'info' | 'warning' | 'success' | 'error'
+// Internal backend writers also use: 'invoice_email' (e.g. email notification logs)
 const schema = z.object({
   user_id: z.string().uuid().optional().nullable(),
   title: z.string().min(1),
   body: z.string().optional().nullable(),
-  kind: publicKindSchema.default('info'),
+  kind: internalKindSchema.default('info'),
 });
 
 router.post('/', async (req, res, next) => {
