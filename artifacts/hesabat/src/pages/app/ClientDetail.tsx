@@ -106,21 +106,22 @@ const ClientDetail = () => {
     return mockClientPayments;
   }, [apiOn, paymentsQuery.data, mockClientPayments]);
 
-  /* ----- Aggregates ----- */
+  /* ----- Aggregates (cancelled invoices excluded from financial totals) ----- */
   const totals = useMemo(() => {
-    const billed = clientInvoices.reduce((s, i) => s + i.total, 0);
-    const paid = clientInvoices.reduce((s, i) => s + i.paid, 0);
-    const remaining = clientInvoices.reduce((s, i) => s + i.remaining, 0);
-    const overdue = clientInvoices.filter((i) => i.status === 'overdue');
+    const activeInvoices = clientInvoices.filter((i) => i.status !== 'cancelled');
+    const billed = activeInvoices.reduce((s, i) => s + i.total, 0);
+    const paid = activeInvoices.reduce((s, i) => s + i.paid, 0);
+    const remaining = activeInvoices.reduce((s, i) => s + i.remaining, 0);
+    const overdue = activeInvoices.filter((i) => i.status === 'overdue');
     const overdueAmount = overdue.reduce((s, i) => s + i.remaining, 0);
     const lastInvoice = [...clientInvoices].sort(
       (a, b) => +new Date(b.issueDate) - +new Date(a.issueDate),
     )[0];
     const lastPayment = clientPayments[0];
-    return { billed, paid, remaining, overdueAmount, overdueCount: overdue.length, lastInvoice, lastPayment };
+    return { billed, paid, remaining, overdueAmount, overdueCount: overdue.length, lastInvoice, lastPayment, activeCount: activeInvoices.length };
   }, [clientInvoices, clientPayments]);
 
-  /* ----- AR Aging buckets ----- */
+  /* ----- AR Aging buckets (cancelled invoices excluded) ----- */
   const aging = useMemo(() => {
     const now = Date.now();
     const buckets: Record<string, { count: number; amount: number }> = {
@@ -130,7 +131,7 @@ const ClientDetail = () => {
       '61–90 يوم': { count: 0, amount: 0 },
       'أكثر من 90 يوم': { count: 0, amount: 0 },
     };
-    clientInvoices.filter((i) => i.remaining > 0).forEach((inv) => {
+    clientInvoices.filter((i) => i.remaining > 0 && i.status !== 'cancelled').forEach((inv) => {
       const days = Math.floor((now - +new Date(inv.dueDate)) / 86400000);
       const b = ageBucket(days);
       buckets[b].count += 1;
@@ -141,7 +142,7 @@ const ClientDetail = () => {
 
   /* ----- Activity timeline ----- */
   const timeline = useMemo(() => {
-    type Item = { id: string; date: string; kind: 'invoice' | 'payment' | 'created'; title: string; detail: string };
+    type Item = { id: string; date: string; kind: 'invoice' | 'payment' | 'created'; title: string; detail: string; cancelled?: boolean };
     const items: Item[] = [];
     clientInvoices.forEach((inv) =>
       items.push({
@@ -150,6 +151,7 @@ const ClientDetail = () => {
         kind: 'invoice',
         title: `فاتورة ${inv.number}`,
         detail: `${invoiceStatusLabel(inv.status)} — ${fc(inv.total)}`,
+        cancelled: inv.status === 'cancelled',
       }),
     );
     clientPayments.forEach((p) =>
@@ -187,14 +189,27 @@ const ClientDetail = () => {
   /* ----- Columns ----- */
   const invoiceCols: Column<Invoice & { clientName?: string }>[] = [
     { key: 'number', header: 'الرقم', cell: (r) => (
-      <Link to={`/app/invoices/${r.id}`} className="font-medium text-primary hover:underline">{r.number}</Link>
+      <Link
+        to={`/app/invoices/${r.id}`}
+        className={`font-medium text-primary hover:underline${r.status === 'cancelled' ? ' line-through opacity-60' : ''}`}
+      >
+        {r.number}
+      </Link>
     )},
-    { key: 'issue', header: 'التاريخ', cell: (r) => <span className="text-sm">{formatDateShort(r.issueDate)}</span> },
-    { key: 'due', header: 'الاستحقاق', cell: (r) => <span className="text-sm text-muted-foreground">{formatDateShort(r.dueDate)}</span> },
-    { key: 'total', header: 'الإجمالي', cell: (r) => <span className="font-semibold">{fc(r.total)}</span> },
-    { key: 'paid', header: 'المدفوع', cell: (r) => <span className="text-success">{fc(r.paid)}</span> },
+    { key: 'issue', header: 'التاريخ', cell: (r) => (
+      <span className={`text-sm${r.status === 'cancelled' ? ' line-through opacity-60' : ''}`}>{formatDateShort(r.issueDate)}</span>
+    )},
+    { key: 'due', header: 'الاستحقاق', cell: (r) => (
+      <span className={`text-sm text-muted-foreground${r.status === 'cancelled' ? ' line-through opacity-60' : ''}`}>{formatDateShort(r.dueDate)}</span>
+    )},
+    { key: 'total', header: 'الإجمالي', cell: (r) => (
+      <span className={`font-semibold${r.status === 'cancelled' ? ' line-through opacity-60' : ''}`}>{fc(r.total)}</span>
+    )},
+    { key: 'paid', header: 'المدفوع', cell: (r) => (
+      <span className={`text-success${r.status === 'cancelled' ? ' opacity-60' : ''}`}>{fc(r.paid)}</span>
+    )},
     { key: 'remaining', header: 'المتبقي', cell: (r) => (
-      <span className={r.remaining > 0 ? 'text-warning font-medium' : 'text-muted-foreground'}>
+      <span className={r.status === 'cancelled' ? 'text-muted-foreground opacity-60 line-through' : r.remaining > 0 ? 'text-warning font-medium' : 'text-muted-foreground'}>
         {fc(r.remaining)}
       </span>
     )},
@@ -289,7 +304,7 @@ const ClientDetail = () => {
 
       {/* KPIs */}
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatCard title="إجمالي المبيعات" value={fc(totals.billed)} icon={TrendingUp} hint={`${clientInvoices.length} فاتورة`} />
+        <StatCard title="إجمالي المبيعات" value={fc(totals.billed)} icon={TrendingUp} hint={`${totals.activeCount} فاتورة`} />
         <StatCard title="إجمالي المدفوع" value={fc(totals.paid)} icon={CreditCard} accent="success" />
         <StatCard title="الرصيد المتبقي" value={fc(totals.remaining)} icon={Wallet} accent={totals.remaining > 0 ? 'warning' : 'primary'} />
         <StatCard
@@ -422,10 +437,11 @@ const ClientDetail = () => {
                     <span className={
                       'absolute -right-[9px] top-1 h-4 w-4 rounded-full ring-4 ring-background flex items-center justify-center ' +
                       (item.kind === 'payment' ? 'bg-success' :
+                       item.cancelled ? 'bg-muted-foreground' :
                        item.kind === 'invoice' ? 'bg-primary' : 'bg-muted-foreground')
                     } />
                     <div className="text-xs text-muted-foreground">{formatDateShort(item.date)}</div>
-                    <div className="font-medium">{item.title}</div>
+                    <div className={`font-medium${item.cancelled ? ' line-through opacity-60' : ''}`}>{item.title}</div>
                     <div className="text-sm text-muted-foreground">{item.detail}</div>
                   </li>
                 ))}
