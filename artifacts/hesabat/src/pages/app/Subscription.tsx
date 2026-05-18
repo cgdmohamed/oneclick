@@ -10,8 +10,8 @@ import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { CalendarClock, CreditCard, Crown, Download, Receipt, Sparkles, AlertTriangle } from 'lucide-react';
-import { plans as mockPlans, subscriptions as mockSubs, payments as mockPayments } from '@/data/mock';
+import { CalendarClock, CreditCard, Crown, Download, Receipt, Sparkles, AlertTriangle, Users } from 'lucide-react';
+import { plans as mockPlans, subscriptions as mockSubs, payments as mockPayments, users as mockUsers } from '@/data/mock';
 import { api, isApiConfigured } from '@/lib/api';
 import { formatCurrency, formatDateShort, paymentMethodLabel } from '@/lib/format';
 import type { Plan } from '@/types';
@@ -64,6 +64,15 @@ const mockMineSub = (): SubRow => {
   };
 };
 
+/** Mock seat usage for the demo company (co-1). */
+const mockSeatUsage = () => {
+  const sub = mockMineSub();
+  const plan = mockPlans.find((p) => p.id === sub.plan_id);
+  const limit = plan?.limits?.users ?? 0;
+  const used = mockUsers.filter((u) => u.companyId === 'co-1').length;
+  return { used, limit };
+};
+
 /** Mock subscription invoices (3 months back). */
 const mockMinePayments = (): SubPaymentRow[] => {
   const sub = mockMineSub();
@@ -109,6 +118,15 @@ const Subscription = () => {
       return res.data ?? null;
     },
   });
+  const seatUsageQ = useQuery({
+    queryKey: ['my-seat-usage'],
+    queryFn: async () => {
+      if (!apiOn) return mockSeatUsage();
+      const res = await api.get<{ data: { used: number; limit: number } }>('/api/subscriptions/me/seat-usage');
+      return res.data;
+    },
+    refetchInterval: 30_000,
+  });
   const paymentsQ = useQuery({
     queryKey: ['my-subscription-payments'],
     queryFn: async () => {
@@ -129,6 +147,7 @@ const Subscription = () => {
   const sub = subQ.data ?? null;
   const plans = plansQ.data ?? [];
   const payments = paymentsQ.data ?? [];
+  const seatUsage = seatUsageQ.data ?? null;
 
   const currentPlan = useMemo(
     () => plans.find((p) => p.id === sub?.plan_id) ?? plans[0],
@@ -240,23 +259,61 @@ const Subscription = () => {
                 </div>
               </div>
 
-              <div className="mt-5">
-                <div className="flex items-center justify-between text-xs text-muted-foreground mb-1.5">
-                  <span>المدة المتبقية</span>
-                  <span>{remainingDays} يوم متبقي</span>
-                </div>
-                <div className="h-2 rounded-full bg-muted overflow-hidden">
-                  <div
-                    className="h-full bg-primary transition-all"
-                    style={{ width: `${usagePct}%` }}
-                  />
-                </div>
-                {remainingDays <= 7 && sub.status === 'active' && (
-                  <div className="mt-3 flex items-center gap-2 text-xs text-warning">
-                    <AlertTriangle className="h-4 w-4" />
-                    <span>اشتراكك على وشك الانتهاء — يُرجى التجديد قبل {formatDateShort(sub.end_date)}.</span>
+              <div className="mt-5 space-y-4">
+                <div>
+                  <div className="flex items-center justify-between text-xs text-muted-foreground mb-1.5">
+                    <span>المدة المتبقية</span>
+                    <span>{remainingDays} يوم متبقي</span>
                   </div>
-                )}
+                  <div className="h-2 rounded-full bg-muted overflow-hidden">
+                    <div
+                      className="h-full bg-primary transition-all"
+                      style={{ width: `${usagePct}%` }}
+                    />
+                  </div>
+                  {remainingDays <= 7 && sub.status === 'active' && (
+                    <div className="mt-2 flex items-center gap-2 text-xs text-warning">
+                      <AlertTriangle className="h-4 w-4" />
+                      <span>اشتراكك على وشك الانتهاء — يُرجى التجديد قبل {formatDateShort(sub.end_date)}.</span>
+                    </div>
+                  )}
+                </div>
+
+                {seatUsage && seatUsage.limit > 0 && (() => {
+                  const seatPct = Math.min(100, Math.round((seatUsage.used / seatUsage.limit) * 100));
+                  const isWarning = seatPct >= 80;
+                  const isFull = seatUsage.used >= seatUsage.limit;
+                  return (
+                    <div>
+                      <div className="flex items-center justify-between text-xs text-muted-foreground mb-1.5">
+                        <span className="flex items-center gap-1.5">
+                          <Users className="h-3.5 w-3.5" />
+                          المقاعد المستخدمة
+                        </span>
+                        <span className={isWarning ? 'font-semibold text-warning' : ''}>
+                          {seatUsage.used} / {seatUsage.limit}
+                        </span>
+                      </div>
+                      <div className="h-2 rounded-full bg-muted overflow-hidden">
+                        <div
+                          className={`h-full transition-all ${isFull ? 'bg-destructive' : isWarning ? 'bg-warning' : 'bg-primary'}`}
+                          style={{ width: `${seatPct}%` }}
+                        />
+                      </div>
+                      {isWarning && (
+                        <div className={`mt-2 flex items-center gap-2 text-xs ${isFull ? 'text-destructive' : 'text-warning'}`}>
+                          <AlertTriangle className="h-4 w-4 shrink-0" />
+                          <span>
+                            {isFull
+                              ? 'وصلت إلى الحد الأقصى من المقاعد — لا يمكن إضافة مستخدمين جدد. يُرجى الترقية إلى باقة أعلى.'
+                              : `اقتربت من الحد الأقصى للمقاعد (${seatUsage.used} من ${seatUsage.limit}). فكّر في الترقية قريباً.`
+                            }
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
             </div>
 

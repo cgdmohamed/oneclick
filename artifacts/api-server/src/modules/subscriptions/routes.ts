@@ -33,6 +33,27 @@ router.get('/me', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// Returns current seat usage (active user count) vs the plan's max_users limit.
+router.get('/me/seat-usage', async (req, res, next) => {
+  try {
+    const t = req.tenant!;
+    const rs = await t.db.query(`
+      SELECT
+        (SELECT count(*)::int FROM user_companies WHERE company_id = $1) AS used,
+        COALESCE(p.max_users, 0) AS seat_limit
+      FROM subscriptions s
+      JOIN plans p ON p.id = s.plan_id
+      WHERE s.company_id = $1
+        AND s.status IN ('active', 'trialing', 'past_due')
+      ORDER BY s.created_at DESC
+      LIMIT 1
+    `, [t.companyId]);
+    const row = rs.rows[0];
+    if (!row) return res.json({ data: { used: 0, limit: 0 } });
+    res.json({ data: { used: Number(row.used), limit: Number(row.seat_limit) } });
+  } catch (e) { next(e); }
+});
+
 // Subscription invoice/payment history for the current company.
 router.get('/me/payments', async (req, res, next) => {
   try {
