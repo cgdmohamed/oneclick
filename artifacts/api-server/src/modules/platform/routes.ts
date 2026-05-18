@@ -1104,6 +1104,34 @@ router.get('/users', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+router.get('/users/:id', async (req, res, next) => {
+  try {
+    const rs = await pool.query(
+      `SELECT
+        u.id, u.email, u.name, u.is_super_admin, u.created_at,
+        json_agg(
+          json_build_object(
+            'company_id', uc.company_id,
+            'company_name', c.name,
+            'role', COALESCE(
+              (SELECT ur.role FROM user_roles ur
+               WHERE ur.user_id = u.id AND ur.company_id = uc.company_id LIMIT 1),
+              'viewer'
+            )
+          )
+        ) FILTER (WHERE uc.company_id IS NOT NULL) AS companies
+      FROM users u
+      LEFT JOIN user_companies uc ON uc.user_id = u.id
+      LEFT JOIN companies c ON c.id = uc.company_id
+      WHERE u.id = $1
+      GROUP BY u.id`,
+      [req.params.id],
+    );
+    if (!rs.rowCount) throw notFound('User not found');
+    res.json(rs.rows[0]);
+  } catch (e) { next(e); }
+});
+
 const userRoleSchema = z.object({
   company_id: z.string().uuid(),
   role: z.enum(['super_admin', 'company_admin', 'accountant', 'sales', 'viewer']),

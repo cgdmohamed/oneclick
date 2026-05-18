@@ -1,72 +1,95 @@
-import { useMemo } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { PageHeader } from '@/components/common/PageHeader';
-import { StatCard } from '@/components/common/StatCard';
-import { StatusBadge } from '@/components/common/StatusBadge';
 import { Card } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowRight, Mail, Phone, Building2, Crown, FileText, CreditCard, Activity, ShieldCheck, Wallet } from 'lucide-react';
-import {
-  users as mockUsers, companies as mockCompanies, subscriptions as mockSubs,
-  plans as mockPlans, invoices as mockInvoices, payments as mockPayments,
-  rolePermissions,
-} from '@/data/mock';
-import { roleLabel, companyStatusLabel, formatCurrency, formatDate, formatDateShort, invoiceStatusLabel } from '@/lib/format';
+import { Skeleton } from '@/components/ui/skeleton';
+import { ArrowRight, Mail, Building2, Crown, FileText, CreditCard, Activity, ShieldCheck, Wallet, AlertCircle } from 'lucide-react';
+import { api, ApiError, isApiConfigured } from '@/lib/api';
+import { roleLabel, formatDate, formatDateShort } from '@/lib/format';
+
+interface ApiCompany {
+  company_id: string;
+  company_name: string;
+  role: string;
+}
+
+interface ApiUser {
+  id: string;
+  email: string;
+  name: string;
+  is_super_admin: boolean;
+  created_at: string;
+  companies: ApiCompany[] | null;
+}
 
 const UserDetail360 = () => {
   const { id } = useParams<{ id: string }>();
-  const user = useMemo(() => mockUsers.find(u => u.id === id), [id]);
 
-  if (!user) {
+  const { data: user, isLoading, error } = useQuery<ApiUser>({
+    queryKey: ['admin-user-detail', id],
+    queryFn: () => api.get<ApiUser>(`/api/platform/users/${id}`),
+    enabled: isApiConfigured() && Boolean(id),
+    retry: (count, err) => {
+      if (err instanceof ApiError && err.status === 404) return false;
+      return count < 2;
+    },
+  });
+
+  if (isLoading) {
     return (
       <div>
-        <PageHeader title="مستخدم غير موجود" />
+        <Button asChild variant="ghost" size="sm" className="mb-3 gap-1">
+          <Link to="/admin/users"><ArrowRight className="h-4 w-4" /> قائمة المستخدمين</Link>
+        </Button>
+        <div className="space-y-4">
+          <Skeleton className="h-8 w-64" />
+          <Card className="p-5">
+            <div className="flex gap-5">
+              <Skeleton className="h-20 w-20 rounded-full" />
+              <div className="flex-1 space-y-2">
+                <Skeleton className="h-6 w-48" />
+                <Skeleton className="h-4 w-72" />
+              </div>
+            </div>
+          </Card>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-24 rounded-lg" />)}
+          </div>
+          <Skeleton className="h-64 rounded-lg" />
+        </div>
+      </div>
+    );
+  }
+
+  const isNotFound = error instanceof ApiError && error.status === 404;
+
+  if (error || !user) {
+    return (
+      <div>
+        <Button asChild variant="ghost" size="sm" className="mb-3 gap-1">
+          <Link to="/admin/users"><ArrowRight className="h-4 w-4" /> قائمة المستخدمين</Link>
+        </Button>
+        <PageHeader title={isNotFound ? 'مستخدم غير موجود' : 'خطأ في التحميل'} />
         <Card className="p-8 text-center">
-          <p className="text-muted-foreground mb-4">لم نعثر على المستخدم المطلوب.</p>
+          <AlertCircle className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
+          <p className="text-muted-foreground mb-4">
+            {isNotFound
+              ? 'لم نعثر على المستخدم المطلوب.'
+              : 'حدث خطأ أثناء تحميل بيانات المستخدم. يرجى المحاولة مجدداً.'}
+          </p>
           <Button asChild><Link to="/admin/users">العودة للقائمة</Link></Button>
         </Card>
       </div>
     );
   }
 
-  const company = user.companyId ? mockCompanies.find(c => c.id === user.companyId) : null;
-  const sub = user.companyId ? mockSubs.find(s => s.companyId === user.companyId) : null;
-  const plan = sub ? mockPlans.find(p => p.id === sub.planId) : null;
-  const invoices = user.companyId ? mockInvoices.filter(i => i.companyId === user.companyId) : [];
-  const payments = user.companyId ? mockPayments.filter(p => p.companyId === user.companyId) : [];
-  const teamUsers = user.companyId ? mockUsers.filter(u => u.companyId === user.companyId) : [];
-
-  const totalBilled = invoices.reduce((s, i) => s + i.total, 0);
-  const totalPaid = payments.reduce((s, p) => s + p.amount, 0);
-  const outstanding = invoices.reduce((s, i) => s + i.remaining, 0);
-
-  // Generate fake login/activity timeline so the 360 view feels alive
-  const activity = useMemo(() => {
-    const events: { date: string; type: string; label: string }[] = [];
-    invoices.slice(0, 4).forEach((inv, idx) => {
-      events.push({
-        date: inv.issueDate,
-        type: 'invoice',
-        label: `أصدر الفاتورة ${inv.number} بقيمة ${formatCurrency(inv.total)}`,
-      });
-      if (idx < 2) events.push({
-        date: new Date(new Date(inv.issueDate).getTime() + 86400000 * 2).toISOString(),
-        type: 'login',
-        label: 'تسجيل دخول من متصفح Chrome — الرياض',
-      });
-    });
-    payments.slice(0, 3).forEach((p) => events.push({
-      date: p.date,
-      type: 'payment',
-      label: `سجّل دفعة بقيمة ${formatCurrency(p.amount)}`,
-    }));
-    return events.sort((a, b) => +new Date(b.date) - +new Date(a.date));
-  }, [invoices, payments]);
-
-  const perms = rolePermissions[user.role] ?? [];
+  const companies = user.companies ?? [];
+  const primaryCompany = companies[0] ?? null;
+  const displayRole = user.is_super_admin ? 'super_admin' : (primaryCompany?.role ?? 'viewer');
 
   return (
     <div>
@@ -86,28 +109,33 @@ const UserDetail360 = () => {
           <div className="flex-1 min-w-0 space-y-1.5">
             <div className="flex items-center gap-2 flex-wrap">
               <h2 className="text-xl font-bold truncate">{user.name}</h2>
-              <Badge variant="secondary">{roleLabel(user.role)}</Badge>
-              {company && <StatusBadge status={company.status} label={companyStatusLabel(company.status)} />}
+              <Badge variant="secondary">{roleLabel(displayRole)}</Badge>
+              {user.is_super_admin && (
+                <Badge variant="secondary" className="bg-primary/10 text-primary border-0">مشرف المنصة</Badge>
+              )}
             </div>
             <div className="flex items-center gap-4 flex-wrap text-sm text-muted-foreground">
               <span className="flex items-center gap-1.5"><Mail className="h-3.5 w-3.5" /> {user.email}</span>
-              {user.phone && <span className="flex items-center gap-1.5"><Phone className="h-3.5 w-3.5" /> {user.phone}</span>}
-              {company && (
-                <Link to="/admin/companies" className="flex items-center gap-1.5 hover:text-foreground">
-                  <Building2 className="h-3.5 w-3.5" /> {company.name}
-                </Link>
+              {primaryCompany && (
+                <span className="flex items-center gap-1.5">
+                  <Building2 className="h-3.5 w-3.5" /> {primaryCompany.company_name}
+                </span>
               )}
-              {plan && <span className="flex items-center gap-1.5"><Crown className="h-3.5 w-3.5" /> باقة {plan.name}</span>}
+              {companies.length > 1 && (
+                <span className="flex items-center gap-1.5">
+                  <Crown className="h-3.5 w-3.5" /> {companies.length} شركات
+                </span>
+              )}
             </div>
           </div>
         </div>
       </Card>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
-        <StatCard title="إجمالي الفواتير" value={invoices.length} icon={FileText} accent="primary" />
-        <StatCard title="إجمالي المبيعات" value={formatCurrency(totalBilled)} icon={Wallet} accent="success" />
-        <StatCard title="إجمالي المحصّل" value={formatCurrency(totalPaid)} icon={CreditCard} accent="info" />
-        <StatCard title="متبقي على العملاء" value={formatCurrency(outstanding)} icon={Activity} accent="warning" />
+        <EmptyStatCard title="إجمالي الفواتير" icon={FileText} accent="primary" />
+        <EmptyStatCard title="إجمالي المبيعات" icon={Wallet} accent="success" />
+        <EmptyStatCard title="إجمالي المحصّل" icon={CreditCard} accent="info" />
+        <EmptyStatCard title="متبقي على العملاء" icon={Activity} accent="warning" />
       </div>
 
       <Tabs dir="rtl" defaultValue="overview">
@@ -127,29 +155,28 @@ const UserDetail360 = () => {
               <dl className="space-y-2.5 text-sm">
                 <Row label="الاسم">{user.name}</Row>
                 <Row label="البريد">{user.email}</Row>
-                <Row label="الهاتف">{user.phone ?? '—'}</Row>
-                <Row label="الدور">{roleLabel(user.role)}</Row>
-                <Row label="الشركة">{company?.name ?? 'منصة ون كليك'}</Row>
-                {company && <Row label="تاريخ الانضمام">{formatDate(company.createdAt)}</Row>}
+                <Row label="الدور">{roleLabel(displayRole)}</Row>
+                <Row label="تاريخ التسجيل">{formatDate(user.created_at)}</Row>
+                <Row label="الشركة الأساسية">{primaryCompany?.company_name ?? 'منصة ون كليك'}</Row>
               </dl>
             </Card>
 
             <Card className="p-5 border-border/60 shadow-soft">
-              <h3 className="font-semibold mb-3">فريق الشركة ({teamUsers.length})</h3>
-              {teamUsers.length === 0 ? (
-                <p className="text-sm text-muted-foreground">لا يوجد أعضاء آخرون.</p>
+              <h3 className="font-semibold mb-3">الشركات ({companies.length})</h3>
+              {companies.length === 0 ? (
+                <p className="text-sm text-muted-foreground">لا توجد شركات مرتبطة (مستخدم منصة).</p>
               ) : (
                 <ul className="space-y-2.5">
-                  {teamUsers.map(t => (
-                    <li key={t.id} className="flex items-center gap-3">
+                  {companies.map(c => (
+                    <li key={c.company_id} className="flex items-center gap-3">
                       <Avatar className="h-9 w-9">
-                        <AvatarFallback className="bg-muted text-foreground text-xs">{t.name[0]}</AvatarFallback>
+                        <AvatarFallback className="bg-muted text-foreground text-xs">{c.company_name[0]}</AvatarFallback>
                       </Avatar>
                       <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium truncate">{t.name}{t.id === user.id && <span className="text-xs text-muted-foreground"> (هذا المستخدم)</span>}</div>
-                        <div className="text-xs text-muted-foreground truncate">{t.email}</div>
+                        <div className="text-sm font-medium truncate">{c.company_name}</div>
+                        <div className="text-xs text-muted-foreground truncate">{formatDateShort(user.created_at)}</div>
                       </div>
-                      <Badge variant="outline" className="text-xs">{roleLabel(t.role)}</Badge>
+                      <Badge variant="outline" className="text-xs">{roleLabel(c.role)}</Badge>
                     </li>
                   ))}
                 </ul>
@@ -159,123 +186,43 @@ const UserDetail360 = () => {
         </TabsContent>
 
         <TabsContent value="subscription" className="mt-4">
-          <Card className="p-5 border-border/60 shadow-soft">
-            {sub && plan && company ? (
-              <div className="space-y-3 text-sm">
-                <Row label="الباقة">{plan.name}</Row>
-                <Row label="السعر الشهري">{formatCurrency(plan.monthlyPrice)}</Row>
-                <Row label="السعر السنوي">{formatCurrency(plan.yearlyPrice)}</Row>
-                <Row label="حالة الاشتراك"><StatusBadge status={sub.status} label={companyStatusLabel(sub.status)} /></Row>
-                <Row label="بداية الاشتراك">{formatDate(sub.startDate)}</Row>
-                <Row label="نهاية الاشتراك">{formatDate(sub.endDate)}</Row>
-                <Row label="حالة الدفع">{sub.paid ? <Badge className="bg-success/15 text-success border-0">مدفوع</Badge> : <Badge className="bg-destructive/15 text-destructive border-0">غير مدفوع</Badge>}</Row>
-                <Row label="قيمة الاشتراك">{formatCurrency(sub.amount)}</Row>
-                <div className="pt-3 border-t border-border/60">
-                  <h4 className="font-semibold mb-2">حدود الباقة</h4>
-                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-                    {Object.entries(plan.limits).map(([k, v]) => (
-                      <div key={k} className="rounded-lg border border-border/60 p-3 bg-muted/30">
-                        <div className="text-xs text-muted-foreground">{k}</div>
-                        <div className="text-lg font-bold">{v}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">لا يوجد اشتراك مرتبط (مستخدم منصة).</p>
-            )}
-          </Card>
+          <ComingSoonCard message="بيانات الاشتراك غير متاحة بعد." />
         </TabsContent>
 
         <TabsContent value="invoices" className="mt-4">
-          <Card className="p-0 border-border/60 shadow-soft overflow-hidden">
-            <table dir="rtl" className="w-full text-sm">
-              <thead className="bg-muted/40 text-xs text-muted-foreground">
-                <tr>
-                  <th className="text-start py-2.5 px-4 font-semibold">الرقم</th>
-                  <th className="text-start py-2.5 px-4 font-semibold">تاريخ</th>
-                  <th className="text-start py-2.5 px-4 font-semibold">الإجمالي</th>
-                  <th className="text-start py-2.5 px-4 font-semibold">المتبقي</th>
-                  <th className="text-start py-2.5 px-4 font-semibold">الحالة</th>
-                </tr>
-              </thead>
-              <tbody>
-                {invoices.length === 0 ? (
-                  <tr><td colSpan={5} className="p-6 text-center text-muted-foreground">لا توجد فواتير.</td></tr>
-                ) : invoices.map(i => (
-                  <tr key={i.id} className="border-t border-border/60">
-                    <td className="py-2.5 px-4 font-medium">{i.number}</td>
-                    <td className="py-2.5 px-4 text-muted-foreground">{formatDateShort(i.issueDate)}</td>
-                    <td className="py-2.5 px-4">{formatCurrency(i.total)}</td>
-                    <td className="py-2.5 px-4">{formatCurrency(i.remaining)}</td>
-                    <td className="py-2.5 px-4"><StatusBadge status={i.status} label={invoiceStatusLabel(i.status)} /></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </Card>
+          <ComingSoonCard message="بيانات الفواتير غير متاحة بعد." />
         </TabsContent>
 
         <TabsContent value="payments" className="mt-4">
-          <Card className="p-0 border-border/60 shadow-soft overflow-hidden">
-            <table dir="rtl" className="w-full text-sm">
-              <thead className="bg-muted/40 text-xs text-muted-foreground">
-                <tr>
-                  <th className="text-start py-2.5 px-4 font-semibold">التاريخ</th>
-                  <th className="text-start py-2.5 px-4 font-semibold">المبلغ</th>
-                  <th className="text-start py-2.5 px-4 font-semibold">طرق الدفع</th>
-                </tr>
-              </thead>
-              <tbody>
-                {payments.length === 0 ? (
-                  <tr><td colSpan={3} className="p-6 text-center text-muted-foreground">لا توجد مدفوعات.</td></tr>
-                ) : payments.map(p => (
-                  <tr key={p.id} className="border-t border-border/60">
-                    <td className="py-2.5 px-4">{formatDateShort(p.date)}</td>
-                    <td className="py-2.5 px-4 font-semibold">{formatCurrency(p.amount)}</td>
-                    <td className="py-2.5 px-4 text-muted-foreground">{p.splits.map(s => s.method).join('، ')}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </Card>
+          <ComingSoonCard message="بيانات المدفوعات غير متاحة بعد." />
         </TabsContent>
 
         <TabsContent value="activity" className="mt-4">
-          <Card className="p-5 border-border/60 shadow-soft">
-            {activity.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-8">لا يوجد نشاط مسجّل بعد.</p>
-            ) : (
-              <ol className="relative border-r-2 border-border/60 pr-5 space-y-4">
-                {activity.map((e, i) => (
-                  <li key={i} className="relative">
-                    <span className="absolute right-[-26px] top-1 h-3 w-3 rounded-full bg-primary ring-4 ring-background" />
-                    <div className="text-sm font-medium">{e.label}</div>
-                    <div className="text-xs text-muted-foreground mt-0.5">{formatDate(e.date)}</div>
-                  </li>
-                ))}
-              </ol>
-            )}
-          </Card>
+          <ComingSoonCard message="سجل النشاط غير متاح بعد." />
         </TabsContent>
 
         <TabsContent value="permissions" className="mt-4">
           <Card className="p-5 border-border/60 shadow-soft">
             <div className="flex items-center gap-2 mb-3">
               <ShieldCheck className="h-4 w-4 text-primary" />
-              <h3 className="font-semibold">صلاحيات دور «{roleLabel(user.role)}»</h3>
+              <h3 className="font-semibold">صلاحيات دور «{roleLabel(displayRole)}»</h3>
             </div>
-            {perms.length === 0 ? (
+            {user.is_super_admin ? (
               <p className="text-sm text-muted-foreground">صلاحيات كاملة على مستوى المنصة.</p>
             ) : (
-              <ul className="grid sm:grid-cols-2 gap-2">
-                {perms.map(p => (
-                  <li key={p} className="flex items-center gap-2 text-sm rounded-lg bg-muted/40 px-3 py-2">
-                    <ShieldCheck className="h-3.5 w-3.5 text-success" /> {p}
-                  </li>
+              <div className="space-y-2">
+                {companies.map(c => (
+                  <div key={c.company_id} className="flex items-center gap-2 text-sm rounded-lg bg-muted/40 px-3 py-2">
+                    <ShieldCheck className="h-3.5 w-3.5 text-success shrink-0" />
+                    <span className="font-medium">{c.company_name}</span>
+                    <span className="text-muted-foreground">—</span>
+                    <span>{roleLabel(c.role)}</span>
+                  </div>
                 ))}
-              </ul>
+                {companies.length === 0 && (
+                  <p className="text-sm text-muted-foreground">لا توجد صلاحيات مرتبطة.</p>
+                )}
+              </div>
             )}
           </Card>
         </TabsContent>
@@ -289,6 +236,26 @@ const Row = ({ label, children }: { label: string; children: React.ReactNode }) 
     <dt className="text-muted-foreground">{label}</dt>
     <dd className="font-medium text-end">{children}</dd>
   </div>
+);
+
+const EmptyStatCard = ({ title, icon: Icon, accent }: { title: string; icon: React.ElementType; accent: string }) => (
+  <Card className={`p-4 border-border/60 shadow-soft border-t-2 border-t-${accent}/40`}>
+    <div className="flex items-start justify-between gap-2">
+      <div>
+        <p className="text-xs text-muted-foreground mb-1">{title}</p>
+        <p className="text-xl font-bold text-muted-foreground/50">—</p>
+      </div>
+      <div className={`p-2 rounded-lg bg-${accent}/10`}>
+        <Icon className={`h-4 w-4 text-${accent}`} />
+      </div>
+    </div>
+  </Card>
+);
+
+const ComingSoonCard = ({ message }: { message: string }) => (
+  <Card className="p-8 border-border/60 shadow-soft text-center">
+    <p className="text-sm text-muted-foreground">{message}</p>
+  </Card>
 );
 
 export default UserDetail360;
