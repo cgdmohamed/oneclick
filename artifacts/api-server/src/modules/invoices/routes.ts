@@ -5,7 +5,7 @@ import { badRequest, notFound } from '../../utils/errors.js';
 import { audit } from '../../utils/audit.js';
 import { renderInvoicePdf, type InvoicePdfData } from '../../utils/pdf.js';
 import { sendEmail } from '../../utils/email.js';
-import { getPlatformBranding, buildEmail } from '../../utils/emailTemplate.js';
+import { getPlatformBranding, buildEmail, formatArabicDate } from '../../utils/emailTemplate.js';
 import { env } from '../../config/env.js';
 import { enforceInvoiceLimit } from '../../middleware/planLimits.js';
 import { parsePagination } from '../../utils/pagination.js';
@@ -227,14 +227,20 @@ router.post('/:id/send', enforceInvoiceLimit(), async (req, res, next) => {
         const publicUrl = `${env.APP_URL}/invoice/${updatedRow.rows[0].public_id}`;
         const buf = await renderInvoicePdf(data);
         const branding = await getPlatformBranding();
+        const dueDateBlock = data.due_date
+          ? `<p>تاريخ الاستحقاق: <strong>${formatArabicDate(data.due_date)}</strong></p>`
+          : '';
         await sendEmail({
           to: recipient,
           subject: `فاتورة رقم ${data.number} من ${data.company.name}`,
           html: buildEmail({
+            previewText: `فاتورة رقم ${data.number} — الإجمالي: ${data.total.toLocaleString('ar-EG')} ${data.currency}`,
             title: `فاتورة رقم ${data.number}`,
             body: `<p>عزيزي العميل،</p>
                    <p>يسعدنا إرسال فاتورتك رقم <strong>${data.number}</strong> من <strong>${data.company.name}</strong> مرفقة بهذا البريد.</p>
-                   <p>يمكنك أيضاً عرض الفاتورة والتفاعل معها إلكترونياً عبر الرابط أدناه.</p>`,
+                   <p>إجمالي الفاتورة: <strong>${data.total.toLocaleString('ar-EG')} ${data.currency}</strong></p>
+                   ${dueDateBlock}
+                   <p>يمكنك أيضاً عرض الفاتورة إلكترونياً عبر الرابط أدناه.</p>`,
             cta: { text: 'عرض الفاتورة', url: publicUrl },
             branding,
           }),
@@ -432,13 +438,19 @@ router.post('/:id/send-email', async (req, res, next) => {
     const buf = await renderInvoicePdf(data);
     const branding = await getPlatformBranding();
     const defaultSubject = `فاتورة رقم ${data.number} من ${data.company.name}`;
+    const manualDueDateBlock = data.due_date
+      ? `<p>تاريخ الاستحقاق: <strong>${formatArabicDate(data.due_date)}</strong></p>`
+      : '';
     await sendEmail({
       to: recipient,
       subject: subject ?? defaultSubject,
       html: buildEmail({
+        previewText: `فاتورة رقم ${data.number} — الإجمالي: ${data.total.toLocaleString('ar-EG')} ${data.currency}`,
         title: `فاتورة رقم ${data.number}`,
         body: `<p>عزيزي العميل،</p>
                <p>${message ?? `يسعدنا إرسال فاتورتك رقم <strong>${data.number}</strong> من <strong>${data.company.name}</strong> مرفقة بهذا البريد.`}</p>
+               <p>إجمالي الفاتورة: <strong>${data.total.toLocaleString('ar-EG')} ${data.currency}</strong></p>
+               ${manualDueDateBlock}
                <p>يمكنك عرض الفاتورة إلكترونياً عبر الرابط أدناه.</p>`,
         cta: { text: 'عرض الفاتورة', url: publicUrl },
         branding,
