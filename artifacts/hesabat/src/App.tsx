@@ -21,6 +21,7 @@ import PublicInvoice from "./pages/public/PublicInvoice";
 import ForgotPassword from "./pages/public/ForgotPassword";
 import ResetPassword from "./pages/public/ResetPassword";
 import AcceptInvite from "./pages/public/AcceptInvite";
+import VerifyEmail from "./pages/public/VerifyEmail";
 
 import Overview from "./pages/app/Overview";
 import Clients from "./pages/app/Clients";
@@ -98,6 +99,7 @@ const App = () => {
               <Route path="/register" element={<Register />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/reset-password" element={<ResetPassword />} />
+              <Route path="/verify-email" element={<VerifyEmail />} />
             </Route>
 
             <Route path="/invoice/:publicId" element={<PublicInvoice />} />
@@ -135,7 +137,7 @@ const App = () => {
               <Route path="landing" element={<LandingContent />} />
               <Route path="tracking" element={<TrackingSettings />} />
               <Route path="analytics" element={<Analytics />} />
-              <Route path="users" element={<CompaniesAndUsers />} />
+              <Route path="users" element={<Users360 />} />
               <Route path="users/:id" element={<UserDetail360 />} />
               <Route path="roles" element={<RolesAndPermissions />} />
               <Route path="audit-log" element={<AuditLog />} />
