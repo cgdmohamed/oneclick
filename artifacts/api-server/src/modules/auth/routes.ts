@@ -275,9 +275,9 @@ router.post('/register', async (req, res, next) => {
         typeof platformPrefix === 'string' && platformPrefix.trim() ? platformPrefix.trim() : 'INV';
 
       const compRes = await c.query(
-        `INSERT INTO companies (name, email, is_active, review_status, invoice_prefix)
-         VALUES ($1,$2,false,'pending',$3) RETURNING id`,
-        [body.companyName, body.email, invoicePrefix],
+        `INSERT INTO companies (name, email, owner_name, is_active, review_status, invoice_prefix)
+         VALUES ($1,$2,$3,false,'pending',$4) RETURNING id`,
+        [body.companyName, body.email, body.name, invoicePrefix],
       );
       const companyId = compRes.rows[0].id;
 
