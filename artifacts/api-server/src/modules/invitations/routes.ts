@@ -123,9 +123,10 @@ invitationsAdminRouter.post('/:id/revoke', requireRole('company_admin'), async (
       [req.params.id, t.companyId],
     );
     if (!rs.rowCount) throw notFound('Invitation not found or not pending');
+    const id = req.params.id as string;
     await audit(t.db, {
       companyId: t.companyId, userId: req.auth!.userId,
-      action: 'invitation.revoke', entity: 'invitation', entityId: req.params.id,
+      action: 'invitation.revoke', entity: 'invitation', entityId: id,
     });
     res.json({ ok: true });
   } catch (e) { next(e); }

@@ -92,7 +92,7 @@ const statusSchema = z.object({ disabled: z.boolean() });
 router.patch('/:id/status', requireRole('company_admin'), async (req, res, next) => {
   try {
     const t = req.tenant!;
-    const { id } = req.params;
+    const id = req.params.id as string;
     if (id === req.auth!.userId) throw badRequest('Cannot disable yourself');
     const body = statusSchema.parse(req.body);
 
@@ -131,9 +131,10 @@ router.delete('/:id', requireRole('company_admin'), async (req, res, next) => {
       await c.query(`DELETE FROM user_companies WHERE user_id = $1 AND company_id = $2`, [req.params.id, t.companyId]);
       await c.query('COMMIT');
     } catch (e) { await c.query('ROLLBACK'); throw e; } finally { c.release(); }
+    const id = req.params.id as string;
     await audit(t.db, {
       companyId: t.companyId, userId: req.auth!.userId,
-      action: 'user.remove', entity: 'user', entityId: req.params.id,
+      action: 'user.remove', entity: 'user', entityId: id,
     });
     res.json({ ok: true });
   } catch (e) { next(e); }

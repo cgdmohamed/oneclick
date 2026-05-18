@@ -93,7 +93,7 @@ adminPlansRouter.patch('/:id', requireSuperAdmin, async (req, res, next) => {
     if (!rs.rowCount) throw notFound();
     await audit(pool, {
       companyId: null, userId: req.auth!.userId,
-      action: 'plan.update', entity: 'plan', entityId: req.params.id, data: body,
+      action: 'plan.update', entity: 'plan', entityId: req.params.id as string, data: body,
     });
     invalidatePlansCache();
     res.json({ data: rs.rows[0] });
@@ -108,7 +108,7 @@ adminPlansRouter.delete('/:id', requireSuperAdmin, async (req, res, next) => {
     if (!rs.rowCount) throw notFound();
     await audit(pool, {
       companyId: null, userId: req.auth!.userId,
-      action: 'plan.deactivate', entity: 'plan', entityId: req.params.id,
+      action: 'plan.deactivate', entity: 'plan', entityId: req.params.id as string,
     });
     invalidatePlansCache();
     res.json({ ok: true });

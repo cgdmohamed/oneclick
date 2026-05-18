@@ -180,7 +180,7 @@ router.post('/', enforceInvoiceLimit(), async (req, res, next) => {
 router.post('/:id/send', enforceInvoiceLimit(), async (req, res, next) => {
   try {
     const t = req.tenant!;
-    const invoiceId = req.params.id;
+    const invoiceId = req.params.id as string;
 
     const invRes = await t.db.query(
       `SELECT * FROM invoices WHERE id = $1 AND company_id = $2`,
@@ -431,9 +431,10 @@ router.post('/:id/send-email', async (req, res, next) => {
       smtpOverride,
     });
 
+    const invoiceId = req.params.id as string;
     await audit(t.db, {
       companyId: t.companyId, userId: req.auth!.userId,
-      action: 'invoice.email', entity: 'invoice', entityId: req.params.id,
+      action: 'invoice.email', entity: 'invoice', entityId: invoiceId,
       data: { to: recipient },
     });
 
