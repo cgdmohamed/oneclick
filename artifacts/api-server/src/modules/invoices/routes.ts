@@ -79,7 +79,8 @@ router.get('/:id', async (req, res, next) => {
   try {
     const t = req.tenant!;
     const inv = await t.db.query(
-      `SELECT i.*, c.name AS client_name, c.email AS client_email, c.tax_number AS client_tax
+      `SELECT i.*, c.name AS client_name, c.email AS client_email, c.tax_number AS client_tax,
+              c.phone AS client_phone, c.whatsapp AS client_whatsapp
        FROM invoices i JOIN clients c ON c.id = i.client_id WHERE i.id = $1 AND i.company_id = $2`,
       [req.params.id, t.companyId],
     );
@@ -295,32 +296,41 @@ router.post('/:id/cancel', async (req, res, next) => {
       [invoiceId, t.companyId],
     );
 
-    for (const item of items.rows) {
-      if (item.product_id) {
+    await t.db.query('BEGIN');
+    try {
+      for (const item of items.rows) {
+        if (item.product_id) {
+          await t.db.query(
+            `UPDATE products SET quantity = quantity + $1 WHERE id = $2 AND company_id = $3`,
+            [item.quantity, item.product_id, t.companyId],
+          );
+        }
+      }
+
+      for (const pay of payments.rows) {
+        if (!pay.account_id) continue;
         await t.db.query(
-          `UPDATE products SET quantity = quantity + $1 WHERE id = $2 AND company_id = $3`,
-          [item.quantity, item.product_id, t.companyId],
+          `UPDATE accounts SET balance = balance - $1 WHERE id = $2 AND company_id = $3`,
+          [pay.amount, pay.account_id, t.companyId],
         );
       }
-    }
 
-    for (const pay of payments.rows) {
       await t.db.query(
-        `UPDATE accounts SET balance = balance - $1 WHERE id = $2 AND company_id = $3`,
-        [pay.amount, pay.account_id, t.companyId],
+        `UPDATE invoices SET status = 'cancelled' WHERE id = $1 AND company_id = $2`,
+        [invoiceId, t.companyId],
       );
+
+      await audit(t.db, {
+        companyId: t.companyId, userId: req.auth!.userId,
+        action: 'invoice.cancel', entity: 'invoice', entityId: invoiceId,
+        data: { number: inv.number, total: Number(inv.total) },
+      });
+
+      await t.db.query('COMMIT');
+    } catch (txErr) {
+      await t.db.query('ROLLBACK');
+      throw txErr;
     }
-
-    await t.db.query(
-      `UPDATE invoices SET status = 'cancelled' WHERE id = $1 AND company_id = $2`,
-      [invoiceId, t.companyId],
-    );
-
-    await audit(t.db, {
-      companyId: t.companyId, userId: req.auth!.userId,
-      action: 'invoice.cancel', entity: 'invoice', entityId: invoiceId,
-      data: { number: inv.number, total: Number(inv.total) },
-    });
 
     res.json({ ok: true });
   } catch (e) { next(e); }
@@ -514,7 +524,7 @@ router.get('/:id/whatsapp-link', async (req, res, next) => {
   try {
     const t = req.tenant!;
     const inv = await t.db.query(
-      `SELECT i.number, i.total, i.public_id, c.phone FROM invoices i
+      `SELECT i.number, i.total, i.public_id, c.phone, c.whatsapp FROM invoices i
        JOIN clients c ON c.id = i.client_id WHERE i.id = $1 AND i.company_id = $2`,
       [req.params.id, t.companyId],
     );
@@ -522,7 +532,7 @@ router.get('/:id/whatsapp-link', async (req, res, next) => {
     const r = inv.rows[0];
     const url = `${env.APP_URL}/invoice/${r.public_id}`;
     const text = encodeURIComponent(`Invoice ${r.number} — Total ${r.total}\n${url}`);
-    const phone = (r.phone ?? '').replace(/\D/g, '');
+    const phone = (r.whatsapp || r.phone || '').replace(/\D/g, '');
     res.json({ link: `https://wa.me/${phone}?text=${text}` });
   } catch (e) { next(e); }
 });

@@ -71,7 +71,7 @@ const InvoiceDetails = () => {
   if (apiOn && apiInvoice) {
     const d = apiInvoice;
     invoice = {
-      id: d.id, publicId: d.id, companyId: d.company_id, clientId: d.client_id,
+      id: d.id, publicId: d.public_id, companyId: d.company_id, clientId: d.client_id,
       number: d.number, issueDate: d.issue_date, dueDate: d.due_date ?? d.issue_date,
       items: [], subtotal: Number(d.subtotal), tax: Number(d.vat_amount),
       discount: Number(d.discount), total: Number(d.total),
@@ -79,10 +79,9 @@ const InvoiceDetails = () => {
       status: mapStatus(d.status), notes: d.notes ?? undefined,
     };
     clientName = d.client_name;
-    const mc = mockClients.find(c => c.id === d.client_id);
-    clientPhone = mc?.phone ?? '';
-    clientWhatsapp = mc?.whatsapp ?? '';
-    clientEmail = mc?.email ?? '';
+    clientPhone = d.client_phone ?? '';
+    clientWhatsapp = d.client_whatsapp ?? '';
+    clientEmail = d.client_email ?? '';
     viewItems = d.items.map(it => ({ id: it.id, name: it.description, quantity: Number(it.quantity), unitPrice: Number(it.unit_price) }));
     viewPayments = d.payments.map(p => ({
       id: p.id, date: p.paid_at, amount: Number(p.amount),

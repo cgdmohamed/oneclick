@@ -74,8 +74,12 @@ function reshapeArabic(text: string): string {
   if (!hasArabic(text)) return text;
   try {
     const shaped = arabicReshaper.convertArabic(text);
-    // Split on spaces, reverse segments for visual RTL order.
-    return shaped.split(' ').reverse().join(' ');
+    // Split on spaces, reverse word order for RTL, and reverse characters within
+    // each Arabic word so PDFKit's LTR glyph placement reads correctly.
+    return shaped.split(' ').reverse().map(token => {
+      if (hasArabic(token)) return token.split('').reverse().join('');
+      return token;
+    }).join(' ');
   } catch {
     return text;
   }
