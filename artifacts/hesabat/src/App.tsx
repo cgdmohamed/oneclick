@@ -22,6 +22,7 @@ import ForgotPassword from "./pages/public/ForgotPassword";
 import ResetPassword from "./pages/public/ResetPassword";
 import AcceptInvite from "./pages/public/AcceptInvite";
 import VerifyEmail from "./pages/public/VerifyEmail";
+import ConfirmEmailChange from "./pages/public/ConfirmEmailChange";
 
 import Overview from "./pages/app/Overview";
 import Clients from "./pages/app/Clients";
@@ -38,6 +39,7 @@ import Notifications from "./pages/app/Notifications";
 import AlertsLog from "./pages/app/AlertsLog";
 import Users from "./pages/app/Users";
 import Settings from "./pages/app/Settings";
+import AccountSettings from "./pages/app/AccountSettings";
 import Subscription from "./pages/app/Subscription";
 import ActivityLog from "./pages/app/ActivityLog";
 
@@ -51,6 +53,7 @@ import PlatformWallets from "./pages/admin/PlatformWallets";
 import FeatureAccess from "./pages/admin/FeatureAccess";
 import SystemNotifications from "./pages/admin/SystemNotifications";
 import SystemSettings from "./pages/admin/SystemSettings";
+import AdminAccountSettings from "./pages/admin/AdminAccountSettings";
 import LandingContent from "./pages/admin/LandingContent";
 import TrackingSettings from "./pages/admin/TrackingSettings";
 import Analytics from "./pages/admin/Analytics";
@@ -104,6 +107,7 @@ const App = () => {
 
             <Route path="/invoice/:publicId" element={<PublicInvoice />} />
             <Route path="/accept-invite" element={<AcceptInvite />} />
+            <Route path="/confirm-email-change" element={<ConfirmEmailChange />} />
 
             <Route path="/app" element={<AppLayout kind="company" />}>
               <Route index element={<Overview />} />
@@ -122,6 +126,7 @@ const App = () => {
               <Route path="users" element={<Users />} />
               <Route path="subscription" element={<Subscription />} />
               <Route path="settings" element={<Settings />} />
+              <Route path="settings/account" element={<AccountSettings />} />
               <Route path="activity" element={<ActivityLog />} />
             </Route>
 
@@ -143,6 +148,7 @@ const App = () => {
               <Route path="audit-log" element={<AuditLog />} />
               <Route path="approvals" element={<Approvals />} />
               <Route path="settings" element={<SystemSettings />} />
+              <Route path="settings/account" element={<AdminAccountSettings />} />
             </Route>
 
             <Route path="*" element={<NotFound />} />

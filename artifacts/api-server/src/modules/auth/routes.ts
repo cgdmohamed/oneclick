@@ -473,6 +473,11 @@ router.post('/refresh', requireCsrf, async (req, res, next) => {
         `UPDATE refresh_tokens SET revoked_at = now(), replaced_by = $2 WHERE id = $1`,
         [r.id, newId.rows[0].id],
       );
+      // Track last active time on the newly issued token
+      await c.query(
+        `UPDATE refresh_tokens SET last_used_at = now() WHERE id = $1`,
+        [newId.rows[0].id],
+      );
       await c.query('COMMIT');
 
       setRefreshCookie(res, newToken);
@@ -573,6 +578,195 @@ router.post('/reset-password', async (req, res, next) => {
     await audit(pool, {
       companyId: null, userId: r.rows[0].user_id,
       action: 'auth.password_reset', entity: 'user', entityId: r.rows[0].user_id,
+    });
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
+/** PATCH /api/auth/profile — update display name */
+router.patch('/profile', requireAuth, requireCsrf, async (req, res, next) => {
+  try {
+    const { name } = z.object({ name: z.string().min(2).max(120) }).parse(req.body);
+    const userId = req.auth!.userId;
+    await pool.query(`UPDATE users SET name = $1, updated_at = now() WHERE id = $2`, [name, userId]);
+    await audit(pool, {
+      companyId: null, userId,
+      action: 'auth.profile_updated', entity: 'user', entityId: userId,
+      data: { name },
+    });
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
+/** POST /api/auth/change-password — change password (requires current password) */
+router.post('/change-password', requireAuth, requireCsrf, async (req, res, next) => {
+  try {
+    const { currentPassword, newPassword } = z.object({
+      currentPassword: z.string().min(1),
+      newPassword: z.string().min(8),
+    }).parse(req.body);
+    const userId = req.auth!.userId;
+    const u = await pool.query(`SELECT password_hash FROM users WHERE id = $1`, [userId]);
+    if (!u.rowCount) throw unauthorized();
+    const ok = await bcrypt.compare(currentPassword, u.rows[0].password_hash);
+    if (!ok) throw badRequest('كلمة المرور الحالية غير صحيحة');
+    const hash = await bcrypt.hash(newPassword, 12);
+    await pool.query(`UPDATE users SET password_hash = $1, updated_at = now() WHERE id = $2`, [hash, userId]);
+    await audit(pool, {
+      companyId: null, userId,
+      action: 'auth.password_changed', entity: 'user', entityId: userId,
+    });
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
+/** POST /api/auth/request-email-change — send verification link to new address */
+router.post('/request-email-change', requireAuth, requireCsrf, async (req, res, next) => {
+  try {
+    const { newEmail } = z.object({ newEmail: z.string().email() }).parse(req.body);
+    const userId = req.auth!.userId;
+    const existing = await pool.query(`SELECT 1 FROM users WHERE email = $1 AND id != $2`, [newEmail, userId]);
+    if (existing.rowCount) throw badRequest('هذا البريد الإلكتروني مسجّل بالفعل');
+    const token = crypto.randomBytes(32).toString('hex');
+    await pool.query(
+      `INSERT INTO email_change_requests (user_id, new_email, token_hash, expires_at)
+       VALUES ($1, $2, $3, now() + interval '24 hours')`,
+      [userId, newEmail, sha(token)],
+    );
+    const link = `${env.APP_URL}/confirm-email-change?token=${token}`;
+    const branding = await getPlatformBranding();
+    await sendEmail({
+      to: newEmail,
+      subject: `تأكيد تغيير البريد الإلكتروني — ${branding.brandName}`,
+      html: renderEmail({
+        ...branding,
+        title: 'تأكيد تغيير البريد الإلكتروني',
+        previewText: 'اضغط لتأكيد بريدك الإلكتروني الجديد',
+        bodyHtml: `<p>تلقّينا طلباً لتغيير بريدك الإلكتروني إلى هذا العنوان.</p>
+                   <p>اضغط على الزر أدناه لتأكيد التغيير. الرابط صالح لمدة 24 ساعة.</p>
+                   <p>إذا لم تطلب ذلك، تجاهل هذه الرسالة.</p>`,
+        ctaLabel: 'تأكيد البريد الإلكتروني الجديد',
+        ctaUrl: link,
+      }),
+    });
+    await audit(pool, {
+      companyId: null, userId,
+      action: 'auth.email_change_requested', entity: 'user', entityId: userId,
+      data: { newEmail },
+    });
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
+/** POST /api/auth/confirm-email-change — verify token, update email, revoke other sessions */
+router.post('/confirm-email-change', async (req, res, next) => {
+  try {
+    const { token } = z.object({ token: z.string().min(10) }).parse(req.body);
+    const r = await pool.query(
+      `SELECT id, user_id, new_email FROM email_change_requests
+       WHERE token_hash = $1 AND used_at IS NULL AND expires_at > now()`,
+      [sha(token)],
+    );
+    if (!r.rowCount) throw badRequest('الرابط غير صالح أو منتهي الصلاحية');
+    const { user_id: userId, new_email: newEmail, id: reqId } = r.rows[0];
+    const existing = await pool.query(`SELECT 1 FROM users WHERE email = $1 AND id != $2`, [newEmail, userId]);
+    if (existing.rowCount) throw badRequest('هذا البريد الإلكتروني مسجّل بالفعل');
+    const c = await pool.connect();
+    try {
+      await c.query('BEGIN');
+      await c.query(`UPDATE users SET email = $1, email_verified_at = now(), updated_at = now() WHERE id = $2`, [newEmail, userId]);
+      await c.query(`UPDATE email_change_requests SET used_at = now() WHERE id = $1`, [reqId]);
+      await c.query(`UPDATE refresh_tokens SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL`, [userId]);
+      await c.query('COMMIT');
+    } catch (e) { await c.query('ROLLBACK'); throw e; } finally { c.release(); }
+    await audit(pool, {
+      companyId: null, userId,
+      action: 'auth.email_changed', entity: 'user', entityId: userId,
+      data: { newEmail },
+    });
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
+/** GET /api/auth/sessions — list active sessions for the current user */
+router.get('/sessions', requireAuth, async (req, res, next) => {
+  try {
+    const userId = req.auth!.userId;
+    const currentToken = readRefreshToken(req);
+    const currentHash = currentToken ? sha(currentToken) : null;
+    const rows = await pool.query<{
+      id: string; user_agent: string | null; ip: string | null;
+      created_at: Date; last_used_at: Date; token_hash: string;
+    }>(
+      `SELECT id, user_agent, ip, created_at, last_used_at, token_hash
+         FROM refresh_tokens
+        WHERE user_id = $1 AND revoked_at IS NULL AND expires_at > now()
+        ORDER BY last_used_at DESC`,
+      [userId],
+    );
+    const sessions = rows.rows.map(r => ({
+      id: r.id,
+      userAgent: r.user_agent ?? '',
+      ip: r.ip ? r.ip.replace(/(\d+\.\d+)\.\d+\.\d+/, '$1.*.*') : '',
+      createdAt: r.created_at,
+      lastUsedAt: r.last_used_at,
+      isCurrent: r.token_hash === currentHash,
+    }));
+    res.json({ sessions });
+  } catch (e) { next(e); }
+});
+
+/** DELETE /api/auth/sessions/:id — revoke a specific session */
+router.delete('/sessions/:id', requireAuth, requireCsrf, async (req, res, next) => {
+  try {
+    const userId = req.auth!.userId;
+    const { id } = req.params;
+    const currentToken = readRefreshToken(req);
+    const currentHash = currentToken ? sha(currentToken) : null;
+    const row = await pool.query(
+      `SELECT token_hash FROM refresh_tokens WHERE id = $1 AND user_id = $2 AND revoked_at IS NULL`,
+      [id, userId],
+    );
+    if (!row.rowCount) throw badRequest('الجلسة غير موجودة');
+    if (currentHash && row.rows[0].token_hash === currentHash) {
+      throw badRequest('لا يمكن إنهاء الجلسة الحالية من هنا. استخدم تسجيل الخروج بدلاً من ذلك.');
+    }
+    await pool.query(
+      `UPDATE refresh_tokens SET revoked_at = now() WHERE id = $1 AND user_id = $2`,
+      [id, userId],
+    );
+    await audit(pool, {
+      companyId: null, userId,
+      action: 'auth.session_revoked', entity: 'refresh_token', entityId: id,
+    });
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
+/** DELETE /api/auth/sessions?others=true — revoke all sessions except the current one */
+router.delete('/sessions', requireAuth, requireCsrf, async (req, res, next) => {
+  try {
+    const userId = req.auth!.userId;
+    const othersOnly = req.query.others === 'true';
+    const currentToken = readRefreshToken(req);
+    const currentHash = currentToken ? sha(currentToken) : null;
+    if (othersOnly && currentHash) {
+      await pool.query(
+        `UPDATE refresh_tokens SET revoked_at = now()
+          WHERE user_id = $1 AND revoked_at IS NULL AND token_hash != $2`,
+        [userId, currentHash],
+      );
+    } else {
+      await pool.query(
+        `UPDATE refresh_tokens SET revoked_at = now()
+          WHERE user_id = $1 AND revoked_at IS NULL`,
+        [userId],
+      );
+    }
+    await audit(pool, {
+      companyId: null, userId,
+      action: 'auth.all_sessions_revoked', entity: 'user', entityId: userId,
+      data: { othersOnly },
     });
     res.json({ ok: true });
   } catch (e) { next(e); }

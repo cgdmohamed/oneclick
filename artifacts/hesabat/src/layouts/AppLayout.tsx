@@ -1,6 +1,6 @@
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarTrigger, useSidebar, SidebarHeader, SidebarFooter } from '@/components/ui/sidebar';
-import { LayoutDashboard, Users, FileText, CreditCard, Wallet, Package, BarChart3, Bell, BellRing, ShieldCheck, Settings, LogOut, Building2, Layers, Receipt, ToggleRight, Megaphone, Cog, Crown, History, LayoutTemplate, LineChart, PieChart, ScrollText, UserPlus } from 'lucide-react';
+import { LayoutDashboard, Users, FileText, CreditCard, Wallet, Package, BarChart3, Bell, BellRing, ShieldCheck, Settings, LogOut, Building2, Layers, Receipt, ToggleRight, Megaphone, Cog, Crown, History, LayoutTemplate, LineChart, PieChart, ScrollText, UserPlus, UserCog } from 'lucide-react';
 import { BrandLogo } from '@/components/common/BrandLogo';
 import { Badge } from '@/components/ui/badge';
 import { usePendingSignupsCount } from '@/hooks/usePendingSignups';
@@ -32,6 +32,7 @@ const companyNav: { to: string; label: string; icon: typeof LayoutDashboard; end
   { to: '/app/activity', label: 'سجل الأنشطة', icon: History, feature: 'activity_log' },
   { to: '/app/subscription', label: 'الاشتراك والفوترة', icon: Crown },
   { to: '/app/settings', label: 'الإعدادات', icon: Settings },
+  { to: '/app/settings/account', label: 'الحساب الشخصي', icon: UserCog },
 ];
 
 const adminNav = [
@@ -50,6 +51,7 @@ const adminNav = [
   { to: '/admin/landing', label: 'محتوى الصفحات العامة', icon: LayoutTemplate },
   { to: '/admin/tracking', label: 'التسويق والتحليلات', icon: LineChart },
   { to: '/admin/settings', label: 'إعدادات النظام', icon: Cog },
+  { to: '/admin/settings/account', label: 'الحساب الشخصي', icon: UserCog },
 ];
 
 const pageKey = (kind: 'company' | 'admin', pathname: string): string => {
@@ -68,6 +70,7 @@ const pageKey = (kind: 'company' | 'admin', pathname: string): string => {
     if (pathname.startsWith('/admin/notifications')) return 'admin-notifications';
     if (pathname.startsWith('/admin/landing')) return 'admin-landing';
     if (pathname.startsWith('/admin/tracking')) return 'admin-tracking';
+    if (pathname.startsWith('/admin/settings/account')) return 'admin-account';
     if (pathname.startsWith('/admin/settings')) return 'admin-settings';
     return 'admin-overview';
   }
@@ -82,6 +85,7 @@ const pageKey = (kind: 'company' | 'admin', pathname: string): string => {
   if (pathname.startsWith('/app/users')) return 'users';
   if (pathname.startsWith('/app/activity')) return 'activity';
   if (pathname.startsWith('/app/subscription')) return 'subscription';
+  if (pathname.startsWith('/app/settings/account')) return 'account';
   if (pathname.startsWith('/app/settings')) return 'settings';
   return 'overview';
 };
@@ -210,7 +214,13 @@ const AppShellInner = ({ kind }: { kind: 'company' | 'admin' }) => {
             <DropdownMenuContent align="end">
               <DropdownMenuLabel>{user?.email}</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => navigate('/app/settings')}>الإعدادات</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate(kind === 'admin' ? '/admin/settings/account' : '/app/settings/account')}>
+                <UserCog className="h-4 w-4 ml-2" />
+                الحساب الشخصي
+              </DropdownMenuItem>
+              {kind === 'company' && (
+                <DropdownMenuItem onClick={() => navigate('/app/settings')}>الإعدادات</DropdownMenuItem>
+              )}
               {kind === 'company' && (
                 <DropdownMenuItem onClick={() => setOnboardingOpen(true)}>
                   <Sparkles className="h-4 w-4 ml-2" />

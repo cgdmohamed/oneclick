@@ -97,6 +97,7 @@ export const refreshTokens = pgTable('refresh_tokens', {
   replacedBy: uuid('replaced_by'),
   userAgent: text('user_agent'),
   ip: text('ip'),
+  lastUsedAt: timestamp('last_used_at', { withTimezone: true }).notNull().defaultNow(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -108,6 +109,18 @@ export const passwordResets = pgTable('password_resets', {
   usedAt: timestamp('used_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
+
+export const emailChangeRequests = pgTable('email_change_requests', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  newEmail: varchar('new_email', { length: 255 }).notNull(),
+  tokenHash: varchar('token_hash', { length: 255 }).notNull().unique(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  usedAt: timestamp('used_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  byUser: index('email_change_requests_user_idx').on(t.userId),
+}));
 
 /* ---------- Plans / Subscriptions (system-wide) ---------- */
 export const plans = pgTable('plans', {
