@@ -16,6 +16,7 @@ interface ApiRow {
   is_active: boolean;
   review_status: string;
   created_at: string;
+  owner_user_id: string | null;
   owner_name: string | null;
   plan_name: string | null;
   sub_status: string | null;
@@ -25,6 +26,7 @@ interface Row {
   id: string;
   name: string;
   ownerName: string;
+  ownerUserId: string | null;
   email: string;
   planName: string;
   createdAt: string;
@@ -43,6 +45,7 @@ function fromApiRow(r: ApiRow): Row {
     name: r.name,
     email: r.email,
     ownerName: r.owner_name ?? '—',
+    ownerUserId: r.owner_user_id ?? null,
     planName: r.plan_name ?? '—',
     createdAt: r.created_at,
     status: deriveStatus(r),
@@ -77,8 +80,8 @@ const CompaniesAndUsers = () => {
     },
     {
       key: 'actions', header: '', cell: r => (
-        <Button asChild variant="ghost" size="sm" className="gap-1">
-          <Link to={`/admin/companies/${r.id}`}>إدارة
+        <Button asChild variant="ghost" size="sm" className="gap-1" disabled={!r.ownerUserId}>
+          <Link to={`/admin/users/${r.ownerUserId ?? ''}`}>إدارة
             <ChevronLeft className="h-4 w-4" />
           </Link>
         </Button>

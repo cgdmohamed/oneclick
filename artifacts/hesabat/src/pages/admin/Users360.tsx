@@ -1,10 +1,12 @@
+import { useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { PageHeader } from '@/components/common/PageHeader';
 import { DataTable, Column } from '@/components/common/DataTable';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { ChevronLeft, Loader2 } from 'lucide-react';
+import { ChevronLeft, Loader2, Search } from 'lucide-react';
 import { api, isApiConfigured } from '@/lib/api';
 import { roleLabel, formatDateShort } from '@/lib/format';
 
@@ -48,14 +50,24 @@ function fromApiUser(u: ApiUser): UserRow {
 }
 
 const Users360 = () => {
+  const [search, setSearch] = useState('');
+  const [q, setQ] = useState('');
+
   const { data: rows = [], isLoading } = useQuery<UserRow[]>({
-    queryKey: ['admin-users-360'],
+    queryKey: ['admin-users-360', q],
     queryFn: async () => {
-      const res = await api.get<{ data: ApiUser[] }>('/api/platform/users?limit=500');
+      const params = new URLSearchParams({ page: '1', page_size: '200' });
+      if (q) params.set('q', q);
+      const res = await api.get<{ data: ApiUser[] }>(`/api/platform/users?${params}`);
       return res.data.map(fromApiUser);
     },
     enabled: isApiConfigured(),
   });
+
+  const handleSearch = useCallback((e: React.FormEvent) => {
+    e.preventDefault();
+    setQ(search.trim());
+  }, [search]);
 
   const columns: Column<UserRow>[] = [
     {
@@ -93,12 +105,29 @@ const Users360 = () => {
         title="مستخدمو المنصة"
         description="استعراض موحّد لكل المستخدمين عبر الشركات مع تفاصيل النشاط والاشتراك"
       />
+      <form onSubmit={handleSearch} className="flex gap-2 mb-4 max-w-sm">
+        <div className="relative flex-1">
+          <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="بحث بالاسم أو البريد..."
+            className="pr-9"
+          />
+        </div>
+        <Button type="submit" variant="outline">بحث</Button>
+        {q && (
+          <Button type="button" variant="ghost" onClick={() => { setSearch(''); setQ(''); }}>
+            مسح
+          </Button>
+        )}
+      </form>
       {isLoading ? (
         <div className="flex justify-center py-16">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
       ) : (
-        <DataTable data={rows} columns={columns} searchKeys={['name', 'email', 'companyName']} />
+        <DataTable data={rows} columns={columns} searchKeys={[]} />
       )}
     </div>
   );

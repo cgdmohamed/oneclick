@@ -276,6 +276,9 @@ router.get('/companies', async (_req, res, next) => {
   try {
     const rs = await pool.query(`
       SELECT c.id, c.name, c.email, c.phone, c.is_active, c.review_status, c.created_at,
+             (SELECT u.id FROM users u
+              JOIN user_companies uc ON uc.user_id = u.id
+              WHERE uc.company_id = c.id AND uc.is_default = true LIMIT 1) AS owner_user_id,
              (SELECT u.name FROM users u
               JOIN user_companies uc ON uc.user_id = u.id
               WHERE uc.company_id = c.id AND uc.is_default = true LIMIT 1) AS owner_name,
