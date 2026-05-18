@@ -2,6 +2,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import PDFDocument from 'pdfkit';
+import { createRequire } from 'node:module';
+
+const _require = createRequire(import.meta.url);
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const arabicReshaper: { convertArabic: (s: string) => string } = _require('arabic-reshaper');
 
 export interface InvoicePdfData {
   number: string;
@@ -21,15 +26,18 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /**
  * Try to locate an Arabic-capable font. We ship Cairo with the repo under
- * backend/assets/fonts, but production deployments can also drop a font at
+ * assets/fonts, but production deployments can also drop a font at
  * the same path. If neither is found we fall back to Helvetica with a
  * single warning and Arabic glyphs render as boxes (LOC-01).
  */
 function resolveArabicFont(): string | null {
   const candidates = [
-    path.resolve(__dirname, '../../assets/fonts/Cairo-Regular.ttf'),
-    path.resolve(__dirname, '../assets/fonts/Cairo-Regular.ttf'),
+    // cwd is the most reliable: the server starts from artifacts/api-server/
     path.resolve(process.cwd(), 'assets/fonts/Cairo-Regular.ttf'),
+    // __dirname is dist/ in the bundle; one level up lands in api-server/
+    path.resolve(__dirname, '../assets/fonts/Cairo-Regular.ttf'),
+    // legacy two-level fallback (used when src/ is __dirname)
+    path.resolve(__dirname, '../../assets/fonts/Cairo-Regular.ttf'),
     process.env.PDF_FONT_PATH ?? '',
   ].filter(Boolean);
   for (const p of candidates) {
@@ -41,16 +49,37 @@ const ARABIC_FONT_PATH = resolveArabicFont();
 const ARABIC_FONT = 'AppFont';
 let warnedNoFont = false;
 
-const fmt = (n: number, c = 'SAR') => `${Number(n).toFixed(2)} ${c}`;
+const fmt = (n: number, c: string) => `${Number(n).toFixed(2)} ${c}`;
 
 /**
  * Detect any character in the Arabic Unicode blocks. Used to flip alignment
- * to right for individual cells (LOC-02). Full bi-di shaping for connected
- * letterforms still requires a HarfBuzz-backed renderer; for invoices with
- * separated words this approximation is acceptable.
+ * to right for individual cells (LOC-02).
  */
 const ARABIC_RE = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/;
 const hasArabic = (s: unknown) => typeof s === 'string' && ARABIC_RE.test(s);
+
+/**
+ * Reshape Arabic text so pdfkit can render connected letterforms correctly.
+ *
+ * Pdfkit lays glyphs out LTR, so we need to:
+ * 1. Reshape each Arabic word into its contextual glyph forms (e.g. م → ﻣ/ﻤ/ﻡ).
+ * 2. Reverse the visual word order so RTL text reads correctly when pdfkit
+ *    renders it left-to-right.
+ *
+ * Non-Arabic segments (numbers, punctuation, Latin) are kept in place within
+ * the reversed word sequence so mixed lines (e.g. "فاتورة INV-2024-0001") render
+ * in a readable approximation of bidi order.
+ */
+function reshapeArabic(text: string): string {
+  if (!hasArabic(text)) return text;
+  try {
+    const shaped = arabicReshaper.convertArabic(text);
+    // Split on spaces, reverse segments for visual RTL order.
+    return shaped.split(' ').reverse().join(' ');
+  } catch {
+    return text;
+  }
+}
 
 /** Render an invoice PDF and resolve a Buffer. */
 export function renderInvoicePdf(data: InvoicePdfData): Promise<Buffer> {
@@ -68,13 +97,17 @@ export function renderInvoicePdf(data: InvoicePdfData): Promise<Buffer> {
       } else if (!warnedNoFont) {
         warnedNoFont = true;
         // eslint-disable-next-line no-console
-        console.warn('[pdf] no Arabic font found; Arabic text will render as boxes. Place Cairo-Regular.ttf in backend/assets/fonts/.');
+        console.warn('[pdf] no Arabic font found; Arabic text will render as boxes. Place Cairo-Regular.ttf in assets/fonts/.');
       }
 
+      const currency = data.currency || 'SAR';
+
       const text = (s: string, x: number | undefined, y: number | undefined, opts: PDFKit.Mixins.TextOptions = {}) => {
-        const align = opts.align ?? (hasArabic(s) ? 'right' : 'left');
-        if (x === undefined || y === undefined) return doc.text(s, { ...opts, align });
-        return doc.text(s, x, y, { ...opts, align });
+        const isAr = hasArabic(s);
+        const display = isAr ? reshapeArabic(s) : s;
+        const align = opts.align ?? (isAr ? 'right' : 'left');
+        if (x === undefined || y === undefined) return doc.text(display, { ...opts, align });
+        return doc.text(display, x, y, { ...opts, align });
       };
 
       // Header
@@ -115,11 +148,13 @@ export function renderInvoicePdf(data: InvoicePdfData): Promise<Buffer> {
       doc.moveTo(48, tableTop + 14).lineTo(550, tableTop + 14).strokeColor('#ccc').stroke();
       let y = tableTop + 20;
       for (const it of data.items) {
-        const descAlign: 'left' | 'right' = hasArabic(it.description) ? 'right' : 'left';
-        doc.fillColor('#111').text(it.description, cols.desc, y, { width: 260, align: descAlign });
-        doc.text(String(it.quantity),               cols.qty,   y, { width: 50, align: 'right' });
-        doc.text(fmt(it.unit_price, data.currency), cols.price, y, { width: 70, align: 'right' });
-        doc.text(fmt(it.line_total, data.currency), cols.total, y, { width: 80, align: 'right' });
+        const isArDesc = hasArabic(it.description);
+        const descDisplay = isArDesc ? reshapeArabic(it.description) : it.description;
+        const descAlign: 'left' | 'right' = isArDesc ? 'right' : 'left';
+        doc.fillColor('#111').text(descDisplay, cols.desc, y, { width: 260, align: descAlign });
+        doc.text(String(it.quantity),           cols.qty,   y, { width: 50, align: 'right' });
+        doc.text(fmt(it.unit_price, currency),  cols.price, y, { width: 70, align: 'right' });
+        doc.text(fmt(it.line_total, currency),  cols.total, y, { width: 80, align: 'right' });
         y += 20;
         if (y > 720) { doc.addPage(); y = 60; }
       }
@@ -132,12 +167,12 @@ export function renderInvoicePdf(data: InvoicePdfData): Promise<Buffer> {
         doc.text(value, 470, y, { width: 80, align: 'right' });
         y += 16;
       };
-      right('Subtotal',  fmt(data.subtotal,   data.currency));
-      right('VAT',       fmt(data.vat_amount, data.currency));
-      if (Number(data.discount) > 0) right('Discount', `- ${fmt(data.discount, data.currency)}`);
-      right('Total',     fmt(data.total,     data.currency));
-      right('Paid',      fmt(data.paid,      data.currency));
-      right('Remaining', fmt(data.remaining, data.currency));
+      right('Subtotal',  fmt(data.subtotal,   currency));
+      right('VAT',       fmt(data.vat_amount, currency));
+      if (Number(data.discount) > 0) right('Discount', `- ${fmt(data.discount, currency)}`);
+      right('Total',     fmt(data.total,     currency));
+      right('Paid',      fmt(data.paid,      currency));
+      right('Remaining', fmt(data.remaining, currency));
 
       if (data.notes) {
         doc.moveDown(2).fontSize(9).fillColor('#666');
