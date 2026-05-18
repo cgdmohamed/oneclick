@@ -25,6 +25,7 @@ timeoutMs = 20000
 CORS_ORIGIN = "same-origin"
 VITE_API_URL = "same-origin"
 NODE_ENV = "development"
+APP_URL = "https://e67b155d-266e-4db3-b3ba-5b45e3c115f3-00-2bixezvqi7mif.spock.replit.dev"
 
 [[ports]]
 localPort = 5001
