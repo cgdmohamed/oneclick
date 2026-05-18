@@ -276,28 +276,30 @@ router.post('/:id/cancel', async (req, res, next) => {
     const t = req.tenant!;
     const invoiceId = req.params.id;
 
-    const invRes = await t.db.query(
-      `SELECT * FROM invoices WHERE id = $1 AND company_id = $2`,
-      [invoiceId, t.companyId],
-    );
-    if (!invRes.rowCount) throw notFound('Invoice not found');
-    const inv = invRes.rows[0];
-    if (inv.status !== 'sent') {
-      throw badRequest('Only sent invoices can be cancelled');
-    }
-
-    const items = await t.db.query(
-      `SELECT product_id, quantity FROM invoice_items WHERE invoice_id = $1 AND company_id = $2`,
-      [invoiceId, t.companyId],
-    );
-
-    const payments = await t.db.query(
-      `SELECT account_id, amount FROM payments WHERE invoice_id = $1 AND company_id = $2`,
-      [invoiceId, t.companyId],
-    );
-
     await t.db.query('BEGIN');
     try {
+      // Lock the row inside the transaction so concurrent retries block here
+      // rather than racing past the status check.
+      const invRes = await t.db.query(
+        `SELECT * FROM invoices WHERE id = $1 AND company_id = $2 FOR UPDATE`,
+        [invoiceId, t.companyId],
+      );
+      if (!invRes.rowCount) throw notFound('Invoice not found');
+      const inv = invRes.rows[0];
+      if (inv.status !== 'sent') {
+        throw badRequest('Only sent invoices can be cancelled');
+      }
+
+      const items = await t.db.query(
+        `SELECT product_id, quantity FROM invoice_items WHERE invoice_id = $1 AND company_id = $2`,
+        [invoiceId, t.companyId],
+      );
+
+      const payments = await t.db.query(
+        `SELECT account_id, amount FROM payments WHERE invoice_id = $1 AND company_id = $2`,
+        [invoiceId, t.companyId],
+      );
+
       for (const item of items.rows) {
         if (item.product_id) {
           await t.db.query(
