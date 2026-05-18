@@ -360,11 +360,13 @@ router.get('/analytics', async (_req, res, next) => {
           (SELECT COUNT(*)::int FROM subscriptions)                                              AS total_subs
       `),
 
-      /* Plan distribution — all subscription rows, all statuses */
+      /* Plan distribution — all subscription rows, all statuses.
+         Use DISTINCT to avoid inflating count when a subscription has
+         multiple payment rows. Revenue is still the real sum of payments. */
       pool.query(`
         SELECT
           p.name,
-          COUNT(s.id)::int                              AS count,
+          COUNT(DISTINCT s.id)::int                     AS count,
           COALESCE(SUM(sp.amount)::float, 0)            AS revenue
         FROM plans p
         LEFT JOIN subscriptions s
@@ -372,7 +374,7 @@ router.get('/analytics', async (_req, res, next) => {
         LEFT JOIN subscription_payments sp
           ON sp.subscription_id = s.id
         GROUP BY p.id, p.name
-        HAVING COUNT(s.id) > 0
+        HAVING COUNT(DISTINCT s.id) > 0
         ORDER BY count DESC
       `),
 
