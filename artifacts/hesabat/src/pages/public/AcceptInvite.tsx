@@ -35,6 +35,7 @@ const AcceptInvite = () => {
   const [confirm, setConfirm] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [emailMismatch, setEmailMismatch] = useState(false);
+  const [seatLimitReached, setSeatLimitReached] = useState(false);
 
   // Prevents the auto-accept effect from firing more than once per page visit.
   const autoAcceptFiredRef = useRef(false);
@@ -112,6 +113,10 @@ const AcceptInvite = () => {
         }
         if (err.status === 403 && body?.error === 'email_mismatch') {
           setEmailMismatch(true);
+          return;
+        }
+        if (err.status === 403 && body?.error === 'seat_limit_reached') {
+          setSeatLimitReached(true);
           return;
         }
         toast.error(err.message || 'تعذّر إكمال العملية');
@@ -195,6 +200,15 @@ const AcceptInvite = () => {
         message={`هذه الدعوة مخصصة للبريد الإلكتروني ${invitation.email}. أنت مسجّل الدخول حاليًا بحساب مختلف. يرجى تسجيل الخروج والدخول بالحساب الصحيح لقبول الدعوة.`}
         ctaTo={`/login?redirect=${encodeURIComponent(`/accept-invite?token=${encodeURIComponent(token)}`)}`}
         ctaLabel="تسجيل الدخول بحساب آخر"
+      />
+    );
+  }
+
+  if (seatLimitReached) {
+    return (
+      <InvalidState
+        title="تعذّر الانضمام إلى الشركة"
+        message="وصل عدد المستخدمين في هذه الشركة إلى الحد الأقصى المسموح به. يرجى التواصل مع مدير الشركة."
       />
     );
   }

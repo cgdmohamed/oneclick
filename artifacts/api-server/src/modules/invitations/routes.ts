@@ -274,6 +274,36 @@ invitationsPublicRouter.post('/:token/accept', async (req, res, next) => {
       userId = u.rows[0].id;
     }
 
+    // Serialize concurrent accepts for the same company by locking the
+    // company row. Any second transaction that reaches this point for the
+    // same company will block until the first commits or rolls back, at
+    // which point the count reflects the now-committed membership state.
+    await c.query(`SELECT id FROM companies WHERE id = $1 FOR UPDATE`, [inv.company_id]);
+
+    // Re-check seat limit inside the transaction (after acquiring the lock)
+    // so the count + insert form a single atomic unit.
+    const planRs = await c.query(
+      `SELECT p.max_users
+         FROM subscriptions s
+         JOIN plans p ON p.id = s.plan_id
+        WHERE s.company_id = $1
+          AND s.status IN ('active','trialing','past_due')
+        ORDER BY s.created_at DESC LIMIT 1`,
+      [inv.company_id],
+    );
+    if (planRs.rowCount) {
+      const maxUsers: number = planRs.rows[0].max_users;
+      if (maxUsers > 0) {
+        const cntRs = await c.query(
+          `SELECT COUNT(*)::int AS n FROM user_companies WHERE company_id = $1`,
+          [inv.company_id],
+        );
+        if (cntRs.rows[0].n >= maxUsers) {
+          throw new HttpError(403, 'وصل عدد المستخدمين في هذه الشركة إلى الحد الأقصى المسموح به.', 'seat_limit_reached');
+        }
+      }
+    }
+
     await c.query(
       `INSERT INTO user_companies (user_id, company_id) VALUES ($1,$2)
        ON CONFLICT DO NOTHING`,
