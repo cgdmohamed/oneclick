@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { PageHeader } from '@/components/common/PageHeader';
 import { DataTable, Column } from '@/components/common/DataTable';
 import { Button } from '@/components/ui/button';
@@ -9,7 +9,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { products as initial, stockMovements } from '@/data/mock';
+import { stockMovements } from '@/data/mock';
 import type { Product } from '@/types';
 import { formatCurrency, formatDateShort } from '@/lib/format';
 import { toast } from 'sonner';
@@ -30,15 +30,56 @@ interface ProductRow {
   alert_level: number;
   image_url: string | null;
   is_active: boolean;
+  category_id: string | null;
+  category_name: string | null;
+}
+
+interface Category {
+  id: string;
+  name: string;
+  product_count: number;
 }
 
 const empty: Product = { id: '', companyId: 'co-1', name: '', code: '', category: '', price: 0, quantity: 0, alertLevel: 5, status: 'active' };
+
+const useCategories = () => {
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const load = useCallback(async () => {
+    if (!isApiConfigured()) return;
+    setLoading(true);
+    try {
+      const res = await api.get<{ data: Category[] }>('/api/categories');
+      setCategories(res.data ?? []);
+    } catch {
+      // silent — categories are optional
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const create = async (name: string) => {
+    const res = await api.post<{ data: Category }>('/api/categories', { name });
+    setCategories(prev => [...prev, res.data].sort((a, b) => a.name.localeCompare(b.name)));
+    return res.data;
+  };
+
+  const remove = async (id: string) => {
+    await api.delete(`/api/categories/${id}`);
+    setCategories(prev => prev.filter(c => c.id !== id));
+  };
+
+  return { categories, loading, reload: load, create, remove };
+};
 
 const Products = () => {
   const { list, save, remove } = useResource<Product, ProductRow>({
     path: '/api/products',
     key: 'products',
-    initial,
+    initial: [],
     fromRow: (r) => ({
       id: r.id,
       companyId: r.company_id,
@@ -49,6 +90,8 @@ const Products = () => {
       alertLevel: r.alert_level,
       imageUrl: r.image_url ?? undefined,
       status: r.is_active ? 'active' : 'inactive',
+      categoryId: r.category_id ?? undefined,
+      category: r.category_name ?? undefined,
     }),
     toRow: (p) => ({
       name: p.name,
@@ -58,65 +101,82 @@ const Products = () => {
       alert_level: p.alertLevel,
       image_url: p.imageUrl ?? null,
       is_active: p.status !== 'inactive',
+      category_id: p.categoryId ?? null,
     }),
   });
+
+  const { categories, loading: catsLoading, reload: reloadCats, create: createCat, remove: removeCat } = useCategories();
 
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Product>(empty);
   const [toDelete, setToDelete] = useState<Product | null>(null);
   const [catsOpen, setCatsOpen] = useState(false);
   const [newCat, setNewCat] = useState('');
-  const [customCats, setCustomCats] = useState<string[]>([]);
+  const [catSaving, setCatSaving] = useState(false);
   const [catFilter, setCatFilter] = useState<string>('all');
   const { list: invoices } = useInvoices();
-  const categories = useMemo(() => {
-    const fromProducts = list.map(p => p.category).filter((c): c is string => !!c);
-    return Array.from(new Set([...fromProducts, ...customCats])).sort();
-  }, [list, customCats]);
-
-  const catUsageCount = (cat: string) => list.filter(p => p.category === cat).length;
-
-  const addCategory = () => {
-    const name = newCat.trim();
-    if (!name) return;
-    if (categories.includes(name)) { toast.error('التصنيف موجود مسبقاً'); return; }
-    setCustomCats(prev => [...prev, name]);
-    setNewCat('');
-  };
-
-  const removeCategory = (cat: string) => {
-    if (catUsageCount(cat) > 0) {
-      toast.error('لا يمكن حذف تصنيف مستخدم في منتجات');
-      return;
-    }
-    setCustomCats(prev => prev.filter(c => c !== cat));
-  };
 
   const submit = async () => {
-    if (!editing.name || !editing.code) return toast.error('أكمل بيانات المنتج');
-    const isNew = !list.find(p => p.id === editing.id);
+    if (!editing.name) return toast.error('أكمل بيانات المنتج');
     await save(editing);
     setOpen(false);
   };
 
   const usageCount = (p: Product) => {
-    const inMovements = stockMovements.filter(m => m.productId === p.id).length;
     const inInvoices = invoices.reduce(
       (n, inv) => n + inv.items.filter(it => it.productId === p.id).length, 0,
     );
-    return inMovements + inInvoices;
+    return inInvoices;
   };
 
   const confirmDelete = async () => {
     if (!toDelete) return;
     if (usageCount(toDelete) > 0) {
-      toast.error('لا يمكن حذف المنتج لأنه مستخدم في فواتير أو حركات مخزون');
+      toast.error('لا يمكن حذف المنتج لأنه مستخدم في فواتير');
       setToDelete(null);
       return;
     }
     await remove(toDelete.id);
     setToDelete(null);
   };
+
+  const addCategory = async () => {
+    const name = newCat.trim();
+    if (!name) return;
+    if (categories.some(c => c.name === name)) { toast.error('التصنيف موجود مسبقاً'); return; }
+    setCatSaving(true);
+    try {
+      if (isApiConfigured()) {
+        await createCat(name);
+      }
+      setNewCat('');
+    } catch {
+      toast.error('تعذّر إضافة التصنيف');
+    } finally {
+      setCatSaving(false);
+    }
+  };
+
+  const removeCategory = async (cat: Category) => {
+    if (cat.product_count > 0) {
+      toast.error('لا يمكن حذف تصنيف مستخدم في منتجات');
+      return;
+    }
+    try {
+      if (isApiConfigured()) {
+        await removeCat(cat.id);
+      }
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'تعذّر حذف التصنيف';
+      toast.error(msg);
+    }
+  };
+
+  const filteredList = useMemo(() => {
+    if (catFilter === 'all') return list;
+    if (catFilter === '__none__') return list.filter(p => !p.categoryId);
+    return list.filter(p => p.categoryId === catFilter);
+  }, [list, catFilter]);
 
   const columns: Column<Product>[] = [
     { key: 'image', header: '', cell: r => (
@@ -147,7 +207,7 @@ const Products = () => {
             variant="ghost"
             size="icon"
             disabled={used}
-            title={used ? 'مستخدم في فواتير أو حركات مخزون' : 'حذف'}
+            title={used ? 'مستخدم في فواتير' : 'حذف'}
             onClick={() => setToDelete(r)}
           >
             <Trash2 className="h-4 w-4 text-destructive" />
@@ -163,8 +223,8 @@ const Products = () => {
     <div>
       <PageHeader title="المنتجات والمخزون" description="إدارة المنتجات وحركة المخزون"
         actions={<>
-          <Button variant="outline" onClick={() => setCatsOpen(true)}><Tags className="h-4 w-4 ml-1" /> التصنيفات</Button>
-          <Button onClick={() => { setEditing({ ...empty, id: `pr-${Date.now()}` }); setOpen(true); }}><Plus className="h-4 w-4 ml-1" /> منتج جديد</Button>
+          <Button variant="outline" onClick={() => { reloadCats(); setCatsOpen(true); }}><Tags className="h-4 w-4 ml-1" /> التصنيفات</Button>
+          <Button onClick={() => { setEditing({ ...empty, id: '' }); setOpen(true); }}><Plus className="h-4 w-4 ml-1" /> منتج جديد</Button>
         </>} />
 
       {lowStock.length > 0 && (
@@ -183,11 +243,7 @@ const Products = () => {
         </TabsList>
         <TabsContent value="products" className="mt-4">
           <DataTable
-            data={
-              catFilter === 'all' ? list
-                : catFilter === '__none__' ? list.filter(p => !p.category)
-                : list.filter(p => p.category === catFilter)
-            }
+            data={filteredList}
             columns={columns}
             searchKeys={['name','code']}
             searchPlaceholder="ابحث بالمنتج أو الكود..."
@@ -197,7 +253,7 @@ const Products = () => {
                 <SelectContent>
                   <SelectItem value="all">كل التصنيفات</SelectItem>
                   <SelectItem value="__none__">بدون تصنيف</SelectItem>
-                  {categories.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                  {categories.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
                 </SelectContent>
               </Select>
             }
@@ -219,7 +275,7 @@ const Products = () => {
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-lg">
-          <DialogHeader><DialogTitle>منتج</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{editing.id ? 'تعديل منتج' : 'منتج جديد'}</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <ProductImageField
               value={editing.imageUrl}
@@ -231,13 +287,13 @@ const Products = () => {
               <div className="sm:col-span-2">
                 <Label>التصنيف</Label>
                 <Select
-                  value={editing.category || '__none__'}
-                  onValueChange={(v) => setEditing(s => ({ ...s, category: v === '__none__' ? '' : v }))}
+                  value={editing.categoryId ?? '__none__'}
+                  onValueChange={(v) => setEditing(s => ({ ...s, categoryId: v === '__none__' ? undefined : v }))}
                 >
                   <SelectTrigger className="mt-1.5"><SelectValue placeholder="اختر تصنيفاً" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__none__">بدون تصنيف</SelectItem>
-                    {categories.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                    {categories.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
@@ -278,33 +334,35 @@ const Products = () => {
                 value={newCat}
                 onChange={(e) => setNewCat(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addCategory(); } }}
+                disabled={catSaving}
               />
-              <Button onClick={addCategory}><Plus className="h-4 w-4 ml-1" /> إضافة</Button>
+              <Button onClick={addCategory} disabled={catSaving}>
+                {catSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Plus className="h-4 w-4 ml-1" /> إضافة</>}
+              </Button>
             </div>
-            {categories.length === 0 ? (
+            {catsLoading ? (
+              <div className="flex justify-center py-6"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+            ) : categories.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-6">لا توجد تصنيفات بعد.</p>
             ) : (
               <ul className="divide-y divide-border rounded-md border border-border">
-                {categories.map(c => {
-                  const used = catUsageCount(c);
-                  return (
-                    <li key={c} className="flex items-center justify-between px-3 py-2">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium text-sm">{c}</span>
-                        <span className="text-xs text-muted-foreground">({used})</span>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        disabled={used > 0}
-                        title={used > 0 ? 'مستخدم في منتجات' : 'حذف'}
-                        onClick={() => removeCategory(c)}
-                      >
-                        <X className="h-4 w-4 text-destructive" />
-                      </Button>
-                    </li>
-                  );
-                })}
+                {categories.map(c => (
+                  <li key={c.id} className="flex items-center justify-between px-3 py-2">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-sm">{c.name}</span>
+                      <span className="text-xs text-muted-foreground">({c.product_count})</span>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      disabled={c.product_count > 0}
+                      title={c.product_count > 0 ? 'مستخدم في منتجات' : 'حذف'}
+                      onClick={() => removeCategory(c)}
+                    >
+                      <X className="h-4 w-4 text-destructive" />
+                    </Button>
+                  </li>
+                ))}
               </ul>
             )}
           </div>

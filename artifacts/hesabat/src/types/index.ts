@@ -50,6 +50,7 @@ export interface Product {
   alertLevel: number;
   imageUrl?: string;
   category?: string;
+  categoryId?: UUID;
   status: 'active' | 'inactive';
 }
 

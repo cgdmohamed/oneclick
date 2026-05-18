@@ -16,6 +16,7 @@ import { requestContext } from './middleware/requestContext.js';
 
 import authRoutes from './modules/auth/routes.js';
 import auditRoutes from './modules/audit/routes.js';
+import categoriesRoutes from './modules/categories/routes.js';
 import companiesRoutes from './modules/companies/routes.js';
 import usersRoutes from './modules/users/routes.js';
 import clientsRoutes from './modules/clients/routes.js';
@@ -115,6 +116,7 @@ app.use('/api/companies', companiesRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/clients', clientsRoutes);
 app.use('/api/products', productsRoutes);
+app.use('/api/categories', categoriesRoutes);
 app.use('/api/accounts', accountsRoutes);
 app.use('/api/invoices', invoicesRoutes);
 app.use('/api/payments', paymentsRoutes);

@@ -161,6 +161,15 @@ export const clients = pgTable('clients', {
   byCompany: index('clients_company_idx').on(t.companyId),
 }));
 
+export const productCategories = pgTable('product_categories', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  companyId: uuid('company_id').notNull().references(() => companies.id, { onDelete: 'cascade' }),
+  name: varchar('name', { length: 200 }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  byCompany: index('product_categories_company_idx').on(t.companyId),
+}));
+
 export const products = pgTable('products', {
   ...tenantColumns,
   sku: varchar('sku', { length: 50 }),
@@ -173,6 +182,7 @@ export const products = pgTable('products', {
   alertLevel: integer('alert_level').notNull().default(0),
   unit: varchar('unit', { length: 20 }).notNull().default('قطعة'),
   isActive: boolean('is_active').notNull().default(true),
+  categoryId: uuid('category_id').references(() => productCategories.id, { onDelete: 'set null' }),
 }, (t) => ({
   byCompany: index('products_company_idx').on(t.companyId),
 }));

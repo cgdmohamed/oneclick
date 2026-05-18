@@ -9,7 +9,7 @@ export function crudRouter(opts: {
   schema: z.ZodTypeAny;             // body validation
   patchSchema?: z.ZodTypeAny;
   defaults?: Record<string, unknown>;
-  list?: { orderBy?: string; searchable?: string[] };
+  list?: { orderBy?: string; searchable?: string[]; selectExtra?: string };
 }) {
   const r = Router();
   void opts.fields;
@@ -38,8 +38,11 @@ export function crudRouter(opts: {
       );
       const total = Number(totalQ.rows[0]?.count ?? 0);
 
+      const selectClause = opts.list?.selectExtra
+        ? `${opts.table}.*, ${opts.list.selectExtra}`
+        : `${opts.table}.*`;
       const applied = p.applyTo(
-        `SELECT * FROM ${opts.table} ${where} ORDER BY ${order}`, params,
+        `SELECT ${selectClause} FROM ${opts.table} ${where} ORDER BY ${order}`, params,
       );
       const rs = await t.db.query(applied.sql, applied.params);
       res.json(p.respond(rs.rows, total));
