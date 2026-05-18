@@ -55,7 +55,14 @@ export const adminPlansRouter = Router();
 
 adminPlansRouter.get('/all', requireSuperAdmin, async (_req, res, next) => {
   try {
-    const rs = await pool.query(`SELECT * FROM plans ORDER BY price_monthly`);
+    const rs = await pool.query(`
+      SELECT p.*,
+             COUNT(s.id) FILTER (WHERE s.status IN ('active','trialing')) AS active_subscriber_count
+      FROM plans p
+      LEFT JOIN subscriptions s ON s.plan_id = p.id
+      GROUP BY p.id
+      ORDER BY p.price_monthly
+    `);
     res.json({ data: rs.rows });
   } catch (e) { next(e); }
 });

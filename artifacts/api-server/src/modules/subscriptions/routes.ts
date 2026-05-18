@@ -1,7 +1,10 @@
 import { Router } from 'express';
+import { z } from 'zod';
 import { pool } from '../../db/client.js';
 import { requireSuperAdmin } from '../../middleware/rbac.js';
 import { parsePagination } from '../../utils/pagination.js';
+import { notFound } from '../../utils/errors.js';
+import { audit } from '../../utils/audit.js';
 
 const router = Router();
 
@@ -123,6 +126,75 @@ router.get('/', requireSuperAdmin, async (req, res, next) => {
     const rs = await t.db.query(a.sql, a.params);
     res.json(p.respond(rs.rows, Number(totalQ.rows[0].count)));
   } catch (e) { next(e); }
+});
+
+const changePlanSchema = z.object({
+  plan_id:    z.string().uuid(),
+  cycle:      z.enum(['monthly', 'yearly', 'trial']),
+  trial_days: z.coerce.number().int().min(1).max(365).optional().default(14),
+  amount:     z.coerce.number().min(0).optional().default(0),
+});
+
+router.patch('/:id/plan', requireSuperAdmin, async (req, res, next) => {
+  const client = await pool.connect();
+  try {
+    const body = changePlanSchema.parse(req.body);
+
+    await client.query('BEGIN');
+
+    const sub = await client.query(
+      `SELECT id, company_id FROM subscriptions WHERE id = $1 FOR UPDATE`,
+      [req.params.id],
+    );
+    if (!sub.rowCount) { await client.query('ROLLBACK'); throw notFound('Subscription not found'); }
+
+    const companyId: string = sub.rows[0].company_id;
+
+    const plan = await client.query(`SELECT id FROM plans WHERE id = $1`, [body.plan_id]);
+    if (!plan.rowCount) { await client.query('ROLLBACK'); throw notFound('Plan not found'); }
+
+    await client.query(
+      `UPDATE subscriptions SET status = 'cancelled', cancelled_at = now(), updated_at = now()
+       WHERE company_id = $1 AND status IN ('active', 'trialing', 'past_due')`,
+      [companyId],
+    );
+
+    const daysMap: Record<string, number> = { monthly: 30, yearly: 365, trial: body.trial_days };
+    const days = daysMap[body.cycle];
+    const subStatus = body.cycle === 'trial' ? 'trialing' : 'active';
+    const expiresAt = new Date(Date.now() + days * 86400 * 1000);
+
+    const newSub = await client.query(
+      `INSERT INTO subscriptions (company_id, plan_id, status, amount, started_at, expires_at)
+       VALUES ($1, $2, $3, $4, now(), $5) RETURNING *`,
+      [companyId, body.plan_id, subStatus, body.amount, expiresAt],
+    );
+
+    await client.query('COMMIT');
+
+    await audit(pool, {
+      companyId, userId: req.auth!.userId,
+      action: 'subscription.plan_change', entity: 'subscription',
+      entityId: newSub.rows[0].id,
+      data: { old_subscription_id: req.params.id, plan_id: body.plan_id, cycle: body.cycle, amount: body.amount },
+    });
+
+    const result = await pool.query(
+      `SELECT s.*, c.name AS company_name, p.name AS plan_name
+       FROM subscriptions s
+       JOIN companies c ON c.id = s.company_id
+       JOIN plans p ON p.id = s.plan_id
+       WHERE s.id = $1`,
+      [newSub.rows[0].id],
+    );
+
+    res.json({ data: result.rows[0] });
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    next(e);
+  } finally {
+    client.release();
+  }
 });
 
 export default router;

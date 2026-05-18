@@ -7,7 +7,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Textarea } from '@/components/ui/textarea';
 import { plans as mockPlans } from '@/data/mock';
 import { Button } from '@/components/ui/button';
-import { Plus, AlertTriangle } from 'lucide-react';
+import { Plus, AlertTriangle, Trash2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -22,9 +22,10 @@ interface PlanRow {
   price_monthly: string | number; price_yearly: string | number;
   max_users: number; max_invoices_monthly: number;
   features: Record<string, unknown>; is_active: boolean;
+  active_subscriber_count?: string | number;
 }
 
-const fromRow = (r: PlanRow): Plan & { code: string; isActive: boolean } => ({
+const fromRow = (r: PlanRow): Plan & { code: string; isActive: boolean; activeSubscriberCount: number } => ({
   id: r.id, name: r.name,
   monthlyPrice: Number(r.price_monthly),
   yearlyPrice: Number(r.price_yearly),
@@ -37,6 +38,7 @@ const fromRow = (r: PlanRow): Plan & { code: string; isActive: boolean } => ({
     ? (r.features as { items: string[] }).items : [],
   popular: Boolean((r.features as { popular?: boolean })?.popular),
   code: r.code, isActive: r.is_active,
+  activeSubscriberCount: Number(r.active_subscriber_count ?? 0),
 });
 
 interface EditState {
@@ -59,6 +61,9 @@ const Plans = () => {
   const accessStore = usePlanAccessStore();
   const setAccess = useSetPlanAccess();
 
+  const [deleteTarget, setDeleteTarget] = useState<(Plan & { code: string; isActive: boolean; activeSubscriberCount: number }) | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+
   useEffect(() => {
     if (!apiOn) return;
     api.get<{ hasPlans: boolean }>('/api/platform/plans/health')
@@ -72,9 +77,8 @@ const Plans = () => {
     queryFn: async () => (await api.get<{ data: PlanRow[] }>('/api/plans/all')).data.map(fromRow),
   });
 
-  const baseList = apiOn ? (q.data ?? []) : mockPlans.map((p) => ({ ...p, code: p.id, isActive: true }));
+  const baseList = apiOn ? (q.data ?? []) : mockPlans.map((p) => ({ ...p, code: p.id, isActive: true, activeSubscriberCount: 0 }));
 
-  // Merge admin-edited feature access / marketing items / popular into the displayed plans
   const list = useMemo(() => baseList.map((p) => {
     const a = accessStore[p.id];
     if (!a) return p;
@@ -95,7 +99,6 @@ const Plans = () => {
         features: { items, popular: s.popular, access: s.features },
       };
       const planId = s.id ?? `plan-${s.code || Date.now()}`;
-      // Always persist feature access locally so tenant gating reflects it
       setAccess(planId, { features: s.features, items, popular: s.popular });
       if (!apiOn) return planId;
       if (s.id) return api.patch(`/api/plans/${s.id}`, body);
@@ -111,6 +114,21 @@ const Plans = () => {
     onError: (e) => toast.error(e instanceof ApiError ? e.message : 'تعذّر الحفظ'),
   });
 
+  const deleteMut = useMutation({
+    mutationFn: async (planId: string) => {
+      if (!apiOn) return;
+      return api.delete(`/api/plans/${planId}`);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin-plans'] });
+      qc.invalidateQueries({ queryKey: ['public-plans'] });
+      toast.success('تم إلغاء تفعيل الباقة');
+      setDeleteOpen(false);
+      setDeleteTarget(null);
+    },
+    onError: (e) => toast.error(e instanceof ApiError ? e.message : 'تعذّر إلغاء تفعيل الباقة'),
+  });
+
   const planList = useMemo(() => list, [list]);
 
   const editPlan = (p: typeof list[number]) => {
@@ -124,6 +142,11 @@ const Plans = () => {
       popular: a?.popular ?? !!p.popular,
     });
     setOpen(true);
+  };
+
+  const confirmDelete = (p: typeof list[number]) => {
+    setDeleteTarget(p);
+    setDeleteOpen(true);
   };
 
   const toggleFeature = (key: string, v: boolean) => {
@@ -158,10 +181,26 @@ const Plans = () => {
       </div>
       <div className="grid md:grid-cols-3 gap-5">
         {planList.map(p => (
-          <PlanCard key={p.id} plan={p} yearly={yearly} cta="تعديل الباقة" onSelect={() => editPlan(p)} />
+          <div key={p.id} className="relative group">
+            <PlanCard plan={p} yearly={yearly} cta="تعديل الباقة" onSelect={() => editPlan(p)} />
+            <div className="mt-2 flex justify-end">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                onClick={() => confirmDelete(p)}
+                disabled={!p.isActive}
+                title={!p.isActive ? 'الباقة غير مفعّلة مسبقاً' : 'إلغاء تفعيل الباقة'}
+              >
+                <Trash2 className="h-4 w-4 ml-1" />
+                {p.isActive ? 'إلغاء التفعيل' : 'غير مفعّلة'}
+              </Button>
+            </div>
+          </div>
         ))}
       </div>
 
+      {/* Edit / Create Dialog */}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{draft.id ? 'تعديل باقة' : 'باقة جديدة'}</DialogTitle></DialogHeader>
@@ -207,6 +246,48 @@ const Plans = () => {
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>إلغاء</Button>
             <Button onClick={() => saveMut.mutate(draft)} disabled={saveMut.isPending}>حفظ</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <Trash2 className="h-5 w-5" />
+              إلغاء تفعيل الباقة
+            </DialogTitle>
+          </DialogHeader>
+          {deleteTarget && (
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                هل أنت متأكد من إلغاء تفعيل باقة <span className="font-semibold text-foreground">"{deleteTarget.name}"</span>؟
+                لن تُحذف الباقة نهائياً، بل ستصبح غير متاحة للاشتراكات الجديدة.
+              </p>
+              {deleteTarget.activeSubscriberCount > 0 && (
+                <div className="flex items-start gap-3 rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm" dir="rtl">
+                  <AlertTriangle className="h-5 w-5 text-warning shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-semibold text-warning">تحذير: يوجد مشتركون نشطون</p>
+                    <p className="text-muted-foreground mt-0.5">
+                      هذه الباقة لديها <span className="font-semibold">{deleteTarget.activeSubscriberCount}</span> مشترك نشط حالياً.
+                      إلغاء التفعيل لن يؤثر على اشتراكاتهم الحالية، لكنهم لن يتمكنوا من الاشتراك في هذه الباقة مستقبلاً.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteOpen(false)}>إلغاء</Button>
+            <Button
+              variant="destructive"
+              onClick={() => deleteTarget && deleteMut.mutate(deleteTarget.id)}
+              disabled={deleteMut.isPending}
+            >
+              تأكيد إلغاء التفعيل
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
