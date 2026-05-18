@@ -3,7 +3,6 @@ import { z } from 'zod';
 import { pool } from '../../db/client.js';
 import { badRequest, notFound } from '../../utils/errors.js';
 import { audit } from '../../utils/audit.js';
-import { renderInvoicePdf, type InvoicePdfData } from '../../utils/pdf.js';
 import { sendEmail } from '../../utils/email.js';
 import { renderEmail } from '../../utils/emailTemplate.js';
 import { getCompanyBranding } from '../../utils/platformBranding.js';
@@ -227,7 +226,6 @@ router.post('/:id/send', enforceInvoiceLimit(), async (req, res, next) => {
           `SELECT public_id FROM invoices WHERE id = $1`, [invoiceId],
         );
         const publicUrl = `${env.APP_URL}/invoice/${updatedRow.rows[0].public_id}`;
-        const buf = await renderInvoicePdf(data);
         const branding = await getCompanyBranding(t.db, t.companyId);
         const dueDateStr = data.due_date
           ? new Date(data.due_date).toLocaleDateString('ar-SA')
@@ -245,11 +243,10 @@ router.post('/:id/send', enforceInvoiceLimit(), async (req, res, next) => {
                          <tr><td style="padding:6px 0;color:#6b7280">المبلغ الإجمالي</td><td style="padding:6px 0;font-weight:bold">${data.total} ${data.currency}</td></tr>
                          ${dueDateStr ? `<tr><td style="padding:6px 0;color:#6b7280">تاريخ الاستحقاق</td><td style="padding:6px 0">${dueDateStr}</td></tr>` : ''}
                        </table>
-                       <p>يمكنك عرض الفاتورة أو تنزيلها عبر الرابط التالي، أو مراجعة الملف المرفق.</p>`,
+                       <p>يمكنك عرض الفاتورة عبر الرابط التالي.</p>`,
             ctaLabel: 'عرض الفاتورة',
             ctaUrl: publicUrl,
           }),
-          attachments: [{ filename: `invoice-${data.number}.pdf`, content: buf, contentType: 'application/pdf' }],
           smtpOverride,
         });
         await audit(t.db, {
@@ -384,8 +381,22 @@ router.delete('/:id', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-/** Build the data needed by the PDF renderer for one invoice. */
-async function loadInvoicePdfData(db: { query: typeof pool.query }, invoiceId: string, companyId: string): Promise<InvoicePdfData> {
+interface InvoiceEmailData {
+  number: string;
+  issue_date: string | Date;
+  due_date?: string | Date | null;
+  status: string;
+  currency: string;
+  subtotal: number; vat_amount: number; discount: number;
+  total: number; paid: number; remaining: number;
+  notes?: string | null;
+  company: { name: string; address?: string | null; tax_number?: string | null; phone?: string | null };
+  client:  { name: string; email?: string | null; phone?: string | null; tax_number?: string | null };
+  items: Array<{ description: string; quantity: number; unit_price: number; line_total: number }>;
+}
+
+/** Build the invoice data needed for email notifications. */
+async function loadInvoicePdfData(db: { query: typeof pool.query }, invoiceId: string, companyId: string): Promise<InvoiceEmailData> {
   const inv = await db.query(`SELECT * FROM invoices WHERE id = $1 AND company_id = $2`, [invoiceId, companyId]);
   if (!inv.rowCount) throw notFound('Invoice not found');
   const i = inv.rows[0];
@@ -404,17 +415,6 @@ async function loadInvoicePdfData(db: { query: typeof pool.query }, invoiceId: s
     items: items.map((r) => ({ description: r.description, quantity: Number(r.quantity), unit_price: Number(r.unit_price), line_total: Number(r.line_total) })),
   };
 }
-
-router.get('/:id/pdf', async (req, res, next) => {
-  try {
-    const t = req.tenant!;
-    const data = await loadInvoicePdfData(t.db, req.params.id, t.companyId);
-    const buf = await renderInvoicePdf(data);
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `inline; filename="invoice-${data.number}.pdf"`);
-    res.send(buf);
-  } catch (e) { next(e); }
-});
 
 router.post('/:id/send-email', async (req, res, next) => {
   try {
@@ -451,7 +451,6 @@ router.post('/:id/send-email', async (req, res, next) => {
         }
       : undefined;
 
-    const buf = await renderInvoicePdf(data);
     const branding2 = await getCompanyBranding(t.db, t.companyId);
     const dueDateStr2 = data.due_date
       ? new Date(data.due_date).toLocaleDateString('ar-SA')
@@ -472,11 +471,10 @@ router.post('/:id/send-email', async (req, res, next) => {
                <tr><td style="padding:6px 0;color:#6b7280">المبلغ الإجمالي</td><td style="padding:6px 0;font-weight:bold">${data.total} ${data.currency}</td></tr>
                ${dueDateStr2 ? `<tr><td style="padding:6px 0;color:#6b7280">تاريخ الاستحقاق</td><td style="padding:6px 0">${dueDateStr2}</td></tr>` : ''}
              </table>
-             <p>يمكنك عرض الفاتورة أو تنزيلها عبر الرابط التالي، أو مراجعة الملف المرفق.</p>`,
+             <p>يمكنك عرض الفاتورة عبر الرابط التالي.</p>`,
         ctaLabel: 'عرض الفاتورة',
         ctaUrl: publicUrl,
       }),
-      attachments: [{ filename: `invoice-${data.number}.pdf`, content: buf, contentType: 'application/pdf' }],
       smtpOverride,
     });
 

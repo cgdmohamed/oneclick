@@ -2,9 +2,8 @@ import { useParams, Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Printer, ArrowRight, Download } from 'lucide-react';
+import { Printer, ArrowRight } from 'lucide-react';
 import { BrandLogo } from '@/components/common/BrandLogo';
-import { toast } from 'sonner';
 import { formatCurrency, formatDate, invoiceStatusLabel } from '@/lib/format';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { PrintableQr } from '@/components/common/PrintableQr';
@@ -12,6 +11,7 @@ import { isQrPublicVisible } from '@/hooks/useInvoiceQr';
 import { EmptyState } from '@/components/common/EmptyState';
 import { API_URL } from '@/lib/api';
 import type { InvoiceStatus } from '@/types';
+
 
 interface PublicInvoiceData {
   id: string;
@@ -81,28 +81,6 @@ const PublicInvoice = () => {
           <div className="flex items-center gap-2">
             <Button onClick={() => window.print()} variant="outline" size="sm">
               <Printer className="h-4 w-4 ml-2" /> طباعة
-            </Button>
-            <Button
-              size="sm"
-              onClick={async () => {
-                try {
-                  const res = await fetch(`${API_URL}/api/public/invoices/${publicId}/pdf`);
-                  if (!res.ok) throw new Error('failed');
-                  const blob = await res.blob();
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement('a');
-                  a.href = url;
-                  a.download = `invoice-${data.number}.pdf`;
-                  document.body.appendChild(a);
-                  a.click();
-                  a.remove();
-                  URL.revokeObjectURL(url);
-                } catch {
-                  toast.error('تعذّر تنزيل ملف PDF');
-                }
-              }}
-            >
-              <Download className="h-4 w-4 ml-2" /> تنزيل PDF
             </Button>
           </div>
         </div>

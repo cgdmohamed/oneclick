@@ -1,7 +1,6 @@
 import { Router } from 'express';
 import { pool } from '../../db/client.js';
 import { notFound } from '../../utils/errors.js';
-import { renderInvoicePdf } from '../../utils/pdf.js';
 
 const router = Router();
 
@@ -98,36 +97,6 @@ router.get('/invoices/:publicId', async (req, res, next) => {
         })),
       },
     });
-  } catch (e) { next(e); }
-});
-
-router.get('/invoices/:publicId/pdf', async (req, res, next) => {
-  try {
-    const { invoice, items } = await loadByPublicId(req.params.publicId);
-    const buf = await renderInvoicePdf({
-      number: invoice.number, issue_date: invoice.issue_date,
-      due_date: invoice.due_date, status: invoice.status,
-      currency: invoice.currency ?? 'SAR',
-      subtotal: Number(invoice.subtotal), vat_amount: Number(invoice.vat_amount),
-      discount: Number(invoice.discount), total: Number(invoice.total),
-      paid: Number(invoice.paid), remaining: Number(invoice.remaining),
-      notes: invoice.notes,
-      company: {
-        name: invoice.company_name, address: invoice.company_address,
-        tax_number: invoice.company_tax, phone: invoice.company_phone,
-      },
-      client: {
-        name: invoice.client_name, email: invoice.client_email,
-        phone: invoice.client_phone, tax_number: invoice.client_tax,
-      },
-      items: items.map((r) => ({
-        description: r.description, quantity: Number(r.quantity),
-        unit_price: Number(r.unit_price), line_total: Number(r.line_total),
-      })),
-    });
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `inline; filename="invoice-${invoice.number}.pdf"`);
-    res.send(buf);
   } catch (e) { next(e); }
 });
 

@@ -13,10 +13,10 @@ import { formatCurrency, formatDate, paymentMethodLabel, invoiceStatusLabel } fr
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { PaymentForm } from '@/components/common/PaymentForm';
-import { Plus, Share2, Mail, MessageCircle, Printer, Download, Copy, Send, XCircle } from 'lucide-react';
+import { Plus, Share2, Mail, MessageCircle, Printer, Copy, Send, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Payment, PaymentSplit, Invoice, InvoiceStatus } from '@/types';
-import { api, ApiError, isApiConfigured, API_URL, getAccessToken } from '@/lib/api';
+import { api, ApiError, isApiConfigured } from '@/lib/api';
 import { useAccounts } from '@/hooks/entities';
 
 interface ApiItem { id: string; description: string; quantity: number; unit_price: string | number; product_id: string | null }
@@ -140,59 +140,6 @@ const InvoiceDetails = () => {
 
   const publicUrl = `${window.location.origin}/invoice/${invoice.publicId}`;
 
-  const exportClientPdf = async () => {
-    const node = document.querySelector<HTMLElement>('[data-print-area]');
-    if (!node) return toast.error('تعذّر إيجاد محتوى الفاتورة');
-    const t = toast.loading('جارٍ توليد PDF...');
-    try {
-      const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
-        import('html2canvas'),
-        import('jspdf'),
-      ]);
-      const canvas = await html2canvas(node, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
-      const pageW = pdf.internal.pageSize.getWidth();
-      const pageH = pdf.internal.pageSize.getHeight();
-      const margin = 10;
-      const imgW = pageW - margin * 2;
-      const imgH = (canvas.height * imgW) / canvas.width;
-      let heightLeft = imgH;
-      let position = margin;
-      pdf.addImage(imgData, 'PNG', margin, position, imgW, imgH);
-      heightLeft -= pageH - margin * 2;
-      while (heightLeft > 0) {
-        position = margin - (imgH - heightLeft);
-        pdf.addPage();
-        pdf.addImage(imgData, 'PNG', margin, position, imgW, imgH);
-        heightLeft -= pageH - margin * 2;
-      }
-      pdf.save(`invoice-${invoice.number}.pdf`);
-      toast.success('تم تنزيل PDF', { id: t });
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'تعذّر توليد PDF', { id: t });
-    }
-  };
-
-  const downloadPdf = async () => {
-    if (!apiOn) return exportClientPdf();
-    try {
-      const res = await fetch(`${API_URL}/api/invoices/${invoice.id}/pdf`, {
-        headers: { Authorization: `Bearer ${getAccessToken() ?? ''}` },
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url; a.download = `invoice-${invoice.number}.pdf`;
-      document.body.appendChild(a); a.click(); a.remove();
-      URL.revokeObjectURL(url);
-    } catch {
-      // fallback to client-side rendering
-      await exportClientPdf();
-    }
-  };
-
   const sendEmail = async () => {
     if (apiOn) {
       try {
@@ -286,7 +233,6 @@ const InvoiceDetails = () => {
             <Button variant="outline" onClick={() => { navigator.clipboard.writeText(publicUrl); toast.success('تم نسخ رابط المشاركة'); }}>
               <Copy className="h-4 w-4 ml-1" /> نسخ الرابط العام
             </Button>
-            <Button variant="outline" onClick={downloadPdf}><Download className="h-4 w-4 ml-1" /> PDF</Button>
             <Button variant="outline" asChild><Link to={`/invoice/${invoice.publicId}`} target="_blank"><Share2 className="h-4 w-4 ml-1" /> عرض عام</Link></Button>
             <Button onClick={() => window.print()}><Printer className="h-4 w-4 ml-1" /> طباعة</Button>
             {!isDraft && !isCancelled && (
