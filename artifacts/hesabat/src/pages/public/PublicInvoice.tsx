@@ -1,6 +1,5 @@
 import { useParams, Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
-import { invoices as mockInvoices, clients as mockClients, companies as mockCompanies } from '@/data/mock';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Printer, ArrowRight, Download } from 'lucide-react';
@@ -11,7 +10,7 @@ import { StatusBadge } from '@/components/common/StatusBadge';
 import { PrintableQr } from '@/components/common/PrintableQr';
 import { isQrPublicVisible } from '@/hooks/useInvoiceQr';
 import { EmptyState } from '@/components/common/EmptyState';
-import { API_URL, isApiConfigured } from '@/lib/api';
+import { API_URL } from '@/lib/api';
 import type { InvoiceStatus } from '@/types';
 
 interface PublicInvoiceData {
@@ -50,27 +49,6 @@ const PublicInvoice = () => {
 
   useEffect(() => {
     let cancelled = false;
-    if (!isApiConfigured()) {
-      // Mock fallback
-      const inv = mockInvoices.find((i) => i.publicId === publicId) ?? mockInvoices[0];
-      const client = mockClients.find((c) => c.id === inv?.clientId);
-      const company = mockCompanies.find((c) => c.id === inv?.companyId);
-      if (!inv) { setNotFound(true); setLoading(false); return; }
-      setData({
-        id: inv.id, number: inv.number, issue_date: inv.issueDate, due_date: inv.dueDate,
-        subtotal: inv.subtotal, vat_amount: inv.tax, discount: inv.discount, total: inv.total,
-        paid: inv.paid, remaining: inv.remaining, status: inv.status,
-        client_name: client?.name ?? '', client_email: client?.email ?? null,
-        client_tax: client?.taxNumber ?? null,
-        company_name: company?.name ?? '', company_tax: company?.taxNumber ?? null,
-        company_address: company?.address ?? null, company_logo: null, company_stamp: null,
-        currency: client?.currency ?? 'SAR',
-        currency_symbol: client?.currencySymbol ?? null,
-        items: inv.items.map((it) => ({ id: it.id, name: it.name, quantity: it.quantity, unit_price: it.unitPrice })),
-      });
-      setLoading(false);
-      return;
-    }
     (async () => {
       try {
         const res = await fetch(`${API_URL}/api/public/invoices/${publicId}`);
@@ -107,10 +85,6 @@ const PublicInvoice = () => {
             <Button
               size="sm"
               onClick={async () => {
-                if (!isApiConfigured()) {
-                  window.print();
-                  return;
-                }
                 try {
                   const res = await fetch(`${API_URL}/api/public/invoices/${publicId}/pdf`);
                   if (!res.ok) throw new Error('failed');
