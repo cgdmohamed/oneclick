@@ -9,25 +9,32 @@ import {
   invoices as mockInvoices, notifications as mockNotifications, users as mockUsers,
 } from '@/data/mock';
 import { useResource, type ResourceConfig } from '@/hooks/useResource';
+import { CURRENCIES, getCurrencySymbol } from '@/lib/currency';
 
 /* ---------- Clients ---------- */
 interface ClientRow {
   id: string; company_id: string; name: string;
   phone: string | null; email: string | null; address: string | null;
-  tax_number: string | null; created_at: string;
+  tax_number: string | null; currency: string | null; created_at: string;
 }
 export const clientsCfg: ResourceConfig<Client, ClientRow> = {
   path: '/api/clients',
   key: 'clients',
   initial: mockClients,
-  fromRow: (r) => ({
-    id: r.id, companyId: r.company_id, name: r.name,
-    phone: r.phone ?? '', email: r.email ?? '', address: r.address ?? '',
-    taxNumber: r.tax_number ?? '', createdAt: r.created_at,
-  }),
+  fromRow: (r) => {
+    const code = r.currency ?? 'SAR';
+    return {
+      id: r.id, companyId: r.company_id, name: r.name,
+      phone: r.phone ?? '', email: r.email ?? '', address: r.address ?? '',
+      taxNumber: r.tax_number ?? '', currency: code,
+      currencySymbol: CURRENCIES.find(x => x.code === code)?.symbol ?? getCurrencySymbol(),
+      createdAt: r.created_at,
+    };
+  },
   toRow: (c) => ({
     name: c.name, phone: c.phone || null, email: c.email || null,
     address: c.address || null, tax_number: c.taxNumber || null,
+    currency: c.currency || null,
   }),
 };
 export const useClients = () => useResource(clientsCfg);

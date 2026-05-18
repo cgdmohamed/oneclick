@@ -19,6 +19,7 @@ import { useClients, useInvoices } from '@/hooks/entities';
 import { payments as mockPayments, accounts as mockAccounts } from '@/data/mock';
 import { api, isApiConfigured } from '@/lib/api';
 import { formatCurrency, formatDateShort, invoiceStatusLabel, paymentMethodLabel } from '@/lib/format';
+import { CURRENCIES, getCurrencySymbol } from '@/lib/currency';
 import type { Invoice, PaymentMethod } from '@/types';
 
 interface PaymentRecord {
@@ -52,7 +53,8 @@ const ClientDetail = () => {
   const apiOn = isApiConfigured();
 
   const client = clients.find((c) => c.id === id);
-  const fc = (n: number) => formatCurrency(n, client?.currencySymbol);
+  const clientSymbol = client ? (CURRENCIES.find(x => x.code === client.currency)?.symbol ?? client.currencySymbol) : undefined;
+  const fc = (n: number) => formatCurrency(n, clientSymbol);
 
   const clientInvoices = useMemo(
     () => invoices.filter((inv) => inv.clientId === id),
@@ -279,9 +281,9 @@ const ClientDetail = () => {
                     <FileBadge2 className="h-3.5 w-3.5" /> ضريبي: {client.taxNumber}
                   </span>
                 )}
-                {client.currencySymbol && (
+                {client.currency && (
                   <span className="inline-flex items-center gap-1.5">
-                    <Wallet className="h-3.5 w-3.5" /> العملة: {client.currencySymbol}
+                    <Wallet className="h-3.5 w-3.5" /> العملة: {CURRENCIES.find(x => x.code === client.currency)?.symbol ?? getCurrencySymbol()}
                   </span>
                 )}
               </div>

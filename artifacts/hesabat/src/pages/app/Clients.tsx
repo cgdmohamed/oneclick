@@ -26,11 +26,11 @@ interface ClientRow {
   tax_number: string | null;
   notes: string | null;
   currency: string | null;
-  currency_symbol: string | null;
   created_at: string;
 }
 
-const empty: Client = { id: '', companyId: 'co-1', name: '', phone: '', whatsapp: '', email: '', address: '', taxNumber: '', currency: 'SAR', currencySymbol: getCurrencySymbol(), createdAt: new Date().toISOString() };
+const derivedSymbol = (code: string) => CURRENCIES.find(x => x.code === code)?.symbol ?? getCurrencySymbol();
+const empty: Client = { id: '', companyId: 'co-1', name: '', phone: '', whatsapp: '', email: '', address: '', taxNumber: '', currency: 'SAR', currencySymbol: derivedSymbol('SAR'), createdAt: new Date().toISOString() };
 
 const Clients = () => {
   const navigate = useNavigate();
@@ -48,7 +48,7 @@ const Clients = () => {
       address: r.address ?? '',
       taxNumber: r.tax_number ?? '',
       currency: r.currency ?? 'SAR',
-      currencySymbol: r.currency_symbol ?? getCurrencySymbol(),
+      currencySymbol: derivedSymbol(r.currency ?? 'SAR'),
       createdAt: r.created_at,
     }),
     toRow: (c) => ({
@@ -59,7 +59,6 @@ const Clients = () => {
       address: c.address || null,
       tax_number: c.taxNumber || null,
       currency: c.currency || null,
-      currency_symbol: c.currencySymbol || null,
     }),
   });
 
@@ -119,8 +118,7 @@ const Clients = () => {
               <Select
                 value={editing.currency || 'SAR'}
                 onValueChange={v => {
-                  const c = CURRENCIES.find(x => x.code === v);
-                  setEditing(e => ({ ...e, currency: v, currencySymbol: c?.symbol || e.currencySymbol }));
+                  setEditing(e => ({ ...e, currency: v, currencySymbol: derivedSymbol(v) }));
                 }}
               >
                 <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
