@@ -20,6 +20,7 @@ import { requireRole } from '../../middleware/rbac.js';
 import { badRequest, notFound, HttpError } from '../../utils/errors.js';
 import { audit } from '../../utils/audit.js';
 import { sendEmail } from '../../utils/email.js';
+import { getPlatformBranding, buildEmail } from '../../utils/emailTemplate.js';
 import { enforceUserLimit } from '../../middleware/planLimits.js';
 import type { AuthClaims } from '../../middleware/auth.js';
 
@@ -92,13 +93,21 @@ invitationsAdminRouter.post('/', requireRole('company_admin'), enforceUserLimit(
 
     const link = buildInviteUrl(token);
     // Best-effort email; never block the response if SMTP is down.
-    void sendEmail({
-      to: body.email,
-      subject: 'تمت دعوتك للانضمام إلى ون كليك',
-      html: `<p>مرحبًا ${body.fullName},</p>
-             <p>تمت دعوتك للانضمام بصفة <b>${body.role}</b>. الرابط صالح لمدة ${TTL_DAYS} أيام.</p>
-             <p><a href="${link}">${link}</a></p>`,
-    });
+    void getPlatformBranding().then((branding) =>
+      sendEmail({
+        to: body.email,
+        subject: `دعوة للانضمام إلى ${branding.name}`,
+        html: buildEmail({
+          title: `دعوة للانضمام إلى ${branding.name}`,
+          body: `<p>مرحباً <strong>${body.fullName}</strong>،</p>
+                 <p>تمت دعوتك للانضمام إلى منصة <strong>${branding.name}</strong> بصفة <strong>${body.role}</strong>.</p>
+                 <p>انقر على الزر أدناه لقبول الدعوة وإنشاء حسابك. الرابط صالح لمدة <strong>${TTL_DAYS} أيام</strong>.</p>
+                 <p style="color:#6b7280;font-size:13px;margin-top:24px">إذا لم تتوقع هذه الدعوة، يمكنك تجاهل هذه الرسالة.</p>`,
+          cta: { text: 'قبول الدعوة', url: link },
+          branding,
+        }),
+      }),
+    );
 
     await audit(t.db, {
       companyId: t.companyId, userId: req.auth!.userId,
@@ -150,13 +159,21 @@ invitationsAdminRouter.post('/:id/resend', requireRole('company_admin'), async (
     if (!rs.rowCount) throw notFound('Invitation not found');
     const row = rs.rows[0];
     const link = buildInviteUrl(token);
-    void sendEmail({
-      to: row.email,
-      subject: 'تذكير: دعوتك للانضمام إلى ون كليك',
-      html: `<p>مرحبًا ${row.full_name},</p>
-             <p>هذا تذكير بدعوتك. الرابط صالح لمدة ${TTL_DAYS} أيام.</p>
-             <p><a href="${link}">${link}</a></p>`,
-    });
+    void getPlatformBranding().then((branding) =>
+      sendEmail({
+        to: row.email,
+        subject: `تذكير: دعوتك للانضمام إلى ${branding.name}`,
+        html: buildEmail({
+          title: 'تذكير بدعوة الانضمام',
+          body: `<p>مرحباً <strong>${row.full_name}</strong>،</p>
+                 <p>هذا تذكير بأن لديك دعوة معلّقة للانضمام إلى منصة <strong>${branding.name}</strong>.</p>
+                 <p>انقر على الزر أدناه لقبول الدعوة. الرابط صالح لمدة <strong>${TTL_DAYS} أيام</strong>.</p>
+                 <p style="color:#6b7280;font-size:13px;margin-top:24px">إذا لم تتوقع هذه الدعوة، يمكنك تجاهل هذه الرسالة.</p>`,
+          cta: { text: 'قبول الدعوة', url: link },
+          branding,
+        }),
+      }),
+    );
     await audit(t.db, {
       companyId: t.companyId, userId: req.auth!.userId,
       action: 'invitation.resend', entity: 'invitation', entityId: row.id,

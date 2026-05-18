@@ -5,6 +5,7 @@ import { badRequest, notFound } from '../../utils/errors.js';
 import { audit } from '../../utils/audit.js';
 import { renderInvoicePdf, type InvoicePdfData } from '../../utils/pdf.js';
 import { sendEmail } from '../../utils/email.js';
+import { getPlatformBranding, buildEmail } from '../../utils/emailTemplate.js';
 import { env } from '../../config/env.js';
 import { enforceInvoiceLimit } from '../../middleware/planLimits.js';
 import { parsePagination } from '../../utils/pagination.js';
@@ -225,11 +226,18 @@ router.post('/:id/send', enforceInvoiceLimit(), async (req, res, next) => {
         );
         const publicUrl = `${env.APP_URL}/invoice/${updatedRow.rows[0].public_id}`;
         const buf = await renderInvoicePdf(data);
+        const branding = await getPlatformBranding();
         await sendEmail({
           to: recipient,
-          subject: `Invoice ${data.number} from ${data.company.name}`,
-          html: `<p>Please find attached invoice ${data.number}.</p>
-                 <p>You can also view it online: <a href="${publicUrl}">${publicUrl}</a></p>`,
+          subject: `فاتورة رقم ${data.number} من ${data.company.name}`,
+          html: buildEmail({
+            title: `فاتورة رقم ${data.number}`,
+            body: `<p>عزيزي العميل،</p>
+                   <p>يسعدنا إرسال فاتورتك رقم <strong>${data.number}</strong> من <strong>${data.company.name}</strong> مرفقة بهذا البريد.</p>
+                   <p>يمكنك أيضاً عرض الفاتورة والتفاعل معها إلكترونياً عبر الرابط أدناه.</p>`,
+            cta: { text: 'عرض الفاتورة', url: publicUrl },
+            branding,
+          }),
           attachments: [{ filename: `invoice-${data.number}.pdf`, content: buf, contentType: 'application/pdf' }],
           smtpOverride,
         });
@@ -422,11 +430,19 @@ router.post('/:id/send-email', async (req, res, next) => {
       : undefined;
 
     const buf = await renderInvoicePdf(data);
+    const branding = await getPlatformBranding();
+    const defaultSubject = `فاتورة رقم ${data.number} من ${data.company.name}`;
     await sendEmail({
       to: recipient,
-      subject: subject ?? `Invoice ${data.number} from ${data.company.name}`,
-      html: `<p>${message ?? `Please find attached invoice ${data.number}.`}</p>
-             <p>You can also view it online: <a href="${publicUrl}">${publicUrl}</a></p>`,
+      subject: subject ?? defaultSubject,
+      html: buildEmail({
+        title: `فاتورة رقم ${data.number}`,
+        body: `<p>عزيزي العميل،</p>
+               <p>${message ?? `يسعدنا إرسال فاتورتك رقم <strong>${data.number}</strong> من <strong>${data.company.name}</strong> مرفقة بهذا البريد.`}</p>
+               <p>يمكنك عرض الفاتورة إلكترونياً عبر الرابط أدناه.</p>`,
+        cta: { text: 'عرض الفاتورة', url: publicUrl },
+        branding,
+      }),
       attachments: [{ filename: `invoice-${data.number}.pdf`, content: buf, contentType: 'application/pdf' }],
       smtpOverride,
     });

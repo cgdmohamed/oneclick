@@ -9,6 +9,7 @@ import { env } from '../../config/env.js';
 import { badRequest, unauthorized, forbidden } from '../../utils/errors.js';
 import { requireAuth } from '../../middleware/auth.js';
 import { sendEmail } from '../../utils/email.js';
+import { getPlatformBranding, buildEmail } from '../../utils/emailTemplate.js';
 import { audit } from '../../utils/audit.js';
 import { REFRESH_COOKIE, setRefreshCookie, clearRefreshCookie } from '../../utils/cookies.js';
 import { setCsrfCookie, clearCsrfCookie, requireCsrf } from '../../middleware/csrf.js';
@@ -136,11 +137,18 @@ function noteSuccess(email: string) {
 async function sendVerificationEmail(userId: string, email: string) {
   const token = signVerify(userId);
   const link = `${env.APP_URL}/verify-email?token=${token}`;
+  const branding = await getPlatformBranding();
   await sendEmail({
     to: email,
-    subject: 'Verify your Hesabat email',
-    html: `<p>Welcome! Confirm your email to finish setting up your account (link valid for 24 hours):</p>
-           <p><a href="${link}">${link}</a></p>`,
+    subject: `تأكيد بريدك الإلكتروني — ${branding.name}`,
+    html: buildEmail({
+      title: 'تأكيد عنوان البريد الإلكتروني',
+      body: `<p>مرحباً بك في <strong>${branding.name}</strong>!</p>
+             <p>لإتمام إنشاء حسابك، يرجى النقر على الزر أدناه لتأكيد عنوان بريدك الإلكتروني.</p>
+             <p style="color:#6b7280;font-size:13px;margin-top:24px">الرابط صالح لمدة 24 ساعة. إذا لم تطلب إنشاء حساب، يمكنك تجاهل هذه الرسالة.</p>`,
+      cta: { text: 'تأكيد البريد الإلكتروني', url: link },
+      branding,
+    }),
   });
 }
 
@@ -519,12 +527,18 @@ router.post('/forgot-password', async (req, res, next) => {
         [u.rows[0].id, sha(token)],
       );
       const link = `${env.APP_URL}/reset-password?token=${token}`;
+      const branding = await getPlatformBranding();
       await sendEmail({
         to: email,
-        subject: 'Reset your Hesabat password',
-        html: `<p>Click the link below to reset your password (valid for 1 hour):</p>
-               <p><a href="${link}">${link}</a></p>
-               <p>If you did not request this, ignore this email.</p>`,
+        subject: `إعادة تعيين كلمة المرور — ${branding.name}`,
+        html: buildEmail({
+          title: 'إعادة تعيين كلمة المرور',
+          body: `<p>تلقينا طلباً لإعادة تعيين كلمة المرور الخاصة بحسابك.</p>
+                 <p>انقر على الزر أدناه لاختيار كلمة مرور جديدة. الرابط صالح لمدة ساعة واحدة فقط.</p>
+                 <p style="color:#6b7280;font-size:13px;margin-top:24px">إذا لم تطلب إعادة تعيين كلمة المرور، يمكنك تجاهل هذه الرسالة بأمان.</p>`,
+          cta: { text: 'إعادة تعيين كلمة المرور', url: link },
+          branding,
+        }),
       });
       await audit(pool, {
         companyId: null, userId: u.rows[0].id,
