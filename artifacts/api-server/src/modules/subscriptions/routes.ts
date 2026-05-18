@@ -50,8 +50,8 @@ router.get('/me/payments', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// Request a plan change. Manual billing → records a notification for admins;
-// the actual switch is performed by a super admin from the Subscriptions page.
+// Request a plan change. Manual billing → records a confirmation for the requester
+// and an admin-targeted system notification for super-admins to act on.
 router.post('/me/request-change', async (req, res, next) => {
   try {
     const t = req.tenant!;
@@ -59,12 +59,29 @@ router.post('/me/request-change', async (req, res, next) => {
     if (!targetPlanId) return res.status(400).json({ error: 'plan_id required' });
     const plan = await t.db.query(`SELECT id, name FROM plans WHERE id = $1`, [targetPlanId]);
     if (!plan.rowCount) return res.status(404).json({ error: 'Plan not found' });
+
+    const company = await t.db.query(`SELECT name FROM companies WHERE id = $1`, [t.companyId]);
+    const companyName: string = company.rows[0]?.name ?? t.companyId;
+    const planName: string = plan.rows[0].name;
+
+    // 1. Confirmation notification for the requester's own tray
     await t.db.query(
       `INSERT INTO notifications (company_id, kind, title, body)
        VALUES ($1, 'info', $2, $3)`,
-      [t.companyId, 'طلب تغيير باقة',
-        `تم طلب الترقية إلى الباقة "${plan.rows[0].name}". في انتظار تأكيد الإدارة.`],
+      [t.companyId, 'طلب تغيير الباقة',
+        'تم إرسال طلبك، سيتم مراجعته قريباً.'],
     );
+
+    // 2. Admin-targeted system notification so super-admins can act on it
+    await t.db.query(
+      `INSERT INTO system_notifications (title, body, audience)
+       VALUES ($1, $2, 'admin')`,
+      [
+        `طلب تغيير باقة — ${companyName}`,
+        `طلبت الشركة "${companyName}" الترقية إلى الباقة "${planName}". يرجى مراجعة الاشتراكات واتخاذ الإجراء المناسب.`,
+      ],
+    );
+
     res.json({ ok: true });
   } catch (e) { next(e); }
 });

@@ -7,13 +7,16 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
 import { companies as mockCompanies } from '@/data/mock';
 import { toast } from 'sonner';
 import { api, isApiConfigured, ApiError } from '@/lib/api';
 import { formatDate } from '@/lib/format';
+import { useAdminNotifications } from '@/hooks/useNotificationsAlerts';
+import { CheckCheck, Crown } from 'lucide-react';
 
 interface CompanyRow { id: string; name: string }
-interface SysNotif { id: string; title: string; body: string; audience: string; created_at: string }
+interface SysNotif { id: string; title: string; body: string; audience: string; read_at: string | null; created_at: string }
 
 const SystemNotifications = () => {
   const apiOn = isApiConfigured();
@@ -21,6 +24,9 @@ const SystemNotifications = () => {
   const [target, setTarget] = useState('all');
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
+
+  const { notifications: planChangeRequests, markRead, markAllRead } = useAdminNotifications();
+  const unreadPlanChanges = planChangeRequests.filter(n => !n.read_at);
 
   const companiesQ = useQuery({
     enabled: apiOn,
@@ -33,6 +39,7 @@ const SystemNotifications = () => {
     queryFn: async () => (await api.get<{ data: SysNotif[] }>('/api/platform/system-notifications')).data,
   });
 
+  const broadcastNotifs = (notifQ.data ?? []).filter(n => n.audience !== 'admin');
   const companies = apiOn ? (companiesQ.data ?? []) : mockCompanies.map(c => ({ id: c.id, name: c.name }));
 
   const sendMut = useMutation({
@@ -52,10 +59,76 @@ const SystemNotifications = () => {
   };
 
   return (
-    <div>
-      <PageHeader title="إشعارات النظام" description="أرسل إشعاراً لشركة محددة أو لجميع الشركات" />
+    <div className="space-y-6">
+      <PageHeader title="إشعارات النظام" description="طلبات تغيير الباقة وإرسال الإشعارات العامة" />
+
+      {/* Plan-change requests section */}
+      <Card className="p-6 border-border/60">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Crown className="h-5 w-5 text-warning" />
+            <h3 className="font-semibold text-base">طلبات تغيير الباقة</h3>
+            {unreadPlanChanges.length > 0 && (
+              <Badge variant="destructive" className="h-5 px-1.5 text-[10px] font-bold">
+                {unreadPlanChanges.length}
+              </Badge>
+            )}
+          </div>
+          {unreadPlanChanges.length > 0 && (
+            <Button variant="ghost" size="sm" className="gap-1.5 text-xs" onClick={() => markAllRead()}>
+              <CheckCheck className="h-4 w-4" />
+              تحديد الكل كمقروء
+            </Button>
+          )}
+        </div>
+
+        {planChangeRequests.length === 0 ? (
+          <p className="text-sm text-muted-foreground">لا توجد طلبات تغيير باقة حتى الآن.</p>
+        ) : (
+          <ul className="space-y-3">
+            {planChangeRequests.map(n => (
+              <li
+                key={n.id}
+                className={`p-3 rounded-lg text-sm border transition-colors ${
+                  n.read_at
+                    ? 'bg-muted/30 border-transparent'
+                    : 'bg-warning/5 border-warning/30'
+                }`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-start gap-2 flex-1 min-w-0">
+                    {!n.read_at && (
+                      <span className="mt-1.5 h-2 w-2 rounded-full bg-warning shrink-0" />
+                    )}
+                    <div className="min-w-0">
+                      <p className="font-semibold truncate">{n.title}</p>
+                      <p className="text-muted-foreground mt-0.5">{n.body}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-xs text-muted-foreground whitespace-nowrap">{formatDate(n.created_at)}</span>
+                    {!n.read_at && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2 text-xs"
+                        onClick={() => markRead(n.id)}
+                      >
+                        تحديد كمقروء
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
+
+      {/* Broadcast compose + history */}
       <div className="grid lg:grid-cols-2 gap-5">
         <Card className="p-6 border-border/60 space-y-4">
+          <h3 className="font-semibold text-base mb-1">إرسال إشعار للشركات</h3>
           <div>
             <Label>المستهدف</Label>
             <Select value={target} onValueChange={setTarget}>
@@ -77,11 +150,11 @@ const SystemNotifications = () => {
           <h3 className="font-semibold mb-3">آخر الإشعارات المرسلة</h3>
           {!apiOn ? (
             <p className="text-sm text-muted-foreground">فعّل الـ API لعرض السجل.</p>
-          ) : (notifQ.data ?? []).length === 0 ? (
+          ) : broadcastNotifs.length === 0 ? (
             <p className="text-sm text-muted-foreground">لا توجد إشعارات مرسلة بعد.</p>
           ) : (
             <ul className="space-y-3">
-              {(notifQ.data ?? []).slice(0, 20).map(n => (
+              {broadcastNotifs.slice(0, 20).map(n => (
                 <li key={n.id} className="p-3 rounded-lg bg-muted/40 text-sm">
                   <div className="flex justify-between gap-2">
                     <span className="font-semibold">{n.title}</span>

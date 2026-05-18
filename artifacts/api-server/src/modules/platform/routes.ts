@@ -519,6 +519,41 @@ router.get('/system-notifications', async (_req, res, next) => {
   } catch (e) { next(e); }
 });
 
+/* Count of unread admin-targeted system notifications (audience = 'admin') */
+router.get('/system-notifications/unread-count', async (_req, res, next) => {
+  try {
+    const rs = await pool.query(
+      `SELECT count(*)::int AS unread
+       FROM system_notifications
+       WHERE audience = 'admin' AND read_at IS NULL`,
+    );
+    res.json({ data: { unread: rs.rows[0].unread } });
+  } catch (e) { next(e); }
+});
+
+/* Mark all admin-targeted notifications as read */
+router.post('/system-notifications/read-all', async (_req, res, next) => {
+  try {
+    await pool.query(
+      `UPDATE system_notifications SET read_at = now()
+       WHERE audience = 'admin' AND read_at IS NULL`,
+    );
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
+/* Mark a single admin-targeted notification as read */
+router.post('/system-notifications/:id/read', async (req, res, next) => {
+  try {
+    await pool.query(
+      `UPDATE system_notifications SET read_at = now()
+       WHERE id = $1 AND audience = 'admin'`,
+      [req.params.id],
+    );
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
 router.post('/system-notifications', async (req, res, next) => {
   try {
     const body = z.object({

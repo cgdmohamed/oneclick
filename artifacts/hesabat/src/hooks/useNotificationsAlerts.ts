@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, isApiConfigured } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
 import type { SentAlert, AlertEventKind, AlertChannel, AlertRecipientKind } from '@/lib/sentAlerts';
 
 interface NotificationRow {
@@ -86,10 +87,19 @@ export function useInvoiceAlerts() {
 
 export function useUnreadNotificationsCount(): number {
   const apiOn = isApiConfigured();
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'super_admin';
+
   const { data } = useQuery({
     enabled: apiOn,
-    queryKey: ['notifications', 'unread-count'],
+    queryKey: ['notifications', 'unread-count', isAdmin],
     queryFn: async () => {
+      if (isAdmin) {
+        const rs = await api.get<{ data: { unread: number } }>(
+          '/api/platform/system-notifications/unread-count',
+        );
+        return rs.data.unread;
+      }
       const rs = await api.get<UnreadCountResponse>('/api/notifications/count');
       return rs.data.unread;
     },
@@ -97,4 +107,52 @@ export function useUnreadNotificationsCount(): number {
     refetchInterval: 60_000,
   });
   return data ?? 0;
+}
+
+export function useAdminNotifications() {
+  const apiOn = isApiConfigured();
+  const qc = useQueryClient();
+
+  interface AdminNotif {
+    id: string;
+    title: string;
+    body: string;
+    audience: string;
+    read_at: string | null;
+    created_at: string;
+  }
+
+  const query = useQuery({
+    enabled: apiOn,
+    queryKey: ['system-notifications', 'admin'],
+    queryFn: async () => {
+      const rs = await api.get<{ data: AdminNotif[] }>('/api/platform/system-notifications');
+      return (rs.data ?? []).filter((n) => n.audience === 'admin');
+    },
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+  });
+
+  const markRead = useMutation({
+    mutationFn: (id: string) => api.post(`/api/platform/system-notifications/${id}/read`, {}),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['system-notifications'] });
+      qc.invalidateQueries({ queryKey: ['notifications', 'unread-count'] });
+    },
+  });
+
+  const markAllRead = useMutation({
+    mutationFn: () => api.post('/api/platform/system-notifications/read-all', {}),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['system-notifications'] });
+      qc.invalidateQueries({ queryKey: ['notifications', 'unread-count'] });
+    },
+  });
+
+  return {
+    notifications: query.data ?? [],
+    isLoading: query.isLoading,
+    markRead: (id: string) => markRead.mutate(id),
+    markAllRead: () => markAllRead.mutate(),
+  };
 }
