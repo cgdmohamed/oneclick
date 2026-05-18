@@ -59,6 +59,10 @@ export const companies = pgTable('companies', {
   vatRate: numeric('vat_rate', { precision: 5, scale: 2 }).notNull().default('15.00'),
   smtpSettings: jsonb('smtp_settings'),
   isActive: boolean('is_active').notNull().default(true),
+  reviewStatus: varchar('review_status', { length: 20 }).notNull().default('approved'),
+  reviewNotes: text('review_notes'),
+  reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
+  reviewedBy: uuid('reviewed_by').references(() => users.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
@@ -128,6 +132,7 @@ export const subscriptions = pgTable('subscriptions', {
   expiresAt: timestamp('expires_at', { withTimezone: true }),
   cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   byCompany: index('subscriptions_company_idx').on(t.companyId),
 }));
@@ -266,6 +271,7 @@ export const systemNotifications = pgTable('system_notifications', {
   body: text('body'),
   audience: varchar('audience', { length: 30 }).notNull().default('all'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  readAt: timestamp('read_at', { withTimezone: true }),
 });
 
 export const auditLog = pgTable('audit_log', {
@@ -344,5 +350,17 @@ export const subscriptionPayments = pgTable('subscription_payments', {
 export const platformSettings = pgTable('platform_settings', {
   key: varchar('key', { length: 100 }).primaryKey(),
   value: jsonb('value').notNull().default(sql`'{}'::jsonb`),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const platformCustomRoles = pgTable('platform_custom_roles', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: varchar('name', { length: 100 }).notNull(),
+  description: text('description'),
+  permissions: jsonb('permissions').notNull().default(sql`'[]'::jsonb`),
+  color: varchar('color', { length: 20 }),
+  scope: varchar('scope', { length: 20 }).notNull().default('company'),
+  enabled: boolean('enabled').notNull().default(true),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
