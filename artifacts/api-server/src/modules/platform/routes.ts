@@ -304,7 +304,11 @@ router.patch('/companies/:id', async (req, res, next) => {
 router.get('/analytics', async (_req, res, next) => {
   try {
     const [seriesRs, kpisRs, planRs, statusRs, topRs] = await Promise.all([
-      /* Monthly time-series — last 12 months */
+      /* Monthly time-series — last 12 months.
+         MRR per month = sum of amounts for subscriptions that were active
+         during that calendar month (started before month end, not yet
+         cancelled/expired before month start). This reflects recurring
+         subscription value, not cash collected. */
       pool.query(`
         WITH months AS (
           SELECT generate_series(
@@ -312,31 +316,34 @@ router.get('/analytics', async (_req, res, next) => {
             date_trunc('month', now()),
             INTERVAL '1 month'
           ) AS month_start
-        ),
-        signups AS (
-          SELECT date_trunc('month', created_at) AS m, COUNT(*)::int AS cnt
-          FROM companies GROUP BY 1
-        ),
-        payments AS (
-          SELECT date_trunc('month', paid_at) AS m, COALESCE(SUM(amount), 0)::float AS total
-          FROM subscription_payments GROUP BY 1
-        ),
-        churn AS (
-          SELECT date_trunc('month', COALESCE(cancelled_at, expires_at)) AS m, COUNT(*)::int AS cnt
-          FROM subscriptions
-          WHERE status IN ('cancelled', 'expired')
-            AND COALESCE(cancelled_at, expires_at) IS NOT NULL
-          GROUP BY 1
         )
         SELECT
           to_char(mo.month_start, 'YYYY-MM') AS key,
-          COALESCE(sg.cnt, 0)               AS signups,
-          COALESCE(pay.total, 0.0)           AS mrr,
-          COALESCE(ch.cnt, 0)               AS churn
+
+          /* New company signups that month */
+          (SELECT COUNT(*)::int FROM companies c
+           WHERE date_trunc('month', c.created_at) = mo.month_start
+          ) AS signups,
+
+          /* MRR: active subscription amounts for that month.
+             A subscription is "active in month M" when:
+               started_at  < end of M
+               AND (expires_at  IS NULL OR expires_at  >= start of M)
+               AND (cancelled_at IS NULL OR cancelled_at >= start of M) */
+          (SELECT COALESCE(SUM(s.amount), 0)::float FROM subscriptions s
+           WHERE s.started_at  <  mo.month_start + INTERVAL '1 month'
+             AND (s.expires_at   IS NULL OR s.expires_at   >= mo.month_start)
+             AND (s.cancelled_at IS NULL OR s.cancelled_at >= mo.month_start)
+          ) AS mrr,
+
+          /* Churn: subscriptions that ended (cancelled or expired) that month */
+          (SELECT COUNT(*)::int FROM subscriptions s
+           WHERE s.status IN ('cancelled', 'expired')
+             AND COALESCE(s.cancelled_at, s.expires_at) IS NOT NULL
+             AND date_trunc('month', COALESCE(s.cancelled_at, s.expires_at)) = mo.month_start
+          ) AS churn
+
         FROM months mo
-        LEFT JOIN signups  sg  ON sg.m  = mo.month_start
-        LEFT JOIN payments pay ON pay.m = mo.month_start
-        LEFT JOIN churn    ch  ON ch.m  = mo.month_start
         ORDER BY mo.month_start
       `),
 
@@ -353,7 +360,7 @@ router.get('/analytics', async (_req, res, next) => {
           (SELECT COUNT(*)::int FROM subscriptions)                                              AS total_subs
       `),
 
-      /* Plan distribution */
+      /* Plan distribution — all subscription rows, all statuses */
       pool.query(`
         SELECT
           p.name,
@@ -361,7 +368,7 @@ router.get('/analytics', async (_req, res, next) => {
           COALESCE(SUM(sp.amount)::float, 0)            AS revenue
         FROM plans p
         LEFT JOIN subscriptions s
-          ON s.plan_id = p.id AND s.status != 'cancelled'
+          ON s.plan_id = p.id
         LEFT JOIN subscription_payments sp
           ON sp.subscription_id = s.id
         GROUP BY p.id, p.name
