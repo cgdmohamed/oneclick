@@ -293,6 +293,112 @@ router.get('/companies', async (_req, res, next) => {
   } catch (e) { next(e); }
 });
 
+router.get('/companies/:id', async (req, res, next) => {
+  try {
+    const rs = await pool.query(`
+      SELECT c.id, c.name, c.email, c.phone, c.is_active, c.review_status, c.review_notes, c.created_at,
+             (SELECT u.name FROM users u JOIN user_companies uc ON uc.user_id = u.id
+              WHERE uc.company_id = c.id AND uc.is_default = true LIMIT 1) AS owner_name,
+             (SELECT s.plan_id FROM subscriptions s
+              WHERE s.company_id = c.id ORDER BY s.created_at DESC LIMIT 1) AS plan_id,
+             (SELECT p.name FROM subscriptions s JOIN plans p ON p.id = s.plan_id
+              WHERE s.company_id = c.id ORDER BY s.created_at DESC LIMIT 1) AS plan_name,
+             (SELECT s.status FROM subscriptions s
+              WHERE s.company_id = c.id ORDER BY s.created_at DESC LIMIT 1) AS sub_status,
+             (SELECT s.amount FROM subscriptions s
+              WHERE s.company_id = c.id ORDER BY s.created_at DESC LIMIT 1) AS sub_amount,
+             (SELECT s.expires_at FROM subscriptions s
+              WHERE s.company_id = c.id ORDER BY s.created_at DESC LIMIT 1) AS sub_expires_at,
+             (SELECT
+                CASE
+                  WHEN s.status = 'trialing' THEN 'trial'
+                  WHEN s.expires_at IS NULL THEN 'monthly'
+                  WHEN EXTRACT(DAY FROM (s.expires_at - s.started_at)) >= 300 THEN 'yearly'
+                  ELSE 'monthly'
+                END
+              FROM subscriptions s
+              WHERE s.company_id = c.id ORDER BY s.created_at DESC LIMIT 1) AS billing_cycle
+      FROM companies c WHERE c.id = $1
+    `, [req.params.id]);
+    if (!rs.rowCount) throw notFound();
+    res.json({ data: rs.rows[0] });
+  } catch (e) { next(e); }
+});
+
+router.patch('/companies/:id/details', async (req, res, next) => {
+  try {
+    const body = z.object({
+      name: z.string().min(1).max(200).optional(),
+      email: z.string().email().optional().nullable(),
+    }).parse(req.body);
+    const fields = Object.keys(body) as Array<keyof typeof body>;
+    if (!fields.length) return res.json({ data: null });
+    const sets = fields.map((f, i) => `${f} = $${i + 1}`).join(', ');
+    const values = fields.map((f) => (body as Record<string, unknown>)[f as string]);
+    const rs = await pool.query(
+      `UPDATE companies SET ${sets}, updated_at = now() WHERE id = $${fields.length + 1} RETURNING *`,
+      [...values, req.params.id],
+    );
+    if (!rs.rowCount) throw notFound();
+    await audit(pool, {
+      companyId: req.params.id, userId: req.auth!.userId,
+      action: 'company.update_details', entity: 'company', entityId: req.params.id,
+      data: body as Record<string, unknown>,
+    });
+    res.json({ data: rs.rows[0] });
+  } catch (e) { next(e); }
+});
+
+router.patch('/companies/:id/review', async (req, res, next) => {
+  try {
+    const body = z.object({
+      review_status: z.enum(['approved', 'pending', 'declined']),
+      review_notes: z.string().max(500).optional().nullable(),
+    }).parse(req.body);
+    const reviewedBy = req.auth!.userId;
+
+    let rs;
+    if (body.review_status === 'pending') {
+      // Reset-to-pending: clear all review metadata, deactivate company
+      rs = await pool.query(
+        `UPDATE companies
+           SET review_status = 'pending', is_active = false,
+               review_notes = null, reviewed_at = null, reviewed_by = null,
+               updated_at = now()
+         WHERE id = $1 RETURNING *`,
+        [req.params.id],
+      );
+    } else if (body.review_status === 'approved') {
+      rs = await pool.query(
+        `UPDATE companies
+           SET review_status = 'approved', is_active = true,
+               review_notes = $1, reviewed_at = now(), reviewed_by = $2,
+               updated_at = now()
+         WHERE id = $3 RETURNING *`,
+        [body.review_notes ?? null, reviewedBy, req.params.id],
+      );
+    } else {
+      // declined
+      rs = await pool.query(
+        `UPDATE companies
+           SET review_status = 'declined', is_active = false,
+               review_notes = $1, reviewed_at = now(), reviewed_by = $2,
+               updated_at = now()
+         WHERE id = $3 RETURNING *`,
+        [body.review_notes ?? null, reviewedBy, req.params.id],
+      );
+    }
+
+    if (!rs.rowCount) throw notFound();
+    await audit(pool, {
+      companyId: req.params.id, userId: reviewedBy,
+      action: `company.review_${body.review_status}`, entity: 'company', entityId: req.params.id,
+      data: { review_status: body.review_status, review_notes: body.review_notes ?? null },
+    });
+    res.json({ data: rs.rows[0] });
+  } catch (e) { next(e); }
+});
+
 router.patch('/companies/:id', async (req, res, next) => {
   try {
     const body = z.object({ is_active: z.boolean() }).parse(req.body);
@@ -308,6 +414,51 @@ router.patch('/companies/:id', async (req, res, next) => {
     });
     res.json({ data: rs.rows[0] });
   } catch (e) { next(e); }
+});
+
+router.patch('/subscriptions/:companyId/plan', async (req, res, next) => {
+  const client = await pool.connect();
+  try {
+    const body = z.object({
+      plan_id:    z.string().uuid(),
+      cycle:      z.enum(['monthly', 'yearly', 'trial']),
+      trial_days: z.coerce.number().int().min(1).max(365).optional().default(14),
+      amount:     z.coerce.number().min(0).optional().default(0),
+    }).parse(req.body);
+    await client.query('BEGIN');
+    const co = await client.query(
+      `SELECT id FROM companies WHERE id = $1 FOR UPDATE`, [req.params.companyId],
+    );
+    if (!co.rowCount) { await client.query('ROLLBACK'); throw notFound('Company not found'); }
+    const plan = await client.query(
+      `SELECT id FROM plans WHERE id = $1 AND is_active = true`, [body.plan_id],
+    );
+    if (!plan.rowCount) { await client.query('ROLLBACK'); throw badRequest('Plan not found or inactive'); }
+    await client.query(
+      `UPDATE subscriptions SET status = 'cancelled', cancelled_at = now(), updated_at = now()
+       WHERE company_id = $1 AND status IN ('active', 'trialing')`,
+      [req.params.companyId],
+    );
+    const daysMap: Record<string, number> = { monthly: 30, yearly: 365, trial: body.trial_days! };
+    const days = daysMap[body.cycle];
+    const subStatus = body.cycle === 'trial' ? 'trialing' : 'active';
+    const expiresAt = new Date(Date.now() + days * 86400 * 1000);
+    await client.query(
+      `INSERT INTO subscriptions (company_id, plan_id, status, amount, started_at, expires_at)
+       VALUES ($1, $2, $3, $4, now(), $5)`,
+      [req.params.companyId, body.plan_id, subStatus, body.amount, expiresAt],
+    );
+    await client.query('COMMIT');
+    await audit(pool, {
+      companyId: req.params.companyId, userId: req.auth!.userId,
+      action: 'company.plan_change', entity: 'subscription', entityId: req.params.companyId,
+      data: { plan_id: body.plan_id, cycle: body.cycle, amount: body.amount },
+    });
+    res.json({ ok: true });
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    next(e);
+  } finally { client.release(); }
 });
 
 /* ---------------- Analytics (super-admin) ---------------- */
