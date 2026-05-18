@@ -176,10 +176,44 @@ router.post('/', enforceInvoiceLimit(), async (req, res, next) => {
 router.delete('/:id', async (req, res, next) => {
   try {
     const t = req.tenant!;
-    await t.db.query(`DELETE FROM invoices WHERE id = $1 AND company_id = $2`, [req.params.id, t.companyId]);
+    const invoiceId = req.params.id;
+
+    const invCheck = await t.db.query(
+      `SELECT id FROM invoices WHERE id = $1 AND company_id = $2`,
+      [invoiceId, t.companyId],
+    );
+    if (!invCheck.rowCount) throw notFound('Invoice not found');
+
+    const items = await t.db.query(
+      `SELECT product_id, quantity FROM invoice_items WHERE invoice_id = $1 AND company_id = $2`,
+      [invoiceId, t.companyId],
+    );
+
+    const payments = await t.db.query(
+      `SELECT account_id, amount FROM payments WHERE invoice_id = $1 AND company_id = $2`,
+      [invoiceId, t.companyId],
+    );
+
+    for (const item of items.rows) {
+      if (item.product_id) {
+        await t.db.query(
+          `UPDATE products SET quantity = quantity + $1 WHERE id = $2 AND company_id = $3`,
+          [item.quantity, item.product_id, t.companyId],
+        );
+      }
+    }
+
+    for (const pay of payments.rows) {
+      await t.db.query(
+        `UPDATE accounts SET balance = balance - $1 WHERE id = $2 AND company_id = $3`,
+        [pay.amount, pay.account_id, t.companyId],
+      );
+    }
+
+    await t.db.query(`DELETE FROM invoices WHERE id = $1 AND company_id = $2`, [invoiceId, t.companyId]);
     await audit(pool, {
       companyId: t.companyId, userId: req.auth!.userId,
-      action: 'invoice.delete', entity: 'invoice', entityId: req.params.id,
+      action: 'invoice.delete', entity: 'invoice', entityId: invoiceId,
     });
     res.json({ ok: true });
   } catch (e) { next(e); }
