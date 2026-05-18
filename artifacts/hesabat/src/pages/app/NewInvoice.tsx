@@ -48,7 +48,7 @@ const NewInvoice = () => {
     if (p) update(i, { productId: pid, name: p.name, unitPrice: p.price });
   };
 
-  const save = async () => {
+  const submit = async (draft: boolean) => {
     if (!clientId) return toast.error('اختر عميلاً');
     if (items.some(it => !it.name || it.quantity <= 0)) return toast.error('أكمل بيانات بنود الفاتورة');
     setSaving(true);
@@ -58,6 +58,7 @@ const NewInvoice = () => {
           client_id: clientId,
           due_date: new Date(dueDate).toISOString(),
           discount,
+          draft,
           items: items.map(it => ({
             product_id: it.productId ?? null,
             description: it.name,
@@ -69,10 +70,10 @@ const NewInvoice = () => {
         const res = await api.post<{ data: { id: string } }>('/api/invoices', body);
         qc.invalidateQueries({ queryKey: ['invoices'] });
         qc.invalidateQueries({ queryKey: ['reports-overview'] });
-        toast.success('تم حفظ الفاتورة');
+        toast.success(draft ? 'تم حفظ المسودة' : 'تم حفظ الفاتورة');
         navigate(`/app/invoices/${res.data.id}`);
       } else {
-        toast.success('تم حفظ الفاتورة (بيانات تجريبية)');
+        toast.success(draft ? 'تم حفظ المسودة (بيانات تجريبية)' : 'تم حفظ الفاتورة (بيانات تجريبية)');
         navigate('/app/invoices');
       }
     } catch (e) {
@@ -159,8 +160,11 @@ const NewInvoice = () => {
         <div className="space-y-4">
           <InvoiceSummary subtotal={totals.subtotal} tax={totals.tax} discount={discount} total={totals.total} paid={0} remaining={totals.total} />
           <Card className="p-5 border-border/60 space-y-2">
-            <Button className="w-full" onClick={save} disabled={saving}>
-              {saving ? 'جارٍ الحفظ...' : 'حفظ الفاتورة'}
+            <Button className="w-full" onClick={() => submit(false)} disabled={saving}>
+              {saving ? 'جارٍ الحفظ...' : 'حفظ الفاتورة وإرسالها'}
+            </Button>
+            <Button className="w-full" variant="outline" onClick={() => submit(true)} disabled={saving}>
+              {saving ? 'جارٍ الحفظ...' : 'حفظ كمسودة'}
             </Button>
           </Card>
         </div>

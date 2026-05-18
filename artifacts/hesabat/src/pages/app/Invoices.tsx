@@ -51,10 +51,13 @@ const Invoices = () => {
             <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">كل الحالات</SelectItem>
+              <SelectItem value="draft">مسودة</SelectItem>
+              <SelectItem value="sent">مرسلة</SelectItem>
               <SelectItem value="paid">مدفوعة</SelectItem>
               <SelectItem value="partial">مدفوعة جزئياً</SelectItem>
               <SelectItem value="unpaid">غير مدفوعة</SelectItem>
               <SelectItem value="overdue">متأخرة</SelectItem>
+              <SelectItem value="cancelled">ملغاة</SelectItem>
             </SelectContent>
           </Select>
         }

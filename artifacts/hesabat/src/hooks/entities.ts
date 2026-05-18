@@ -86,7 +86,7 @@ interface InvoiceRow {
   client_name?: string;
 }
 const mapStatus = (s: string): InvoiceStatus => {
-  if (s === 'paid' || s === 'partial' || s === 'overdue') return s;
+  if (s === 'paid' || s === 'partial' || s === 'overdue' || s === 'draft' || s === 'cancelled' || s === 'sent') return s;
   return 'unpaid';
 };
 export const invoicesCfg: ResourceConfig<Invoice & { clientName?: string }, InvoiceRow> = {

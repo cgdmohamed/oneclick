@@ -29,6 +29,7 @@ const createSchema = z.object({
   notes: z.string().optional().nullable(),
   discount: z.coerce.number().nonnegative().default(0),
   items: z.array(itemSchema).min(1),
+  draft: z.boolean().optional().default(false),
 });
 
 function buildNumber(prefix: string, seq: number, year: number, fmt: string, sep: string, pad: number) {
@@ -132,13 +133,14 @@ router.post('/', enforceInvoiceLimit(), async (req, res, next) => {
     const discount = round2(body.discount);
     const total = round2(Math.max(0, subtotal + vat - discount));
 
+    const invoiceStatus = body.draft ? 'draft' : 'sent';
     const invRes = await t.db.query(`
       INSERT INTO invoices (company_id, number, client_id, issue_date, due_date, status,
                             subtotal, vat_amount, discount, total, paid, remaining, notes, created_by)
-      VALUES ($1,$2,$3,$4,$5,'sent',$6,$7,$8,$9,0,$9,$10,$11)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,0,$10,$11,$12)
       RETURNING *
     `, [t.companyId, number, body.client_id, issueDate, body.due_date ?? null,
-        subtotal, vat, discount, total, body.notes ?? null, req.auth!.userId]);
+        invoiceStatus, subtotal, vat, discount, total, body.notes ?? null, req.auth!.userId]);
     const invoice = invRes.rows[0];
 
     for (const it of body.items) {
@@ -165,11 +167,144 @@ router.post('/', enforceInvoiceLimit(), async (req, res, next) => {
 
     await audit(pool, {
       companyId: t.companyId, userId: req.auth!.userId,
-      action: 'invoice.create', entity: 'invoice', entityId: invoice.id,
-      data: { number, total, items: body.items.length },
+      action: body.draft ? 'invoice.draft' : 'invoice.create',
+      entity: 'invoice', entityId: invoice.id,
+      data: { number, total, items: body.items.length, draft: body.draft },
     });
 
     res.status(201).json({ data: invoice });
+  } catch (e) { next(e); }
+});
+
+/** Promote a draft invoice to sent and trigger the email notification flow. */
+router.post('/:id/send', enforceInvoiceLimit(), async (req, res, next) => {
+  try {
+    const t = req.tenant!;
+    const invoiceId = req.params.id;
+
+    const invRes = await t.db.query(
+      `SELECT * FROM invoices WHERE id = $1 AND company_id = $2`,
+      [invoiceId, t.companyId],
+    );
+    if (!invRes.rowCount) throw notFound('Invoice not found');
+    const inv = invRes.rows[0];
+    if (inv.status !== 'draft') throw badRequest('Only draft invoices can be sent');
+
+    await t.db.query(
+      `UPDATE invoices SET status = 'sent' WHERE id = $1 AND company_id = $2`,
+      [invoiceId, t.companyId],
+    );
+
+    await audit(pool, {
+      companyId: t.companyId, userId: req.auth!.userId,
+      action: 'invoice.send', entity: 'invoice', entityId: invoiceId,
+      data: { number: inv.number },
+    });
+
+    // Trigger email/PDF notification — same flow as the send-email endpoint.
+    // Errors here are non-fatal: the invoice is already promoted to 'sent'.
+    try {
+      const data = await loadInvoicePdfData(t.db, invoiceId, t.companyId);
+      const recipient = data.client.email;
+      if (recipient) {
+        const smtpRow = await t.db.query(
+          `SELECT smtp_settings FROM companies WHERE id = $1`, [t.companyId],
+        );
+        const smtpSettings = smtpRow.rows[0]?.smtp_settings as Record<string, unknown> | null;
+        const smtpOverride = smtpSettings?.host ? {
+          host: smtpSettings.host as string,
+          port: Number(smtpSettings.port ?? 587),
+          secure: Boolean(smtpSettings.secure),
+          username: smtpSettings.username as string | undefined,
+          password: smtpSettings.password as string | undefined,
+          fromName: smtpSettings.fromName as string | undefined,
+          fromEmail: smtpSettings.fromEmail as string | undefined,
+        } : undefined;
+        const updatedRow = await t.db.query(
+          `SELECT public_id FROM invoices WHERE id = $1`, [invoiceId],
+        );
+        const publicUrl = `${env.APP_URL}/invoice/${updatedRow.rows[0].public_id}`;
+        const buf = await renderInvoicePdf(data);
+        await sendEmail({
+          to: recipient,
+          subject: `Invoice ${data.number} from ${data.company.name}`,
+          html: `<p>Please find attached invoice ${data.number}.</p>
+                 <p>You can also view it online: <a href="${publicUrl}">${publicUrl}</a></p>`,
+          attachments: [{ filename: `invoice-${data.number}.pdf`, content: buf, contentType: 'application/pdf' }],
+          smtpOverride,
+        });
+        await audit(pool, {
+          companyId: t.companyId, userId: req.auth!.userId,
+          action: 'invoice.email', entity: 'invoice', entityId: invoiceId,
+          data: { to: recipient, triggered_by: 'send' },
+        });
+      }
+    } catch (emailErr) {
+      console.error('[invoice.send] notification failed (non-fatal):', (emailErr as Error).message);
+    }
+
+    const updated = await t.db.query(
+      `SELECT * FROM invoices WHERE id = $1 AND company_id = $2`,
+      [invoiceId, t.companyId],
+    );
+    res.json({ data: updated.rows[0] });
+  } catch (e) { next(e); }
+});
+
+/** Cancel a sent invoice — reverses stock quantities and account balances. */
+router.post('/:id/cancel', async (req, res, next) => {
+  try {
+    const t = req.tenant!;
+    const invoiceId = req.params.id;
+
+    const invRes = await t.db.query(
+      `SELECT * FROM invoices WHERE id = $1 AND company_id = $2`,
+      [invoiceId, t.companyId],
+    );
+    if (!invRes.rowCount) throw notFound('Invoice not found');
+    const inv = invRes.rows[0];
+    if (inv.status !== 'sent') {
+      throw badRequest('Only sent invoices can be cancelled');
+    }
+
+    const items = await t.db.query(
+      `SELECT product_id, quantity FROM invoice_items WHERE invoice_id = $1 AND company_id = $2`,
+      [invoiceId, t.companyId],
+    );
+
+    const payments = await t.db.query(
+      `SELECT account_id, amount FROM payments WHERE invoice_id = $1 AND company_id = $2`,
+      [invoiceId, t.companyId],
+    );
+
+    for (const item of items.rows) {
+      if (item.product_id) {
+        await t.db.query(
+          `UPDATE products SET quantity = quantity + $1 WHERE id = $2 AND company_id = $3`,
+          [item.quantity, item.product_id, t.companyId],
+        );
+      }
+    }
+
+    for (const pay of payments.rows) {
+      await t.db.query(
+        `UPDATE accounts SET balance = balance - $1 WHERE id = $2 AND company_id = $3`,
+        [pay.amount, pay.account_id, t.companyId],
+      );
+    }
+
+    await t.db.query(
+      `UPDATE invoices SET status = 'cancelled' WHERE id = $1 AND company_id = $2`,
+      [invoiceId, t.companyId],
+    );
+
+    await audit(pool, {
+      companyId: t.companyId, userId: req.auth!.userId,
+      action: 'invoice.cancel', entity: 'invoice', entityId: invoiceId,
+      data: { number: inv.number, total: Number(inv.total) },
+    });
+
+    res.json({ ok: true });
   } catch (e) { next(e); }
 });
 

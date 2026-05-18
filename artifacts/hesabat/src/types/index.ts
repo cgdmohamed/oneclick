@@ -73,7 +73,7 @@ export interface InvoiceItem {
   discount?: number;
 }
 
-export type InvoiceStatus = 'paid' | 'partial' | 'unpaid' | 'overdue';
+export type InvoiceStatus = 'paid' | 'partial' | 'unpaid' | 'overdue' | 'draft' | 'cancelled' | 'sent';
 
 export interface Invoice {
   id: UUID;

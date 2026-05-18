@@ -11,8 +11,9 @@ import { PrintableQr } from '@/components/common/PrintableQr';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { formatCurrency, formatDate, paymentMethodLabel, invoiceStatusLabel } from '@/lib/format';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { PaymentForm } from '@/components/common/PaymentForm';
-import { Plus, Share2, Mail, MessageCircle, Printer, Download, Copy } from 'lucide-react';
+import { Plus, Share2, Mail, MessageCircle, Printer, Download, Copy, Send, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Payment, PaymentSplit, Invoice, InvoiceStatus } from '@/types';
 import { api, ApiError, isApiConfigured, API_URL, getAccessToken } from '@/lib/api';
@@ -30,7 +31,8 @@ interface ApiInvoice {
   items: ApiItem[]; payments: ApiPayment[];
 }
 
-const mapStatus = (s: string): InvoiceStatus => (s === 'paid' || s === 'partial' || s === 'overdue') ? s : 'unpaid';
+const mapStatus = (s: string): InvoiceStatus =>
+  (s === 'paid' || s === 'partial' || s === 'overdue' || s === 'draft' || s === 'cancelled' || s === 'sent') ? s : 'unpaid';
 
 const InvoiceDetails = () => {
   const { id } = useParams();
@@ -217,6 +219,36 @@ const InvoiceDetails = () => {
     window.open(`https://web.whatsapp.com/send?phone=${waNumber}&text=${text}`, '_blank', 'noopener');
   };
 
+  const sendDraft = async () => {
+    if (!apiOn) { toast.error('الإرسال يتطلب الاتصال بالخادم'); return; }
+    try {
+      await api.post(`/api/invoices/${invoice.id}/send`, {});
+      await qc.invalidateQueries({ queryKey: ['invoice', invoice.id] });
+      await qc.invalidateQueries({ queryKey: ['invoices'] });
+      toast.success('تم إرسال الفاتورة');
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : 'تعذّر إرسال الفاتورة');
+    }
+  };
+
+  const cancelInvoice = async () => {
+    if (!apiOn) { toast.error('الإلغاء يتطلب الاتصال بالخادم'); return; }
+    try {
+      await api.post(`/api/invoices/${invoice.id}/cancel`, {});
+      await qc.invalidateQueries({ queryKey: ['invoice', invoice.id] });
+      await qc.invalidateQueries({ queryKey: ['invoices'] });
+      toast.success('تم إلغاء الفاتورة');
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : 'تعذّر إلغاء الفاتورة');
+    }
+  };
+
+  const rawStatus = apiOn && apiInvoice ? apiInvoice.status : invoice.status;
+
+  const isDraft = rawStatus === 'draft';
+  const isCancelled = rawStatus === 'cancelled';
+  const canCancel = rawStatus === 'sent';
+
   return (
     <div>
       <PageHeader
@@ -224,21 +256,51 @@ const InvoiceDetails = () => {
         description={clientName}
         actions={
           <div className="flex gap-2 flex-wrap no-print">
+            {isDraft && (
+              <Button onClick={sendDraft}>
+                <Send className="h-4 w-4 ml-1" /> إرسال الفاتورة
+              </Button>
+            )}
+            {canCancel && (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="destructive">
+                    <XCircle className="h-4 w-4 ml-1" /> إلغاء الفاتورة
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>تأكيد إلغاء الفاتورة</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      سيتم إلغاء الفاتورة واسترداد المخزون والأرصدة. هذا الإجراء لا يمكن التراجع عنه.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>رجوع</AlertDialogCancel>
+                    <AlertDialogAction onClick={cancelInvoice} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                      تأكيد الإلغاء
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
             <Button variant="outline" onClick={() => { navigator.clipboard.writeText(publicUrl); toast.success('تم نسخ رابط المشاركة'); }}>
               <Copy className="h-4 w-4 ml-1" /> نسخ الرابط العام
             </Button>
             <Button variant="outline" onClick={downloadPdf}><Download className="h-4 w-4 ml-1" /> PDF</Button>
             <Button variant="outline" asChild><Link to={`/invoice/${invoice.publicId}`} target="_blank"><Share2 className="h-4 w-4 ml-1" /> عرض عام</Link></Button>
             <Button onClick={() => window.print()}><Printer className="h-4 w-4 ml-1" /> طباعة</Button>
-            <Sheet open={open} onOpenChange={setOpen}>
-              <SheetTrigger asChild>
-                <Button disabled={remaining <= 0}><Plus className="h-4 w-4 ml-1" /> تسجيل دفعة</Button>
-              </SheetTrigger>
-              <SheetContent side="left" className="w-full sm:max-w-lg overflow-y-auto">
-                <SheetHeader><SheetTitle>تسجيل دفعة جديدة</SheetTitle></SheetHeader>
-                <div className="mt-6"><PaymentForm remaining={remaining} onSubmit={recordPayment} onCancel={() => setOpen(false)} /></div>
-              </SheetContent>
-            </Sheet>
+            {!isDraft && !isCancelled && (
+              <Sheet open={open} onOpenChange={setOpen}>
+                <SheetTrigger asChild>
+                  <Button disabled={remaining <= 0}><Plus className="h-4 w-4 ml-1" /> تسجيل دفعة</Button>
+                </SheetTrigger>
+                <SheetContent side="left" className="w-full sm:max-w-lg overflow-y-auto">
+                  <SheetHeader><SheetTitle>تسجيل دفعة جديدة</SheetTitle></SheetHeader>
+                  <div className="mt-6"><PaymentForm remaining={remaining} onSubmit={recordPayment} onCancel={() => setOpen(false)} /></div>
+                </SheetContent>
+              </Sheet>
+            )}
           </div>
         }
       />
@@ -252,7 +314,7 @@ const InvoiceDetails = () => {
               {clientPhone && <div className="text-sm text-muted-foreground">{clientPhone}</div>}
             </div>
             <div className="text-end">
-              <StatusBadge status={status} label={invoiceStatusLabel(status)} size="md" />
+              <StatusBadge status={apiOn && apiInvoice ? rawStatus : status} label={invoiceStatusLabel(apiOn && apiInvoice ? rawStatus : status)} size="md" />
               <div className="text-xs text-muted-foreground mt-2">تاريخ الإصدار: {formatDate(invoice.issueDate)}</div>
               <div className="text-xs text-muted-foreground">تاريخ الاستحقاق: {formatDate(invoice.dueDate)}</div>
             </div>

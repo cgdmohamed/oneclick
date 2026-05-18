@@ -52,7 +52,10 @@ export const invoiceStatusLabel = (s: string): string => {
     case 'paid': return 'مدفوعة';
     case 'partial': return 'مدفوعة جزئياً';
     case 'unpaid': return 'غير مدفوعة';
+    case 'sent': return 'مرسلة';
     case 'overdue': return 'متأخرة';
+    case 'draft': return 'مسودة';
+    case 'cancelled': return 'ملغاة';
     default: return s;
   }
 };

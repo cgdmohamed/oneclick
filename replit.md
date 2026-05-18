@@ -137,7 +137,7 @@ SQL migration files live in `artifacts/api-server/src/db/migrations/` numbered `
 - Frontend runs on its own Vite dev server (port 18627) and proxies `/api` and `/uploads` to the Express backend (port 8080). In production, a reverse proxy handles this.
 - `VITE_API_URL=same-origin` is the sentinel value that enables real-backend mode without setting a hostname — fetch paths are relative so the Vite proxy routes them.
 - The backend uses raw `pg` pool (not Drizzle) for query flexibility, especially in multi-tenant handlers where `SET LOCAL app.current_company` scopes the connection.
-- Subscriptions and plans gate API access. Every new company gets a free trialing subscription. Seed plans are inserted via `psql` or the admin panel.
+- Subscriptions and plans gate API access. New company registrations are placed in **pending** status and require manual admin approval before they can access the app. Once approved, an admin assigns a subscription plan. Seed plans are inserted via `psql` or the admin panel.
 - pdfkit and fontkit cannot be bundled by esbuild (they walk the filesystem for fonts). They are externalized in `build.mjs` and installed locally in `artifacts/api-server`.
 
 ## Product
