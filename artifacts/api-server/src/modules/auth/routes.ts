@@ -9,7 +9,8 @@ import { env } from '../../config/env.js';
 import { badRequest, unauthorized, forbidden } from '../../utils/errors.js';
 import { requireAuth } from '../../middleware/auth.js';
 import { sendEmail } from '../../utils/email.js';
-import { getPlatformBranding, buildEmail } from '../../utils/emailTemplate.js';
+import { renderEmail } from '../../utils/emailTemplate.js';
+import { getPlatformBranding } from '../../utils/platformBranding.js';
 import { audit } from '../../utils/audit.js';
 import { REFRESH_COOKIE, setRefreshCookie, clearRefreshCookie } from '../../utils/cookies.js';
 import { setCsrfCookie, clearCsrfCookie, requireCsrf } from '../../middleware/csrf.js';
@@ -140,14 +141,15 @@ async function sendVerificationEmail(userId: string, email: string) {
   const branding = await getPlatformBranding();
   await sendEmail({
     to: email,
-    subject: `تأكيد بريدك الإلكتروني — ${branding.name}`,
-    html: buildEmail({
-      title: 'تأكيد عنوان البريد الإلكتروني',
-      body: `<p>مرحباً بك في <strong>${branding.name}</strong>!</p>
-             <p>لإتمام إنشاء حسابك، يرجى النقر على الزر أدناه لتأكيد عنوان بريدك الإلكتروني.</p>
-             <p style="color:#6b7280;font-size:13px;margin-top:24px">الرابط صالح لمدة 24 ساعة. إذا لم تطلب إنشاء حساب، يمكنك تجاهل هذه الرسالة.</p>`,
-      cta: { text: 'تأكيد البريد الإلكتروني', url: link },
-      branding,
+    subject: `تحقق من بريدك الإلكتروني — ${branding.brandName}`,
+    html: renderEmail({
+      ...branding,
+      title: 'تحقق من بريدك الإلكتروني',
+      previewText: 'أكّد بريدك الإلكتروني لإتمام إنشاء حسابك',
+      bodyHtml: `<p>مرحباً بك في ${branding.brandName}!</p>
+                 <p>أكّد بريدك الإلكتروني لإتمام إعداد حسابك. الرابط صالح لمدة 24 ساعة.</p>`,
+      ctaLabel: 'تأكيد البريد الإلكتروني',
+      ctaUrl: link,
     }),
   });
 }
@@ -530,14 +532,16 @@ router.post('/forgot-password', async (req, res, next) => {
       const branding = await getPlatformBranding();
       await sendEmail({
         to: email,
-        subject: `إعادة تعيين كلمة المرور — ${branding.name}`,
-        html: buildEmail({
+        subject: `إعادة تعيين كلمة المرور — ${branding.brandName}`,
+        html: renderEmail({
+          ...branding,
           title: 'إعادة تعيين كلمة المرور',
-          body: `<p>تلقينا طلباً لإعادة تعيين كلمة المرور الخاصة بحسابك.</p>
-                 <p>انقر على الزر أدناه لاختيار كلمة مرور جديدة. الرابط صالح لمدة ساعة واحدة فقط.</p>
-                 <p style="color:#6b7280;font-size:13px;margin-top:24px">إذا لم تطلب إعادة تعيين كلمة المرور، يمكنك تجاهل هذه الرسالة بأمان.</p>`,
-          cta: { text: 'إعادة تعيين كلمة المرور', url: link },
-          branding,
+          previewText: 'طلب إعادة تعيين كلمة المرور الخاصة بك',
+          bodyHtml: `<p>تلقّينا طلباً لإعادة تعيين كلمة المرور لحسابك.</p>
+                     <p>اضغط على الزر أدناه لإعادة التعيين. الرابط صالح لمدة ساعة واحدة فقط.</p>
+                     <p>إذا لم تطلب ذلك، تجاهل هذه الرسالة وستبقى كلمة مرورك كما هي.</p>`,
+          ctaLabel: 'إعادة تعيين كلمة المرور',
+          ctaUrl: link,
         }),
       });
       await audit(pool, {

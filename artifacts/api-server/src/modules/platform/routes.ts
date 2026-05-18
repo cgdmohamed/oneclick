@@ -14,7 +14,8 @@ import { audit } from '../../utils/audit.js';
 import { adminSettingsRouter } from './settingsRoutes.js';
 import { parsePagination } from '../../utils/pagination.js';
 import { sendEmail } from '../../utils/email.js';
-import { getPlatformBranding, buildEmail } from '../../utils/emailTemplate.js';
+import { renderEmail } from '../../utils/emailTemplate.js';
+import { getPlatformBranding } from '../../utils/platformBranding.js';
 import { env } from '../../config/env.js';
 
 const router = Router();
@@ -779,14 +780,16 @@ router.patch('/signups/:id/approve', async (req, res, next) => {
       getPlatformBranding().then((branding) =>
         sendEmail({
           to: approvedCompany.email,
-          subject: `تمت الموافقة على حسابك في ${branding.name}`,
-          html: buildEmail({
-            title: `مرحباً بك في ${branding.name}!`,
-            body: `<p>تمت مراجعة طلب تسجيل شركتك <strong>${approvedCompany.name ?? ''}</strong> والموافقة عليه بنجاح.</p>
-                   <p>يمكنك الآن تسجيل الدخول والبدء في استخدام جميع مميزات المنصة.</p>
-                   <p style="color:#6b7280;font-size:13px;margin-top:24px">إذا لم تطلب هذا الحساب، يمكنك تجاهل هذه الرسالة.</p>`,
-            cta: { text: 'تسجيل الدخول', url: loginUrl },
-            branding,
+          subject: `تمت الموافقة على حسابك في ${branding.brandName}`,
+          html: renderEmail({
+            ...branding,
+            title: `مرحباً بك في ${branding.brandName}!`,
+            previewText: 'تمت الموافقة على حساب شركتك — يمكنك تسجيل الدخول الآن',
+            bodyHtml: `<p>تمت مراجعة طلب تسجيل شركتك <strong>${approvedCompany.name ?? ''}</strong> والموافقة عليه.</p>
+                       <p>يمكنك الآن تسجيل الدخول والبدء في استخدام جميع مميزات المنصة.</p>
+                       <p style="font-size:13px;color:#6b7280">إذا لم تطلب هذا الحساب، يمكنك تجاهل هذه الرسالة.</p>`,
+            ctaLabel: 'تسجيل الدخول',
+            ctaUrl: loginUrl,
           }),
         }),
       ).catch((e: unknown) => console.error('[platform] approval email failed:', (e as Error).message));
@@ -827,23 +830,20 @@ router.patch('/signups/:id/decline', async (req, res, next) => {
 
     const co = updated.rows[0];
     if (co?.email) {
-      const reasonBlock = body.reason && body.reason !== 'بدون سبب محدد'
-        ? `<p style="background:#f9fafb;border-right:4px solid #e5e7eb;padding:12px 16px;
-                     border-radius:4px;margin-top:16px"><strong>السبب:</strong> ${body.reason}</p>`
-        : '';
       getPlatformBranding().then((branding) =>
         sendEmail({
           to: co.email,
-          subject: `بشأن طلب تسجيلك في ${branding.name}`,
-          html: buildEmail({
+          subject: `بشأن طلب تسجيلك في ${branding.brandName}`,
+          html: renderEmail({
+            ...branding,
             title: 'بشأن طلب تسجيلك',
-            body: `<p>شكراً لاهتمامك بمنصة <strong>${branding.name}</strong>.</p>
-                   <p>بعد مراجعة طلب تسجيل شركتك <strong>${co.name ?? ''}</strong>، نأسف لإبلاغك بأننا لن نتمكن من قبول الطلب في الوقت الحالي.</p>
-                   ${reasonBlock}
-                   <p style="margin-top:16px">إذا كانت لديك أسئلة، لا تتردد في
-                     <a href="${env.APP_URL}/contact" style="color:#2563eb;text-decoration:none">التواصل معنا</a>.
-                   </p>`,
-            branding,
+            previewText: 'تحديث بشأن طلب تسجيل شركتك',
+            bodyHtml: `<p>شكراً لاهتمامك بمنصة ${branding.brandName}.</p>
+                       <p>بعد مراجعة طلب تسجيل شركتك <strong>${co.name ?? ''}</strong>، نأسف لإبلاغك بأننا لن نتمكن من قبول الطلب في الوقت الحالي.</p>
+                       ${body.reason && body.reason !== 'بدون سبب محدد'
+                         ? `<p style="background:#f9fafb;border-right:4px solid #e5e7eb;padding:12px 16px;border-radius:4px"><strong>السبب:</strong> ${body.reason}</p>`
+                         : ''}
+                       <p>إذا كانت لديك أسئلة، لا تتردد في <a href="${env.APP_URL}/contact" style="color:${branding.brandColor};text-decoration:none">التواصل معنا</a>.</p>`,
           }),
         }),
       ).catch((e: unknown) => console.error('[platform] decline email failed:', (e as Error).message));

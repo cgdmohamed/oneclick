@@ -5,7 +5,8 @@ import { badRequest, notFound } from '../../utils/errors.js';
 import { audit } from '../../utils/audit.js';
 import { renderInvoicePdf, type InvoicePdfData } from '../../utils/pdf.js';
 import { sendEmail } from '../../utils/email.js';
-import { getPlatformBranding, buildEmail, formatArabicDate } from '../../utils/emailTemplate.js';
+import { renderEmail } from '../../utils/emailTemplate.js';
+import { getPlatformBranding } from '../../utils/platformBranding.js';
 import { env } from '../../config/env.js';
 import { enforceInvoiceLimit } from '../../middleware/planLimits.js';
 import { parsePagination } from '../../utils/pagination.js';
@@ -227,22 +228,25 @@ router.post('/:id/send', enforceInvoiceLimit(), async (req, res, next) => {
         const publicUrl = `${env.APP_URL}/invoice/${updatedRow.rows[0].public_id}`;
         const buf = await renderInvoicePdf(data);
         const branding = await getPlatformBranding();
-        const dueDateBlock = data.due_date
-          ? `<p>تاريخ الاستحقاق: <strong>${formatArabicDate(data.due_date)}</strong></p>`
-          : '';
+        const dueDateStr = data.due_date
+          ? new Date(data.due_date).toLocaleDateString('ar-SA')
+          : null;
         await sendEmail({
           to: recipient,
           subject: `فاتورة رقم ${data.number} من ${data.company.name}`,
-          html: buildEmail({
-            previewText: `فاتورة رقم ${data.number} — الإجمالي: ${data.total.toLocaleString('ar-EG')} ${data.currency}`,
+          html: renderEmail({
+            ...branding,
             title: `فاتورة رقم ${data.number}`,
-            body: `<p>عزيزي العميل،</p>
-                   <p>يسعدنا إرسال فاتورتك رقم <strong>${data.number}</strong> من <strong>${data.company.name}</strong> مرفقة بهذا البريد.</p>
-                   <p>إجمالي الفاتورة: <strong>${data.total.toLocaleString('ar-EG')} ${data.currency}</strong></p>
-                   ${dueDateBlock}
-                   <p>يمكنك أيضاً عرض الفاتورة إلكترونياً عبر الرابط أدناه.</p>`,
-            cta: { text: 'عرض الفاتورة', url: publicUrl },
-            branding,
+            previewText: `فاتورة من ${data.company.name} بقيمة ${data.total} ${data.currency}`,
+            bodyHtml: `<p>مرحباً،</p>
+                       <p>يسعدنا إرسال فاتورة رقم <strong>${data.number}</strong> من <strong>${data.company.name}</strong>.</p>
+                       <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;margin:16px 0">
+                         <tr><td style="padding:6px 0;color:#6b7280">المبلغ الإجمالي</td><td style="padding:6px 0;font-weight:bold">${data.total} ${data.currency}</td></tr>
+                         ${dueDateStr ? `<tr><td style="padding:6px 0;color:#6b7280">تاريخ الاستحقاق</td><td style="padding:6px 0">${dueDateStr}</td></tr>` : ''}
+                       </table>
+                       <p>يمكنك عرض الفاتورة أو تنزيلها عبر الرابط التالي، أو مراجعة الملف المرفق.</p>`,
+            ctaLabel: 'عرض الفاتورة',
+            ctaUrl: publicUrl,
           }),
           attachments: [{ filename: `invoice-${data.number}.pdf`, content: buf, contentType: 'application/pdf' }],
           smtpOverride,
@@ -436,24 +440,29 @@ router.post('/:id/send-email', async (req, res, next) => {
       : undefined;
 
     const buf = await renderInvoicePdf(data);
-    const branding = await getPlatformBranding();
+    const branding2 = await getPlatformBranding();
+    const dueDateStr2 = data.due_date
+      ? new Date(data.due_date).toLocaleDateString('ar-SA')
+      : null;
     const defaultSubject = `فاتورة رقم ${data.number} من ${data.company.name}`;
-    const manualDueDateBlock = data.due_date
-      ? `<p>تاريخ الاستحقاق: <strong>${formatArabicDate(data.due_date)}</strong></p>`
-      : '';
     await sendEmail({
       to: recipient,
       subject: subject ?? defaultSubject,
-      html: buildEmail({
-        previewText: `فاتورة رقم ${data.number} — الإجمالي: ${data.total.toLocaleString('ar-EG')} ${data.currency}`,
+      html: renderEmail({
+        ...branding2,
         title: `فاتورة رقم ${data.number}`,
-        body: `<p>عزيزي العميل،</p>
-               <p>${message ?? `يسعدنا إرسال فاتورتك رقم <strong>${data.number}</strong> من <strong>${data.company.name}</strong> مرفقة بهذا البريد.`}</p>
-               <p>إجمالي الفاتورة: <strong>${data.total.toLocaleString('ar-EG')} ${data.currency}</strong></p>
-               ${manualDueDateBlock}
-               <p>يمكنك عرض الفاتورة إلكترونياً عبر الرابط أدناه.</p>`,
-        cta: { text: 'عرض الفاتورة', url: publicUrl },
-        branding,
+        previewText: `فاتورة من ${data.company.name} بقيمة ${data.total} ${data.currency}`,
+        bodyHtml: message
+          ? `<p>${message}</p>`
+          : `<p>مرحباً،</p>
+             <p>يسعدنا إرسال فاتورة رقم <strong>${data.number}</strong> من <strong>${data.company.name}</strong>.</p>
+             <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;margin:16px 0">
+               <tr><td style="padding:6px 0;color:#6b7280">المبلغ الإجمالي</td><td style="padding:6px 0;font-weight:bold">${data.total} ${data.currency}</td></tr>
+               ${dueDateStr2 ? `<tr><td style="padding:6px 0;color:#6b7280">تاريخ الاستحقاق</td><td style="padding:6px 0">${dueDateStr2}</td></tr>` : ''}
+             </table>
+             <p>يمكنك عرض الفاتورة أو تنزيلها عبر الرابط التالي، أو مراجعة الملف المرفق.</p>`,
+        ctaLabel: 'عرض الفاتورة',
+        ctaUrl: publicUrl,
       }),
       attachments: [{ filename: `invoice-${data.number}.pdf`, content: buf, contentType: 'application/pdf' }],
       smtpOverride,

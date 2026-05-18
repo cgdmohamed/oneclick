@@ -20,7 +20,8 @@ import { requireRole } from '../../middleware/rbac.js';
 import { badRequest, notFound, HttpError } from '../../utils/errors.js';
 import { audit } from '../../utils/audit.js';
 import { sendEmail } from '../../utils/email.js';
-import { getPlatformBranding, buildEmail, roleLabel, formatArabicDate } from '../../utils/emailTemplate.js';
+import { renderEmail } from '../../utils/emailTemplate.js';
+import { getPlatformBranding } from '../../utils/platformBranding.js';
 import { enforceUserLimit } from '../../middleware/planLimits.js';
 import type { AuthClaims } from '../../middleware/auth.js';
 
@@ -97,17 +98,16 @@ invitationsAdminRouter.post('/', requireRole('company_admin'), enforceUserLimit(
     void getPlatformBranding().then((branding) =>
       sendEmail({
         to: body.email,
-        subject: `دعوة للانضمام إلى ${branding.name}`,
-        html: buildEmail({
-          previewText: `تمت دعوتك للانضمام إلى ${branding.name} — الدعوة تنتهي في ${formatArabicDate(expiresAt)}`,
-          title: `دعوة للانضمام إلى ${branding.name}`,
-          body: `<p>مرحباً <strong>${body.fullName}</strong>،</p>
-                 <p>تمت دعوتك للانضمام إلى منصة <strong>${branding.name}</strong> بصفة <strong>${roleLabel(body.role)}</strong>.</p>
-                 <p>انقر على الزر أدناه لقبول الدعوة وإنشاء حسابك.</p>
-                 <p>تاريخ انتهاء الدعوة: <strong>${formatArabicDate(expiresAt)}</strong>.</p>
-                 <p style="color:#6b7280;font-size:13px;margin-top:24px">إذا لم تتوقع هذه الدعوة، يمكنك تجاهل هذه الرسالة.</p>`,
-          cta: { text: 'قبول الدعوة', url: link },
-          branding,
+        subject: `دعوة للانضمام إلى ${branding.brandName}`,
+        html: renderEmail({
+          ...branding,
+          title: 'تمت دعوتك للانضمام',
+          previewText: `دُعيت للانضمام إلى ${branding.brandName} بصفة ${body.role}`,
+          bodyHtml: `<p>مرحباً ${body.fullName}،</p>
+                     <p>تمت دعوتك للانضمام إلى <strong>${branding.brandName}</strong> بصفة <strong>${body.role}</strong>.</p>
+                     <p>الرابط صالح لمدة ${TTL_DAYS} أيام.</p>`,
+          ctaLabel: 'قبول الدعوة',
+          ctaUrl: link,
         }),
       }),
     );
@@ -166,17 +166,16 @@ invitationsAdminRouter.post('/:id/resend', requireRole('company_admin'), async (
     void getPlatformBranding().then((branding) =>
       sendEmail({
         to: row.email,
-        subject: `تذكير: دعوتك للانضمام إلى ${branding.name}`,
-        html: buildEmail({
-          previewText: `تذكير بدعوتك — الدعوة تنتهي في ${formatArabicDate(newExpiresAt)}`,
-          title: 'تذكير بدعوة الانضمام',
-          body: `<p>مرحباً <strong>${row.full_name}</strong>،</p>
-                 <p>هذا تذكير بأن لديك دعوة معلّقة للانضمام إلى منصة <strong>${branding.name}</strong> بصفة <strong>${roleLabel(row.role)}</strong>.</p>
-                 <p>انقر على الزر أدناه لقبول الدعوة.</p>
-                 <p>تاريخ انتهاء الدعوة: <strong>${formatArabicDate(newExpiresAt)}</strong>.</p>
-                 <p style="color:#6b7280;font-size:13px;margin-top:24px">إذا لم تتوقع هذه الدعوة، يمكنك تجاهل هذه الرسالة.</p>`,
-          cta: { text: 'قبول الدعوة', url: link },
-          branding,
+        subject: `تذكير: دعوتك للانضمام إلى ${branding.brandName}`,
+        html: renderEmail({
+          ...branding,
+          title: 'تذكير بالدعوة',
+          previewText: 'لا تنسَ قبول دعوتك للانضمام',
+          bodyHtml: `<p>مرحباً ${row.full_name}،</p>
+                     <p>هذا تذكير بدعوتك للانضمام إلى <strong>${branding.brandName}</strong> بصفة <strong>${row.role}</strong>.</p>
+                     <p>الرابط صالح لمدة ${TTL_DAYS} أيام من الآن.</p>`,
+          ctaLabel: 'قبول الدعوة',
+          ctaUrl: link,
         }),
       }),
     );
