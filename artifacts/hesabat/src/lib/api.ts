@@ -106,7 +106,22 @@ async function request<T>(method: string, path: string, body?: unknown, retry = 
   return payload as T;
 }
 
+/**
+ * Singleton in-flight refresh promise.
+ * If a refresh is already in progress, all concurrent callers share the same
+ * Promise instead of firing independent requests. This prevents the server's
+ * refresh-token reuse-detection logic from revoking the entire token family
+ * when multiple parallel API calls each trigger their own refresh on a 401.
+ */
+let _refreshInFlight: Promise<boolean> | null = null;
+
 async function tryRefresh(): Promise<boolean> {
+  if (_refreshInFlight) return _refreshInFlight;
+  _refreshInFlight = _doRefresh().finally(() => { _refreshInFlight = null; });
+  return _refreshInFlight;
+}
+
+async function _doRefresh(): Promise<boolean> {
   // Refresh token is in an httpOnly cookie — sent automatically with credentials.
   try {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };

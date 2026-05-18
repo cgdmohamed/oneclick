@@ -386,10 +386,17 @@ router.post('/resend-verification', requireAuth, async (req, res, next) => {
 router.post('/refresh', requireCsrf, async (req, res, next) => {
   try {
     const token = readRefreshToken(req);
-    if (!token) throw unauthorized('Missing refresh token');
+    if (!token) {
+      logger.warn({ refresh_401_reason: 'no_cookie', ip: req.ip }, 'refresh token missing');
+      throw unauthorized('Missing refresh token');
+    }
     let payload: { sub: string };
     try { payload = jwt.verify(token, env.JWT_REFRESH_SECRET) as { sub: string }; }
-    catch { throw unauthorized('Invalid refresh token'); }
+    catch (jwtErr) {
+      const reason = (jwtErr as { name?: string }).name === 'TokenExpiredError' ? 'expired' : 'bad_jwt';
+      logger.warn({ refresh_401_reason: reason, ip: req.ip }, 'refresh JWT verification failed');
+      throw unauthorized('Invalid refresh token');
+    }
 
     const c = await pool.connect();
     try {
@@ -403,6 +410,7 @@ router.post('/refresh', requireCsrf, async (req, res, next) => {
       );
       if (!row.rowCount) {
         await c.query('ROLLBACK');
+        logger.warn({ refresh_401_reason: 'token_revoked', userId: payload.sub, ip: req.ip }, 'refresh token not found in DB');
         throw unauthorized('Invalid refresh token');
       }
       const r = row.rows[0];
@@ -421,10 +429,12 @@ router.post('/refresh', requireCsrf, async (req, res, next) => {
           action: 'auth.refresh_reuse_detected', entity: 'user', entityId: payload.sub,
           data: { family_id: r.family_id, ip: req.ip },
         });
+        logger.warn({ refresh_401_reason: 'family_revoked', userId: payload.sub, family_id: r.family_id, ip: req.ip }, 'refresh token reuse detected — entire family revoked');
         throw unauthorized('Refresh token reuse detected');
       }
       if (r.expires_at.getTime() < Date.now()) {
         await c.query('ROLLBACK');
+        logger.warn({ refresh_401_reason: 'expired', userId: payload.sub, ip: req.ip }, 'refresh token expired');
         throw unauthorized('Refresh token expired');
       }
 
