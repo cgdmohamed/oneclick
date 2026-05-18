@@ -194,6 +194,37 @@ const SystemSettings = () => {
               </SelectContent>
             </Select>
           </div>
+          <div>
+            <Label>اللون الرئيسي</Label>
+            <p className="text-xs text-muted-foreground mt-0.5 mb-1.5">يُستخدم في رأس رسائل البريد الإلكتروني وأزرار الدعوة.</p>
+            <div className="flex items-center gap-3">
+              <input
+                type="color"
+                value={local.primaryColor ?? '#2563eb'}
+                onChange={e => setLocal(s => ({ ...s, primaryColor: e.target.value }))}
+                className="h-9 w-14 cursor-pointer rounded border border-input bg-background p-0.5"
+                title="اختر اللون الرئيسي"
+              />
+              <Input
+                dir="ltr"
+                className="w-32 font-mono text-sm"
+                value={local.primaryColor ?? '#2563eb'}
+                onChange={e => {
+                  const val = e.target.value;
+                  if (/^#[0-9a-fA-F]{0,6}$/.test(val)) {
+                    setLocal(s => ({ ...s, primaryColor: val }));
+                  }
+                }}
+                maxLength={7}
+                placeholder="#2563eb"
+              />
+              <div
+                className="h-9 w-9 rounded border border-input flex-shrink-0"
+                style={{ background: local.primaryColor ?? '#2563eb' }}
+                title="معاينة اللون"
+              />
+            </div>
+          </div>
         </div>
 
         <div className="grid sm:grid-cols-2 gap-4">

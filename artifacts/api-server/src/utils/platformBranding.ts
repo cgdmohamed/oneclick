@@ -13,6 +13,10 @@ export interface PlatformBranding {
 
 let cached: PlatformBranding | null = null;
 
+export function invalidateBrandingCache(): void {
+  cached = null;
+}
+
 export async function getPlatformBranding(): Promise<PlatformBranding> {
   if (cached) return cached;
   try {

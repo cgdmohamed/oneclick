@@ -17,6 +17,7 @@ export interface BrandSettings {
   tagline: string;
   logoFullUrl: string;
   logoIconUrl: string;
+  primaryColor: string;
   fontFamily: string;
   fontWeight: 'font-semibold' | 'font-bold' | 'font-extrabold' | 'font-black';
   tracking: 'tracking-tighter' | 'tracking-tight' | 'tracking-normal' | 'tracking-wide';
@@ -27,6 +28,7 @@ export const DEFAULT_BRAND: BrandSettings = {
   tagline: 'منصة محاسبة سحابية',
   logoFullUrl: '',
   logoIconUrl: '',
+  primaryColor: '#2563eb',
   fontFamily: "'Cairo', 'Tajawal', 'Inter', system-ui, sans-serif",
   fontWeight: 'font-extrabold',
   tracking: 'tracking-tight',

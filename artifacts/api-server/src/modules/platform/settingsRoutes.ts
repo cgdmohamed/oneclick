@@ -8,7 +8,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { pool } from '../../db/client.js';
 import { audit } from '../../utils/audit.js';
-import { invalidateBrandingCache } from '../../utils/emailTemplate.js';
+import { invalidateBrandingCache } from '../../utils/platformBranding.js';
 
 const ALLOWED_KEYS = ['branding', 'landing_content', 'tracking', 'general', 'contact'] as const;
 type SettingsKey = typeof ALLOWED_KEYS[number];
