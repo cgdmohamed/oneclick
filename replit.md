@@ -9,6 +9,23 @@ Arabic-first multi-tenant SaaS accounting platform. Companies can issue invoices
 - `pnpm --filter @workspace/db run push` — push Drizzle schema changes to the DB (dev only, not for production)
 - Required env: `DATABASE_URL`, `JWT_SECRET`, `JWT_REFRESH_SECRET`, `VITE_API_URL=same-origin`
 
+### Test accounts (development seed)
+
+Run once to insert test users and a test company:
+
+```bash
+node artifacts/api-server/scripts/seed-test-company.mjs
+```
+
+| Role | Email | Password |
+|---|---|---|
+| super_admin | admin@test.com | Test@12345 |
+| company_admin | company@test.com | Test@12345 |
+
+- `admin@test.com` → logs in and is redirected to `/admin`
+- `company@test.com` → logs in and is redirected to `/app` (company: شركة الاختبار)
+- Script is idempotent — safe to run multiple times.
+
 ### Environment variables (production)
 
 Copy `env.production.example` (project root) to `env.production` and fill in real values — `ecosystem.config.cjs` loads it automatically when PM2 starts the API server. Never commit `env.production`; it contains secrets.

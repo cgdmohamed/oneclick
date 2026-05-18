@@ -22,11 +22,12 @@ const Login = () => {
     setLoading(true);
     try {
       if (isApiConfigured()) {
-        await loginRequest(email, password);
+        const res = await loginRequest(email, password);
         toast.success('تم تسجيل الدخول');
         // Full reload so AuthProvider re-runs its /api/auth/me hydration
         // effect with the newly saved token in localStorage.
-        window.location.href = '/app';
+        // Super admins go directly to the admin panel; everyone else to /app.
+        window.location.href = res.user.isSuperAdmin ? '/admin' : '/app';
       } else {
         // Demo mode (no backend configured): require a non-empty password and
         // never grant super_admin via the local mock list.

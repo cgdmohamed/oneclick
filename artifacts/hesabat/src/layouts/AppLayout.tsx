@@ -163,23 +163,6 @@ const AppShellInner = ({ kind }: { kind: 'company' | 'admin' }) => {
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
-          {kind === 'company' && (
-            <SidebarGroup>
-              <SidebarGroupLabel>أخرى</SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild>
-                      <NavLink to="/admin" className="flex items-center gap-3">
-                        <Building2 className="h-4 w-4" />
-                        {!collapsed && <span>لوحة المشرف</span>}
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
-          )}
         </SidebarContent>
         <SidebarFooter className="border-t border-sidebar-border">
           <SidebarMenu>
