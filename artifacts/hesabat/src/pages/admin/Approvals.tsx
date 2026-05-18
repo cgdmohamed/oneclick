@@ -40,7 +40,7 @@ const ApproveDialog = ({
   onOpenChange: (v: boolean) => void;
   signup: PendingSignup | null;
   plans: Plan[];
-  onConfirm: (planId: string, cycle: 'monthly' | 'yearly' | 'trial', trialDays: number) => Promise<void>;
+  onConfirm: (planId: string, cycle: 'monthly' | 'yearly' | 'trial', trialDays: number, amount: number) => Promise<void>;
 }) => {
   const [planId, setPlanId] = useState('');
   const [cycle, setCycle] = useState<'monthly' | 'yearly' | 'trial'>('monthly');
@@ -63,7 +63,7 @@ const ApproveDialog = ({
   const handleConfirm = async () => {
     if (!planId) return;
     setBusy(true);
-    try { await onConfirm(planId, cycle, trialDays); }
+    try { await onConfirm(planId, cycle, trialDays, amount); }
     finally { setBusy(false); }
   };
 
@@ -312,10 +312,10 @@ const Approvals = () => {
     });
   }, [signups, tab, q]);
 
-  const handleApproveConfirm = async (planId: string, cycle: 'monthly' | 'yearly' | 'trial', trialDays: number) => {
+  const handleApproveConfirm = async (planId: string, cycle: 'monthly' | 'yearly' | 'trial', trialDays: number, amount: number) => {
     if (!target) return;
     try {
-      await approve(target.id, { planId, cycle, trialDays });
+      await approve(target.id, { planId, cycle, trialDays, amount });
       toast.success(`تم اعتماد ${target.companyName}`);
       setApproveOpen(false);
       setTarget(null);

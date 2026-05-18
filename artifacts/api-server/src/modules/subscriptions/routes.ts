@@ -73,12 +73,13 @@ router.get('/', requireSuperAdmin, async (req, res, next) => {
   try {
     const t = req.tenant!;
     const p = parsePagination(req);
-    const totalQ = await t.db.query(`SELECT count(*)::int AS count FROM subscriptions`);
+    const totalQ = await t.db.query(`SELECT count(*)::int AS count FROM subscriptions s WHERE s.status != 'cancelled'`);
     const a = p.applyTo(`
       SELECT s.*, c.name AS company_name, p.name AS plan_name
       FROM subscriptions s
       JOIN companies c ON c.id = s.company_id
       JOIN plans p ON p.id = s.plan_id
+      WHERE s.status != 'cancelled'
       ORDER BY s.created_at DESC
     `);
     const rs = await t.db.query(a.sql, a.params);

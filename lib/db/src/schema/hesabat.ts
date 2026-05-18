@@ -123,6 +123,7 @@ export const subscriptions = pgTable('subscriptions', {
   companyId: uuid('company_id').notNull().references(() => companies.id, { onDelete: 'cascade' }),
   planId: uuid('plan_id').notNull().references(() => plans.id),
   status: subscriptionStatusEnum('status').notNull().default('trialing'),
+  amount: decimal('amount', { precision: 12, scale: 2 }).notNull().default('0'),
   startedAt: timestamp('started_at', { withTimezone: true }).notNull().defaultNow(),
   expiresAt: timestamp('expires_at', { withTimezone: true }),
   cancelledAt: timestamp('cancelled_at', { withTimezone: true }),

@@ -131,12 +131,13 @@ export const usePendingSignups = () => {
 
   const approve = async (
     id: string,
-    payload: { planId: string; cycle: 'monthly' | 'yearly' | 'trial'; trialDays?: number },
+    payload: { planId: string; cycle: 'monthly' | 'yearly' | 'trial'; trialDays?: number; amount?: number },
   ) => {
     const res = await api.patch<{ data: ApiSignup }>(`/api/platform/signups/${id}/approve`, {
       plan_id: payload.planId,
       cycle: payload.cycle,
       trial_days: payload.trialDays ?? 14,
+      amount: payload.amount ?? 0,
     });
     setSignups(prev => prev.map(s => s.id === id ? mapSignup(res.data) : s));
     notifyChange();

@@ -277,7 +277,7 @@ router.get('/companies', async (_req, res, next) => {
               WHERE s.company_id = c.id ORDER BY s.created_at DESC LIMIT 1) AS plan_name,
              (SELECT s.status FROM subscriptions s
               WHERE s.company_id = c.id ORDER BY s.created_at DESC LIMIT 1) AS sub_status
-      FROM companies c ORDER BY c.created_at DESC
+      FROM companies c WHERE c.review_status = 'approved' ORDER BY c.created_at DESC
     `);
     res.json({ data: rs.rows });
   } catch (e) { next(e); }
@@ -537,6 +537,7 @@ const approveSchema = z.object({
   plan_id:    z.string().uuid(),
   cycle:      z.enum(['monthly', 'yearly', 'trial']),
   trial_days: z.coerce.number().int().min(1).max(365).optional().default(14),
+  amount:     z.coerce.number().min(0).optional().default(0),
 });
 
 router.patch('/signups/:id/approve', async (req, res, next) => {
@@ -574,9 +575,9 @@ router.patch('/signups/:id/approve', async (req, res, next) => {
     );
 
     await client.query(
-      `INSERT INTO subscriptions (company_id, plan_id, status, started_at, expires_at)
-       VALUES ($1, $2, $3, now(), $4)`,
-      [req.params.id, body.plan_id, subStatus, expiresAt],
+      `INSERT INTO subscriptions (company_id, plan_id, status, amount, started_at, expires_at)
+       VALUES ($1, $2, $3, $4, now(), $5)`,
+      [req.params.id, body.plan_id, subStatus, body.amount, expiresAt],
     );
 
     await client.query('COMMIT');
