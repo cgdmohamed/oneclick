@@ -300,6 +300,137 @@ router.patch('/companies/:id', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+/* ---------------- Analytics (super-admin) ---------------- */
+router.get('/analytics', async (_req, res, next) => {
+  try {
+    const [seriesRs, kpisRs, planRs, statusRs, topRs] = await Promise.all([
+      /* Monthly time-series — last 12 months */
+      pool.query(`
+        WITH months AS (
+          SELECT generate_series(
+            date_trunc('month', now() - INTERVAL '11 months'),
+            date_trunc('month', now()),
+            INTERVAL '1 month'
+          ) AS month_start
+        ),
+        signups AS (
+          SELECT date_trunc('month', created_at) AS m, COUNT(*)::int AS cnt
+          FROM companies GROUP BY 1
+        ),
+        payments AS (
+          SELECT date_trunc('month', paid_at) AS m, COALESCE(SUM(amount), 0)::float AS total
+          FROM subscription_payments GROUP BY 1
+        ),
+        churn AS (
+          SELECT date_trunc('month', COALESCE(cancelled_at, expires_at)) AS m, COUNT(*)::int AS cnt
+          FROM subscriptions
+          WHERE status IN ('cancelled', 'expired')
+            AND COALESCE(cancelled_at, expires_at) IS NOT NULL
+          GROUP BY 1
+        )
+        SELECT
+          to_char(mo.month_start, 'YYYY-MM') AS key,
+          COALESCE(sg.cnt, 0)               AS signups,
+          COALESCE(pay.total, 0.0)           AS mrr,
+          COALESCE(ch.cnt, 0)               AS churn
+        FROM months mo
+        LEFT JOIN signups  sg  ON sg.m  = mo.month_start
+        LEFT JOIN payments pay ON pay.m = mo.month_start
+        LEFT JOIN churn    ch  ON ch.m  = mo.month_start
+        ORDER BY mo.month_start
+      `),
+
+      /* Current KPI aggregates */
+      pool.query(`
+        SELECT
+          (SELECT COALESCE(SUM(amount), 0)::float  FROM subscriptions WHERE status = 'active')  AS mrr,
+          (SELECT COUNT(*)::int                     FROM subscriptions WHERE status = 'active')  AS active_subs,
+          (SELECT COUNT(*)::int                     FROM companies)                              AS total_companies,
+          (SELECT COUNT(*)::int                     FROM users)                                  AS total_users,
+          (SELECT COUNT(*)::int FROM subscriptions
+           WHERE status IN ('cancelled','expired')
+             AND COALESCE(cancelled_at, expires_at) >= now() - INTERVAL '30 days')              AS churn_30d,
+          (SELECT COUNT(*)::int FROM subscriptions)                                              AS total_subs
+      `),
+
+      /* Plan distribution */
+      pool.query(`
+        SELECT
+          p.name,
+          COUNT(s.id)::int                              AS count,
+          COALESCE(SUM(sp.amount)::float, 0)            AS revenue
+        FROM plans p
+        LEFT JOIN subscriptions s
+          ON s.plan_id = p.id AND s.status != 'cancelled'
+        LEFT JOIN subscription_payments sp
+          ON sp.subscription_id = s.id
+        GROUP BY p.id, p.name
+        HAVING COUNT(s.id) > 0
+        ORDER BY count DESC
+      `),
+
+      /* Subscription status distribution */
+      pool.query(`
+        SELECT status, COUNT(*)::int AS count
+        FROM subscriptions
+        GROUP BY status
+      `),
+
+      /* Top 6 companies by revenue collected */
+      pool.query(`
+        SELECT
+          c.name,
+          COALESCE(SUM(sp.amount)::float, 0) AS revenue
+        FROM companies c
+        LEFT JOIN subscriptions s  ON s.company_id = c.id
+        LEFT JOIN subscription_payments sp ON sp.subscription_id = s.id
+        GROUP BY c.id, c.name
+        HAVING COALESCE(SUM(sp.amount)::float, 0) > 0
+        ORDER BY revenue DESC
+        LIMIT 6
+      `),
+    ]);
+
+    const kpis = kpisRs.rows[0];
+    const mrr  = Number(kpis.mrr) || 0;
+    const activeSubs = Number(kpis.active_subs) || 0;
+    const totalSubs  = Number(kpis.total_subs)  || 0;
+
+    res.json({
+      data: {
+        series: seriesRs.rows.map(r => ({
+          key:     r.key,
+          signups: Number(r.signups),
+          mrr:     Number(r.mrr),
+          churn:   Number(r.churn),
+        })),
+        kpis: {
+          mrr,
+          arr:             mrr * 12,
+          arpu:            activeSubs ? mrr / activeSubs : 0,
+          churn_rate:      totalSubs  ? (Number(kpis.churn_30d) / totalSubs) * 100 : 0,
+          total_companies: Number(kpis.total_companies),
+          active_subs:     activeSubs,
+          total_users:     Number(kpis.total_users),
+        },
+        plan_dist: planRs.rows.map(r => ({
+          name:    r.name,
+          count:   Number(r.count),
+          revenue: Number(r.revenue),
+        })),
+        status_dist: statusRs.rows.map(r => ({
+          status: r.status,
+          count:  Number(r.count),
+        })),
+        top_companies: topRs.rows.map(r => ({
+          name:    r.name.length > 18 ? r.name.slice(0, 18) + '…' : r.name,
+          revenue: Number(r.revenue),
+        })),
+      },
+    });
+  } catch (e) { next(e); }
+});
+
 /* ---------------- Stats (super-admin overview) ---------------- */
 router.get('/stats', async (_req, res, next) => {
   try {
