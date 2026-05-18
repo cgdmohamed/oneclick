@@ -6,7 +6,7 @@ import { audit } from '../../utils/audit.js';
 import { renderInvoicePdf, type InvoicePdfData } from '../../utils/pdf.js';
 import { sendEmail } from '../../utils/email.js';
 import { renderEmail } from '../../utils/emailTemplate.js';
-import { getPlatformBranding } from '../../utils/platformBranding.js';
+import { getCompanyBranding } from '../../utils/platformBranding.js';
 import { env } from '../../config/env.js';
 import { enforceInvoiceLimit } from '../../middleware/planLimits.js';
 import { parsePagination } from '../../utils/pagination.js';
@@ -227,7 +227,7 @@ router.post('/:id/send', enforceInvoiceLimit(), async (req, res, next) => {
         );
         const publicUrl = `${env.APP_URL}/invoice/${updatedRow.rows[0].public_id}`;
         const buf = await renderInvoicePdf(data);
-        const branding = await getPlatformBranding();
+        const branding = await getCompanyBranding(t.db, t.companyId);
         const dueDateStr = data.due_date
           ? new Date(data.due_date).toLocaleDateString('ar-SA')
           : null;
@@ -440,7 +440,7 @@ router.post('/:id/send-email', async (req, res, next) => {
       : undefined;
 
     const buf = await renderInvoicePdf(data);
-    const branding2 = await getPlatformBranding();
+    const branding2 = await getCompanyBranding(t.db, t.companyId);
     const dueDateStr2 = data.due_date
       ? new Date(data.due_date).toLocaleDateString('ar-SA')
       : null;

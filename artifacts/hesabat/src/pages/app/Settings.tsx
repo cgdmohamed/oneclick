@@ -49,6 +49,7 @@ interface InvoiceConfig {
   footer: string;
   logoUrl?: string;
   stampUrl?: string;
+  emailBrandColor: string;
 }
 
 export const buildInvoiceNumber = (cfg: { prefix: string; yearFormat: 'full' | 'short' | 'none'; sequenceStart: number; padding: number; separator: string }, sequence?: number, date = new Date()) => {
@@ -110,6 +111,7 @@ const Settings = () => {
     showTaxNumber: true,
     terms: 'تستحق الفاتورة خلال 30 يوماً من تاريخ الإصدار.',
     footer: 'شكراً لتعاملكم معنا',
+    emailBrandColor: '',
   });
 
   const [client, setClient] = useState<ClientInfo>({
@@ -208,6 +210,7 @@ const Settings = () => {
           footer: r.invoice_footer != null ? (r.invoice_footer as string) : c.footer,
           logoUrl: (r.logo_url as string) ?? c.logoUrl,
           stampUrl: (r.stamp_url as string) ?? c.stampUrl,
+          emailBrandColor: (r.email_brand_color as string) ?? c.emailBrandColor,
         }));
         hasHydrated.current = true;
       } catch (e) {
@@ -264,6 +267,7 @@ const Settings = () => {
             invoice_footer: cfg.footer || null,
             logo_url: cfg.logoUrl ?? null,
             stamp_url: cfg.stampUrl ?? null,
+            email_brand_color: cfg.emailBrandColor || null,
           });
         } catch {
           toast.error('تعذّر الحفظ على الخادم');
@@ -535,7 +539,61 @@ const Settings = () => {
         </TabsContent>
 
         <TabsContent value="smtp" className="mt-4">
-          <SmtpTab />
+          <div className="max-w-3xl space-y-5">
+            <Card className="p-6 border-border/60 space-y-4">
+              <div className="space-y-1">
+                <div className="font-semibold text-sm">لون البريد الإلكتروني</div>
+                <div className="text-xs text-muted-foreground">
+                  لون العلامة التجارية المستخدم في رسائل البريد الإلكتروني المرسلة للعملاء (رأس الرسالة وزر الإجراء). اتركه فارغاً لاستخدام اللون الافتراضي للمنصة.
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <Input
+                  type="color"
+                  className="h-10 w-14 p-1 cursor-pointer"
+                  value={invoiceCfg.emailBrandColor || '#2563eb'}
+                  onChange={e => setI({ emailBrandColor: e.target.value })}
+                />
+                <Input
+                  className="max-w-[180px] font-mono"
+                  placeholder="#2563eb"
+                  value={invoiceCfg.emailBrandColor}
+                  onChange={e => setI({ emailBrandColor: e.target.value })}
+                  maxLength={20}
+                />
+                {invoiceCfg.emailBrandColor && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-muted-foreground text-xs"
+                    onClick={() => setI({ emailBrandColor: '' })}
+                  >
+                    إعادة تعيين
+                  </Button>
+                )}
+              </div>
+              {invoiceCfg.emailBrandColor && (
+                <div className="rounded-lg border border-border/60 overflow-hidden">
+                  <div className="p-4 text-white text-sm font-medium" style={{ background: invoiceCfg.emailBrandColor }}>
+                    معاينة رأس البريد الإلكتروني
+                  </div>
+                  <div className="p-4 bg-background text-sm text-muted-foreground">
+                    محتوى الرسالة...
+                    <div className="mt-3">
+                      <span
+                        className="inline-block px-4 py-2 rounded text-white text-xs font-medium"
+                        style={{ background: invoiceCfg.emailBrandColor }}
+                      >
+                        عرض الفاتورة
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+              <SaveIndicator status={saveStatus} />
+            </Card>
+            <SmtpTab />
+          </div>
         </TabsContent>
       </Tabs>
     </div>
