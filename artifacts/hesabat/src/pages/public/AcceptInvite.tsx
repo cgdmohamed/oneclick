@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -10,6 +10,8 @@ import { toast } from 'sonner';
 import { acceptInvitation, findInvitationByToken, type Invitation } from '@/lib/invitations';
 import { useUsers } from '@/hooks/entities';
 import { roleLabel } from '@/lib/format';
+import { useAuth } from '@/lib/auth';
+import { ApiError } from '@/lib/api';
 
 const passwordIssues = (pw: string): string[] => {
   const issues: string[] = [];
@@ -24,6 +26,7 @@ const AcceptInvite = () => {
   const navigate = useNavigate();
   const token = params.get('token') ?? '';
   const { save } = useUsers();
+  const { user } = useAuth();
 
   const [invitation, setInvitation] = useState<Invitation | null | undefined>(undefined);
   const [fullName, setFullName] = useState('');
@@ -31,6 +34,10 @@ const AcceptInvite = () => {
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [emailMismatch, setEmailMismatch] = useState(false);
+
+  // Prevents the auto-accept effect from firing more than once per page visit.
+  const autoAcceptFiredRef = useRef(false);
 
   useEffect(() => {
     if (!token) { setInvitation(null); return; }
@@ -46,24 +53,36 @@ const AcceptInvite = () => {
     return () => { active = false; };
   }, [token]);
 
+  // Once invitation loads, check for immediate email mismatch (user is logged
+  // in as a different account than the one the invite was sent to).
+  useEffect(() => {
+    if (!invitation || !user) { setEmailMismatch(false); return; }
+    const same = invitation.email.toLowerCase() === user.email.toLowerCase();
+    setEmailMismatch(!same);
+  }, [invitation, user]);
+
   const pwIssues = useMemo(() => passwordIssues(password), [password]);
   const pwOk = pwIssues.length === 0;
   const confirmOk = confirm.length > 0 && password === confirm;
   const nameOk = fullName.trim().length >= 2;
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!invitation || invitation.status !== 'pending') return;
-    if (!nameOk) return toast.error('الاسم قصير جدًا');
-    if (!pwOk) return toast.error('كلمة المرور لا تستوفي الشروط');
-    if (!confirmOk) return toast.error('كلمة المرور وتأكيدها غير متطابقتين');
+  // Is the currently logged-in user the intended recipient?
+  const isLoggedInAsRecipient =
+    !!user && !!invitation && invitation.email.toLowerCase() === user.email.toLowerCase();
 
+  /**
+   * Core accept logic — shared by manual submit and the auto-accept effect.
+   * `omitPassword` is true when the user is already authenticated (the backend
+   * uses the JWT for identity instead of requiring a password).
+   */
+  const doAccept = useCallback(async (opts: { omitPassword: boolean }) => {
+    if (!invitation || invitation.status !== 'pending') return;
     setSubmitting(true);
     try {
       await acceptInvitation(invitation.token, {
         fullName: fullName.trim(),
         phone: phone.trim() || undefined,
-        password,
+        password: opts.omitPassword ? undefined : password,
         userId: `u-${Date.now()}`,
       });
       // Mock-only: also persist a local user record so demo lists update.
@@ -78,13 +97,57 @@ const AcceptInvite = () => {
           disabled: false,
         });
       }
-      toast.success('تم تفعيل حسابك! يمكنك تسجيل الدخول الآن.');
-      navigate(`/login?email=${encodeURIComponent(invitation.email)}`);
-    } catch {
-      toast.error('تعذّر إكمال العملية');
+      toast.success('تم تفعيل حسابك! يمكنك الوصول إلى لوحة التحكم الآن.');
+      navigate('/app');
+    } catch (err) {
+      if (err instanceof ApiError) {
+        const body = err.body as { error?: string } | undefined;
+        if (err.status === 401 && body?.error === 'login_required') {
+          // Email belongs to a registered account but visitor is not logged in.
+          // Redirect to login with the invite token preserved so the user is
+          // sent back here after a successful login.
+          const redirectTo = `/accept-invite?token=${encodeURIComponent(token)}`;
+          navigate(`/login?redirect=${encodeURIComponent(redirectTo)}`);
+          return;
+        }
+        if (err.status === 403 && body?.error === 'email_mismatch') {
+          setEmailMismatch(true);
+          return;
+        }
+        toast.error(err.message || 'تعذّر إكمال العملية');
+      } else {
+        toast.error('تعذّر إكمال العملية');
+      }
     } finally {
       setSubmitting(false);
     }
+  }, [invitation, fullName, phone, password, token, navigate, save]);
+
+  /**
+   * Auto-accept effect: fires once when the user is already authenticated as
+   * the invitation recipient (e.g. they were redirected from login back here).
+   * The ref guard prevents it from looping on re-renders.
+   */
+  useEffect(() => {
+    if (!isLoggedInAsRecipient) return;
+    if (invitation?.status !== 'pending') return;
+    if (autoAcceptFiredRef.current) return;
+    autoAcceptFiredRef.current = true;
+    doAccept({ omitPassword: true });
+  }, [isLoggedInAsRecipient, invitation, doAccept]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!invitation || invitation.status !== 'pending') return;
+    if (!nameOk) { toast.error('الاسم قصير جدًا'); return; }
+
+    // Only validate password fields when the user is not already logged in.
+    if (!isLoggedInAsRecipient) {
+      if (!pwOk) { toast.error('كلمة المرور لا تستوفي الشروط'); return; }
+      if (!confirmOk) { toast.error('كلمة المرور وتأكيدها غير متطابقتين'); return; }
+    }
+
+    await doAccept({ omitPassword: isLoggedInAsRecipient });
   };
 
   // ---------- States ----------
@@ -111,7 +174,7 @@ const AcceptInvite = () => {
       <InvalidState
         title="تم قبول هذه الدعوة مسبقًا"
         message="حسابك مفعّل بالفعل. يمكنك تسجيل الدخول مباشرة."
-        ctaTo={`/login?email=${encodeURIComponent(invitation.email)}`}
+        ctaTo="/login"
         ctaLabel="الذهاب لتسجيل الدخول"
       />
     );
@@ -123,6 +186,28 @@ const AcceptInvite = () => {
 
   if (invitation.status === 'expired') {
     return <InvalidState title="انتهت صلاحية الدعوة" message="انتهت صلاحية هذا الرابط. اطلب من مدير الشركة إعادة إرسال الدعوة." />;
+  }
+
+  if (emailMismatch) {
+    return (
+      <InvalidState
+        title="هذه الدعوة لحساب آخر"
+        message={`هذه الدعوة مخصصة للبريد الإلكتروني ${invitation.email}. أنت مسجّل الدخول حاليًا بحساب مختلف. يرجى تسجيل الخروج والدخول بالحساب الصحيح لقبول الدعوة.`}
+        ctaTo={`/login?redirect=${encodeURIComponent(`/accept-invite?token=${encodeURIComponent(token)}`)}`}
+        ctaLabel="تسجيل الدخول بحساب آخر"
+      />
+    );
+  }
+
+  // When the logged-in user is the recipient, show a "processing" spinner
+  // while the auto-accept fires — prevents the form from flickering in.
+  if (isLoggedInAsRecipient && submitting) {
+    return (
+      <Centered>
+        <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto" />
+        <p className="text-sm text-muted-foreground mt-3 text-center">جارٍ الانضمام إلى الشركة…</p>
+      </Centered>
+    );
   }
 
   return (

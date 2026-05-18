@@ -211,7 +211,7 @@ export const findInvitationByToken = async (
 /** Accept an invitation: sets the user's password and activates membership. */
 export const acceptInvitation = async (
   token: string,
-  payload: { fullName: string; phone?: string; password: string; userId?: string },
+  payload: { fullName: string; phone?: string; password?: string; userId?: string },
 ): Promise<{ email: string }> => {
   if (isApiConfigured()) {
     return api.post<{ ok: true; email: string }>(

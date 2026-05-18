@@ -3,12 +3,22 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { BrandLogo } from '@/components/common/BrandLogo';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
 import { useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { isApiConfigured, loginRequest, ApiError } from '@/lib/api';
 import { toast } from 'sonner';
+
+/**
+ * Validate a post-login redirect target to prevent open-redirect attacks.
+ * Only allows same-origin relative paths (must start with "/" but not "//").
+ */
+const sanitizeRedirect = (raw: string | null): string | null => {
+  if (!raw) return null;
+  if (raw.startsWith('/') && !raw.startsWith('//')) return raw;
+  return null;
+};
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -16,6 +26,8 @@ const Login = () => {
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const redirectTo = sanitizeRedirect(searchParams.get('redirect'));
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -26,8 +38,9 @@ const Login = () => {
         toast.success('تم تسجيل الدخول');
         // Full reload so AuthProvider re-runs its /api/auth/me hydration
         // effect with the newly saved token in localStorage.
-        // Super admins go directly to the admin panel; everyone else to /app.
-        window.location.href = res.user.isSuperAdmin ? '/admin' : '/app';
+        // If a safe same-origin redirect is provided (e.g. from an invitation
+        // link), send the user there; otherwise use the default destination.
+        window.location.href = redirectTo ?? (res.user.isSuperAdmin ? '/admin' : '/app');
       } else {
         // Demo mode (no backend configured): require a non-empty password and
         // never grant super_admin via the local mock list.
@@ -40,7 +53,7 @@ const Login = () => {
           toast.error('بيانات الدخول غير صحيحة');
           return;
         }
-        navigate('/app');
+        navigate(redirectTo ?? '/app');
       }
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : 'تعذّر تسجيل الدخول';

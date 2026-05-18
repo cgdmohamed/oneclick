@@ -12,14 +12,16 @@
 import { Router } from 'express';
 import crypto from 'node:crypto';
 import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 import { pool } from '../../db/client.js';
 import { env } from '../../config/env.js';
 import { requireRole } from '../../middleware/rbac.js';
-import { badRequest, notFound } from '../../utils/errors.js';
+import { badRequest, notFound, HttpError } from '../../utils/errors.js';
 import { audit } from '../../utils/audit.js';
 import { sendEmail } from '../../utils/email.js';
 import { enforceUserLimit } from '../../middleware/planLimits.js';
+import type { AuthClaims } from '../../middleware/auth.js';
 
 const TTL_DAYS = 7;
 const sha = (s: string) => crypto.createHash('sha256').update(s).digest('hex');
@@ -209,7 +211,7 @@ invitationsPublicRouter.get('/:token', async (req, res, next) => {
 const acceptSchema = z.object({
   full_name: z.string().min(2).max(120),
   phone: z.string().max(30).optional(),
-  password: z.string().min(8).max(200),
+  password: z.string().min(8).max(200).optional(),
 });
 
 invitationsPublicRouter.post('/:token/accept', async (req, res, next) => {
@@ -220,6 +222,19 @@ invitationsPublicRouter.post('/:token/accept', async (req, res, next) => {
     if (!inv) throw notFound('Invitation not found');
     if (inv.status !== 'pending') throw badRequest('Invitation is not pending');
 
+    // Parse the Bearer token if present (public endpoint — optional auth).
+    const authHeader = req.headers.authorization;
+    const rawJwt = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
+    let authedUserId: string | null = null;
+    if (rawJwt) {
+      try {
+        const payload = jwt.verify(rawJwt, env.JWT_SECRET) as AuthClaims;
+        authedUserId = payload.sub;
+      } catch {
+        // Expired or tampered token — treat as unauthenticated.
+      }
+    }
+
     await c.query('BEGIN');
 
     // Reuse existing account if the email is already registered globally.
@@ -228,7 +243,20 @@ invitationsPublicRouter.post('/:token/accept', async (req, res, next) => {
       `SELECT id FROM users WHERE lower(email) = lower($1)`, [inv.email],
     );
     if (existing.rowCount) {
-      userId = existing.rows[0].id;
+      const existingUserId: string = existing.rows[0].id;
+
+      // Security guard: the invite was sent to a specific registered account.
+      // The person clicking the link must prove they control that account by
+      // being logged in as it. An intercepted token must not be usable by
+      // anyone else.
+      if (!authedUserId) {
+        throw new HttpError(401, 'يجب تسجيل الدخول أولاً لقبول هذه الدعوة', 'login_required');
+      }
+      if (authedUserId !== existingUserId) {
+        throw new HttpError(403, 'هذه الدعوة مخصصة لحساب بريد إلكتروني آخر. يرجى تسجيل الخروج والدخول بالحساب الصحيح.', 'email_mismatch');
+      }
+
+      userId = existingUserId;
       // Don't silently overwrite an existing user's password.
       // They can use forgot-password instead.
       await c.query(
@@ -236,6 +264,7 @@ invitationsPublicRouter.post('/:token/accept', async (req, res, next) => {
         [userId, body.full_name.trim()],
       );
     } else {
+      if (!body.password) throw badRequest('كلمة المرور مطلوبة لإنشاء حساب جديد');
       const hash = await bcrypt.hash(body.password, 12);
       const u = await c.query(
         `INSERT INTO users (email, password_hash, name, email_verified_at)
