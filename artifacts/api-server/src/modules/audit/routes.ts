@@ -20,12 +20,13 @@ router.get('/', requireRole('company_admin'), async (req, res, next) => {
     const p = parsePagination(req);
 
     const totalQ = await t.db.query(
-      `SELECT count(*)::int AS count FROM audit_log a WHERE ${where}`,
+      `SELECT count(*)::int AS count FROM audit_log a INNER JOIN user_companies uc ON uc.user_id = a.user_id AND uc.company_id = a.company_id WHERE ${where}`,
       params,
     );
     const a = p.applyTo(
       `SELECT a.*, u.name AS user_name, u.email AS user_email
        FROM audit_log a
+       INNER JOIN user_companies uc ON uc.user_id = a.user_id AND uc.company_id = a.company_id
        LEFT JOIN users u ON u.id = a.user_id
        WHERE ${where}
        ORDER BY a.created_at DESC`,
