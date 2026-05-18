@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
-import { api } from '@/lib/api';
+import { api, isApiConfigured } from '@/lib/api';
 import { getCurrencySymbol, setCurrencySymbol } from '@/lib/currency';
 import { useBrand, DEFAULT_BRAND, type BrandSettings } from '@/lib/brand';
 import { BrandLogo } from '@/components/common/BrandLogo';
@@ -366,6 +366,7 @@ const SystemSettings = () => {
         <Button
           disabled={contactLoading || contactSaving}
           onClick={async () => {
+            if (!isApiConfigured()) { toast.error('هذا الإجراء يتطلب الاتصال بالخادم'); return; }
             setContactSaving(true);
             try {
               await api.put('/api/platform/settings/contact', contact);
@@ -400,6 +401,7 @@ const SystemSettings = () => {
         <Button
           disabled={generalLoading || generalSaving}
           onClick={async () => {
+            if (!isApiConfigured()) { toast.error('هذا الإجراء يتطلب الاتصال بالخادم'); return; }
             setGeneralSaving(true);
             try {
               await api.put('/api/platform/settings/general', s);

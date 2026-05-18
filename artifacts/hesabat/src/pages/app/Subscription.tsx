@@ -142,7 +142,8 @@ const Subscription = () => {
 
   const requestChange = useMutation({
     mutationFn: async (plan: Plan) => {
-      if (apiOn) await api.post('/api/subscriptions/me/request-change', { plan_id: plan.id });
+      if (!apiOn) throw new Error('no-api');
+      await api.post('/api/subscriptions/me/request-change', { plan_id: plan.id });
       return plan;
     },
     onSuccess: (plan) => {
@@ -150,7 +151,13 @@ const Subscription = () => {
       setConfirmPlan(null);
       qc.invalidateQueries({ queryKey: ['notifications'] });
     },
-    onError: () => toast.error('تعذّر إرسال الطلب'),
+    onError: (e) => {
+      if ((e as Error).message === 'no-api') {
+        toast.error('هذا الإجراء يتطلب الاتصال بالخادم');
+      } else {
+        toast.error('تعذّر إرسال الطلب');
+      }
+    },
   });
 
   const downloadInvoice = (p: SubPaymentRow) => {
