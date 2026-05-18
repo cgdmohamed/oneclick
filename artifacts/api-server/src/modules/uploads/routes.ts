@@ -9,7 +9,6 @@ import multer from 'multer';
 import path from 'node:path';
 import fs from 'node:fs';
 import crypto from 'node:crypto';
-import { pool } from '../../db/client.js';
 import { badRequest, forbidden, notFound } from '../../utils/errors.js';
 import { audit } from '../../utils/audit.js';
 import { parsePagination } from '../../utils/pagination.js';
@@ -92,7 +91,7 @@ router.post('/', requireCompanyContext, upload.single('file'), async (req, res, 
     const url = isPublic ? `/uploads/public/${disk}` : `/api/uploads/file/${id}`;
     await t.db.query(`UPDATE uploads SET url = $1 WHERE id = $2`, [url, id]);
 
-    await audit(pool, {
+    await audit(t.db, {
       companyId, userId: req.auth!.userId,
       action: 'upload.create', entity: 'upload', entityId: id,
       data: { kind, size: req.file.size, mime: req.file.mimetype, is_public: isPublic },

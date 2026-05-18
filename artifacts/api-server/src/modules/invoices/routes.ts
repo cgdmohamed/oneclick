@@ -165,7 +165,7 @@ router.post('/', enforceInvoiceLimit(), async (req, res, next) => {
       }
     }
 
-    await audit(pool, {
+    await audit(t.db, {
       companyId: t.companyId, userId: req.auth!.userId,
       action: body.draft ? 'invoice.draft' : 'invoice.create',
       entity: 'invoice', entityId: invoice.id,
@@ -195,7 +195,7 @@ router.post('/:id/send', enforceInvoiceLimit(), async (req, res, next) => {
       [invoiceId, t.companyId],
     );
 
-    await audit(pool, {
+    await audit(t.db, {
       companyId: t.companyId, userId: req.auth!.userId,
       action: 'invoice.send', entity: 'invoice', entityId: invoiceId,
       data: { number: inv.number },
@@ -233,7 +233,7 @@ router.post('/:id/send', enforceInvoiceLimit(), async (req, res, next) => {
           attachments: [{ filename: `invoice-${data.number}.pdf`, content: buf, contentType: 'application/pdf' }],
           smtpOverride,
         });
-        await audit(pool, {
+        await audit(t.db, {
           companyId: t.companyId, userId: req.auth!.userId,
           action: 'invoice.email', entity: 'invoice', entityId: invoiceId,
           data: { to: recipient, triggered_by: 'send' },
@@ -298,7 +298,7 @@ router.post('/:id/cancel', async (req, res, next) => {
       [invoiceId, t.companyId],
     );
 
-    await audit(pool, {
+    await audit(t.db, {
       companyId: t.companyId, userId: req.auth!.userId,
       action: 'invoice.cancel', entity: 'invoice', entityId: invoiceId,
       data: { number: inv.number, total: Number(inv.total) },
@@ -346,7 +346,7 @@ router.delete('/:id', async (req, res, next) => {
     }
 
     await t.db.query(`DELETE FROM invoices WHERE id = $1 AND company_id = $2`, [invoiceId, t.companyId]);
-    await audit(pool, {
+    await audit(t.db, {
       companyId: t.companyId, userId: req.auth!.userId,
       action: 'invoice.delete', entity: 'invoice', entityId: invoiceId,
     });
@@ -431,7 +431,7 @@ router.post('/:id/send-email', async (req, res, next) => {
       smtpOverride,
     });
 
-    await audit(pool, {
+    await audit(t.db, {
       companyId: t.companyId, userId: req.auth!.userId,
       action: 'invoice.email', entity: 'invoice', entityId: req.params.id,
       data: { to: recipient },

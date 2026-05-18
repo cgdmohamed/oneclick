@@ -77,7 +77,7 @@ router.post('/', requireRole('company_admin'), enforceUserLimit(), async (req, r
       await c.query(`INSERT INTO user_companies (user_id, company_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [userId, t.companyId]);
       await c.query(`INSERT INTO user_roles (user_id, company_id, role) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING`, [userId, t.companyId, body.role]);
       await c.query('COMMIT');
-      await audit(pool, {
+      await audit(t.db, {
         companyId: t.companyId, userId: req.auth!.userId,
         action: 'user.invite', entity: 'user', entityId: userId,
         data: { email: body.email, role: body.role },
@@ -98,7 +98,7 @@ router.delete('/:id', requireRole('company_admin'), async (req, res, next) => {
       await c.query(`DELETE FROM user_companies WHERE user_id = $1 AND company_id = $2`, [req.params.id, t.companyId]);
       await c.query('COMMIT');
     } catch (e) { await c.query('ROLLBACK'); throw e; } finally { c.release(); }
-    await audit(pool, {
+    await audit(t.db, {
       companyId: t.companyId, userId: req.auth!.userId,
       action: 'user.remove', entity: 'user', entityId: req.params.id,
     });
