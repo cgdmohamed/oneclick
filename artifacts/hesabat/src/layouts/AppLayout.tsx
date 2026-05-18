@@ -1,6 +1,6 @@
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarTrigger, useSidebar, SidebarHeader, SidebarFooter } from '@/components/ui/sidebar';
-import { LayoutDashboard, Users, FileText, CreditCard, Wallet, Package, BarChart3, Bell, BellRing, ShieldCheck, Settings, LogOut, Building2, Layers, Receipt, ToggleRight, Megaphone, Cog, Crown, History, LayoutTemplate, LineChart, PieChart, ScrollText, UserPlus, UserCog } from 'lucide-react';
+import { LayoutDashboard, Users, FileText, CreditCard, Wallet, Package, BarChart3, Bell, BellRing, ShieldCheck, Settings, LogOut, Building2, Layers, Receipt, ToggleRight, Megaphone, Cog, Crown, History, LayoutTemplate, LineChart, PieChart, ScrollText, UserPlus, UserCog, X, Info } from 'lucide-react';
 import { BrandLogo } from '@/components/common/BrandLogo';
 import { Badge } from '@/components/ui/badge';
 import { usePendingSignupsCount } from '@/hooks/usePendingSignups';
@@ -17,6 +17,7 @@ import { useCurrentFeatureSet } from '@/hooks/usePlanAccess';
 import { OnboardingWizard } from '@/components/common/OnboardingWizard';
 import { Sparkles } from 'lucide-react';
 import PendingApproval from '@/pages/app/PendingApproval';
+import { isApiConfigured } from '@/lib/api';
 
 const companyNav: { to: string; label: string; icon: typeof LayoutDashboard; end?: boolean; feature?: string }[] = [
   { to: '/app', label: 'الرئيسية', icon: LayoutDashboard, end: true },
@@ -103,20 +104,26 @@ const PendingBadge = () => {
 const AppShellInner = ({ kind }: { kind: 'company' | 'admin' }) => {
   const { state } = useSidebar();
   const collapsed = state === 'collapsed';
-  const { user, logout, companyName, onboardingDone } = useAuth();
+  const { user, logout, companyName, onboardingDone, hasActivePlan } = useAuth();
   const navigate = useNavigate();
   const { pathname } = useLocation();
-  const featureSet = useCurrentFeatureSet();
+  const { features: featureSet } = useCurrentFeatureSet();
   const unreadCount = useUnreadNotificationsCount();
   const [onboardingOpen, setOnboardingOpen] = useState(false);
+  const [noPlanBannerDismissed, setNoPlanBannerDismissed] = useState(false);
 
   useEffect(() => {
-    if (kind !== 'company' || !user?.id) return;
-    if (!onboardingDone) {
-      const t = setTimeout(() => setOnboardingOpen(true), 600);
-      return () => clearTimeout(t);
-    }
+    if (kind !== 'company' || !user?.id || onboardingDone) return undefined;
+    const t = setTimeout(() => setOnboardingOpen(true), 600);
+    return () => clearTimeout(t);
   }, [kind, user?.id, onboardingDone]);
+
+  const showNoPlanBanner =
+    kind === 'company' &&
+    onboardingDone &&
+    !noPlanBannerDismissed &&
+    isApiConfigured() &&
+    !hasActivePlan;
 
   const nav = kind === 'admin'
     ? adminNav
@@ -232,6 +239,25 @@ const AppShellInner = ({ kind }: { kind: 'company' | 'admin' }) => {
           </DropdownMenu>
         </header>
         <main className="flex-1 p-4 md:p-6 lg:p-8">
+          {showNoPlanBanner && (
+            <div
+              dir="rtl"
+              className="mb-4 flex items-start gap-3 rounded-xl border border-warning/30 bg-warning/8 px-4 py-3 text-sm text-foreground"
+            >
+              <Info className="h-4 w-4 text-warning shrink-0 mt-0.5" />
+              <p className="flex-1 leading-relaxed">
+                <span className="font-semibold">حسابك لم يُخصَّص له باقة بعد.</span>{' '}
+                يرجى التواصل مع مشرف المنصة لتفعيل باقتك والوصول إلى جميع الميزات.
+              </p>
+              <button
+                onClick={() => setNoPlanBannerDismissed(true)}
+                className="shrink-0 text-muted-foreground hover:text-foreground transition-colors"
+                aria-label="إخفاء"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          )}
           {kind === 'company' && (() => {
             const blocking = companyNav.find(n => n.feature && n.to !== '/app' && pathname.startsWith(n.to) && !featureSet.has(n.feature));
             if (!blocking) return <Outlet />;

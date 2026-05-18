@@ -2,25 +2,43 @@ import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { CheckCircle2 } from 'lucide-react';
+import { CheckCircle2, ArrowLeft } from 'lucide-react';
 import { BrandLogo } from '@/components/common/BrandLogo';
 import { Link } from 'react-router-dom';
 import { useState } from 'react';
 import { isApiConfigured, registerRequest, ApiError } from '@/lib/api';
 import { toast } from 'sonner';
 
+const PHONE_RE = /^[0-9]{9,15}$/;
+
 const Register = () => {
-  const [form, setForm] = useState({ company: '', owner: '', email: '', phone: '', password: '' });
+  const [form, setForm] = useState({ company: '', owner: '', email: '', phone: '', password: '', confirmPassword: '' });
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
-  
+
+  const validate = () => {
+    const e: Record<string, string> = {};
+    if (!form.company.trim()) e.company = 'مطلوب';
+    if (!form.owner.trim()) e.owner = 'مطلوب';
+    if (!form.email.trim()) e.email = 'مطلوب';
+    if (form.phone && !PHONE_RE.test(form.phone.replace(/\s+/g, ''))) {
+      e.phone = 'أدخل رقمًا صحيحًا (9-15 خانة رقمية)';
+    }
+    if (!form.password) e.password = 'مطلوب';
+    if (form.password && form.confirmPassword && form.password !== form.confirmPassword) {
+      e.confirmPassword = 'كلمتا المرور غير متطابقتين';
+    }
+    if (!form.confirmPassword) e.confirmPassword = 'مطلوب';
+    return e;
+  };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.company || !form.owner || !form.email || !form.password) {
-      toast.error('يرجى تعبئة كل الحقول المطلوبة');
-      return;
-    }
+    const errs = validate();
+    setErrors(errs);
+    if (Object.keys(errs).length > 0) return;
+
     setLoading(true);
     try {
       if (isApiConfigured()) {
@@ -48,8 +66,36 @@ const Register = () => {
               <CheckCircle2 className="h-8 w-8" />
             </div>
             <h1 className="text-2xl font-bold mb-2">تم استلام طلبك</h1>
-            <p className="text-muted-foreground mb-1">طلب تسجيل <b>{form.company}</b> قيد المراجعة من فريق ون كليك.</p>
-            <p className="text-sm text-muted-foreground mb-6">سنرسل لك بريداً إلكترونياً على <b dir="ltr">{form.email}</b> فور اعتماد حسابك وتفعيل الباقة المناسبة.</p>
+            <p className="text-muted-foreground mb-6">
+              طلب تسجيل <b>{form.company}</b> قيد المراجعة. إليك ما سيحدث بعد ذلك:
+            </p>
+
+            <ol className="text-right space-y-3 mb-8" dir="rtl">
+              <li className="flex items-start gap-3">
+                <span className="shrink-0 h-7 w-7 rounded-full bg-primary/10 text-primary text-sm font-bold flex items-center justify-center mt-0.5">1</span>
+                <div>
+                  <p className="font-semibold text-sm">مراجعة الطلب</p>
+                  <p className="text-xs text-muted-foreground">سيراجع فريقنا بياناتك خلال يوم عمل واحد.</p>
+                </div>
+              </li>
+              <li className="flex items-start gap-3">
+                <span className="shrink-0 h-7 w-7 rounded-full bg-primary/10 text-primary text-sm font-bold flex items-center justify-center mt-0.5">2</span>
+                <div>
+                  <p className="font-semibold text-sm">تعيين الباقة المناسبة</p>
+                  <p className="text-xs text-muted-foreground">بعد الموافقة، سيُعيَّن لحسابك الباقة المناسبة لاحتياجاتك.</p>
+                </div>
+              </li>
+              <li className="flex items-start gap-3">
+                <span className="shrink-0 h-7 w-7 rounded-full bg-primary/10 text-primary text-sm font-bold flex items-center justify-center mt-0.5">3</span>
+                <div>
+                  <p className="font-semibold text-sm">بريد تفعيل الحساب</p>
+                  <p className="text-xs text-muted-foreground">
+                    ستصلك رسالة على <b dir="ltr">{form.email}</b> لتسجيل الدخول والبدء فورًا.
+                  </p>
+                </div>
+              </li>
+            </ol>
+
             <div className="flex gap-2 justify-center">
               <Button asChild variant="outline"><Link to="/">العودة للرئيسية</Link></Button>
               <Button asChild><Link to="/login">صفحة تسجيل الدخول</Link></Button>
@@ -71,8 +117,8 @@ const Register = () => {
             <h1 className="text-3xl font-bold">سجّل شركتك مجاناً</h1>
             <p className="text-muted-foreground mt-2">أرسل طلبك وسيقوم فريقنا بمراجعته وتفعيل حسابك خلال 24 ساعة.</p>
           </div>
-          <form onSubmit={submit} className="grid sm:grid-cols-2 gap-4">
-            {/* Honeypot: hidden from real users; bots fill it and get silently rejected */}
+          <form onSubmit={submit} className="grid sm:grid-cols-2 gap-4" dir="rtl">
+            {/* Honeypot */}
             <input
               type="text"
               name="website"
@@ -82,16 +128,20 @@ const Register = () => {
               aria-hidden="true"
               style={{ position: 'absolute', left: '-9999px', width: '1px', height: '1px', overflow: 'hidden' }}
             />
-            <Field label="اسم الشركة" name="company" form={form} setForm={setForm} />
-            <Field label="اسم المسؤول" name="owner" form={form} setForm={setForm} />
-            <Field label="البريد الإلكتروني" name="email" type="email" form={form} setForm={setForm} />
-            <Field label="رقم الهاتف" name="phone" form={form} setForm={setForm} />
+            <Field label="اسم الشركة" name="company" form={form} setForm={setForm} error={errors.company} setErrors={setErrors} />
+            <Field label="اسم المسؤول" name="owner" form={form} setForm={setForm} error={errors.owner} setErrors={setErrors} />
+            <Field label="البريد الإلكتروني" name="email" type="email" form={form} setForm={setForm} error={errors.email} setErrors={setErrors} />
+            <Field label="رقم الهاتف" name="phone" form={form} setForm={setForm} error={errors.phone} setErrors={setErrors} placeholder="مثال: 0501234567" />
+            <Field label="كلمة المرور" name="password" type="password" form={form} setForm={setForm} error={errors.password} setErrors={setErrors} />
+            <Field label="تأكيد كلمة المرور" name="confirmPassword" type="password" form={form} setForm={setForm} error={errors.confirmPassword} setErrors={setErrors} />
             <div className="sm:col-span-2">
-              <Field label="كلمة المرور" name="password" type="password" form={form} setForm={setForm} />
-            </div>
-            <div className="sm:col-span-2">
-              <Button type="submit" size="lg" className="w-full" disabled={loading}>
-                {loading ? 'جارٍ الإرسال…' : 'إرسال طلب التسجيل'}
+              <Button type="submit" size="lg" className="w-full gap-2" disabled={loading}>
+                {loading ? 'جارٍ الإرسال…' : (
+                  <>
+                    إرسال طلب التسجيل
+                    <ArrowLeft className="h-4 w-4" />
+                  </>
+                )}
               </Button>
             </div>
           </form>
@@ -104,10 +154,31 @@ const Register = () => {
   );
 };
 
-const Field = ({ label, name, type = 'text', form, setForm }: any) => (
+const Field = ({
+  label, name, type = 'text', form, setForm, error, setErrors, placeholder,
+}: {
+  label: string;
+  name: string;
+  type?: string;
+  form: Record<string, string>;
+  setForm: React.Dispatch<React.SetStateAction<any>>;
+  error?: string;
+  setErrors: React.Dispatch<React.SetStateAction<Record<string, string>>>;
+  placeholder?: string;
+}) => (
   <div>
     <Label>{label}</Label>
-    <Input type={type} value={form[name]} onChange={(e) => setForm((f: any) => ({ ...f, [name]: e.target.value }))} className="mt-1.5" />
+    <Input
+      type={type}
+      value={form[name]}
+      placeholder={placeholder}
+      onChange={(e) => {
+        setForm((f: any) => ({ ...f, [name]: e.target.value }));
+        setErrors((prev) => { const n = { ...prev }; delete n[name]; return n; });
+      }}
+      className={`mt-1.5 ${error ? 'border-destructive focus-visible:ring-destructive' : ''}`}
+    />
+    {error && <p className="text-xs text-destructive mt-1">{error}</p>}
   </div>
 );
 

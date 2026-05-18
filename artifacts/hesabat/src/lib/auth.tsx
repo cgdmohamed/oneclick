@@ -12,6 +12,7 @@ interface AuthState {
   authLoading: boolean;
   onboardingDone: boolean;
   pendingApproval: boolean;
+  hasActivePlan: boolean;
   markOnboardingDone: () => Promise<void>;
   login: (email: string, password?: string) => boolean;
   logout: () => void;
@@ -26,6 +27,7 @@ interface MeResponse {
   user: { id: string; email: string; name: string; is_super_admin: boolean; onboarding_done: boolean };
   companies: { id: string; name: string; is_default: boolean }[];
   roles: { role: Role; company_id: string | null }[];
+  has_active_plan?: boolean;
 }
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
@@ -43,6 +45,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [authLoading, setAuthLoading] = useState(() => !!(isApiConfigured() && getAccessToken()));
   const [onboardingDone, setOnboardingDone] = useState(false);
   const [pendingApproval, setPendingApproval] = useState(false);
+  const [hasActivePlan, setHasActivePlan] = useState(true);
   const [apiCompanyName, setApiCompanyName] = useState<string | null>(null);
 
   useEffect(() => {
@@ -77,6 +80,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         });
         setOnboardingDone(!!me.user.onboarding_done);
         setApiCompanyName(defaultCompany?.name ?? null);
+        setHasActivePlan(me.has_active_plan ?? me.user.is_super_admin);
 
         if (defaultCompany?.id) {
           try {
@@ -116,6 +120,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     authLoading,
     onboardingDone,
     pendingApproval,
+    hasActivePlan,
     markOnboardingDone,
     login: (email: string, password?: string) => {
       if (isApiConfigured()) return false;
@@ -130,6 +135,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setUser(null);
       setOnboardingDone(false);
       setPendingApproval(false);
+      setHasActivePlan(true);
       if (isApiConfigured()) {
         setAccessToken(null);
         setRefreshToken(null);
@@ -152,7 +158,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const co = companyId ? companies.find(c => c.id === companyId) : null;
       return co?.name ?? 'شركتي';
     })(),
-  }), [user, authLoading, onboardingDone, pendingApproval, markOnboardingDone, apiCompanyName]);
+  }), [user, authLoading, onboardingDone, pendingApproval, hasActivePlan, markOnboardingDone, apiCompanyName]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

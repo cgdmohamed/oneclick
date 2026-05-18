@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { useNavigate } from 'react-router-dom';
-import { Sparkles, Building2, Users, Package, FileText, Bell, CheckCircle2, ArrowLeft, ArrowRight, Rocket } from 'lucide-react';
+import { Sparkles, Building2, Users, Package, FileText, Bell, CheckCircle2, ArrowLeft, ArrowRight, Rocket, UserPlus } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 
 interface Step {
@@ -22,7 +22,7 @@ const buildSteps = (companyName: string): Step[] => [
     title: `أهلًا بك في ${companyName} 👋`,
     description: 'سنرشدك خلال خطوات سريعة لإعداد نظامك المحاسبي والبدء في إصدار فواتيرك خلال دقائق.',
     tips: [
-      'يمكنك تخطي الجولة في أي وقت والعودة إليها لاحقًا.',
+      'يمكنك تخطي الجولة في أي وقت والعودة إليها من قائمة المستخدم في الأعلى.',
       'كل خطوة تستغرق أقل من دقيقة.',
       'سنرافقك حتى أول فاتورة لك.',
     ],
@@ -34,7 +34,8 @@ const buildSteps = (companyName: string): Step[] => [
     description: 'ابدأ بإدخال بيانات شركتك الأساسية: الاسم، الرقم الضريبي، وشعار الشركة.',
     tips: [
       'بياناتك ستظهر تلقائيًا على جميع الفواتير.',
-      'يمكنك تعديلها لاحقًا من صفحة الإعدادات.',
+      'يمكنك تعديلها لاحقًا من صفحة إعدادات الشركة.',
+      'تفقّد صفحة الحساب الشخصي لإدارة كلمة المرور والبريد الإلكتروني وجلسات الدخول النشطة.',
     ],
     cta: { label: 'فتح الإعدادات', to: '/app/settings' },
   },
@@ -58,8 +59,25 @@ const buildSteps = (companyName: string): Step[] => [
     key: 'invoice',
     icon: FileText,
     title: 'أنشئ أول فاتورة',
-    description: 'الآن جاهز لإصدار فاتورتك الأولى بكل سهولة، مع طباعتها أو إرسالها لعميلك.',
+    description: 'الفواتير تمرّ بمراحل واضحة: أنشئ مسوّدة أولاً، راجعها، ثم أرسل رابطها العام مباشرة لعميلك.',
+    tips: [
+      'ابدأ دائمًا بحفظ الفاتورة كمسوّدة حتى تراجعها قبل الإرسال.',
+      'بعد المراجعة، اعتمد الفاتورة وشارك رابطها العام مع عميلك.',
+      'يمكن للعميل الاطلاع على الفاتورة مباشرة عبر الرابط دون الحاجة لتسجيل دخول.',
+    ],
     cta: { label: 'فاتورة جديدة', to: '/app/invoices/new' },
+  },
+  {
+    key: 'team',
+    icon: UserPlus,
+    title: 'ادعُ فريقك',
+    description: 'يمكنك إضافة أعضاء فريقك إلى النظام عبر الدعوات، وتحديد صلاحيات كل مستخدم حسب دوره في الشركة.',
+    tips: [
+      'الدعوات تُرسل بالبريد الإلكتروني ومحدودة بعدد مقاعد باقتك.',
+      'يمكنك تعيين صلاحيات مختلفة: مدير، محاسب، أو قراءة فقط.',
+      'لإدارة الأعضاء اذهب إلى صفحة المستخدمون والصلاحيات.',
+    ],
+    cta: { label: 'إدارة المستخدمين', to: '/app/users' },
   },
   {
     key: 'notifications',

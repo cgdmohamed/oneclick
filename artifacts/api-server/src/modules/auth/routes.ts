@@ -519,7 +519,23 @@ router.get('/me', requireAuth, async (req, res, next) => {
       [userId],
     );
     const roles = await pool.query(`SELECT role, company_id FROM user_roles WHERE user_id = $1`, [userId]);
-    res.json({ user: u.rows[0], companies: comps.rows, roles: roles.rows });
+
+    const userRow = u.rows[0] as { is_super_admin: boolean };
+    let has_active_plan = false;
+    if (!userRow.is_super_admin && comps.rows.length > 0) {
+      const companyId = comps.rows.find((c: { is_default: boolean }) => c.is_default)?.id ?? comps.rows[0]?.id;
+      if (companyId) {
+        const sub = await pool.query(
+          `SELECT 1 FROM subscriptions WHERE company_id = $1 AND status = 'active' AND (expires_at IS NULL OR expires_at > now()) LIMIT 1`,
+          [companyId],
+        );
+        has_active_plan = (sub.rowCount ?? 0) > 0;
+      }
+    } else if (userRow.is_super_admin) {
+      has_active_plan = true;
+    }
+
+    res.json({ user: u.rows[0], companies: comps.rows, roles: roles.rows, has_active_plan });
   } catch (e) { next(e); }
 });
 

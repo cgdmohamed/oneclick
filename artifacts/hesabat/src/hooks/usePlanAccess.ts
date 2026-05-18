@@ -49,36 +49,47 @@ export const usePlanAccess = (planId?: string): PlanAccess => {
 };
 
 /** Feature keys enabled for the signed-in tenant. Fetched from the API; super admins get everything. */
-export const useCurrentFeatureSet = (): Set<string> => {
+export interface CurrentFeatureSet {
+  features: Set<string>;
+  featuresLoaded: boolean;
+}
+
+export const useCurrentFeatureSet = (): CurrentFeatureSet => {
   const { user } = useAuth();
   const allFeatureKeys = useMemo(() => PLAN_FEATURES.map((f) => f.key), []);
 
+  const resolvedImmediately = !user || user.role === 'super_admin' || !isApiConfigured();
+
   const [features, setFeatures] = useState<Set<string>>(() =>
-    !user || user.role === 'super_admin' ? new Set(allFeatureKeys) : new Set(),
+    resolvedImmediately ? new Set(allFeatureKeys) : new Set(),
   );
+  const [featuresLoaded, setFeaturesLoaded] = useState<boolean>(resolvedImmediately);
 
   useEffect(() => {
-    if (!user) { setFeatures(new Set()); return; }
+    if (!user) { setFeatures(new Set()); setFeaturesLoaded(true); return; }
     if (user.role === 'super_admin') {
       setFeatures(new Set(allFeatureKeys));
+      setFeaturesLoaded(true);
       return;
     }
     if (!isApiConfigured()) {
       setFeatures(new Set(allFeatureKeys));
+      setFeaturesLoaded(true);
       return;
     }
     let cancelled = false;
     api.get<{ data: string[] }>('/api/subscriptions/features')
       .then((res) => {
-        if (!cancelled) setFeatures(new Set(res?.data ?? []));
+        if (!cancelled) { setFeatures(new Set(res?.data ?? [])); setFeaturesLoaded(true); }
       })
       .catch(() => {
+        if (!cancelled) setFeaturesLoaded(true);
         // On failure keep existing set — don't promote to all-access
       });
     return () => { cancelled = true; };
   }, [user?.id, user?.role, allFeatureKeys]);
 
-  return features;
+  return useMemo(() => ({ features, featuresLoaded }), [features, featuresLoaded]);
 };
 
 export const hasFeature = (set: Set<string>, key?: string) => !key || set.has(key);
