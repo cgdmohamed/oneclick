@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { PageHeader } from '@/components/common/PageHeader';
 import { DataTable, Column } from '@/components/common/DataTable';
 import { Button } from '@/components/ui/button';
-import { Plus, Pencil, Trash2, AlertTriangle, ImageIcon, Loader2, Package, Tags, X } from 'lucide-react';
+import { Plus, Pencil, Trash2, AlertTriangle, ImageIcon, Loader2, Package, Tags, X, Download, Upload, CheckCircle2, XCircle, FileText } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
@@ -16,7 +16,8 @@ import { StatusBadge } from '@/components/common/StatusBadge';
 import { Card } from '@/components/ui/card';
 import { useResource } from '@/hooks/useResource';
 import { useInvoices } from '@/hooks/entities';
-import { api, isApiConfigured, resolveAssetUrl } from '@/lib/api';
+import { useQueryClient } from '@tanstack/react-query';
+import { api, isApiConfigured, resolveAssetUrl, API_URL, getAuthHeaders } from '@/lib/api';
 
 interface ProductRow {
   id: string;
@@ -37,6 +38,20 @@ interface Category {
   id: string;
   name: string;
   product_count: number;
+}
+
+interface ImportRowResult {
+  row: number;
+  name: string;
+  error?: string;
+  created?: boolean;
+}
+
+interface ImportPreview {
+  file: File;
+  rows: ImportRowResult[];
+  created: number;
+  skipped: number;
 }
 
 const empty: Product = { id: '', companyId: 'co-1', name: '', code: '', category: '', price: 0, quantity: 0, alertLevel: 5, status: 'active' };
@@ -75,6 +90,7 @@ const useCategories = () => {
 };
 
 const Products = () => {
+  const qc = useQueryClient();
   const { list, save, remove } = useResource<Product, ProductRow>({
     path: '/api/products',
     key: 'products',
@@ -114,6 +130,13 @@ const Products = () => {
   const [catSaving, setCatSaving] = useState(false);
   const [catFilter, setCatFilter] = useState<string>('all');
   const { list: invoices } = useInvoices();
+
+  const [importOpen, setImportOpen] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importPreview, setImportPreview] = useState<ImportPreview | null>(null);
+  const [importLoading, setImportLoading] = useState(false);
+  const [exportLoading, setExportLoading] = useState(false);
+  const importFileRef = useRef<HTMLInputElement>(null);
 
   const submit = async () => {
     if (!editing.name) return toast.error('أكمل بيانات المنتج');
@@ -171,6 +194,107 @@ const Products = () => {
     }
   };
 
+  const handleExport = async () => {
+    if (!isApiConfigured()) { toast.error('الاتصال بالخادم غير متاح'); return; }
+    setExportLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/api/products/export`, {
+        credentials: 'include',
+        headers: getAuthHeaders(),
+      });
+      if (!res.ok) throw new Error('Export failed');
+      const blob = await res.blob();
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'products.csv';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(a.href);
+      toast.success('تم تصدير المنتجات بنجاح');
+    } catch {
+      toast.error('تعذّر تصدير المنتجات');
+    } finally {
+      setExportLoading(false);
+    }
+  };
+
+  const handleTemplateDownload = async () => {
+    if (!isApiConfigured()) { toast.error('الاتصال بالخادم غير متاح'); return; }
+    try {
+      const res = await fetch(`${API_URL}/api/products/export/template`, {
+        credentials: 'include',
+        headers: getAuthHeaders(),
+      });
+      if (!res.ok) throw new Error('Template download failed');
+      const blob = await res.blob();
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'products-template.csv';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(a.href);
+    } catch {
+      toast.error('تعذّر تنزيل النموذج');
+    }
+  };
+
+  const handleImportFileChange = async (file: File | undefined) => {
+    if (!file) return;
+    setImportFile(file);
+    setImportPreview(null);
+    if (!isApiConfigured()) { toast.error('الاتصال بالخادم غير متاح'); return; }
+
+    setImportLoading(true);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      form.append('dry_run', 'true');
+      const res = await api.upload<{ dry_run: boolean; created: number; skipped: number; results: ImportRowResult[] }>(
+        '/api/products/import',
+        form,
+      );
+      setImportPreview({ file, rows: res.results, created: res.created, skipped: res.skipped });
+    } catch (err: unknown) {
+      const msg = (err as { message?: string })?.message ?? 'تعذّر معالجة الملف';
+      toast.error(msg);
+      setImportFile(null);
+    } finally {
+      setImportLoading(false);
+    }
+  };
+
+  const handleImportConfirm = async () => {
+    if (!importPreview || !importFile) return;
+    setImportLoading(true);
+    try {
+      const form = new FormData();
+      form.append('file', importFile);
+      form.append('dry_run', 'false');
+      const res = await api.upload<{ dry_run: boolean; created: number; skipped: number; results: ImportRowResult[] }>(
+        '/api/products/import',
+        form,
+      );
+      toast.success(`تم استيراد ${res.created} منتج بنجاح${res.skipped > 0 ? ` (${res.skipped} صف بأخطاء)` : ''}`);
+      setImportOpen(false);
+      setImportFile(null);
+      setImportPreview(null);
+      await qc.invalidateQueries({ queryKey: ['products'] });
+    } catch (err: unknown) {
+      const msg = (err as { message?: string })?.message ?? 'تعذّر استيراد المنتجات';
+      toast.error(msg);
+    } finally {
+      setImportLoading(false);
+    }
+  };
+
+  const closeImport = () => {
+    setImportOpen(false);
+    setImportFile(null);
+    setImportPreview(null);
+  };
+
   const filteredList = useMemo(() => {
     if (catFilter === 'all') return list;
     if (catFilter === '__none__') return list.filter(p => !p.categoryId);
@@ -222,6 +346,13 @@ const Products = () => {
     <div>
       <PageHeader title="المنتجات والمخزون" description="إدارة المنتجات وحركة المخزون"
         actions={<>
+          <Button variant="outline" size="sm" onClick={handleExport} disabled={exportLoading}>
+            {exportLoading ? <Loader2 className="h-4 w-4 animate-spin ml-1" /> : <Download className="h-4 w-4 ml-1" />}
+            تصدير CSV
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
+            <Upload className="h-4 w-4 ml-1" /> استيراد CSV
+          </Button>
           <Button variant="outline" onClick={() => { reloadCats(); setCatsOpen(true); }}><Tags className="h-4 w-4 ml-1" /> التصنيفات</Button>
           <Button onClick={() => { setEditing({ ...empty, id: '' }); setOpen(true); }}><Plus className="h-4 w-4 ml-1" /> منتج جديد</Button>
         </>} />
@@ -267,6 +398,7 @@ const Products = () => {
         </TabsContent>
       </Tabs>
 
+      {/* Product edit dialog */}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>{editing.id ? 'تعديل منتج' : 'منتج جديد'}</DialogTitle></DialogHeader>
@@ -303,6 +435,7 @@ const Products = () => {
         </DialogContent>
       </Dialog>
 
+      {/* Delete confirmation */}
       <AlertDialog open={!!toDelete} onOpenChange={(o) => !o && setToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -318,6 +451,7 @@ const Products = () => {
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* Categories dialog */}
       <Dialog open={catsOpen} onOpenChange={setCatsOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader><DialogTitle>إدارة التصنيفات</DialogTitle></DialogHeader>
@@ -362,6 +496,128 @@ const Products = () => {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setCatsOpen(false)}>إغلاق</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Import modal */}
+      <Dialog open={importOpen} onOpenChange={(o) => { if (!o) closeImport(); }}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>استيراد منتجات من CSV</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="rounded-lg border border-border bg-muted/30 p-4 flex items-start gap-3">
+              <FileText className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
+              <div className="flex-1 text-sm text-muted-foreground">
+                <p className="mb-1">الأعمدة المطلوبة: <span className="font-mono text-foreground text-xs">name, sku, description, price, cost, quantity, alert_level, unit, category, status</span></p>
+                <p>التصنيفات غير الموجودة ستُنشأ تلقائياً. يمكن تنزيل نموذج لمعرفة الشكل الصحيح.</p>
+              </div>
+              <Button variant="outline" size="sm" onClick={handleTemplateDownload} className="shrink-0">
+                <Download className="h-4 w-4 ml-1" /> نموذج CSV
+              </Button>
+            </div>
+
+            {!importPreview && (
+              <div
+                className="rounded-lg border-2 border-dashed border-border hover:border-primary/50 transition-colors p-8 text-center cursor-pointer"
+                onClick={() => importFileRef.current?.click()}
+              >
+                {importLoading ? (
+                  <div className="flex flex-col items-center gap-2">
+                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground">جارٍ معالجة الملف...</p>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center gap-2">
+                    <Upload className="h-8 w-8 text-muted-foreground/60" />
+                    <p className="text-sm font-medium">اسحب الملف هنا أو اضغط للاختيار</p>
+                    <p className="text-xs text-muted-foreground">ملفات CSV فقط</p>
+                  </div>
+                )}
+                <input
+                  ref={importFileRef}
+                  type="file"
+                  accept=".csv,text/csv"
+                  className="hidden"
+                  onChange={(e) => { handleImportFileChange(e.target.files?.[0]); e.target.value = ''; }}
+                />
+              </div>
+            )}
+
+            {importPreview && (
+              <div className="space-y-3">
+                <div className="flex items-center gap-4 rounded-lg border border-border p-3 bg-muted/20">
+                  <div className="flex items-center gap-2 text-sm">
+                    <CheckCircle2 className="h-4 w-4 text-green-600" />
+                    <span><strong>{importPreview.created}</strong> منتج سيتم إضافته</span>
+                  </div>
+                  {importPreview.skipped > 0 && (
+                    <div className="flex items-center gap-2 text-sm">
+                      <XCircle className="h-4 w-4 text-destructive" />
+                      <span><strong>{importPreview.skipped}</strong> صف بأخطاء</span>
+                    </div>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="mr-auto text-xs"
+                    onClick={() => { setImportFile(null); setImportPreview(null); }}
+                  >
+                    تغيير الملف
+                  </Button>
+                </div>
+
+                {/* Row-level preview table */}
+                <div className="rounded-lg border border-border overflow-hidden">
+                  <div className="max-h-56 overflow-y-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-muted/50 sticky top-0">
+                        <tr>
+                          <th className="text-right px-3 py-2 font-medium text-muted-foreground w-16">الصف</th>
+                          <th className="text-right px-3 py-2 font-medium text-muted-foreground">اسم المنتج</th>
+                          <th className="text-right px-3 py-2 font-medium text-muted-foreground w-28">الحالة</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border">
+                        {importPreview.rows.map(r => (
+                          <tr key={r.row} className={r.error ? 'bg-destructive/5' : ''}>
+                            <td className="px-3 py-2 text-muted-foreground text-xs">{r.row}</td>
+                            <td className="px-3 py-2 font-medium truncate max-w-xs">{r.name || <span className="italic text-muted-foreground">بدون اسم</span>}</td>
+                            <td className="px-3 py-2">
+                              {r.error ? (
+                                <span className="inline-flex items-center gap-1 text-destructive text-xs">
+                                  <XCircle className="h-3.5 w-3.5 shrink-0" />{r.error}
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-green-600 text-xs">
+                                  <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />صالح
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {importPreview.created === 0 && (
+                  <p className="text-sm text-muted-foreground text-center py-2">لا توجد صفوف صالحة للاستيراد.</p>
+                )}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={closeImport}>إلغاء</Button>
+            <Button
+              onClick={handleImportConfirm}
+              disabled={!importPreview || importPreview.created === 0 || importLoading}
+            >
+              {importLoading
+                ? <><Loader2 className="h-4 w-4 animate-spin ml-1" /> جارٍ المعالجة...</>
+                : `استيراد ${importPreview?.created ?? 0} منتج`}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

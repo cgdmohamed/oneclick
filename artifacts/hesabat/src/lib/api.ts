@@ -139,6 +139,16 @@ async function _doRefresh(): Promise<boolean> {
   } catch { return false; }
 }
 
+/** Build auth headers for raw fetch calls (export downloads, etc.) */
+export function getAuthHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {};
+  const token = getAccessToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const company = getActiveCompanyId();
+  if (company) headers['x-company-id'] = company;
+  return headers;
+}
+
 export const api = {
   get:    <T>(path: string) => request<T>('GET', path),
   post:   <T>(path: string, body?: unknown) => request<T>('POST', path, body),
