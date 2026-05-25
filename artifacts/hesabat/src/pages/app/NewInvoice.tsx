@@ -27,7 +27,8 @@ interface NewProductForm {
 }
 
 const emptyClient:  NewClientForm  = { name: '', phone: '', email: '', address: '', tax_number: '' };
-const emptyProduct: NewProductForm = { name: '', sku: '', price: '', quantity: '0', unit: 'قطعة', category_id: '' };
+const NO_CATEGORY = '__none__';
+const emptyProduct: NewProductForm = { name: '', sku: '', price: '', quantity: '0', unit: 'قطعة', category_id: NO_CATEGORY };
 
 /* ── Helpers ────────────────────────────────────────────────────── */
 const normalize = (s: string) => s.trim().toLowerCase();
@@ -146,7 +147,7 @@ const NewInvoice = () => {
         price,
         quantity:    parseInt(newProduct.quantity, 10) || 0,
         unit:        newProduct.unit || 'قطعة',
-        category_id: newProduct.category_id || null,
+        category_id: (newProduct.category_id && newProduct.category_id !== NO_CATEGORY) ? newProduct.category_id : null,
         is_active:   true,
       });
       const created = res.data;
@@ -472,7 +473,7 @@ const NewInvoice = () => {
                 <Select value={newProduct.category_id} onValueChange={v => setNewProduct(p => ({ ...p, category_id: v }))}>
                   <SelectTrigger className="mt-1.5"><SelectValue placeholder="اختياري" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">بدون تصنيف</SelectItem>
+                    <SelectItem value={NO_CATEGORY}>بدون تصنيف</SelectItem>
                     {categories.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
