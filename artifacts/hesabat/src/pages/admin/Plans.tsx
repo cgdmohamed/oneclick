@@ -25,7 +25,7 @@ interface PlanRow {
   active_subscriber_count?: string | number;
 }
 
-const fromRow = (r: PlanRow): Plan & { code: string; isActive: boolean; activeSubscriberCount: number } => ({
+const fromRow = (r: PlanRow): Plan & { code: string; isActive: boolean; activeSubscriberCount: number; accessFeatures: string[] } => ({
   id: r.id, name: r.name,
   monthlyPrice: Number(r.price_monthly),
   yearlyPrice: Number(r.price_yearly),
@@ -36,6 +36,8 @@ const fromRow = (r: PlanRow): Plan & { code: string; isActive: boolean; activeSu
   },
   features: Array.isArray((r.features as { items?: string[] })?.items)
     ? (r.features as { items: string[] }).items : [],
+  accessFeatures: Array.isArray((r.features as { access?: string[] })?.access)
+    ? (r.features as { access: string[] }).access : [],
   popular: Boolean((r.features as { popular?: boolean })?.popular),
   code: r.code, isActive: r.is_active,
   activeSubscriberCount: Number(r.active_subscriber_count ?? 0),
@@ -137,7 +139,7 @@ const Plans = () => {
       id: p.id, code: p.code, name: p.name,
       monthly: String(p.monthlyPrice), yearly: String(p.yearlyPrice),
       users: String(p.limits.users), invoices: String(p.limits.invoices),
-      features: a?.features ?? DEFAULT_PLAN_FEATURES[p.id] ?? [],
+      features: a?.features ?? (p as { accessFeatures?: string[] }).accessFeatures ?? DEFAULT_PLAN_FEATURES[p.code] ?? [],
       items: (a?.items ?? p.features ?? []).join('\n'),
       popular: a?.popular ?? !!p.popular,
     });

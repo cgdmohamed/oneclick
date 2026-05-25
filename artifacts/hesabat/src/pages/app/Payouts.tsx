@@ -201,20 +201,20 @@ const Payouts = () => {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>المورد (اختياري)</Label>
-                <Select value={form.supplier_id} onValueChange={(v) => setForm(p => ({ ...p, supplier_id: v }))}>
+                <Select value={form.supplier_id || '__none__'} onValueChange={(v) => setForm(p => ({ ...p, supplier_id: v === '__none__' ? '' : v }))}>
                   <SelectTrigger className="mt-1.5"><SelectValue placeholder="بدون مورد" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">بدون مورد</SelectItem>
+                    <SelectItem value="__none__">بدون مورد</SelectItem>
                     {suppliers.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
               <div>
                 <Label>التصنيف (اختياري)</Label>
-                <Select value={form.expense_category_id} onValueChange={(v) => setForm(p => ({ ...p, expense_category_id: v }))}>
+                <Select value={form.expense_category_id || '__none__'} onValueChange={(v) => setForm(p => ({ ...p, expense_category_id: v === '__none__' ? '' : v }))}>
                   <SelectTrigger className="mt-1.5"><SelectValue placeholder="بدون تصنيف" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">بدون تصنيف</SelectItem>
+                    <SelectItem value="__none__">بدون تصنيف</SelectItem>
                     {categories.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
