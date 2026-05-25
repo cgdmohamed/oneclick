@@ -69,7 +69,7 @@ const Payments = () => {
 
   return (
     <div>
-      <PageHeader title="المدفوعات" description="جميع المدفوعات المسجلة على الفواتير" />
+      <PageHeader title="التحصيلات" description="جميع التحصيلات المسجلة على الفواتير" />
       <DataTable
         data={filtered}
         columns={columns}

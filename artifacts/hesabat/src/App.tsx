@@ -27,6 +27,9 @@ import ConfirmEmailChange from "./pages/public/ConfirmEmailChange";
 import Overview from "./pages/app/Overview";
 import Clients from "./pages/app/Clients";
 import ClientDetail from "./pages/app/ClientDetail";
+import Suppliers from "./pages/app/Suppliers";
+import SupplierDetail from "./pages/app/SupplierDetail";
+import Payouts from "./pages/app/Payouts";
 import Invoices from "./pages/app/Invoices";
 import NewInvoice from "./pages/app/NewInvoice";
 import InvoiceDetails from "./pages/app/InvoiceDetails";
@@ -113,6 +116,9 @@ const App = () => {
               <Route index element={<Overview />} />
               <Route path="clients" element={<Clients />} />
               <Route path="clients/:id" element={<ClientDetail />} />
+              <Route path="suppliers" element={<Suppliers />} />
+              <Route path="suppliers/:id" element={<SupplierDetail />} />
+              <Route path="payouts" element={<Payouts />} />
               <Route path="invoices" element={<Invoices />} />
               <Route path="invoices/new" element={<NewInvoice />} />
               <Route path="invoices/:id" element={<InvoiceDetails />} />

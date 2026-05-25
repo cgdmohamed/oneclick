@@ -5,18 +5,32 @@ import { parse as parseCsv } from 'csv-parse/sync';
 import { crudRouter } from '../../utils/crud.js';
 
 const schema = z.object({
-  sku: z.string().optional().nullable(),
-  name: z.string().min(1),
+  sku:         z.string().optional().nullable(),
+  name:        z.string().min(1),
   description: z.string().optional().nullable(),
-  price: z.coerce.number().nonnegative(),
-  cost: z.coerce.number().nonnegative().default(0),
-  quantity: z.coerce.number().int().default(0),
+  price:       z.coerce.number().nonnegative(),
+  cost:        z.coerce.number().nonnegative().default(0),
+  quantity:    z.coerce.number().int().default(0),
   alert_level: z.coerce.number().int().default(0),
-  unit: z.string().default('قطعة'),
-  image_url: z.string().optional().nullable(),
-  is_active: z.boolean().default(true),
+  unit:        z.string().default('قطعة'),
+  image_url:   z.string().optional().nullable(),
+  is_active:   z.boolean().default(true),
   category_id: z.string().uuid().optional().nullable(),
+  supplier_id: z.string().uuid().optional().nullable(),
 });
+
+async function assertSupplierOwnership(
+  db: import('pg').PoolClient,
+  companyId: string,
+  supplierId: string | null | undefined,
+): Promise<boolean> {
+  if (!supplierId) return true;
+  const rs = await db.query(
+    `SELECT 1 FROM suppliers WHERE id = $1 AND company_id = $2`,
+    [supplierId, companyId],
+  );
+  return (rs.rowCount ?? 0) > 0;
+}
 
 async function assertCategoryOwnership(
   db: import('pg').PoolClient,
@@ -33,11 +47,14 @@ async function assertCategoryOwnership(
 
 const base = crudRouter({
   table: 'products',
-  fields: ['sku','name','description','price','cost','quantity','alert_level','unit','image_url','is_active','category_id'],
+  fields: ['sku','name','description','price','cost','quantity','alert_level','unit','image_url','is_active','category_id','supplier_id'],
   schema,
   patchSchema: schema.partial(),
   list: {
-    selectExtra: `(SELECT pc.name FROM product_categories pc WHERE pc.id = products.category_id AND pc.company_id = products.company_id) AS category_name`,
+    selectExtra: `
+      (SELECT pc.name FROM product_categories pc WHERE pc.id = products.category_id AND pc.company_id = products.company_id) AS category_name,
+      (SELECT s.name  FROM suppliers s        WHERE s.id  = products.supplier_id  AND s.company_id  = products.company_id)  AS supplier_name
+    `.trim(),
   },
 });
 
@@ -315,8 +332,10 @@ router.post('/', async (req, res, next) => {
   try {
     const t = req.tenant!;
     const parsed = schema.parse(req.body);
-    const ok = await assertCategoryOwnership(t.db, t.companyId, parsed.category_id);
-    if (!ok) return res.status(422).json({ error: 'invalid_category', message: 'التصنيف غير صالح' });
+    const catOk = await assertCategoryOwnership(t.db, t.companyId, parsed.category_id);
+    if (!catOk) return res.status(422).json({ error: 'invalid_category', message: 'التصنيف غير صالح' });
+    const supOk = await assertSupplierOwnership(t.db, t.companyId, parsed.supplier_id);
+    if (!supOk) return res.status(422).json({ error: 'invalid_supplier', message: 'المورد غير صالح' });
     next();
   } catch (e) { next(e); }
 }, base);
@@ -326,8 +345,12 @@ router.patch('/:id', async (req, res, next) => {
     const t = req.tenant!;
     const parsed = schema.partial().parse(req.body);
     if ('category_id' in parsed) {
-      const ok = await assertCategoryOwnership(t.db, t.companyId, parsed.category_id);
-      if (!ok) return res.status(422).json({ error: 'invalid_category', message: 'التصنيف غير صالح' });
+      const catOk = await assertCategoryOwnership(t.db, t.companyId, parsed.category_id);
+      if (!catOk) return res.status(422).json({ error: 'invalid_category', message: 'التصنيف غير صالح' });
+    }
+    if ('supplier_id' in parsed) {
+      const supOk = await assertSupplierOwnership(t.db, t.companyId, parsed.supplier_id);
+      if (!supOk) return res.status(422).json({ error: 'invalid_supplier', message: 'المورد غير صالح' });
     }
     next();
   } catch (e) { next(e); }

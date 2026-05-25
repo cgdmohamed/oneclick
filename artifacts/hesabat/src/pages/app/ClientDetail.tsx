@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { PageHeader } from '@/components/common/PageHeader';
@@ -8,12 +8,13 @@ import { DataTable, Column } from '@/components/common/DataTable';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { SentAlertsCenter } from '@/components/common/SentAlertsCenter';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
   ArrowRight, Phone, Mail, MapPin, FileBadge2, FileText, CreditCard,
-  Wallet, Activity, Plus, AlertTriangle, TrendingUp, Calendar, User as UserIcon,
+  Wallet, Activity, Plus, AlertTriangle, TrendingUp, Calendar, User as UserIcon, Printer, X,
 } from 'lucide-react';
 import { useClients, useInvoices } from '@/hooks/entities';
 import { payments as mockPayments, accounts as mockAccounts } from '@/data/mock';
@@ -141,6 +142,29 @@ const ClientDetail = () => {
     });
     return buckets;
   }, [clientInvoices]);
+
+  /* ----- Date filter (for tables only; KPIs use full data) ----- */
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo,   setDateTo]   = useState('');
+  const [applied,  setApplied]  = useState({ from: '', to: '' });
+
+  const filteredInvoices = useMemo(
+    () => clientInvoices.filter((i) => {
+      if (applied.from && i.issueDate < applied.from) return false;
+      if (applied.to   && i.issueDate > applied.to)   return false;
+      return true;
+    }),
+    [clientInvoices, applied],
+  );
+
+  const filteredPayments = useMemo(
+    () => clientPayments.filter((p) => {
+      if (applied.from && p.date < applied.from) return false;
+      if (applied.to   && p.date > applied.to)   return false;
+      return true;
+    }),
+    [clientPayments, applied],
+  );
 
   /* ----- Activity timeline ----- */
   const timeline = useMemo(() => {
@@ -293,7 +317,10 @@ const ClientDetail = () => {
             </div>
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
+            <Button variant="outline" onClick={() => window.print()}>
+              <Printer className="h-4 w-4 ml-1" /> طباعة
+            </Button>
             <Button variant="outline" onClick={() => navigate('/app/clients')}>
               <UserIcon className="h-4 w-4 ml-1" /> تعديل البيانات
             </Button>
@@ -393,23 +420,61 @@ const ClientDetail = () => {
 
         {/* Invoices */}
         <TabsContent value="invoices" className="mt-4">
+          <Card className="p-3 mb-3 border-border/60">
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="flex items-center gap-2">
+                <Calendar className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm text-muted-foreground">فلترة بالتاريخ:</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Input type="date" className="h-8 w-38 text-sm" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+                <span className="text-muted-foreground text-sm">—</span>
+                <Input type="date" className="h-8 w-38 text-sm" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+              </div>
+              <Button size="sm" className="h-8" onClick={() => setApplied({ from: dateFrom, to: dateTo })}>تطبيق</Button>
+              {(applied.from || applied.to) && (
+                <Button size="sm" variant="ghost" className="h-8" onClick={() => { setDateFrom(''); setDateTo(''); setApplied({ from: '', to: '' }); }}>
+                  <X className="h-3.5 w-3.5 ml-1" /> مسح
+                </Button>
+              )}
+            </div>
+          </Card>
           {clientInvoices.length === 0 ? (
             <Card className="p-10 text-center text-muted-foreground border-dashed">
               لا توجد فواتير لهذا العميل بعد.
             </Card>
           ) : (
-            <DataTable data={clientInvoices} columns={invoiceCols} searchKeys={['number']} />
+            <DataTable data={filteredInvoices} columns={invoiceCols} searchKeys={['number']} />
           )}
         </TabsContent>
 
         {/* Payments */}
         <TabsContent value="payments" className="mt-4">
+          <Card className="p-3 mb-3 border-border/60">
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="flex items-center gap-2">
+                <Calendar className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm text-muted-foreground">فلترة بالتاريخ:</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Input type="date" className="h-8 w-38 text-sm" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+                <span className="text-muted-foreground text-sm">—</span>
+                <Input type="date" className="h-8 w-38 text-sm" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+              </div>
+              <Button size="sm" className="h-8" onClick={() => setApplied({ from: dateFrom, to: dateTo })}>تطبيق</Button>
+              {(applied.from || applied.to) && (
+                <Button size="sm" variant="ghost" className="h-8" onClick={() => { setDateFrom(''); setDateTo(''); setApplied({ from: '', to: '' }); }}>
+                  <X className="h-3.5 w-3.5 ml-1" /> مسح
+                </Button>
+              )}
+            </div>
+          </Card>
           {clientPayments.length === 0 ? (
             <Card className="p-10 text-center text-muted-foreground border-dashed">
               لا توجد مدفوعات مسجلة لهذا العميل.
             </Card>
           ) : (
-            <DataTable data={clientPayments} columns={paymentCols} searchKeys={['invoiceNumber']} />
+            <DataTable data={filteredPayments} columns={paymentCols} searchKeys={['invoiceNumber']} />
           )}
         </TabsContent>
 

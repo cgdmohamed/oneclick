@@ -1,6 +1,6 @@
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarTrigger, useSidebar, SidebarHeader, SidebarFooter } from '@/components/ui/sidebar';
-import { LayoutDashboard, Users, FileText, CreditCard, Wallet, Package, BarChart3, Bell, BellRing, ShieldCheck, Settings, LogOut, Building2, Layers, Receipt, ToggleRight, Megaphone, Cog, Crown, History, LayoutTemplate, LineChart, PieChart, ScrollText, UserPlus, UserCog, X, Info } from 'lucide-react';
+import { LayoutDashboard, Users, FileText, CreditCard, Wallet, Package, BarChart3, Bell, BellRing, ShieldCheck, Settings, LogOut, Building2, Layers, Receipt, ToggleRight, Megaphone, Cog, Crown, History, LayoutTemplate, LineChart, PieChart, ScrollText, UserPlus, UserCog, X, Info, Truck, ArrowUpFromLine } from 'lucide-react';
 import { BrandLogo } from '@/components/common/BrandLogo';
 import { Badge } from '@/components/ui/badge';
 import { usePendingSignupsCount } from '@/hooks/usePendingSignups';
@@ -22,8 +22,10 @@ import { isApiConfigured } from '@/lib/api';
 const companyNav: { to: string; label: string; icon: typeof LayoutDashboard; end?: boolean; feature?: string }[] = [
   { to: '/app', label: 'الرئيسية', icon: LayoutDashboard, end: true },
   { to: '/app/clients', label: 'العملاء', icon: Users, feature: 'clients' },
+  { to: '/app/suppliers', label: 'الموردون', icon: Truck, feature: 'suppliers' },
   { to: '/app/invoices', label: 'الفواتير', icon: FileText, feature: 'invoices' },
-  { to: '/app/payments', label: 'المدفوعات', icon: CreditCard, feature: 'payments' },
+  { to: '/app/payments', label: 'التحصيلات', icon: CreditCard, feature: 'payments' },
+  { to: '/app/payouts', label: 'المصروفات', icon: ArrowUpFromLine, feature: 'payouts' },
   { to: '/app/accounts', label: 'الحسابات المالية', icon: Wallet, feature: 'accounts' },
   { to: '/app/products', label: 'المنتجات والمخزون', icon: Package, feature: 'products' },
   { to: '/app/reports', label: 'التقارير', icon: BarChart3, feature: 'reports_basic' },
@@ -76,8 +78,10 @@ const pageKey = (kind: 'company' | 'admin', pathname: string): string => {
     return 'admin-overview';
   }
   if (pathname.startsWith('/app/clients')) return 'clients';
+  if (pathname.startsWith('/app/suppliers')) return 'suppliers';
   if (pathname.startsWith('/app/invoices') || pathname.startsWith('/app/invoice')) return 'invoices';
   if (pathname.startsWith('/app/payments')) return 'payments';
+  if (pathname.startsWith('/app/payouts')) return 'payouts';
   if (pathname.startsWith('/app/accounts')) return 'accounts';
   if (pathname.startsWith('/app/products')) return 'products';
   if (pathname.startsWith('/app/reports')) return 'reports';

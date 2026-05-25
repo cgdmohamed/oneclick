@@ -141,7 +141,7 @@ export const subscriptions = pgTable('subscriptions', {
   companyId: uuid('company_id').notNull().references(() => companies.id, { onDelete: 'cascade' }),
   planId: uuid('plan_id').notNull().references(() => plans.id),
   status: subscriptionStatusEnum('status').notNull().default('trialing'),
-  amount: decimal('amount', { precision: 12, scale: 2 }).notNull().default('0'),
+  amount: numeric('amount', { precision: 12, scale: 2 }).notNull().default('0'),
   startedAt: timestamp('started_at', { withTimezone: true }).notNull().defaultNow(),
   expiresAt: timestamp('expires_at', { withTimezone: true }),
   cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
@@ -167,6 +167,19 @@ const tenantColumns = {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 };
+
+export const suppliers = pgTable('suppliers', {
+  ...tenantColumns,
+  name:      varchar('name', { length: 200 }).notNull(),
+  phone:     varchar('phone', { length: 30 }),
+  email:     varchar('email', { length: 255 }),
+  address:   text('address'),
+  taxNumber: varchar('tax_number', { length: 50 }),
+  notes:     text('notes'),
+  isActive:  boolean('is_active').notNull().default(true),
+}, (t) => ({
+  byCompany: index('suppliers_company_idx').on(t.companyId),
+}));
 
 export const clients = pgTable('clients', {
   ...tenantColumns,
@@ -201,9 +214,11 @@ export const products = pgTable('products', {
   alertLevel: integer('alert_level').notNull().default(0),
   unit: varchar('unit', { length: 20 }).notNull().default('قطعة'),
   isActive: boolean('is_active').notNull().default(true),
-  categoryId: uuid('category_id').references(() => productCategories.id, { onDelete: 'set null' }),
+  categoryId:  uuid('category_id').references(() => productCategories.id, { onDelete: 'set null' }),
+  supplierId:  uuid('supplier_id').references(() => suppliers.id, { onDelete: 'set null' }),
 }, (t) => ({
-  byCompany: index('products_company_idx').on(t.companyId),
+  byCompany:  index('products_company_idx').on(t.companyId),
+  bySupplier: index('products_supplier_idx').on(t.companyId, t.supplierId),
 }));
 
 export const accounts = pgTable('accounts', {
@@ -266,6 +281,50 @@ export const payments = pgTable('payments', {
 }, (t) => ({
   byInvoice: index('payments_invoice_idx').on(t.invoiceId),
   byCompany: index('payments_company_idx').on(t.companyId),
+}));
+
+export const expenseCategories = pgTable('expense_categories', {
+  id:        uuid('id').primaryKey().defaultRandom(),
+  companyId: uuid('company_id').notNull().references(() => companies.id, { onDelete: 'cascade' }),
+  name:      varchar('name', { length: 200 }).notNull(),
+  isActive:  boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  byCompany: index('expense_categories_company_idx').on(t.companyId),
+}));
+
+export const payouts = pgTable('payouts', {
+  ...tenantColumns,
+  supplierId:        uuid('supplier_id').references(() => suppliers.id, { onDelete: 'set null' }),
+  expenseCategoryId: uuid('expense_category_id').references(() => expenseCategories.id, { onDelete: 'set null' }),
+  accountId:         uuid('account_id').notNull().references(() => accounts.id),
+  amount:            numeric('amount', { precision: 14, scale: 2 }).notNull(),
+  method:            varchar('method', { length: 30 }).notNull().default('cash'),
+  paidAt:            timestamp('paid_at', { withTimezone: true }).notNull().defaultNow(),
+  reference:         varchar('reference', { length: 100 }),
+  notes:             text('notes'),
+  createdBy:         uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+}, (t) => ({
+  byCompany:  index('payouts_company_idx').on(t.companyId),
+  bySupplier: index('payouts_supplier_idx').on(t.companyId, t.supplierId),
+  byAccount:  index('payouts_account_idx').on(t.accountId),
+}));
+
+export const stockMovements = pgTable('stock_movements', {
+  id:         uuid('id').primaryKey().defaultRandom(),
+  companyId:  uuid('company_id').notNull().references(() => companies.id, { onDelete: 'cascade' }),
+  productId:  uuid('product_id').notNull().references(() => products.id, { onDelete: 'cascade' }),
+  supplierId: uuid('supplier_id').references(() => suppliers.id, { onDelete: 'set null' }),
+  invoiceId:  uuid('invoice_id').references(() => invoices.id, { onDelete: 'set null' }),
+  type:       varchar('type', { length: 20 }).notNull(),
+  quantity:   numeric('quantity', { precision: 12, scale: 3 }).notNull(),
+  reason:     varchar('reason', { length: 200 }),
+  createdBy:  uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+  createdAt:  timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  byCompany: index('stock_movements_company_idx').on(t.companyId),
+  byProduct: index('stock_movements_product_idx').on(t.companyId, t.productId),
+  byInvoice: index('stock_movements_invoice_idx').on(t.invoiceId),
 }));
 
 export const notifications = pgTable('notifications', {

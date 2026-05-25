@@ -1,6 +1,6 @@
 import { PageHeader } from '@/components/common/PageHeader';
 import { Card } from '@/components/ui/card';
-import { FileText, CreditCard, TrendingDown, Wallet, Building2, ArrowLeft } from 'lucide-react';
+import { FileText, CreditCard, TrendingDown, Wallet, Building2, ArrowLeft, ArrowUpFromLine, Truck, Package } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useInvoices, useAccounts } from '@/hooks/entities';
 import { payments as mockPayments } from '@/data/mock';
@@ -10,11 +10,15 @@ import { useQuery } from '@tanstack/react-query';
 import { api, isApiConfigured } from '@/lib/api';
 
 const reports = [
-  { id: 'invoices', icon: FileText, title: 'تقرير الفواتير', desc: 'كل الفواتير الصادرة بحسب التاريخ والحالة.' },
-  { id: 'payments', icon: CreditCard, title: 'تقرير المدفوعات', desc: 'تتبع المدفوعات المسجلة على الفواتير.' },
-  { id: 'remaining', icon: TrendingDown, title: 'تقرير المتبقي', desc: 'الفواتير غير المسددة كلياً أو جزئياً.' },
-  { id: 'by-method', icon: Wallet, title: 'تقرير حسب وسيلة الدفع', desc: 'تجميع المدفوعات حسب طريقة السداد.' },
-  { id: 'by-account', icon: Building2, title: 'تقرير حسب الحساب المالي', desc: 'حركات الإيداع لكل حساب مالي.' },
+  { id: 'invoices',         icon: FileText,         title: 'تقرير الفواتير',              desc: 'كل الفواتير الصادرة بحسب التاريخ والحالة.' },
+  { id: 'payments',         icon: CreditCard,        title: 'تقرير التحصيلات',             desc: 'تتبع التحصيلات المسجلة على الفواتير.' },
+  { id: 'payouts',          icon: ArrowUpFromLine,   title: 'تقرير المصروفات',             desc: 'جميع المدفوعات الصادرة للموردين والنفقات.' },
+  { id: 'remaining',        icon: TrendingDown,      title: 'تقرير المتبقي',               desc: 'الفواتير غير المسددة كلياً أو جزئياً.' },
+  { id: 'by-method',        icon: Wallet,            title: 'تقرير حسب وسيلة الدفع',      desc: 'تجميع التحصيلات حسب طريقة السداد.' },
+  { id: 'by-account',       icon: Building2,         title: 'تقرير حسب الحساب المالي',    desc: 'حركات الإيداع لكل حساب مالي.' },
+  { id: 'suppliers',        icon: Truck,             title: 'تقرير نشاط الموردين',        desc: 'إجمالي المصروفات والمنتجات لكل مورد.' },
+  { id: 'inventory',        icon: Package,           title: 'تقرير المخزون',              desc: 'الكميات والقيم الحالية لجميع المنتجات.' },
+  { id: 'accounts-summary', icon: Wallet,            title: 'ملخص الحسابات المالية',      desc: 'أرصدة التحصيلات والمصروفات لكل حساب.' },
 ];
 
 interface FlatPayment {

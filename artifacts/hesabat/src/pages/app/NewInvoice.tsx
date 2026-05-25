@@ -1,11 +1,12 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useCallback, useEffect } from 'react';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Trash2 } from 'lucide-react';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Plus, Trash2, PackagePlus } from 'lucide-react';
 import { formatCurrency } from '@/lib/format';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -17,18 +18,42 @@ import { useQueryClient } from '@tanstack/react-query';
 
 interface Item { id: string; name: string; quantity: number; unitPrice: number; productId?: string }
 
+interface NewProductForm {
+  name: string; sku: string; price: string; quantity: string;
+  unit: string; category_id: string;
+}
+
+const emptyProduct: NewProductForm = { name: '', sku: '', price: '', quantity: '0', unit: 'قطعة', category_id: '' };
+
 const NewInvoice = () => {
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const { list: clients } = useClients();
+  const { list: clients }  = useClients();
   const { list: products } = useProducts();
   const { user } = useAuth();
-  const [clientId, setClientId] = useState('');
-  const [items, setItems] = useState<Item[]>([{ id: 'i1', name: '', quantity: 1, unitPrice: 0 }]);
-  const [taxRate, setTaxRate] = useState(15);
-  const [discount, setDiscount] = useState(0);
-  const [dueDate, setDueDate] = useState(new Date(Date.now() + 30 * 86400000).toISOString().slice(0,10));
-  const [saving, setSaving] = useState(false);
+  const [clientId, setClientId]   = useState('');
+  const [items, setItems]         = useState<Item[]>([{ id: 'i1', name: '', quantity: 1, unitPrice: 0 }]);
+  const [taxRate, setTaxRate]     = useState(15);
+  const [discount, setDiscount]   = useState(0);
+  const [dueDate, setDueDate]     = useState(new Date(Date.now() + 30 * 86400000).toISOString().slice(0,10));
+  const [saving, setSaving]       = useState(false);
+
+  // Quick product creation state
+  const [addProductOpen, setAddProductOpen]   = useState(false);
+  const [addProductRow, setAddProductRow]     = useState<number | null>(null);
+  const [newProduct, setNewProduct]           = useState<NewProductForm>(emptyProduct);
+  const [productSaving, setProductSaving]     = useState(false);
+  const [categories, setCategories]           = useState<{ id: string; name: string }[]>([]);
+
+  const loadCategories = useCallback(async () => {
+    if (!isApiConfigured()) return;
+    try {
+      const res = await api.get<{ data: { id: string; name: string }[] }>('/api/categories');
+      setCategories(res.data ?? []);
+    } catch { /* silent */ }
+  }, []);
+
+  useEffect(() => { loadCategories(); }, [loadCategories]);
 
   // Default client when list loads
   if (!clientId && clients[0]) setClientId(clients[0].id);
@@ -40,12 +65,48 @@ const NewInvoice = () => {
     return { subtotal, tax, total };
   }, [items, taxRate, discount]);
 
-  const addItem = () => setItems(prev => [...prev, { id: `i${Date.now()}`, name: '', quantity: 1, unitPrice: 0 }]);
-  const update = (i: number, patch: Partial<Item>) => setItems(prev => prev.map((it, idx) => idx === i ? { ...it, ...patch } : it));
-  const remove = (i: number) => setItems(prev => prev.filter((_, idx) => idx !== i));
+  const addItem    = () => setItems(prev => [...prev, { id: `i${Date.now()}`, name: '', quantity: 1, unitPrice: 0 }]);
+  const update     = (i: number, patch: Partial<Item>) => setItems(prev => prev.map((it, idx) => idx === i ? { ...it, ...patch } : it));
+  const remove     = (i: number) => setItems(prev => prev.filter((_, idx) => idx !== i));
   const pickProduct = (i: number, pid: string) => {
     const p = products.find(x => x.id === pid);
     if (p) update(i, { productId: pid, name: p.name, unitPrice: p.price });
+  };
+
+  const openQuickCreate = (rowIndex: number) => {
+    setAddProductRow(rowIndex);
+    setNewProduct(emptyProduct);
+    setAddProductOpen(true);
+  };
+
+  const saveQuickProduct = async () => {
+    if (!newProduct.name.trim()) return toast.error('اسم المنتج مطلوب');
+    const price = parseFloat(newProduct.price);
+    if (isNaN(price) || price < 0) return toast.error('السعر غير صحيح');
+    setProductSaving(true);
+    try {
+      const res = await api.post<{ data: { id: string; name: string; price: string | number } }>('/api/products', {
+        name:        newProduct.name.trim(),
+        sku:         newProduct.sku || null,
+        price,
+        quantity:    parseInt(newProduct.quantity, 10) || 0,
+        unit:        newProduct.unit || 'قطعة',
+        category_id: newProduct.category_id || null,
+        is_active:   true,
+      });
+      const created = res.data;
+      await qc.invalidateQueries({ queryKey: ['products'] });
+      // Auto-select in the invoice row
+      if (addProductRow !== null) {
+        update(addProductRow, { productId: created.id, name: created.name, unitPrice: Number(created.price) });
+      }
+      toast.success('تم إضافة المنتج');
+      setAddProductOpen(false);
+    } catch {
+      toast.error('تعذّر إضافة المنتج');
+    } finally {
+      setProductSaving(false);
+    }
   };
 
   const submit = async (draft: boolean) => {
@@ -83,6 +144,8 @@ const NewInvoice = () => {
     }
   };
 
+  void user;
+
   return (
     <div>
       <PageHeader title="فاتورة جديدة" description="أنشئ فاتورة لعميلك" />
@@ -115,10 +178,22 @@ const NewInvoice = () => {
                 <div key={it.id} className="grid grid-cols-12 gap-2 items-end p-3 rounded-lg border border-border/70 bg-card">
                   <div className="col-span-12 md:col-span-4">
                     <Label className="text-xs">المنتج</Label>
-                    <Select value={it.productId ?? ''} onValueChange={(v) => pickProduct(i, v)}>
-                      <SelectTrigger><SelectValue placeholder="اختياري — اختر من المنتجات" /></SelectTrigger>
-                      <SelectContent>{products.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
-                    </Select>
+                    <div className="flex gap-1 mt-0.5">
+                      <Select value={it.productId ?? ''} onValueChange={(v) => pickProduct(i, v)}>
+                        <SelectTrigger className="flex-1"><SelectValue placeholder="اختياري" /></SelectTrigger>
+                        <SelectContent>{products.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
+                      </Select>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className="shrink-0 h-9 w-9"
+                        title="إضافة منتج جديد"
+                        onClick={() => openQuickCreate(i)}
+                      >
+                        <PackagePlus className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                   <div className="col-span-12 md:col-span-3">
                     <Label className="text-xs">الوصف</Label>
@@ -169,6 +244,55 @@ const NewInvoice = () => {
           </Card>
         </div>
       </div>
+
+      {/* Quick product creation modal */}
+      <Dialog open={addProductOpen} onOpenChange={setAddProductOpen}>
+        <DialogContent className="max-w-md" dir="rtl">
+          <DialogHeader><DialogTitle className="flex items-center gap-2"><PackagePlus className="h-5 w-5" /> إضافة منتج جديد</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <Label>اسم المنتج *</Label>
+              <Input className="mt-1.5" value={newProduct.name} onChange={(e) => setNewProduct(p => ({ ...p, name: e.target.value }))} placeholder="اسم المنتج أو الخدمة" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>SKU</Label>
+                <Input className="mt-1.5" value={newProduct.sku} onChange={(e) => setNewProduct(p => ({ ...p, sku: e.target.value }))} placeholder="اختياري" />
+              </div>
+              <div>
+                <Label>الوحدة</Label>
+                <Input className="mt-1.5" value={newProduct.unit} onChange={(e) => setNewProduct(p => ({ ...p, unit: e.target.value }))} placeholder="قطعة" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>السعر *</Label>
+                <Input className="mt-1.5" type="number" min="0" step="0.01" value={newProduct.price} onChange={(e) => setNewProduct(p => ({ ...p, price: e.target.value }))} placeholder="0.00" />
+              </div>
+              <div>
+                <Label>الكمية الأولية</Label>
+                <Input className="mt-1.5" type="number" min="0" value={newProduct.quantity} onChange={(e) => setNewProduct(p => ({ ...p, quantity: e.target.value }))} />
+              </div>
+            </div>
+            {categories.length > 0 && (
+              <div>
+                <Label>التصنيف</Label>
+                <Select value={newProduct.category_id} onValueChange={(v) => setNewProduct(p => ({ ...p, category_id: v }))}>
+                  <SelectTrigger className="mt-1.5"><SelectValue placeholder="اختياري" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">بدون تصنيف</SelectItem>
+                    {categories.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAddProductOpen(false)}>إلغاء</Button>
+            <Button onClick={saveQuickProduct} disabled={productSaving}>{productSaving ? 'جارٍ الإضافة...' : 'إضافة المنتج'}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
