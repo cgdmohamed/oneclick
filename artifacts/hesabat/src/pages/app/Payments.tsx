@@ -73,6 +73,8 @@ const Payments = () => {
       <DataTable
         data={filtered}
         columns={columns}
+        searchKeys={['invoiceNumber', 'accountName']}
+        searchPlaceholder="ابحث برقم الفاتورة أو الحساب..."
         rightToolbar={
           <Select value={method} onValueChange={setMethod}>
             <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>

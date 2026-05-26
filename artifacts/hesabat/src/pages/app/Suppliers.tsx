@@ -177,7 +177,7 @@ const Suppliers = () => {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>الهاتف</Label>
-                <Input className="mt-1.5" value={editing.phone} onChange={(e) => setEditing(p => ({ ...p, phone: e.target.value }))} placeholder="05xxxxxxxx" />
+                <Input className="mt-1.5" type="tel" value={editing.phone} onChange={(e) => setEditing(p => ({ ...p, phone: e.target.value }))} placeholder="05xxxxxxxx" />
               </div>
               <div>
                 <Label>البريد الإلكتروني</Label>
@@ -190,7 +190,7 @@ const Suppliers = () => {
             </div>
             <div>
               <Label>الرقم الضريبي</Label>
-              <Input className="mt-1.5" value={editing.taxNumber} onChange={(e) => setEditing(p => ({ ...p, taxNumber: e.target.value }))} />
+              <Input className="mt-1.5" inputMode="numeric" pattern="[0-9]*" value={editing.taxNumber} onChange={(e) => setEditing(p => ({ ...p, taxNumber: e.target.value }))} />
             </div>
             <div>
               <Label>ملاحظات</Label>

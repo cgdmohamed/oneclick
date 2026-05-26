@@ -15,20 +15,21 @@ import { InvoiceSummary } from '@/components/common/InvoiceSummary';
 import { useClients, useProducts } from '@/hooks/entities';
 import { api, ApiError, isApiConfigured } from '@/lib/api';
 import { useQueryClient } from '@tanstack/react-query';
+import { CURRENCIES } from '@/lib/currency';
 
 interface Item { id: string; name: string; quantity: number; unitPrice: number; productId?: string }
 
 /* ── Quick-create forms ─────────────────────────────────────────── */
 interface NewClientForm {
-  name: string; phone: string; email: string; address: string; tax_number: string;
+  name: string; phone: string; whatsapp: string; email: string; address: string; tax_number: string; currency: string;
 }
 interface NewProductForm {
-  name: string; sku: string; price: string; quantity: string; unit: string; category_id: string;
+  name: string; sku: string; price: string; quantity: string; unit: string; category_id: string; alertLevel: string;
 }
 
-const emptyClient:  NewClientForm  = { name: '', phone: '', email: '', address: '', tax_number: '' };
+const emptyClient: NewClientForm = { name: '', phone: '', whatsapp: '', email: '', address: '', tax_number: '', currency: 'SAR' };
 const NO_CATEGORY = '__none__';
-const emptyProduct: NewProductForm = { name: '', sku: '', price: '', quantity: '0', unit: 'قطعة', category_id: NO_CATEGORY };
+const emptyProduct: NewProductForm = { name: '', sku: '', price: '', quantity: '0', unit: 'قطعة', category_id: NO_CATEGORY, alertLevel: '5' };
 
 /* ── Helpers ────────────────────────────────────────────────────── */
 const normalize = (s: string) => s.trim().toLowerCase();
@@ -80,9 +81,11 @@ const NewInvoice = () => {
       const res = await api.post<{ data: { id: string; name: string } }>('/api/clients', {
         name,
         phone:      newClient.phone      || null,
+        whatsapp:   newClient.whatsapp   || null,
         email:      newClient.email      || null,
         address:    newClient.address    || null,
         tax_number: newClient.tax_number || null,
+        currency:   newClient.currency   || 'SAR',
       });
       await qc.invalidateQueries({ queryKey: ['clients'] });
       setClientId(res.data.id);
@@ -147,6 +150,7 @@ const NewInvoice = () => {
         price,
         quantity:    parseInt(newProduct.quantity, 10) || 0,
         unit:        newProduct.unit || 'قطعة',
+        alert_level: parseInt(newProduct.alertLevel, 10) || 5,
         category_id: (newProduct.category_id && newProduct.category_id !== NO_CATEGORY) ? newProduct.category_id : null,
         is_active:   true,
       });
@@ -369,21 +373,36 @@ const NewInvoice = () => {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label>الهاتف</Label>
-                <Input className="mt-1.5" value={newClient.phone} onChange={e => setNewClient(p => ({ ...p, phone: e.target.value }))} placeholder="05xxxxxxxx" />
+                <Label>رقم الهاتف *</Label>
+                <Input className="mt-1.5" type="tel" value={newClient.phone} onChange={e => setNewClient(p => ({ ...p, phone: e.target.value }))} placeholder="05xxxxxxxx" />
               </div>
+              <div>
+                <Label>رقم واتساب</Label>
+                <Input className="mt-1.5" type="tel" value={newClient.whatsapp} onChange={e => setNewClient(p => ({ ...p, whatsapp: e.target.value }))} placeholder="05xxxxxxxx" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>البريد الإلكتروني</Label>
                 <Input className="mt-1.5" type="email" value={newClient.email} onChange={e => setNewClient(p => ({ ...p, email: e.target.value }))} />
               </div>
+              <div>
+                <Label>الرقم الضريبي</Label>
+                <Input className="mt-1.5" inputMode="numeric" pattern="[0-9]*" value={newClient.tax_number} onChange={e => setNewClient(p => ({ ...p, tax_number: e.target.value }))} />
+              </div>
+            </div>
+            <div>
+              <Label>العملة</Label>
+              <Select value={newClient.currency || 'SAR'} onValueChange={v => setNewClient(p => ({ ...p, currency: v }))}>
+                <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {CURRENCIES.map(c => <SelectItem key={c.code} value={c.code}>{c.name} ({c.symbol})</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <Label>العنوان</Label>
               <Input className="mt-1.5" value={newClient.address} onChange={e => setNewClient(p => ({ ...p, address: e.target.value }))} />
-            </div>
-            <div>
-              <Label>الرقم الضريبي</Label>
-              <Input className="mt-1.5" value={newClient.tax_number} onChange={e => setNewClient(p => ({ ...p, tax_number: e.target.value }))} />
             </div>
           </div>
           <DialogFooter>
@@ -456,8 +475,6 @@ const NewInvoice = () => {
                 <Label>الوحدة</Label>
                 <Input className="mt-1.5" value={newProduct.unit} onChange={e => setNewProduct(p => ({ ...p, unit: e.target.value }))} placeholder="قطعة" />
               </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>السعر *</Label>
                 <Input className="mt-1.5" type="number" min="0" step="0.01" value={newProduct.price} onChange={e => setNewProduct(p => ({ ...p, price: e.target.value }))} placeholder="0.00" />
@@ -465,6 +482,10 @@ const NewInvoice = () => {
               <div>
                 <Label>الكمية الأولية</Label>
                 <Input className="mt-1.5" type="number" min="0" value={newProduct.quantity} onChange={e => setNewProduct(p => ({ ...p, quantity: e.target.value }))} />
+              </div>
+              <div>
+                <Label>حد التنبيه</Label>
+                <Input className="mt-1.5" type="number" min="0" value={newProduct.alertLevel} onChange={e => setNewProduct(p => ({ ...p, alertLevel: e.target.value }))} />
               </div>
             </div>
             {categories.length > 0 && (

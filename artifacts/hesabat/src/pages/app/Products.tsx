@@ -2,21 +2,22 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { PageHeader } from '@/components/common/PageHeader';
 import { DataTable, Column } from '@/components/common/DataTable';
 import { Button } from '@/components/ui/button';
-import { Plus, Pencil, Trash2, AlertTriangle, ImageIcon, Loader2, Package, Tags, X, Download, Upload, CheckCircle2, XCircle, FileText } from 'lucide-react';
+import { Plus, Pencil, Trash2, AlertTriangle, ImageIcon, Loader2, Package, Tags, X, Download, Upload, CheckCircle2, XCircle, FileText, Truck, ArrowDownToLine, ArrowUpFromLine as ArrowUpFromLineIcon, SlidersHorizontal } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 import type { Product } from '@/types';
-import { formatCurrency } from '@/lib/format';
+import { formatCurrency, formatDateShort } from '@/lib/format';
 import { toast } from 'sonner';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { Card } from '@/components/ui/card';
 import { useResource } from '@/hooks/useResource';
 import { useInvoices } from '@/hooks/entities';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, isApiConfigured, resolveAssetUrl, API_URL, getAuthHeaders } from '@/lib/api';
 
 interface ProductRow {
@@ -32,6 +33,8 @@ interface ProductRow {
   is_active: boolean;
   category_id: string | null;
   category_name: string | null;
+  supplier_id: string | null;
+  supplier_name: string | null;
 }
 
 interface Category {
@@ -39,6 +42,39 @@ interface Category {
   name: string;
   product_count: number;
 }
+
+interface Supplier {
+  id: string;
+  name: string;
+}
+
+interface StockMovement {
+  id: string;
+  product_id: string;
+  product_name: string;
+  supplier_id: string | null;
+  supplier_name: string | null;
+  type: 'in' | 'out' | 'adjustment';
+  quantity: number;
+  reason: string | null;
+  created_at: string;
+}
+
+interface NewMovement {
+  product_id: string;
+  supplier_id: string;
+  type: 'in' | 'out' | 'adjustment';
+  quantity: string;
+  reason: string;
+}
+
+const emptyMovement: NewMovement = {
+  product_id: '', supplier_id: '', type: 'in', quantity: '1', reason: '',
+};
+
+const NO_SUPPLIER = '__none__';
+
+const movementTypeLabel = (t: string) => t === 'in' ? 'وارد' : t === 'out' ? 'صادر' : 'تعديل';
 
 interface ImportRowResult {
   row: number;
@@ -89,6 +125,17 @@ const useCategories = () => {
   return { categories, loading, reload: load, create, remove };
 };
 
+const useSuppliers = () => {
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  useEffect(() => {
+    if (!isApiConfigured()) return;
+    api.get<{ data: Supplier[] }>('/api/suppliers?limit=200')
+      .then(res => setSuppliers(res.data ?? []))
+      .catch(() => {});
+  }, []);
+  return suppliers;
+};
+
 const Products = () => {
   const qc = useQueryClient();
   const { list, save, remove } = useResource<Product, ProductRow>({
@@ -107,6 +154,8 @@ const Products = () => {
       status: r.is_active ? 'active' : 'inactive',
       categoryId: r.category_id ?? undefined,
       category: r.category_name ?? undefined,
+      supplierId: r.supplier_id ?? undefined,
+      supplierName: r.supplier_name ?? undefined,
     }),
     toRow: (p) => ({
       name: p.name,
@@ -117,10 +166,12 @@ const Products = () => {
       image_url: p.imageUrl ?? null,
       is_active: p.status !== 'inactive',
       category_id: p.categoryId ?? null,
+      supplier_id: (p as unknown as { supplierId?: string }).supplierId ?? null,
     }),
   });
 
   const { categories, loading: catsLoading, reload: reloadCats, create: createCat, remove: removeCat } = useCategories();
+  const suppliers = useSuppliers();
 
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Product>(empty);
@@ -130,6 +181,19 @@ const Products = () => {
   const [catSaving, setCatSaving] = useState(false);
   const [catFilter, setCatFilter] = useState<string>('all');
   const { list: invoices } = useInvoices();
+
+  const [movementOpen, setMovementOpen] = useState(false);
+  const [newMovement, setNewMovement] = useState<NewMovement>(emptyMovement);
+  const [movementSaving, setMovementSaving] = useState(false);
+
+  const movementsQuery = useQuery({
+    enabled: isApiConfigured(),
+    queryKey: ['stock-movements'],
+    queryFn: async () => {
+      const res = await api.get<{ data: StockMovement[]; total: number }>('/api/stock-movements?limit=200');
+      return res.data ?? [];
+    },
+  });
 
   const [importOpen, setImportOpen] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
@@ -142,6 +206,33 @@ const Products = () => {
     if (!editing.name) return toast.error('أكمل بيانات المنتج');
     await save(editing);
     setOpen(false);
+  };
+
+  const saveMovement = async () => {
+    if (!newMovement.product_id || newMovement.product_id === NO_SUPPLIER) return toast.error('اختر المنتج');
+    const qty = parseFloat(newMovement.quantity);
+    if (!qty || qty <= 0) return toast.error('الكمية يجب أن تكون أكبر من صفر');
+    setMovementSaving(true);
+    try {
+      await api.post('/api/stock-movements', {
+        product_id:  newMovement.product_id,
+        supplier_id: (newMovement.supplier_id && newMovement.supplier_id !== NO_SUPPLIER) ? newMovement.supplier_id : null,
+        type:        newMovement.type,
+        quantity:    qty,
+        reason:      newMovement.reason || null,
+      });
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['stock-movements'] }),
+        qc.invalidateQueries({ queryKey: ['products'] }),
+      ]);
+      toast.success('تم تسجيل حركة المخزون');
+      setMovementOpen(false);
+      setNewMovement(emptyMovement);
+    } catch {
+      toast.error('تعذّر تسجيل الحركة');
+    } finally {
+      setMovementSaving(false);
+    }
   };
 
   const usageCount = (p: Product) => {
@@ -317,6 +408,7 @@ const Products = () => {
     )},
     { key: 'code', header: 'الكود', cell: r => <span className="text-muted-foreground text-sm">{r.code}</span> },
     { key: 'category', header: 'التصنيف', cell: r => <span className="text-muted-foreground text-sm">{r.category || '—'}</span> },
+    { key: 'supplier', header: 'المورد', cell: r => <span className="text-muted-foreground text-sm">{(r as unknown as { supplierName?: string }).supplierName || '—'}</span> },
     { key: 'price', header: 'السعر', cell: r => formatCurrency(r.price) },
     { key: 'qty', header: 'الكمية', cell: r => <span className={r.quantity <= r.alertLevel ? 'text-destructive font-semibold' : ''}>{r.quantity}</span> },
     { key: 'alert', header: 'حد التنبيه', cell: r => r.alertLevel },
@@ -390,11 +482,35 @@ const Products = () => {
           />
         </TabsContent>
         <TabsContent value="movements" className="mt-4">
-          <div className="flex flex-col items-center justify-center py-20 text-muted-foreground gap-2">
-            <Package className="h-10 w-10 opacity-30" />
-            <p className="text-lg font-medium">قريباً...</p>
-            <p className="text-sm">سيتم إضافة سجل حركة المخزون في تحديث قادم.</p>
+          <div className="flex justify-end mb-3">
+            <Button onClick={() => { setNewMovement(emptyMovement); setMovementOpen(true); }}>
+              <Plus className="h-4 w-4 ml-1" /> حركة جديدة
+            </Button>
           </div>
+          <DataTable
+            data={movementsQuery.data ?? []}
+            columns={[
+              { key: 'date',     header: 'التاريخ',  cell: (r) => formatDateShort(r.created_at) },
+              { key: 'product',  header: 'المنتج',   cell: (r) => <span className="font-medium">{r.product_name}</span> },
+              { key: 'type',     header: 'النوع',    cell: (r) => (
+                <span className={`inline-flex items-center gap-1 font-medium ${r.type === 'in' ? 'text-success' : r.type === 'out' ? 'text-destructive' : 'text-warning'}`}>
+                  {r.type === 'in' ? <ArrowDownToLine className="h-3.5 w-3.5" /> : r.type === 'out' ? <ArrowUpFromLineIcon className="h-3.5 w-3.5" /> : <SlidersHorizontal className="h-3.5 w-3.5" />}
+                  {movementTypeLabel(r.type)}
+                </span>
+              )},
+              { key: 'qty',      header: 'الكمية',   cell: (r) => <span className="font-semibold">{r.quantity}</span> },
+              { key: 'supplier', header: 'المورد',   cell: (r) => r.supplier_name ?? '—' },
+              { key: 'reason',   header: 'السبب',    cell: (r) => <span className="text-muted-foreground">{r.reason ?? '—'}</span> },
+            ] as Column<StockMovement>[]}
+            searchKeys={['product_name', 'reason']}
+            searchPlaceholder="ابحث بالمنتج أو السبب..."
+          />
+          {(!movementsQuery.data || movementsQuery.data.length === 0) && !movementsQuery.isLoading && (
+            <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-2">
+              <Package className="h-10 w-10 opacity-30" />
+              <p className="text-sm">لا توجد حركات مخزون بعد.</p>
+            </div>
+          )}
         </TabsContent>
       </Tabs>
 
@@ -426,11 +542,86 @@ const Products = () => {
               <div><Label>السعر</Label><Input type="number" className="mt-1.5" value={editing.price} onChange={e => setEditing(s => ({ ...s, price: Number(e.target.value) }))} /></div>
               <div><Label>الكمية</Label><Input type="number" className="mt-1.5" value={editing.quantity} onChange={e => setEditing(s => ({ ...s, quantity: Number(e.target.value) }))} /></div>
               <div><Label>حد التنبيه</Label><Input type="number" className="mt-1.5" value={editing.alertLevel} onChange={e => setEditing(s => ({ ...s, alertLevel: Number(e.target.value) }))} /></div>
+              <div><Label>الوحدة</Label><Input className="mt-1.5" value={(editing as { unit?: string }).unit ?? ''} onChange={e => setEditing(s => ({ ...s, unit: e.target.value }))} placeholder="قطعة" /></div>
+              <div className="sm:col-span-2">
+                <Label>المورد</Label>
+                <Select
+                  value={(editing as unknown as { supplierId?: string }).supplierId ?? NO_SUPPLIER}
+                  onValueChange={(v) => setEditing(s => ({ ...s, supplierId: v === NO_SUPPLIER ? undefined : v } as unknown as Product))}
+                >
+                  <SelectTrigger className="mt-1.5"><SelectValue placeholder="اختر مورداً (اختياري)" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NO_SUPPLIER}>بدون مورد</SelectItem>
+                    {suppliers.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>إلغاء</Button>
             <Button onClick={submit}>حفظ</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Stock movement dialog */}
+      <Dialog open={movementOpen} onOpenChange={setMovementOpen}>
+        <DialogContent className="max-w-md" dir="rtl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Package className="h-5 w-5" /> تسجيل حركة مخزون
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <Label>المنتج *</Label>
+              <Select value={newMovement.product_id} onValueChange={v => setNewMovement(p => ({ ...p, product_id: v }))}>
+                <SelectTrigger className="mt-1.5"><SelectValue placeholder="اختر منتجاً" /></SelectTrigger>
+                <SelectContent>
+                  {list.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>نوع الحركة *</Label>
+                <Select value={newMovement.type} onValueChange={v => setNewMovement(p => ({ ...p, type: v as 'in' | 'out' | 'adjustment' }))}>
+                  <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="in">وارد (زيادة)</SelectItem>
+                    <SelectItem value="out">صادر (نقصان)</SelectItem>
+                    <SelectItem value="adjustment">تعديل</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>الكمية *</Label>
+                <Input className="mt-1.5" type="number" min="0" step="0.001" value={newMovement.quantity} onChange={e => setNewMovement(p => ({ ...p, quantity: e.target.value }))} />
+              </div>
+            </div>
+            {suppliers.length > 0 && (
+              <div>
+                <Label>المورد</Label>
+                <Select value={newMovement.supplier_id || NO_SUPPLIER} onValueChange={v => setNewMovement(p => ({ ...p, supplier_id: v === NO_SUPPLIER ? '' : v }))}>
+                  <SelectTrigger className="mt-1.5"><SelectValue placeholder="اختياري" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NO_SUPPLIER}>بدون مورد</SelectItem>
+                    {suppliers.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            <div>
+              <Label>السبب / الملاحظات</Label>
+              <Textarea className="mt-1.5" value={newMovement.reason} onChange={e => setNewMovement(p => ({ ...p, reason: e.target.value }))} placeholder="اختياري" rows={2} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setMovementOpen(false)}>إلغاء</Button>
+            <Button onClick={saveMovement} disabled={movementSaving}>
+              {movementSaving ? 'جارٍ الحفظ...' : 'تسجيل الحركة'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

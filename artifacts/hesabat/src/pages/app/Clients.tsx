@@ -109,10 +109,10 @@ const Clients = () => {
           <DialogHeader><DialogTitle>{editing.name ? 'تعديل عميل' : 'إضافة عميل جديد'}</DialogTitle></DialogHeader>
           <div className="grid sm:grid-cols-2 gap-4">
             <Field label="الاسم *" value={editing.name} onChange={v => setEditing(e => ({ ...e, name: v }))} />
-            <Field label="رقم الهاتف *" value={editing.phone} onChange={v => setEditing(e => ({ ...e, phone: v }))} />
-            <Field label="رقم واتساب" value={editing.whatsapp ?? ''} onChange={v => setEditing(e => ({ ...e, whatsapp: v }))} />
-            <Field label="البريد الإلكتروني" value={editing.email ?? ''} onChange={v => setEditing(e => ({ ...e, email: v }))} />
-            <Field label="الرقم الضريبي" value={editing.taxNumber ?? ''} onChange={v => setEditing(e => ({ ...e, taxNumber: v }))} />
+            <Field label="رقم الهاتف *" type="tel" value={editing.phone} onChange={v => setEditing(e => ({ ...e, phone: v }))} />
+            <Field label="رقم واتساب" type="tel" value={editing.whatsapp ?? ''} onChange={v => setEditing(e => ({ ...e, whatsapp: v }))} />
+            <Field label="البريد الإلكتروني" type="email" value={editing.email ?? ''} onChange={v => setEditing(e => ({ ...e, email: v }))} />
+            <Field label="الرقم الضريبي" inputMode="numeric" pattern="[0-9]*" value={editing.taxNumber ?? ''} onChange={v => setEditing(e => ({ ...e, taxNumber: v }))} />
             <div>
               <Label>العملة</Label>
               <Select
@@ -141,8 +141,11 @@ const Clients = () => {
   );
 };
 
-const Field = ({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) => (
-  <div><Label>{label}</Label><Input value={value} onChange={e => onChange(e.target.value)} className="mt-1.5" /></div>
+const Field = ({ label, value, onChange, type, inputMode, pattern }: {
+  label: string; value: string; onChange: (v: string) => void;
+  type?: string; inputMode?: React.HTMLAttributes<HTMLInputElement>['inputMode']; pattern?: string;
+}) => (
+  <div><Label>{label}</Label><Input type={type} inputMode={inputMode} pattern={pattern} value={value} onChange={e => onChange(e.target.value)} className="mt-1.5" /></div>
 );
 
 export default Clients;
