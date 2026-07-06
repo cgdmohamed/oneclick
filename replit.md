@@ -9,6 +9,36 @@ Arabic-first multi-tenant SaaS accounting platform. Companies can issue invoices
 - `pnpm --filter @workspace/db run push` — push Drizzle schema changes to the DB (dev only, not for production)
 - Required env: `DATABASE_URL`, `JWT_SECRET`, `JWT_REFRESH_SECRET`, `VITE_API_URL=same-origin`
 
+### Local commands
+
+Use pnpm from the workspace root.
+
+```bash
+# Install dependencies
+pnpm install
+
+# Typecheck everything
+pnpm run typecheck
+
+# API only
+pnpm --filter @workspace/api-server run typecheck
+pnpm --filter @workspace/api-server run build
+pnpm --filter @workspace/api-server run migrate
+pnpm --filter @workspace/api-server run start
+
+# Frontend only
+pnpm --filter @workspace/hesabat run typecheck
+pnpm --filter @workspace/hesabat run dev
+pnpm --filter @workspace/hesabat run build
+```
+
+Notes:
+
+- Frontend dev expects `VITE_API_URL=same-origin` so `/api` and `/uploads` are routed through the Vite proxy to the API.
+- Vite currently requires Node `20.19+` or `22.12+`. Node `20.11.1` is too old for frontend builds; use the bundled/runtime Node 24 or install a newer local Node.
+- If `pnpm --filter @workspace/hesabat run build` fails with missing `@rollup/rollup-win32-x64-msvc`, refresh optional dependencies with a full pnpm install under a supported Node runtime. The lockfile may skip platform-native optional packages when installed under a different platform/runtime.
+- The API build uses esbuild. If pnpm blocks dependency build scripts, run `pnpm approve-builds --all` and retry.
+
 ### Test accounts (development seed)
 
 Run once to insert test users and a test company:
@@ -108,6 +138,23 @@ SQL migration files live in `artifacts/api-server/src/db/migrations/` numbered `
 - **Add a new migration**: drop a new numbered `.sql` file in `src/db/migrations/` — the runner picks it up automatically on the next deploy.
 - **Do not use `drizzle-kit push` in production** — it prompts interactively and exits 1 in non-TTY environments.
 
+### Accounting setup after deploy
+
+Migration `029_accounting_core.sql` adds the full accounting core: chart of accounts, fiscal years/periods, accounting settings, journal entries, purchases/payables, stock ledger, and opening-balance support.
+
+After deploying/migrating:
+
+1. Log in as a company admin.
+2. Open **Accounting Settings** and run default initialization.
+3. Review **Chart of Accounts** and adjust account names/codes if needed.
+4. Map all required default accounts in **Accounting Settings**.
+5. Create fiscal years and periods in **Fiscal Years**.
+6. Review **Opening Balances** and run the migration only after confirmation.
+
+Operational accounting pages live under `/app/accounting/*` and purchases under `/app/purchases/*`.
+
+Purchase returns are intentionally not exposed in the UI yet. The backend placeholder returns `501` until the complete inventory, payable, and journal reversal workflow is implemented.
+
 ## Stack
 
 - pnpm workspaces, Node.js 24, TypeScript 5.9
@@ -126,6 +173,8 @@ SQL migration files live in `artifacts/api-server/src/db/migrations/` numbered `
 - `artifacts/hesabat/src/lib/auth.tsx` — auth context (real API + mock fallback)
 - `artifacts/api-server/src/app.ts` — Express app wiring all routes
 - `artifacts/api-server/src/modules/` — auth, companies, clients, invoices, payments, products, accounts, subscriptions, plans, platform, public, uploads, invitations, notifications, reports, users
+- `artifacts/api-server/src/modules/accounting/` — accounting setup, chart accounts, fiscal periods, journal entries, reversals, opening-balance migration, posting helpers
+- `artifacts/api-server/src/modules/purchases/` — purchase invoices, purchase invoice items, supplier payments, purchase-return placeholder
 - `artifacts/api-server/src/middleware/` — auth, tenant, RBAC, CSRF, planLimits, error, requestContext
 - `artifacts/api-server/src/utils/` — pdf, email, emailQueue, audit, crud, pagination, errors, logger, money, cookies
 - `artifacts/api-server/src/config/env.ts` — validated env schema (Zod)
@@ -145,7 +194,9 @@ SQL migration files live in `artifacts/api-server/src/db/migrations/` numbered `
 - Public landing page, pricing, features, about, contact (Arabic RTL)
 - Auth: register (creates company + free trial), login, logout, JWT refresh, password reset, email verification, invitations
 - Company dashboard: overview stats, clients, invoices (PDF/email/WhatsApp), payments, accounts, products/inventory
-- Reports: aging, monthly sales, overview
+- Accounting: chart of accounts, fiscal years/period locks, accounting settings, journal entries, reversals, opening balances
+- Purchases/payables: purchase invoices, purchase invoice details, supplier payments
+- Reports: aging, monthly sales, overview, general ledger, account statements, trial balance, income statement, balance sheet, customer ledger, supplier ledger, VAT, inventory valuation
 - Multi-user: invite team members, RBAC (company_admin, accountant, sales, viewer)
 - Admin panel (super_admin): companies, plans, subscriptions, feature access, system notifications, audit log
 - File uploads with private/public storage

@@ -19,51 +19,111 @@ import { Sparkles } from 'lucide-react';
 import PendingApproval from '@/pages/app/PendingApproval';
 import { isApiConfigured } from '@/lib/api';
 
-const companyNav: { to: string; label: string; icon: typeof LayoutDashboard; end?: boolean; feature?: string }[] = [
-  { to: '/app', label: 'الرئيسية', icon: LayoutDashboard, end: true },
-  { to: '/app/clients', label: 'العملاء', icon: Users, feature: 'clients' },
-  { to: '/app/suppliers', label: 'الموردون', icon: Truck, feature: 'suppliers' },
-  { to: '/app/invoices', label: 'الفواتير', icon: FileText, feature: 'invoices' },
-  { to: '/app/payments', label: 'التحصيلات', icon: CreditCard, feature: 'payments' },
-  { to: '/app/payouts', label: 'المصروفات', icon: ArrowUpFromLine, feature: 'payouts' },
-  { to: '/app/accounts', label: 'الحسابات المالية', icon: Wallet, feature: 'accounts' },
-  { to: '/app/products', label: 'المنتجات والمخزون', icon: Package, feature: 'products' },
-  { to: '/app/accounting/chart', label: 'دليل الحسابات', icon: BookOpen, feature: 'accounting' },
-  { to: '/app/accounting/journals', label: 'قيود اليومية', icon: Scale, feature: 'accounting' },
-  { to: '/app/accounting/fiscal-years', label: 'الفترات المالية', icon: CalendarDays, feature: 'accounting' },
-  { to: '/app/accounting/settings', label: 'إعدادات المحاسبة', icon: Settings, feature: 'accounting' },
-  { to: '/app/accounting/opening-balances', label: 'الأرصدة الافتتاحية', icon: FileText, feature: 'accounting' },
-  { to: '/app/accounting/reports', label: 'التقارير المالية', icon: BarChart3, feature: 'accounting' },
-  { to: '/app/purchases/invoices', label: 'فواتير الشراء', icon: Truck, feature: 'purchases' },
-  { to: '/app/purchases/supplier-payments', label: 'دفعات الموردين', icon: CreditCard, feature: 'purchases' },
-  { to: '/app/reports', label: 'التقارير', icon: BarChart3, feature: 'reports_basic' },
-  { to: '/app/notifications', label: 'التنبيهات', icon: Bell, feature: 'notifications' },
-  { to: '/app/alerts-log', label: 'سجل التنبيهات', icon: BellRing, feature: 'notifications' },
-  { to: '/app/users', label: 'المستخدمون والصلاحيات', icon: ShieldCheck, feature: 'rbac' },
-  { to: '/app/activity', label: 'سجل الأنشطة', icon: History, feature: 'activity_log' },
-  { to: '/app/subscription', label: 'الاشتراك والفوترة', icon: Crown },
-  { to: '/app/settings', label: 'الإعدادات', icon: Settings },
-  { to: '/app/settings/account', label: 'الحساب الشخصي', icon: UserCog },
+type NavItem = {
+  to: string;
+  label: string;
+  icon: typeof LayoutDashboard;
+  end?: boolean;
+  feature?: string;
+  badge?: 'pending-signups';
+};
+
+type NavGroup = {
+  label: string;
+  items: NavItem[];
+};
+
+const companyNavGroups: NavGroup[] = [
+  {
+    label: 'نظرة عامة',
+    items: [
+      { to: '/app', label: 'الرئيسية', icon: LayoutDashboard, end: true },
+      { to: '/app/reports', label: 'التقارير العامة', icon: BarChart3, feature: 'reports_basic' },
+    ],
+  },
+  {
+    label: 'المبيعات والعملاء',
+    items: [
+      { to: '/app/clients', label: 'العملاء', icon: Users, feature: 'clients' },
+      { to: '/app/invoices', label: 'الفواتير', icon: FileText, feature: 'invoices' },
+      { to: '/app/payments', label: 'التحصيلات', icon: CreditCard, feature: 'payments' },
+    ],
+  },
+  {
+    label: 'المشتريات والمخزون',
+    items: [
+      { to: '/app/suppliers', label: 'الموردون', icon: Truck, feature: 'suppliers' },
+      { to: '/app/purchases/invoices', label: 'فواتير الشراء', icon: FileText, feature: 'purchases' },
+      { to: '/app/purchases/supplier-payments', label: 'دفعات الموردين', icon: CreditCard, feature: 'purchases' },
+      { to: '/app/payouts', label: 'المصروفات', icon: ArrowUpFromLine, feature: 'payouts' },
+      { to: '/app/products', label: 'المنتجات والمخزون', icon: Package, feature: 'products' },
+    ],
+  },
+  {
+    label: 'المحاسبة',
+    items: [
+      { to: '/app/accounts', label: 'الحسابات المالية', icon: Wallet, feature: 'accounts' },
+      { to: '/app/accounting/chart', label: 'دليل الحسابات', icon: BookOpen, feature: 'accounting' },
+      { to: '/app/accounting/journals', label: 'قيود اليومية', icon: Scale, feature: 'accounting' },
+      { to: '/app/accounting/reports', label: 'التقارير المالية', icon: BarChart3, feature: 'accounting' },
+      { to: '/app/accounting/fiscal-years', label: 'الفترات المالية', icon: CalendarDays, feature: 'accounting' },
+      { to: '/app/accounting/opening-balances', label: 'الأرصدة الافتتاحية', icon: FileText, feature: 'accounting' },
+      { to: '/app/accounting/settings', label: 'إعدادات المحاسبة', icon: Settings, feature: 'accounting' },
+    ],
+  },
+  {
+    label: 'الإدارة',
+    items: [
+      { to: '/app/notifications', label: 'التنبيهات', icon: Bell, feature: 'notifications' },
+      { to: '/app/alerts-log', label: 'سجل التنبيهات', icon: BellRing, feature: 'notifications' },
+      { to: '/app/users', label: 'المستخدمون والصلاحيات', icon: ShieldCheck, feature: 'rbac' },
+      { to: '/app/activity', label: 'سجل الأنشطة', icon: History, feature: 'activity_log' },
+      { to: '/app/subscription', label: 'الاشتراك والفوترة', icon: Crown },
+      { to: '/app/settings', label: 'الإعدادات', icon: Settings },
+      { to: '/app/settings/account', label: 'الحساب الشخصي', icon: UserCog },
+    ],
+  },
 ];
 
-const adminNav = [
-  { to: '/admin', label: 'لوحة الإدارة', icon: LayoutDashboard, end: true },
-  { to: '/admin/analytics', label: 'تحليلات المنصة', icon: PieChart },
-  { to: '/admin/approvals', label: 'طلبات التسجيل', icon: UserPlus, badge: 'pending-signups' as const },
-  { to: '/admin/companies', label: 'الشركات والمشتركون', icon: Building2 },
-  { to: '/admin/plans', label: 'الباقات', icon: Layers },
-  { to: '/admin/subscriptions', label: 'الاشتراكات', icon: FileText },
-  
-  { to: '/admin/wallets', label: 'محافظ التحصيل', icon: Wallet },
-  { to: '/admin/feature-access', label: 'الصلاحيات حسب الباقة', icon: ToggleRight },
-  { to: '/admin/roles', label: 'الأدوار والصلاحيات', icon: ShieldCheck },
-  { to: '/admin/audit-log', label: 'سجل التدقيق', icon: ScrollText },
-  { to: '/admin/notifications', label: 'إشعارات النظام', icon: Megaphone },
-  { to: '/admin/landing', label: 'محتوى الصفحات العامة', icon: LayoutTemplate },
-  { to: '/admin/tracking', label: 'التسويق والتحليلات', icon: LineChart },
-  { to: '/admin/settings', label: 'إعدادات النظام', icon: Cog },
-  { to: '/admin/settings/account', label: 'الحساب الشخصي', icon: UserCog },
+const adminNavGroups: NavGroup[] = [
+  {
+    label: 'نظرة عامة',
+    items: [
+      { to: '/admin', label: 'لوحة الإدارة', icon: LayoutDashboard, end: true },
+      { to: '/admin/analytics', label: 'تحليلات المنصة', icon: PieChart },
+      { to: '/admin/approvals', label: 'طلبات التسجيل', icon: UserPlus, badge: 'pending-signups' },
+    ],
+  },
+  {
+    label: 'الشركات والفوترة',
+    items: [
+      { to: '/admin/companies', label: 'الشركات والمشتركون', icon: Building2 },
+      { to: '/admin/plans', label: 'الباقات', icon: Layers },
+      { to: '/admin/subscriptions', label: 'الاشتراكات', icon: FileText },
+      { to: '/admin/wallets', label: 'محافظ التحصيل', icon: Wallet },
+    ],
+  },
+  {
+    label: 'الصلاحيات والنظام',
+    items: [
+      { to: '/admin/feature-access', label: 'الصلاحيات حسب الباقة', icon: ToggleRight },
+      { to: '/admin/roles', label: 'الأدوار والصلاحيات', icon: ShieldCheck },
+      { to: '/admin/audit-log', label: 'سجل التدقيق', icon: ScrollText },
+      { to: '/admin/notifications', label: 'إشعارات النظام', icon: Megaphone },
+    ],
+  },
+  {
+    label: 'الموقع والإعدادات',
+    items: [
+      { to: '/admin/landing', label: 'محتوى الصفحات العامة', icon: LayoutTemplate },
+      { to: '/admin/tracking', label: 'التسويق والتحليلات', icon: LineChart },
+      { to: '/admin/settings', label: 'إعدادات النظام', icon: Cog },
+      { to: '/admin/settings/account', label: 'الحساب الشخصي', icon: UserCog },
+    ],
+  },
 ];
+
+const companyNav = companyNavGroups.flatMap((group) => group.items);
 
 const pageKey = (kind: 'company' | 'admin', pathname: string): string => {
   if (kind === 'admin') {
@@ -139,9 +199,14 @@ const AppShellInner = ({ kind }: { kind: 'company' | 'admin' }) => {
     isApiConfigured() &&
     !hasActivePlan;
 
-  const nav = kind === 'admin'
-    ? adminNav
-    : companyNav.filter((item) => !('feature' in item) || !item.feature || featureSet.has(item.feature));
+  const navGroups = (kind === 'admin' ? adminNavGroups : companyNavGroups)
+    .map((group) => ({
+      ...group,
+      items: kind === 'admin'
+        ? group.items
+        : group.items.filter((item) => !item.feature || featureSet.has(item.feature)),
+    }))
+    .filter((group) => group.items.length > 0);
 
   return (
     <div
@@ -166,28 +231,30 @@ const AppShellInner = ({ kind }: { kind: 'company' | 'admin' }) => {
             )}
           </div>
         </SidebarHeader>
-        <SidebarContent>
-          <SidebarGroup>
-            <SidebarGroupLabel>{kind === 'admin' ? 'الإدارة' : 'القائمة'}</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {nav.map(item => (
-                  <SidebarMenuItem key={item.to}>
-                    <SidebarMenuButton asChild>
-                      <NavLink to={item.to} end={item.end} className={({ isActive }) => cn(
-                        'flex items-center gap-3',
-                        isActive && 'bg-sidebar-accent text-sidebar-accent-foreground font-semibold'
-                      )}>
-                        <item.icon className="h-4 w-4" />
-                        {!collapsed && <span className="flex-1">{item.label}</span>}
-                        {!collapsed && 'badge' in item && item.badge === 'pending-signups' && <PendingBadge />}
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
+        <SidebarContent className="px-1.5 py-2">
+          {navGroups.map((group) => (
+            <SidebarGroup key={group.label} className="py-1.5">
+              {!collapsed && <SidebarGroupLabel className="text-[11px]">{group.label}</SidebarGroupLabel>}
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {group.items.map(item => (
+                    <SidebarMenuItem key={item.to}>
+                      <SidebarMenuButton asChild tooltip={collapsed ? item.label : undefined}>
+                        <NavLink to={item.to} end={item.end} className={({ isActive }) => cn(
+                          'flex items-center gap-3',
+                          isActive && 'bg-sidebar-accent text-sidebar-accent-foreground font-semibold'
+                        )}>
+                          <item.icon className="h-4 w-4" />
+                          {!collapsed && <span className="flex-1 truncate">{item.label}</span>}
+                          {!collapsed && item.badge === 'pending-signups' && <PendingBadge />}
+                        </NavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          ))}
         </SidebarContent>
         <SidebarFooter className="border-t border-sidebar-border">
           <SidebarMenu>
