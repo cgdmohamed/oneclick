@@ -736,7 +736,7 @@ router.get('/sessions', requireAuth, async (req, res, next) => {
 router.delete('/sessions/:id', requireAuth, requireCsrf, async (req, res, next) => {
   try {
     const userId = req.auth!.userId;
-    const { id } = req.params;
+    const id = String(req.params.id);
     const currentToken = readRefreshToken(req);
     const currentHash = currentToken ? sha(currentToken) : null;
     const row = await pool.query(

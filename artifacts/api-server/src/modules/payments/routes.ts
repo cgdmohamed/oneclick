@@ -4,6 +4,7 @@ import { badRequest, notFound } from '../../utils/errors.js';
 import { audit } from '../../utils/audit.js';
 import { parsePagination } from '../../utils/pagination.js';
 import { round2, lte2 } from '../../utils/money.js';
+import { assertPeriodOpen, postCustomerPayment } from '../accounting/posting.js';
 
 const router = Router();
 
@@ -63,6 +64,8 @@ router.post('/', async (req, res, next) => {
   try {
     const t = req.tenant!;
     const body = createSchema.parse(req.body);
+    const paidAt = body.paid_at ?? new Date().toISOString();
+    await assertPeriodOpen(t.db, t.companyId, paidAt);
 
     const inv = await t.db.query(`SELECT total, paid FROM invoices WHERE id = $1 FOR UPDATE`, [body.invoice_id]);
     if (!inv.rowCount) throw notFound('Invoice not found');
@@ -75,7 +78,7 @@ router.post('/', async (req, res, next) => {
       INSERT INTO payments (company_id, invoice_id, account_id, amount, paid_at, method, reference, notes, created_by)
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *
     `, [t.companyId, body.invoice_id, body.account_id, amount,
-        body.paid_at ?? new Date(), body.method, body.reference ?? null, body.notes ?? null, req.auth!.userId]);
+        paidAt, body.method, body.reference ?? null, body.notes ?? null, req.auth!.userId]);
 
     const newPaid = round2(alreadyPaid + amount);
     const remaining = round2(Math.max(0, total - newPaid));
@@ -89,6 +92,7 @@ router.post('/', async (req, res, next) => {
       `UPDATE accounts SET balance = balance + $1 WHERE id = $2`,
       [amount, body.account_id],
     );
+    await postCustomerPayment(t.db, t.companyId, payRes.rows[0].id, req.auth!.userId);
 
     await audit(t.db, {
       companyId: t.companyId, userId: req.auth!.userId,
@@ -105,6 +109,9 @@ router.delete('/:id', async (req, res, next) => {
     const p = await t.db.query(`SELECT * FROM payments WHERE id = $1 AND company_id = $2 FOR UPDATE`, [req.params.id, t.companyId]);
     if (!p.rowCount) throw notFound();
     const pay = p.rows[0];
+    if (pay.journal_entry_id) {
+      throw badRequest('Posted payments cannot be deleted. Reverse the journal entry or cancel the source document.');
+    }
     await t.db.query(`DELETE FROM payments WHERE id = $1 AND company_id = $2`, [req.params.id, t.companyId]);
     await t.db.query(`UPDATE accounts SET balance = balance - $1 WHERE id = $2`, [pay.amount, pay.account_id]);
     const sums = await t.db.query(`SELECT COALESCE(SUM(amount),0) AS s FROM payments WHERE invoice_id = $1`, [pay.invoice_id]);

@@ -30,7 +30,7 @@ async function getBoss(): Promise<PgBoss | null> {
         // Keep pg-boss schema isolated from app tables
         schema: 'pgboss',
         retentionDays: 7,
-      });
+      } as ConstructorParameters<typeof PgBoss>[0]);
       instance.on('error', (e) => console.error('[email-queue] pg-boss error:', e));
       await instance.start();
       // Ensure the queue exists (pg-boss v10+)
@@ -64,7 +64,7 @@ export async function enqueueEmail(payload: EmailPayload): Promise<string | null
     retryDelay: 60,      // 60s first retry
     retryBackoff: true,  // exponential
     expireInHours: 24,
-  });
+  } as Parameters<PgBoss['send']>[2]);
   return id;
 }
 

@@ -197,4 +197,181 @@ router.get('/accounts-summary', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+function dateFilters(query: Record<string, unknown>, column = 'je.entry_date') {
+  const params: unknown[] = [];
+  const where: string[] = [];
+  const from = typeof query.from === 'string' ? query.from : null;
+  const to = typeof query.to === 'string' ? query.to : null;
+  if (from) { params.push(from); where.push(`${column} >= $${params.length}`); }
+  if (to) { params.push(to); where.push(`${column} <= $${params.length}`); }
+  return { params, where };
+}
+
+router.get('/general-ledger', async (req, res, next) => {
+  try {
+    const t = req.tenant!;
+    const accountId = typeof req.query.account_id === 'string' ? req.query.account_id : null;
+    const f = dateFilters(req.query);
+    const params: unknown[] = [t.companyId, ...f.params];
+    const where = [`je.company_id = $1`, `je.status IN ('posted','reversed')`, ...f.where.map((w) => w.replace(/\$(\d+)/g, (_, n) => `$${Number(n) + 1}`))];
+    if (accountId) { params.push(accountId); where.push(`jel.account_id = $${params.length}`); }
+    const rs = await t.db.query(
+      `SELECT je.entry_date, je.number, je.source_type, je.source_id, je.memo,
+              ca.code AS account_code, ca.name AS account_name, ca.type,
+              jel.description, jel.debit, jel.credit
+       FROM journal_entry_lines jel
+       JOIN journal_entries je ON je.id = jel.journal_entry_id
+       JOIN chart_accounts ca ON ca.id = jel.account_id
+       WHERE ${where.join(' AND ')}
+       ORDER BY je.entry_date, je.number, jel.line_no`,
+      params,
+    );
+    res.json({ data: rs.rows });
+  } catch (e) { next(e); }
+});
+
+router.get('/account-statement/:accountId', async (req, res, next) => {
+  try {
+    const t = req.tenant!;
+    const f = dateFilters(req.query);
+    const params: unknown[] = [t.companyId, req.params.accountId, ...f.params];
+    const where = [`je.company_id = $1`, `jel.account_id = $2`, `je.status IN ('posted','reversed')`, ...f.where.map((w) => w.replace(/\$(\d+)/g, (_, n) => `$${Number(n) + 2}`))];
+    const rs = await t.db.query(
+      `SELECT je.entry_date, je.number, je.memo, jel.description, jel.debit, jel.credit,
+              SUM(jel.debit - jel.credit) OVER (ORDER BY je.entry_date, je.number, jel.line_no) AS running_balance
+       FROM journal_entry_lines jel JOIN journal_entries je ON je.id = jel.journal_entry_id
+       WHERE ${where.join(' AND ')}
+       ORDER BY je.entry_date, je.number, jel.line_no`,
+      params,
+    );
+    res.json({ data: rs.rows });
+  } catch (e) { next(e); }
+});
+
+router.get('/trial-balance', async (req, res, next) => {
+  try {
+    const t = req.tenant!;
+    const f = dateFilters(req.query);
+    const params: unknown[] = [t.companyId, ...f.params];
+    const where = [`ca.company_id = $1`, `je.status IN ('posted','reversed')`, ...f.where.map((w) => w.replace(/\$(\d+)/g, (_, n) => `$${Number(n) + 1}`))];
+    const rs = await t.db.query(
+      `SELECT ca.id, ca.code, ca.name, ca.type, ca.normal_balance,
+              COALESCE(SUM(jel.debit),0) AS debit,
+              COALESCE(SUM(jel.credit),0) AS credit,
+              COALESCE(SUM(jel.debit - jel.credit),0) AS balance
+       FROM chart_accounts ca
+       LEFT JOIN journal_entry_lines jel ON jel.account_id = ca.id
+       LEFT JOIN journal_entries je ON je.id = jel.journal_entry_id
+       WHERE ${where.join(' AND ')}
+       GROUP BY ca.id, ca.code, ca.name, ca.type, ca.normal_balance
+       ORDER BY ca.code`,
+      params,
+    );
+    const debit = rs.rows.reduce((sum: number, row: { debit: string }) => sum + Number(row.debit), 0);
+    const credit = rs.rows.reduce((sum: number, row: { credit: string }) => sum + Number(row.credit), 0);
+    res.json({ data: rs.rows, summary: { debit: debit.toFixed(2), credit: credit.toFixed(2), difference: (debit - credit).toFixed(2) } });
+  } catch (e) { next(e); }
+});
+
+router.get('/income-statement', async (req, res, next) => {
+  try {
+    const t = req.tenant!;
+    const f = dateFilters(req.query);
+    const params: unknown[] = [t.companyId, ...f.params];
+    const where = [`ca.company_id = $1`, `je.status IN ('posted','reversed')`, `ca.type IN ('revenue','expense')`, ...f.where.map((w) => w.replace(/\$(\d+)/g, (_, n) => `$${Number(n) + 1}`))];
+    const rs = await t.db.query(
+      `SELECT ca.code, ca.name, ca.type,
+              COALESCE(SUM(jel.credit - jel.debit),0) AS amount
+       FROM chart_accounts ca
+       LEFT JOIN journal_entry_lines jel ON jel.account_id = ca.id
+       LEFT JOIN journal_entries je ON je.id = jel.journal_entry_id
+       WHERE ${where.join(' AND ')}
+       GROUP BY ca.code, ca.name, ca.type ORDER BY ca.code`,
+      params,
+    );
+    const revenue = rs.rows
+      .filter((r: { type: string }) => r.type === 'revenue')
+      .reduce((s: number, r: { amount: string }) => s + Number(r.amount), 0);
+    const expenses = rs.rows
+      .filter((r: { type: string }) => r.type === 'expense')
+      .reduce((s: number, r: { amount: string }) => s - Number(r.amount), 0);
+    res.json({ data: rs.rows, summary: { revenue: revenue.toFixed(2), expenses: expenses.toFixed(2), net_income: (revenue - expenses).toFixed(2) } });
+  } catch (e) { next(e); }
+});
+
+router.get('/balance-sheet', async (req, res, next) => {
+  try {
+    const t = req.tenant!;
+    const to = typeof req.query.to === 'string' ? req.query.to : new Date().toISOString().slice(0, 10);
+    const rs = await t.db.query(
+      `SELECT ca.code, ca.name, ca.type,
+              COALESCE(SUM(jel.debit - jel.credit),0) AS debit_balance,
+              COALESCE(SUM(jel.credit - jel.debit),0) AS credit_balance
+       FROM chart_accounts ca
+       LEFT JOIN journal_entry_lines jel ON jel.account_id = ca.id
+       LEFT JOIN journal_entries je ON je.id = jel.journal_entry_id AND je.status IN ('posted','reversed') AND je.entry_date <= $2
+       WHERE ca.company_id = $1 AND ca.type IN ('asset','liability','equity')
+       GROUP BY ca.code, ca.name, ca.type ORDER BY ca.code`,
+      [t.companyId, to],
+    );
+    const assets = rs.rows
+      .filter((r: { type: string }) => r.type === 'asset')
+      .reduce((s: number, r: { debit_balance: string }) => s + Number(r.debit_balance), 0);
+    const liabilities = rs.rows
+      .filter((r: { type: string }) => r.type === 'liability')
+      .reduce((s: number, r: { credit_balance: string }) => s + Number(r.credit_balance), 0);
+    const equity = rs.rows
+      .filter((r: { type: string }) => r.type === 'equity')
+      .reduce((s: number, r: { credit_balance: string }) => s + Number(r.credit_balance), 0);
+    res.json({ data: rs.rows, summary: { assets: assets.toFixed(2), liabilities: liabilities.toFixed(2), equity: equity.toFixed(2), liabilities_and_equity: (liabilities + equity).toFixed(2) } });
+  } catch (e) { next(e); }
+});
+
+router.get('/customer-ledger', async (req, res, next) => {
+  try {
+    const t = req.tenant!;
+    const rs = await t.db.query(
+      `SELECT c.id, c.name,
+              COALESCE(SUM(i.total),0) AS invoiced,
+              COALESCE(SUM(i.paid),0) AS paid,
+              COALESCE(SUM(i.remaining),0) AS outstanding
+       FROM clients c
+       LEFT JOIN invoices i ON i.client_id = c.id AND i.company_id = c.company_id AND i.status != 'cancelled'
+       WHERE c.company_id = $1
+       GROUP BY c.id, c.name ORDER BY c.name`,
+      [t.companyId],
+    );
+    res.json({ data: rs.rows });
+  } catch (e) { next(e); }
+});
+
+router.get('/supplier-ledger', async (req, res, next) => {
+  try {
+    const t = req.tenant!;
+    const rs = await t.db.query(
+      `SELECT s.id, s.name,
+              COALESCE(SUM(pi.total),0) AS purchased,
+              COALESCE(SUM(pi.paid),0) AS paid,
+              COALESCE(SUM(pi.remaining),0) AS outstanding
+       FROM suppliers s
+       LEFT JOIN purchase_invoices pi ON pi.supplier_id = s.id AND pi.company_id = s.company_id AND pi.status != 'cancelled'
+       WHERE s.company_id = $1
+       GROUP BY s.id, s.name ORDER BY s.name`,
+      [t.companyId],
+    );
+    res.json({ data: rs.rows });
+  } catch (e) { next(e); }
+});
+
+router.get('/vat', async (req, res, next) => {
+  try {
+    const t = req.tenant!;
+    const sales = await t.db.query(`SELECT COALESCE(SUM(vat_amount),0) AS vat FROM invoices WHERE company_id = $1 AND status != 'cancelled'`, [t.companyId]);
+    const purchases = await t.db.query(`SELECT COALESCE(SUM(vat_amount),0) AS vat FROM purchase_invoices WHERE company_id = $1 AND status != 'cancelled'`, [t.companyId]);
+    const outputVat = Number(sales.rows[0].vat);
+    const inputVat = Number(purchases.rows[0].vat);
+    res.json({ data: { output_vat: outputVat.toFixed(2), input_vat: inputVat.toFixed(2), net_vat_payable: (outputVat - inputVat).toFixed(2) } });
+  } catch (e) { next(e); }
+});
+
 export default router;

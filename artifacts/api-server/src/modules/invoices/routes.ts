@@ -12,6 +12,7 @@ import { parsePagination } from '../../utils/pagination.js';
 
 import { round2 } from '../../utils/money.js';
 import { internalKindSchema } from '../notifications/kinds.js';
+import { assertPeriodOpen, postSalesInvoice, reverseJournalEntry } from '../accounting/posting.js';
 
 const router = Router();
 
@@ -104,6 +105,7 @@ router.post('/', enforceInvoiceLimit(), async (req, res, next) => {
     const cfg = compRes.rows[0];
     const newSeq = cfg.invoice_sequence + 1;
     const issueDate = body.issue_date ? new Date(body.issue_date) : new Date();
+    await assertPeriodOpen(t.db, t.companyId, issueDate);
 
     // Resolve prefix: company-level customisation → platform general setting → 'INV'
     // A company prefix that still equals the schema default 'INV' is treated as
@@ -153,18 +155,37 @@ router.post('/', enforceInvoiceLimit(), async (req, res, next) => {
       `, [t.companyId, invoice.id, it.product_id ?? null, it.description, it.quantity, it.unit_price, it.vat_rate, line]);
 
       if (it.product_id) {
+        const productCost = await t.db.query(
+          `SELECT COALESCE(NULLIF(average_cost, 0), cost, 0) AS unit_cost
+           FROM products WHERE id = $1 AND company_id = $2`,
+          [it.product_id, t.companyId],
+        );
+        const unitCost = Number(productCost.rows[0]?.unit_cost ?? 0);
+        const cogsValue = round2(it.quantity * unitCost);
         // DAT-05: refuse to oversell. The CHECK-style update returns 0 rows
         // when the product would go negative; we surface a clean 400.
         const stock = await t.db.query(
-          `UPDATE products SET quantity = quantity - $1
+          `UPDATE products
+           SET quantity = quantity - $1,
+               inventory_value = GREATEST(0, inventory_value - $4)
            WHERE id = $2 AND company_id = $3 AND quantity >= $1
-           RETURNING id`,
-          [it.quantity, it.product_id, t.companyId],
+           RETURNING id, quantity, inventory_value`,
+          [it.quantity, it.product_id, t.companyId, cogsValue],
         );
         if (!stock.rowCount) {
           throw badRequest(`Insufficient stock for "${it.description}"`);
         }
+        await t.db.query(
+          `INSERT INTO stock_ledger
+           (company_id, product_id, source_type, source_id, movement_date, quantity_out, unit_cost, total_value, balance_quantity, balance_value)
+           VALUES ($1,$2,'invoice',$3,$4,$5,$6,$7,$8,$9)`,
+          [t.companyId, it.product_id, invoice.id, issueDate, it.quantity, unitCost, cogsValue, stock.rows[0].quantity, stock.rows[0].inventory_value],
+        );
       }
+    }
+
+    if (!body.draft) {
+      await postSalesInvoice(t.db, t.companyId, invoice.id, req.auth!.userId);
     }
 
     await audit(t.db, {
@@ -196,6 +217,7 @@ router.post('/:id/send', enforceInvoiceLimit(), async (req, res, next) => {
       `UPDATE invoices SET status = 'sent' WHERE id = $1 AND company_id = $2`,
       [invoiceId, t.companyId],
     );
+    await postSalesInvoice(t.db, t.companyId, invoiceId, req.auth!.userId);
 
     await audit(t.db, {
       companyId: t.companyId, userId: req.auth!.userId,
@@ -286,6 +308,7 @@ router.post('/:id/cancel', async (req, res, next) => {
       if (inv.status !== 'sent') {
         throw badRequest('Only sent invoices can be cancelled');
       }
+      await assertPeriodOpen(t.db, t.companyId, inv.issue_date);
 
       const items = await t.db.query(
         `SELECT product_id, quantity FROM invoice_items WHERE invoice_id = $1 AND company_id = $2`,
@@ -318,6 +341,9 @@ router.post('/:id/cancel', async (req, res, next) => {
         `UPDATE invoices SET status = 'cancelled' WHERE id = $1 AND company_id = $2`,
         [invoiceId, t.companyId],
       );
+      if (inv.journal_entry_id) {
+        await reverseJournalEntry(t.db, t.companyId, inv.journal_entry_id, req.auth!.userId);
+      }
 
       await audit(t.db, {
         companyId: t.companyId, userId: req.auth!.userId,
@@ -341,10 +367,13 @@ router.delete('/:id', async (req, res, next) => {
     const invoiceId = req.params.id;
 
     const invCheck = await t.db.query(
-      `SELECT id FROM invoices WHERE id = $1 AND company_id = $2`,
+      `SELECT id, journal_entry_id FROM invoices WHERE id = $1 AND company_id = $2`,
       [invoiceId, t.companyId],
     );
     if (!invCheck.rowCount) throw notFound('Invoice not found');
+    if (invCheck.rows[0].journal_entry_id) {
+      throw badRequest('Posted invoices cannot be deleted. Cancel the invoice to reverse it.');
+    }
 
     const items = await t.db.query(
       `SELECT product_id, quantity FROM invoice_items WHERE invoice_id = $1 AND company_id = $2`,

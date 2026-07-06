@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { StatCard } from '@/components/common/StatCard';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Card } from '@/components/ui/card';
-import { FileText, CreditCard, TrendingDown, Users, Package, Wallet, AlertTriangle, ArrowUpFromLine, TrendingUp } from 'lucide-react';
+import { FileText, CreditCard, TrendingDown, Users, Package, Wallet, AlertTriangle, ArrowUpFromLine, TrendingUp, Scale } from 'lucide-react';
 import { formatCurrency, formatDateShort, invoiceStatusLabel, paymentMethodLabel } from '@/lib/format';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { Link } from 'react-router-dom';
@@ -72,6 +72,22 @@ const Overview = () => {
     refetchInterval: 60_000,
   });
 
+  const balanceSheetQuery = useQuery({
+    enabled: apiOn,
+    queryKey: ['dashboard-balance-sheet'],
+    queryFn: async () => (await api.get<{ summary: { assets: string; liabilities: string; equity: string } }>('/api/reports/balance-sheet')).summary,
+  });
+  const incomeQuery = useQuery({
+    enabled: apiOn,
+    queryKey: ['dashboard-income-statement'],
+    queryFn: async () => (await api.get<{ summary: { revenue: string; expenses: string; net_income: string } }>('/api/reports/income-statement')).summary,
+  });
+  const vatQuery = useQuery({
+    enabled: apiOn,
+    queryKey: ['dashboard-vat'],
+    queryFn: async () => (await api.get<{ data: { net_vat_payable: string } }>('/api/reports/vat')).data,
+  });
+
   const { list: products } = useProducts();
 
   const data = overviewQuery.data;
@@ -129,6 +145,19 @@ const Overview = () => {
         <StatCard title="العملاء"            value={clientsCount}                   icon={Users}              accent="primary" />
         <StatCard title="مخزون منخفض"       value={lowStockCount}                  icon={AlertTriangle}      accent="destructive" />
       </div>
+
+      {apiOn && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-8 gap-4">
+          <StatCard title="الأصول" value={formatCurrency(Number(balanceSheetQuery.data?.assets ?? 0))} icon={Scale} accent="primary" />
+          <StatCard title="الالتزامات" value={formatCurrency(Number(balanceSheetQuery.data?.liabilities ?? 0))} icon={Scale} accent="warning" />
+          <StatCard title="حقوق الملكية" value={formatCurrency(Number(balanceSheetQuery.data?.equity ?? 0))} icon={Scale} accent="info" />
+          <StatCard title="الإيرادات" value={formatCurrency(Number(incomeQuery.data?.revenue ?? 0))} icon={TrendingUp} accent="success" />
+          <StatCard title="المصروفات" value={formatCurrency(Number(incomeQuery.data?.expenses ?? 0))} icon={ArrowUpFromLine} accent="destructive" />
+          <StatCard title="صافي الربح" value={formatCurrency(Number(incomeQuery.data?.net_income ?? 0))} icon={TrendingUp} accent={Number(incomeQuery.data?.net_income ?? 0) >= 0 ? 'success' : 'destructive'} />
+          <StatCard title="ضريبة مستحقة" value={formatCurrency(Number(vatQuery.data?.net_vat_payable ?? 0))} icon={FileText} accent="warning" />
+          <StatCard title="الذمم المدينة" value={formatCurrency(totalRemaining)} icon={CreditCard} accent="info" />
+        </div>
+      )}
 
       <div className="grid lg:grid-cols-3 gap-5">
         <Card className="lg:col-span-2 p-5 shadow-soft border-border/60">

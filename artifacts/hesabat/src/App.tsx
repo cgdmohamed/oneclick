@@ -38,6 +38,19 @@ import Accounts from "./pages/app/Accounts";
 import Products from "./pages/app/Products";
 import Reports from "./pages/app/Reports";
 import ReportDetail from "./pages/app/ReportDetail";
+import ChartOfAccounts from "./pages/app/accounting/ChartOfAccounts";
+import FiscalYears from "./pages/app/accounting/FiscalYears";
+import AccountingSettings from "./pages/app/accounting/AccountingSettings";
+import JournalEntries from "./pages/app/accounting/JournalEntries";
+import JournalEntryDetails from "./pages/app/accounting/JournalEntryDetails";
+import NewJournalEntry from "./pages/app/accounting/NewJournalEntry";
+import OpeningBalances from "./pages/app/accounting/OpeningBalances";
+import PurchaseInvoices from "./pages/app/accounting/PurchaseInvoices";
+import NewPurchaseInvoice from "./pages/app/accounting/NewPurchaseInvoice";
+import PurchaseInvoiceDetails from "./pages/app/accounting/PurchaseInvoiceDetails";
+import SupplierPayments from "./pages/app/accounting/SupplierPayments";
+import FinancialReports from "./pages/app/accounting/FinancialReports";
+import FinancialReportDetail from "./pages/app/accounting/FinancialReportDetail";
 import Notifications from "./pages/app/Notifications";
 import AlertsLog from "./pages/app/AlertsLog";
 import Users from "./pages/app/Users";
@@ -127,6 +140,19 @@ const App = () => {
               <Route path="products" element={<Products />} />
               <Route path="reports" element={<Reports />} />
               <Route path="reports/:type" element={<ReportDetail />} />
+              <Route path="accounting/chart" element={<ChartOfAccounts />} />
+              <Route path="accounting/fiscal-years" element={<FiscalYears />} />
+              <Route path="accounting/settings" element={<AccountingSettings />} />
+              <Route path="accounting/journals" element={<JournalEntries />} />
+              <Route path="accounting/journals/new" element={<NewJournalEntry />} />
+              <Route path="accounting/journals/:id" element={<JournalEntryDetails />} />
+              <Route path="accounting/opening-balances" element={<OpeningBalances />} />
+              <Route path="accounting/reports" element={<FinancialReports />} />
+              <Route path="accounting/reports/:type" element={<FinancialReportDetail />} />
+              <Route path="purchases/invoices" element={<PurchaseInvoices />} />
+              <Route path="purchases/invoices/new" element={<NewPurchaseInvoice />} />
+              <Route path="purchases/invoices/:id" element={<PurchaseInvoiceDetails />} />
+              <Route path="purchases/supplier-payments" element={<SupplierPayments />} />
               <Route path="notifications" element={<Notifications />} />
               <Route path="alerts-log" element={<AlertsLog />} />
               <Route path="users" element={<Users />} />

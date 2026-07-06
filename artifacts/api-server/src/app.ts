@@ -37,6 +37,8 @@ import suppliersRoutes from './modules/suppliers/routes.js';
 import expenseCategoriesRoutes from './modules/expense-categories/routes.js';
 import payoutsRoutes from './modules/payouts/routes.js';
 import stockMovementsRoutes from './modules/stock-movements/routes.js';
+import accountingRoutes from './modules/accounting/routes.js';
+import purchasesRoutes from './modules/purchases/routes.js';
 
 const UPLOAD_PUBLIC = path.resolve(process.cwd(), 'uploads/public');
 fs.mkdirSync(UPLOAD_PUBLIC, { recursive: true });
@@ -131,6 +133,8 @@ app.use('/api/suppliers', suppliersRoutes);
 app.use('/api/expense-categories', expenseCategoriesRoutes);
 app.use('/api/payouts', payoutsRoutes);
 app.use('/api/stock-movements', stockMovementsRoutes);
+app.use('/api/accounting', accountingRoutes);
+app.use('/api/purchases', purchasesRoutes);
 app.use('/api/audit-log', auditRoutes);
 app.use('/api/uploads', uploadsRoutes);
 app.use('/api/platform', platformRoutes);

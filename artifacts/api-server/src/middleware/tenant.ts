@@ -6,8 +6,7 @@ import type pg from 'pg';
 declare module 'express-serve-static-core' {
   interface Request {
     tenant?: {
-      /** Null only for super-admin requests that operate without a company scope. */
-      companyId: string | null;
+      companyId: string;
       isSuperAdmin: boolean;
       roles: string[];
       /**
@@ -111,7 +110,7 @@ export async function tenantContext(req: Request, res: Response, next: NextFunct
   }
 
   req.tenant = {
-    companyId,
+    companyId: companyId ?? '',
     isSuperAdmin,
     roles,
     db: client,

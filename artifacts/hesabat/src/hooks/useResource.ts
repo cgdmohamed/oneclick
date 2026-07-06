@@ -18,6 +18,8 @@ export interface ResourceConfig<T extends { id: string }, Row = Record<string, u
   key: string;
   /** Initial mock data used in fallback mode */
   initial: T[];
+  /** Optional metadata consumed by entity pages that need API-side search hints. */
+  searchable?: string[];
   /** Convert API row → frontend object */
   fromRow: (row: Row) => T;
   /** Convert frontend object → API body (omit id/createdAt etc.) */

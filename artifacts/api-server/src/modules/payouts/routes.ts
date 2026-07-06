@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { parsePagination } from '../../utils/pagination.js';
+import { badRequest } from '../../utils/errors.js';
+import { assertPeriodOpen, postPayout } from '../accounting/posting.js';
 
 const schema = z.object({
   supplier_id:         z.string().uuid().optional().nullable(),
@@ -81,6 +83,8 @@ r.post('/', async (req, res, next) => {
   try {
     const t = req.tenant!;
     const body = schema.parse(req.body);
+    const paidAt = body.paid_at ?? new Date().toISOString();
+    await assertPeriodOpen(t.db, t.companyId, paidAt);
 
     const acctRs = await t.db.query(`SELECT id FROM accounts WHERE id = $1 AND company_id = $2`, [body.account_id, t.companyId]);
     if (!acctRs.rowCount) return res.status(422).json({ error: 'invalid_account', message: 'الحساب المالي غير صالح' });
@@ -107,13 +111,14 @@ r.post('/', async (req, res, next) => {
           body.account_id,
           body.amount,
           body.method,
-          body.paid_at ?? new Date().toISOString(),
+          paidAt,
           body.reference ?? null,
           body.notes ?? null,
-          req.user!.id,
+          req.auth!.userId,
         ],
       );
       await t.db.query(`UPDATE accounts SET balance = balance - $1 WHERE id = $2`, [body.amount, body.account_id]);
+      await postPayout(t.db, t.companyId, ins.rows[0].id, req.auth!.userId);
       await t.db.query('COMMIT');
       res.status(201).json({ data: ins.rows[0] });
     } catch (e) {
@@ -160,6 +165,9 @@ r.delete('/:id', async (req, res, next) => {
     const existing = await t.db.query(`SELECT * FROM payouts WHERE id = $1 AND company_id = $2`, [req.params.id, t.companyId]);
     if (!existing.rowCount) return res.status(404).json({ error: 'not_found' });
     const payout = existing.rows[0];
+    if (payout.journal_entry_id) {
+      throw badRequest('Posted payouts cannot be deleted. Reverse the journal entry instead.');
+    }
 
     await t.db.query('BEGIN');
     try {

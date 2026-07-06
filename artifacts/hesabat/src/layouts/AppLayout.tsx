@@ -1,6 +1,6 @@
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarTrigger, useSidebar, SidebarHeader, SidebarFooter } from '@/components/ui/sidebar';
-import { LayoutDashboard, Users, FileText, CreditCard, Wallet, Package, BarChart3, Bell, BellRing, ShieldCheck, Settings, LogOut, Building2, Layers, Receipt, ToggleRight, Megaphone, Cog, Crown, History, LayoutTemplate, LineChart, PieChart, ScrollText, UserPlus, UserCog, X, Info, Truck, ArrowUpFromLine } from 'lucide-react';
+import { LayoutDashboard, Users, FileText, CreditCard, Wallet, Package, BarChart3, Bell, BellRing, ShieldCheck, Settings, LogOut, Building2, Layers, ToggleRight, Megaphone, Cog, Crown, History, LayoutTemplate, LineChart, PieChart, ScrollText, UserPlus, UserCog, X, Info, Truck, ArrowUpFromLine, BookOpen, Scale, CalendarDays } from 'lucide-react';
 import { BrandLogo } from '@/components/common/BrandLogo';
 import { Badge } from '@/components/ui/badge';
 import { usePendingSignupsCount } from '@/hooks/usePendingSignups';
@@ -28,6 +28,14 @@ const companyNav: { to: string; label: string; icon: typeof LayoutDashboard; end
   { to: '/app/payouts', label: 'المصروفات', icon: ArrowUpFromLine, feature: 'payouts' },
   { to: '/app/accounts', label: 'الحسابات المالية', icon: Wallet, feature: 'accounts' },
   { to: '/app/products', label: 'المنتجات والمخزون', icon: Package, feature: 'products' },
+  { to: '/app/accounting/chart', label: 'دليل الحسابات', icon: BookOpen, feature: 'accounting' },
+  { to: '/app/accounting/journals', label: 'قيود اليومية', icon: Scale, feature: 'accounting' },
+  { to: '/app/accounting/fiscal-years', label: 'الفترات المالية', icon: CalendarDays, feature: 'accounting' },
+  { to: '/app/accounting/settings', label: 'إعدادات المحاسبة', icon: Settings, feature: 'accounting' },
+  { to: '/app/accounting/opening-balances', label: 'الأرصدة الافتتاحية', icon: FileText, feature: 'accounting' },
+  { to: '/app/accounting/reports', label: 'التقارير المالية', icon: BarChart3, feature: 'accounting' },
+  { to: '/app/purchases/invoices', label: 'فواتير الشراء', icon: Truck, feature: 'purchases' },
+  { to: '/app/purchases/supplier-payments', label: 'دفعات الموردين', icon: CreditCard, feature: 'purchases' },
   { to: '/app/reports', label: 'التقارير', icon: BarChart3, feature: 'reports_basic' },
   { to: '/app/notifications', label: 'التنبيهات', icon: Bell, feature: 'notifications' },
   { to: '/app/alerts-log', label: 'سجل التنبيهات', icon: BellRing, feature: 'notifications' },
@@ -84,6 +92,8 @@ const pageKey = (kind: 'company' | 'admin', pathname: string): string => {
   if (pathname.startsWith('/app/payouts')) return 'payouts';
   if (pathname.startsWith('/app/accounts')) return 'accounts';
   if (pathname.startsWith('/app/products')) return 'products';
+  if (pathname.startsWith('/app/accounting')) return 'accounting';
+  if (pathname.startsWith('/app/purchases')) return 'purchases';
   if (pathname.startsWith('/app/reports')) return 'reports';
   if (pathname.startsWith('/app/alerts-log')) return 'alerts-log';
   if (pathname.startsWith('/app/notifications')) return 'notifications';

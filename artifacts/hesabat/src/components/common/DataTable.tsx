@@ -20,6 +20,7 @@ interface DataTableProps<T> {
   searchPlaceholder?: string;
   emptyTitle?: string;
   rightToolbar?: ReactNode;
+  loading?: boolean;
   onRowClick?: (row: T) => void;
   /** Initial page size. Defaults to 10. Set to 0 to disable pagination. */
   pageSize?: number;
@@ -29,7 +30,7 @@ interface DataTableProps<T> {
 
 export function DataTable<T extends { id: string }>({
   data, columns, searchKeys, searchPlaceholder = 'بحث...', emptyTitle = 'لا توجد بيانات',
-  rightToolbar, onRowClick, pageSize: initialPageSize = 10, pageSizeOptions = [10, 25, 50, 100],
+  rightToolbar, loading = false, onRowClick, pageSize: initialPageSize = 10, pageSizeOptions = [10, 25, 50, 100],
 }: DataTableProps<T>) {
   const [q, setQ] = useState('');
   const [page, setPage] = useState(1);
@@ -80,7 +81,13 @@ export function DataTable<T extends { id: string }>({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {pageRows.length === 0 ? (
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={columns.length} className="py-10 text-center text-sm text-muted-foreground">
+                    جار تحميل البيانات...
+                  </TableCell>
+                </TableRow>
+              ) : pageRows.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={columns.length} className="p-0">
                     <EmptyState title={emptyTitle} />

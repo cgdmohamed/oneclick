@@ -23,11 +23,13 @@ interface ApiItem { id: string; description: string; quantity: number; unit_pric
 interface ApiPayment { id: string; amount: string | number; paid_at: string; method: string; account_id: string; reference: string | null; notes: string | null }
 interface ApiInvoice {
   id: string; company_id: string; client_id: string; number: string;
+  public_id: string;
   issue_date: string; due_date: string | null;
   subtotal: string | number; vat_amount: string | number; discount: string | number;
   total: string | number; paid: string | number; remaining: string | number;
   status: string; notes: string | null;
   client_name: string; client_email: string | null; client_tax: string | null;
+  client_phone: string | null; client_whatsapp: string | null;
   items: ApiItem[]; payments: ApiPayment[];
 }
 
