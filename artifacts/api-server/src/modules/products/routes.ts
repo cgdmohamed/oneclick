@@ -114,6 +114,20 @@ const base = crudRouter({
   list: {
     selectExtra: `
       (SELECT pc.name FROM product_categories pc WHERE pc.id = products.category_id AND pc.company_id = products.company_id) AS category_name,
+      (SELECT CASE WHEN pc.parent_id IS NULL THEN pc.id ELSE parent.id END
+         FROM product_categories pc
+         LEFT JOIN product_categories parent ON parent.id = pc.parent_id AND parent.company_id = pc.company_id
+        WHERE pc.id = products.category_id AND pc.company_id = products.company_id) AS parent_category_id,
+      (SELECT CASE WHEN pc.parent_id IS NULL THEN pc.name ELSE parent.name END
+         FROM product_categories pc
+         LEFT JOIN product_categories parent ON parent.id = pc.parent_id AND parent.company_id = pc.company_id
+        WHERE pc.id = products.category_id AND pc.company_id = products.company_id) AS parent_category_name,
+      (SELECT CASE WHEN pc.parent_id IS NULL THEN NULL ELSE pc.id END
+         FROM product_categories pc
+        WHERE pc.id = products.category_id AND pc.company_id = products.company_id) AS subcategory_id,
+      (SELECT CASE WHEN pc.parent_id IS NULL THEN NULL ELSE pc.name END
+         FROM product_categories pc
+        WHERE pc.id = products.category_id AND pc.company_id = products.company_id) AS subcategory_name,
       (SELECT s.name  FROM suppliers s        WHERE s.id  = products.supplier_id  AND s.company_id  = products.company_id)  AS supplier_name
     `.trim(),
     searchable: ['name', 'sku', 'barcode'],
@@ -200,10 +214,14 @@ async function productDetailPayload(db: import('pg').PoolClient, companyId: stri
   const product = await db.query(
     `SELECT p.*,
             pc.name AS category_name,
+            CASE WHEN pc.parent_id IS NULL THEN pc.id ELSE parent_pc.id END AS parent_category_id,
+            CASE WHEN pc.parent_id IS NULL THEN pc.name ELSE parent_pc.name END AS parent_category_name,
+            CASE WHEN pc.parent_id IS NULL THEN NULL ELSE pc.id END AS subcategory_id,
+            CASE WHEN pc.parent_id IS NULL THEN NULL ELSE pc.name END AS subcategory_name,
             s.name AS supplier_name,
-            COALESCE(p.sales_account_id, pc.sales_account_id, aset.sales_revenue_account_id) AS resolved_sales_account_id,
-            COALESCE(p.inventory_account_id, pc.inventory_account_id, aset.inventory_account_id) AS resolved_inventory_account_id,
-            COALESCE(p.cogs_account_id, pc.cogs_account_id, aset.cogs_account_id) AS resolved_cogs_account_id,
+            COALESCE(p.sales_account_id, pc.sales_account_id, parent_pc.sales_account_id, aset.sales_revenue_account_id) AS resolved_sales_account_id,
+            COALESCE(p.inventory_account_id, pc.inventory_account_id, parent_pc.inventory_account_id, aset.inventory_account_id) AS resolved_inventory_account_id,
+            COALESCE(p.cogs_account_id, pc.cogs_account_id, parent_pc.cogs_account_id, aset.cogs_account_id) AS resolved_cogs_account_id,
             sa.code AS sales_account_code, sa.name AS sales_account_name,
             ia.code AS inventory_account_code, ia.name AS inventory_account_name,
             ca.code AS cogs_account_code, ca.name AS cogs_account_name,
@@ -217,11 +235,12 @@ async function productDetailPayload(db: import('pg').PoolClient, companyId: stri
             ) AS has_opening_stock
      FROM products p
      LEFT JOIN product_categories pc ON pc.id = p.category_id AND pc.company_id = p.company_id
+     LEFT JOIN product_categories parent_pc ON parent_pc.id = pc.parent_id AND parent_pc.company_id = pc.company_id
      LEFT JOIN suppliers s ON s.id = p.supplier_id AND s.company_id = p.company_id
      LEFT JOIN accounting_settings aset ON aset.company_id = p.company_id
-     LEFT JOIN chart_accounts sa ON sa.id = COALESCE(p.sales_account_id, pc.sales_account_id, aset.sales_revenue_account_id)
-     LEFT JOIN chart_accounts ia ON ia.id = COALESCE(p.inventory_account_id, pc.inventory_account_id, aset.inventory_account_id)
-     LEFT JOIN chart_accounts ca ON ca.id = COALESCE(p.cogs_account_id, pc.cogs_account_id, aset.cogs_account_id)
+     LEFT JOIN chart_accounts sa ON sa.id = COALESCE(p.sales_account_id, pc.sales_account_id, parent_pc.sales_account_id, aset.sales_revenue_account_id)
+     LEFT JOIN chart_accounts ia ON ia.id = COALESCE(p.inventory_account_id, pc.inventory_account_id, parent_pc.inventory_account_id, aset.inventory_account_id)
+     LEFT JOIN chart_accounts ca ON ca.id = COALESCE(p.cogs_account_id, pc.cogs_account_id, parent_pc.cogs_account_id, aset.cogs_account_id)
      WHERE p.id = $1 AND p.company_id = $2`,
     [productId, companyId],
   );
@@ -607,10 +626,11 @@ router.post('/:id/opening-stock', async (req, res, next) => {
     try {
       const product = await t.db.query(
         `SELECT p.*,
-                COALESCE(p.inventory_account_id, pc.inventory_account_id, aset.inventory_account_id) AS resolved_inventory_account_id,
+                COALESCE(p.inventory_account_id, pc.inventory_account_id, parent_pc.inventory_account_id, aset.inventory_account_id) AS resolved_inventory_account_id,
                 aset.retained_earnings_account_id
          FROM products p
          LEFT JOIN product_categories pc ON pc.id = p.category_id AND pc.company_id = p.company_id
+         LEFT JOIN product_categories parent_pc ON parent_pc.id = pc.parent_id AND parent_pc.company_id = pc.company_id
          LEFT JOIN accounting_settings aset ON aset.company_id = p.company_id
          WHERE p.id = $1 AND p.company_id = $2 FOR UPDATE`,
         [req.params.id, t.companyId],

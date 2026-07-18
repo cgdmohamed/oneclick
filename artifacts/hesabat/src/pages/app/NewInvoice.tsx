@@ -105,12 +105,12 @@ const NewInvoice = () => {
   const [newProduct, setNewProduct]       = useState<NewProductForm>(emptyProduct);
   const [productSaving, setProductSaving] = useState(false);
   const [dupProduct, setDupProduct]       = useState<{ id: string; name: string } | null>(null);
-  const [categories, setCategories]       = useState<{ id: string; name: string }[]>([]);
+  const [categories, setCategories]       = useState<{ id: string; name: string; parent_id?: string | null; parent_name?: string | null }[]>([]);
 
   const loadCategories = useCallback(async () => {
     if (!isApiConfigured()) return;
     try {
-      const res = await api.get<{ data: { id: string; name: string }[] }>('/api/categories');
+      const res = await api.get<{ data: { id: string; name: string; parent_id?: string | null; parent_name?: string | null }[] }>('/api/categories');
       setCategories(res.data ?? []);
     } catch { /* silent */ }
   }, []);
@@ -311,7 +311,7 @@ const NewInvoice = () => {
                     <Input type="number" min={0} step="0.01" value={it.unitPrice} onChange={e => update(i, { unitPrice: Number(e.target.value) })} />
                   </div>
                   <div className="col-span-6 md:col-span-1">
-                    <Label className="text-xs">VAT</Label>
+                    <Label className="text-xs">الضريبة</Label>
                     <Input type="number" min={0} step="0.01" value={it.vatRate ?? taxRate} onChange={e => update(i, { vatRate: Number(e.target.value) })} />
                   </div>
                   <div className="col-span-2 md:col-span-1 flex justify-end">
@@ -490,7 +490,7 @@ const NewInvoice = () => {
                   <SelectTrigger className="mt-1.5"><SelectValue placeholder="اختياري" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value={NO_CATEGORY}>بدون تصنيف</SelectItem>
-                    {categories.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                    {categories.map(c => <SelectItem key={c.id} value={c.id}>{c.parent_name ? `${c.parent_name} / ${c.name}` : c.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>

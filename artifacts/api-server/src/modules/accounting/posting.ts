@@ -390,11 +390,12 @@ export async function postSalesInvoice(db: Queryable, companyId: string, invoice
   const revenueGroups = await db.query(
     `SELECT
        ii.cost_center_id,
-       COALESCE(p.sales_account_id, pc.sales_account_id, $3::uuid) AS account_id,
+       COALESCE(p.sales_account_id, pc.sales_account_id, parent_pc.sales_account_id, $3::uuid) AS account_id,
        COALESCE(SUM(ii.quantity * ii.unit_price),0) AS amount
      FROM invoice_items ii
      LEFT JOIN products p ON p.id = ii.product_id AND p.company_id = ii.company_id
      LEFT JOIN product_categories pc ON pc.id = p.category_id AND pc.company_id = p.company_id
+     LEFT JOIN product_categories parent_pc ON parent_pc.id = pc.parent_id AND parent_pc.company_id = pc.company_id
      WHERE ii.invoice_id = $1 AND ii.company_id = $2
      GROUP BY ii.cost_center_id, account_id`,
     [invoiceId, companyId, s.sales_revenue_account_id],
@@ -423,11 +424,12 @@ export async function postSalesInvoice(db: Queryable, companyId: string, invoice
   const cogs = await db.query(
     `SELECT
        ii.cost_center_id,
-       COALESCE(p.cogs_account_id, pc.cogs_account_id, $3::uuid) AS cogs_account_id,
-       COALESCE(p.inventory_account_id, pc.inventory_account_id, $4::uuid) AS inventory_account_id,
+       COALESCE(p.cogs_account_id, pc.cogs_account_id, parent_pc.cogs_account_id, $3::uuid) AS cogs_account_id,
+       COALESCE(p.inventory_account_id, pc.inventory_account_id, parent_pc.inventory_account_id, $4::uuid) AS inventory_account_id,
        COALESCE(SUM(ii.quantity * COALESCE(NULLIF(p.average_cost, 0), p.cost, 0)),0) AS amount
      FROM invoice_items ii JOIN products p ON p.id = ii.product_id
      LEFT JOIN product_categories pc ON pc.id = p.category_id AND pc.company_id = p.company_id
+     LEFT JOIN product_categories parent_pc ON parent_pc.id = pc.parent_id AND parent_pc.company_id = pc.company_id
      WHERE ii.invoice_id = $1 AND ii.company_id = $2
        AND p.product_type = 'stock'
      GROUP BY ii.cost_center_id, cogs_account_id, inventory_account_id`,

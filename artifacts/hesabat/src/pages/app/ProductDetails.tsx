@@ -30,6 +30,8 @@ interface ProductDetailRow {
   vat_status: 'taxable' | 'exempt' | 'zero_rated';
   vat_rate: string | number;
   category_name: string | null;
+  parent_category_name: string | null;
+  subcategory_name: string | null;
   supplier_name: string | null;
   sales_account_code: string | null;
   sales_account_name: string | null;
@@ -212,25 +214,26 @@ const ProductDetails = () => {
           <Card className="p-4"><div className="text-xs text-muted-foreground">الكمية الحالية</div><div className="text-2xl font-bold mt-1">{Number(product.quantity)}</div></Card>
           <Card className="p-4"><div className="text-xs text-muted-foreground">متوسط التكلفة</div><div className="text-2xl font-bold mt-1">{formatCurrency(Number(product.average_cost ?? product.cost))}</div></Card>
           <Card className="p-4"><div className="text-xs text-muted-foreground">قيمة المخزون</div><div className="text-2xl font-bold mt-1">{formatCurrency(Number(product.inventory_value ?? 0))}</div></Card>
-          <Card className="p-4"><div className="text-xs text-muted-foreground">VAT</div><div className="text-2xl font-bold mt-1">{vatLabel(product.vat_status, product.vat_rate)}</div></Card>
+          <Card className="p-4"><div className="text-xs text-muted-foreground">الضريبة</div><div className="text-2xl font-bold mt-1">{vatLabel(product.vat_status, product.vat_rate)}</div></Card>
         </div>
       )}
 
       <Tabs defaultValue="overview">
         <TabsList>
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="stock">Stock Card</TabsTrigger>
-          <TabsTrigger value="sales">Sales</TabsTrigger>
-          <TabsTrigger value="purchases">Purchases</TabsTrigger>
-          <TabsTrigger value="returns">Returns</TabsTrigger>
-          <TabsTrigger value="accounting">Accounting</TabsTrigger>
+          <TabsTrigger value="overview">نظرة عامة</TabsTrigger>
+          <TabsTrigger value="stock">كارت الصنف</TabsTrigger>
+          <TabsTrigger value="sales">المبيعات</TabsTrigger>
+          <TabsTrigger value="purchases">المشتريات</TabsTrigger>
+          <TabsTrigger value="returns">المرتجعات</TabsTrigger>
+          <TabsTrigger value="accounting">المحاسبة</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="mt-4">
           <Card className="p-5 border-border/60">
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
               <Info label="النوع" value={product ? typeLabel(product.product_type) : '—'} />
-              <Info label="التصنيف" value={product?.category_name ?? '—'} />
+              <Info label="التصنيف" value={product?.parent_category_name ?? product?.category_name ?? '—'} />
+              <Info label="التصنيف الفرعي" value={product?.subcategory_name ?? '—'} />
               <Info label="المورد" value={product?.supplier_name ?? '—'} />
               <Info label="الباركود" value={product?.barcode ?? '—'} />
               <Info label="سعر البيع" value={formatCurrency(Number(product?.price ?? 0))} />
@@ -274,7 +277,7 @@ const ProductDetails = () => {
               <Info label="حساب المبيعات" value={accountLabel(product?.sales_account_code, product?.sales_account_name)} />
               <Info label="حساب المخزون" value={accountLabel(product?.inventory_account_code, product?.inventory_account_name)} />
               <Info label="حساب تكلفة البضاعة" value={accountLabel(product?.cogs_account_code, product?.cogs_account_name)} />
-              <Info label="VAT" value={product ? vatLabel(product.vat_status, product.vat_rate) : '—'} />
+              <Info label="الضريبة" value={product ? vatLabel(product.vat_status, product.vat_rate) : '—'} />
               <Info label="الكمية الحالية" value={String(Number(product?.quantity ?? 0))} />
               <Info label="قيمة المخزون" value={formatCurrency(Number(product?.inventory_value ?? 0))} />
             </div>

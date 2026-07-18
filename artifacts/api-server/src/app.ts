@@ -47,6 +47,7 @@ import bankReconciliationsRoutes from './modules/bank-reconciliations/routes.js'
 import branchesRoutes from './modules/branches/routes.js';
 import costCentersRoutes from './modules/cost-centers/routes.js';
 import inventoryWriteOffsRoutes from './modules/inventory-write-offs/routes.js';
+import dashboardRoutes from './modules/dashboard/routes.js';
 
 const UPLOAD_PUBLIC = path.resolve(process.cwd(), 'uploads/public');
 fs.mkdirSync(UPLOAD_PUBLIC, { recursive: true });
@@ -136,6 +137,7 @@ app.use('/api/invoices', invoicesRoutes);
 app.use('/api/payments', paymentsRoutes);
 app.use('/api/notifications', notificationsRoutes);
 app.use('/api/reports', reportsRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/subscriptions', subscriptionsRoutes);
 app.use('/api/suppliers', suppliersRoutes);
 app.use('/api/expense-categories', expenseCategoriesRoutes);

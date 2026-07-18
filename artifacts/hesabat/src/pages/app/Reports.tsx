@@ -1,6 +1,6 @@
 import { PageHeader } from '@/components/common/PageHeader';
 import { Card } from '@/components/ui/card';
-import { FileText, CreditCard, TrendingDown, Wallet, Building2, ArrowLeft, ArrowUpFromLine, Truck, Package } from 'lucide-react';
+import { FileText, CreditCard, TrendingDown, Wallet, Building2, ArrowLeft, ArrowUpFromLine, Truck, Package, BarChart3, AlertTriangle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useInvoices, useAccounts } from '@/hooks/entities';
 import { payments as mockPayments } from '@/data/mock';
@@ -15,10 +15,12 @@ const reports = [
   { id: 'payouts',          icon: ArrowUpFromLine,   title: 'تقرير المصروفات',             desc: 'جميع المدفوعات الصادرة للموردين والنفقات.' },
   { id: 'remaining',        icon: TrendingDown,      title: 'تقرير المتبقي',               desc: 'الفواتير غير المسددة كلياً أو جزئياً.' },
   { id: 'sales-returns',    icon: ArrowUpFromLine,   title: 'تقرير مرتجعات المبيعات',      desc: 'الإشعارات الدائنة حسب حالة المرتجع.' },
+  { id: 'product-sales',     icon: BarChart3,         title: 'تحليل مبيعات المنتجات',       desc: 'صافي المبيعات والمرتجعات والربحية حسب المنتج.' },
   { id: 'by-method',        icon: Wallet,            title: 'تقرير حسب وسيلة الدفع',      desc: 'تجميع التحصيلات حسب طريقة السداد.' },
   { id: 'by-account',       icon: Building2,         title: 'تقرير حسب الحساب المالي',    desc: 'حركات الإيداع لكل حساب مالي.' },
   { id: 'suppliers',        icon: Truck,             title: 'تقرير نشاط الموردين',        desc: 'إجمالي المصروفات والمنتجات لكل مورد.' },
   { id: 'inventory',        icon: Package,           title: 'تقرير المخزون',              desc: 'الكميات والقيم الحالية لجميع المنتجات.' },
+  { id: 'stock-risk',       icon: AlertTriangle,     title: 'تقرير مخاطر المخزون',        desc: 'منتجات منخفضة أو نافدة أو بطيئة الحركة.' },
   { id: 'inventory-write-offs', icon: Package,        title: 'تقرير هالك / شطب المخزون',   desc: 'الكميات والتكلفة حسب السبب والمنتج.' },
   { id: 'accounts-summary', icon: Wallet,            title: 'ملخص الحسابات المالية',      desc: 'أرصدة التحصيلات والمصروفات لكل حساب.' },
 ];

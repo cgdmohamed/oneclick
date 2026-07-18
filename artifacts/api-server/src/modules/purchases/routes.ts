@@ -67,11 +67,12 @@ async function postPurchaseInvoice(db: any, companyId: string, purchaseInvoiceId
   const settings = await getSettings(db, companyId);
   const items = await db.query(
     `SELECT pii.*, p.product_type,
-            COALESCE(p.inventory_account_id, pc.inventory_account_id, $3::uuid) AS resolved_inventory_account_id,
-            COALESCE(p.purchase_expense_account_id, pc.purchase_expense_account_id) AS resolved_purchase_expense_account_id
+            COALESCE(p.inventory_account_id, pc.inventory_account_id, parent_pc.inventory_account_id, $3::uuid) AS resolved_inventory_account_id,
+            COALESCE(p.purchase_expense_account_id, pc.purchase_expense_account_id, parent_pc.purchase_expense_account_id) AS resolved_purchase_expense_account_id
      FROM purchase_invoice_items pii
      LEFT JOIN products p ON p.id = pii.product_id AND p.company_id = pii.company_id
      LEFT JOIN product_categories pc ON pc.id = p.category_id AND pc.company_id = p.company_id
+     LEFT JOIN product_categories parent_pc ON parent_pc.id = pc.parent_id AND parent_pc.company_id = pc.company_id
      WHERE pii.purchase_invoice_id = $1 AND pii.company_id = $2`,
     [purchaseInvoiceId, companyId, settings.inventory_account_id],
   );
@@ -171,10 +172,11 @@ async function postPurchaseReturn(db: any, companyId: string, purchaseReturnId: 
 
   const items = await db.query(
     `SELECT pri.*,
-            COALESCE(p.inventory_account_id, pc.inventory_account_id) AS resolved_inventory_account_id
+            COALESCE(p.inventory_account_id, pc.inventory_account_id, parent_pc.inventory_account_id) AS resolved_inventory_account_id
      FROM purchase_return_items pri
      JOIN products p ON p.id = pri.product_id AND p.company_id = pri.company_id
      LEFT JOIN product_categories pc ON pc.id = p.category_id AND pc.company_id = p.company_id
+     LEFT JOIN product_categories parent_pc ON parent_pc.id = pc.parent_id AND parent_pc.company_id = pc.company_id
      WHERE pri.purchase_return_id = $1 AND pri.company_id = $2`,
     [purchaseReturnId, companyId],
   );

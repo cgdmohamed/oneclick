@@ -62,10 +62,11 @@ async function postWriteOff(db: any, companyId: string, writeOffId: string, user
   const items = await db.query(
     `SELECT iwoi.*, p.name AS product_name, p.product_type, p.quantity AS current_quantity,
             p.average_cost, p.cost, p.inventory_value,
-            COALESCE(p.inventory_account_id, pc.inventory_account_id) AS resolved_inventory_account_id
+            COALESCE(p.inventory_account_id, pc.inventory_account_id, parent_pc.inventory_account_id) AS resolved_inventory_account_id
      FROM inventory_write_off_items iwoi
      JOIN products p ON p.id = iwoi.product_id AND p.company_id = iwoi.company_id
      LEFT JOIN product_categories pc ON pc.id = p.category_id AND pc.company_id = p.company_id
+     LEFT JOIN product_categories parent_pc ON parent_pc.id = pc.parent_id AND parent_pc.company_id = pc.company_id
      WHERE iwoi.write_off_id = $1 AND iwoi.company_id = $2
      ORDER BY iwoi.created_at`,
     [writeOffId, companyId],

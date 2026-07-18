@@ -58,6 +58,10 @@ export interface Product {
   imageUrl?: string;
   category?: string;
   categoryId?: UUID;
+  parentCategoryId?: UUID;
+  parentCategoryName?: string;
+  subcategoryId?: UUID;
+  subcategoryName?: string;
   supplierId?: UUID;
   supplierName?: string;
   salesAccountId?: UUID;

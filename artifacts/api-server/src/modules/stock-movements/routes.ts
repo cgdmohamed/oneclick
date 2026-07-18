@@ -103,10 +103,11 @@ r.post('/', async (req, res, next) => {
 
     const prodRs = await t.db.query(
       `SELECT p.*,
-              COALESCE(p.inventory_account_id, pc.inventory_account_id) AS resolved_inventory_account_id,
-              COALESCE(p.inventory_adjustment_account_id, pc.inventory_adjustment_account_id) AS resolved_inventory_adjustment_account_id
+              COALESCE(p.inventory_account_id, pc.inventory_account_id, parent_pc.inventory_account_id) AS resolved_inventory_account_id,
+              COALESCE(p.inventory_adjustment_account_id, pc.inventory_adjustment_account_id, parent_pc.inventory_adjustment_account_id) AS resolved_inventory_adjustment_account_id
        FROM products p
        LEFT JOIN product_categories pc ON pc.id = p.category_id AND pc.company_id = p.company_id
+       LEFT JOIN product_categories parent_pc ON parent_pc.id = pc.parent_id AND parent_pc.company_id = pc.company_id
        WHERE p.id = $1 AND p.company_id = $2`,
       [body.product_id, t.companyId],
     );

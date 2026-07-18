@@ -46,7 +46,10 @@ interface ProductRow {
   price: string | number; cost: string | number; quantity: number;
   average_cost?: string | number; inventory_value?: string | number;
   alert_level: number; vat_status?: 'taxable' | 'exempt' | 'zero_rated'; vat_rate?: string | number; is_active: boolean;
-  category_id?: string | null; category_name?: string | null; supplier_id?: string | null; supplier_name?: string | null;
+  category_id?: string | null; category_name?: string | null;
+  parent_category_id?: string | null; parent_category_name?: string | null;
+  subcategory_id?: string | null; subcategory_name?: string | null;
+  supplier_id?: string | null; supplier_name?: string | null;
   sales_account_id?: string | null; sales_returns_account_id?: string | null; inventory_account_id?: string | null;
   cogs_account_id?: string | null; purchase_expense_account_id?: string | null; inventory_adjustment_account_id?: string | null;
 }
@@ -62,7 +65,12 @@ export const productsCfg: ResourceConfig<Product, ProductRow> = {
     inventoryValue: Number(r.inventory_value ?? 0),
     quantity: r.quantity, alertLevel: r.alert_level,
     vatStatus: r.vat_status ?? 'taxable', vatRate: Number(r.vat_rate ?? 0),
-    categoryId: r.category_id ?? undefined, category: r.category_name ?? undefined,
+    categoryId: r.category_id ?? undefined,
+    category: r.subcategory_name && r.parent_category_name ? `${r.parent_category_name} / ${r.subcategory_name}` : r.category_name ?? undefined,
+    parentCategoryId: r.parent_category_id ?? undefined,
+    parentCategoryName: r.parent_category_name ?? undefined,
+    subcategoryId: r.subcategory_id ?? undefined,
+    subcategoryName: r.subcategory_name ?? undefined,
     supplierId: r.supplier_id ?? undefined, supplierName: r.supplier_name ?? undefined,
     salesAccountId: r.sales_account_id ?? undefined,
     salesReturnsAccountId: r.sales_returns_account_id ?? undefined,

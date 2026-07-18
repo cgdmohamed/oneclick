@@ -40,6 +40,10 @@ interface ProductRow {
   is_active: boolean;
   category_id: string | null;
   category_name: string | null;
+  parent_category_id: string | null;
+  parent_category_name: string | null;
+  subcategory_id: string | null;
+  subcategory_name: string | null;
   supplier_id: string | null;
   supplier_name: string | null;
   sales_account_id: string | null;
@@ -53,7 +57,10 @@ interface ProductRow {
 interface Category {
   id: string;
   name: string;
+  parent_id?: string | null;
+  parent_name?: string | null;
   product_count: number;
+  subcategory_count?: number;
   sales_account_id?: string | null;
   sales_returns_account_id?: string | null;
   inventory_account_id?: string | null;
@@ -157,8 +164,8 @@ const useCategories = () => {
 
   useEffect(() => { load(); }, [load]);
 
-  const create = async (name: string) => {
-    const res = await api.post<{ data: Category }>('/api/categories', { name });
+  const create = async (name: string, parentId?: string | null) => {
+    const res = await api.post<{ data: Category }>('/api/categories', { name, parent_id: parentId ?? null });
     setCategories(prev => [...prev, res.data].sort((a, b) => a.name.localeCompare(b.name)));
     return res.data;
   };
@@ -206,7 +213,11 @@ const Products = () => {
       imageUrl: r.image_url ?? undefined,
       status: r.is_active ? 'active' : 'inactive',
       categoryId: r.category_id ?? undefined,
-      category: r.category_name ?? undefined,
+      category: r.subcategory_name && r.parent_category_name ? `${r.parent_category_name} / ${r.subcategory_name}` : r.category_name ?? undefined,
+      parentCategoryId: r.parent_category_id ?? undefined,
+      parentCategoryName: r.parent_category_name ?? undefined,
+      subcategoryId: r.subcategory_id ?? undefined,
+      subcategoryName: r.subcategory_name ?? undefined,
       supplierId: r.supplier_id ?? undefined,
       supplierName: r.supplier_name ?? undefined,
       salesAccountId: r.sales_account_id ?? undefined,
@@ -254,10 +265,22 @@ const Products = () => {
   const [toDelete, setToDelete] = useState<Product | null>(null);
   const [catsOpen, setCatsOpen] = useState(false);
   const [newCat, setNewCat] = useState('');
+  const [newCatParent, setNewCatParent] = useState<string>('__main__');
   const [mappingCat, setMappingCat] = useState<Category | null>(null);
   const [catMappingSaving, setCatMappingSaving] = useState(false);
   const [catSaving, setCatSaving] = useState(false);
   const [catFilter, setCatFilter] = useState<string>('all');
+  const [subcatFilter, setSubcatFilter] = useState<string>('all');
+
+  const mainCategories = useMemo(() => categories.filter(c => !c.parent_id), [categories]);
+  const subcategories = useMemo(() => categories.filter(c => c.parent_id), [categories]);
+  const categoryById = useMemo(() => new Map(categories.map(c => [c.id, c])), [categories]);
+  const subcategoriesFor = useCallback((parentId?: string) => (
+    parentId ? subcategories.filter(c => c.parent_id === parentId) : []
+  ), [subcategories]);
+  const editingCategory = editing.categoryId ? categoryById.get(editing.categoryId) : undefined;
+  const editingParentCategoryId = editingCategory?.parent_id ?? editing.categoryId ?? '__none__';
+  const editingSubcategoryId = editingCategory?.parent_id ? editing.categoryId ?? '__none__' : '__none__';
   const { list: invoices } = useInvoices();
 
   const [movementOpen, setMovementOpen] = useState(false);
@@ -334,13 +357,15 @@ const Products = () => {
   const addCategory = async () => {
     const name = newCat.trim();
     if (!name) return;
-    if (categories.some(c => c.name === name)) { toast.error('التصنيف موجود مسبقاً'); return; }
+    const parentId = newCatParent === '__main__' ? null : newCatParent;
+    if (categories.some(c => c.name === name && (c.parent_id ?? null) === parentId)) { toast.error('التصنيف موجود مسبقاً'); return; }
     setCatSaving(true);
     try {
       if (isApiConfigured()) {
-        await createCat(name);
+        await createCat(name, parentId);
       }
       setNewCat('');
+      setNewCatParent('__main__');
     } catch {
       toast.error('تعذّر إضافة التصنيف');
     } finally {
@@ -351,6 +376,10 @@ const Products = () => {
   const removeCategory = async (cat: Category) => {
     if (cat.product_count > 0) {
       toast.error('لا يمكن حذف تصنيف مستخدم في منتجات');
+      return;
+    }
+    if ((cat.subcategory_count ?? 0) > 0) {
+      toast.error('لا يمكن حذف تصنيف يحتوي على تصنيفات فرعية');
       return;
     }
     try {
@@ -481,10 +510,12 @@ const Products = () => {
   };
 
   const filteredList = useMemo(() => {
-    if (catFilter === 'all') return list;
-    if (catFilter === '__none__') return list.filter(p => !p.categoryId);
-    return list.filter(p => p.categoryId === catFilter);
-  }, [list, catFilter]);
+    let rows = list;
+    if (catFilter === '__none__') rows = rows.filter(p => !p.categoryId);
+    else if (catFilter !== 'all') rows = rows.filter(p => p.categoryId === catFilter || p.parentCategoryId === catFilter);
+    if (subcatFilter !== 'all') rows = rows.filter(p => p.categoryId === subcatFilter);
+    return rows;
+  }, [list, catFilter, subcatFilter]);
 
   const columns: Column<Product>[] = [
     { key: 'image', header: '', cell: r => (
@@ -503,10 +534,11 @@ const Products = () => {
     { key: 'code', header: 'الكود', cell: r => <span className="text-muted-foreground text-sm">{r.code}</span> },
     { key: 'barcode', header: 'الباركود', cell: r => <span className="text-muted-foreground text-sm">{r.barcode || '—'}</span> },
     { key: 'type', header: 'النوع', cell: r => productTypeLabel(r.productType) },
-    { key: 'category', header: 'التصنيف', cell: r => <span className="text-muted-foreground text-sm">{r.category || '—'}</span> },
+    { key: 'category', header: 'التصنيف', cell: r => <span className="text-muted-foreground text-sm">{r.parentCategoryName ?? r.category ?? '—'}</span> },
+    { key: 'subcategory', header: 'التصنيف الفرعي', cell: r => <span className="text-muted-foreground text-sm">{r.subcategoryName ?? '—'}</span> },
     { key: 'supplier', header: 'المورد', cell: r => <span className="text-muted-foreground text-sm">{(r as unknown as { supplierName?: string }).supplierName || '—'}</span> },
     { key: 'price', header: 'السعر', cell: r => formatCurrency(r.price) },
-    { key: 'vat', header: 'VAT', cell: r => r.vatStatus === 'taxable' ? `${r.vatRate ?? 0}%` : vatStatusLabel(r.vatStatus) },
+    { key: 'vat', header: 'الضريبة', cell: r => r.vatStatus === 'taxable' ? `${r.vatRate ?? 0}%` : vatStatusLabel(r.vatStatus) },
     { key: 'avg_cost', header: 'متوسط التكلفة', cell: r => formatCurrency(r.averageCost ?? r.cost ?? 0) },
     { key: 'inv_value', header: 'قيمة المخزون', cell: r => r.productType === 'stock' ? formatCurrency(r.inventoryValue ?? 0) : '—' },
     { key: 'qty', header: 'الكمية', cell: r => <span className={r.quantity <= r.alertLevel ? 'text-destructive font-semibold' : ''}>{r.quantity}</span> },
@@ -583,14 +615,25 @@ const Products = () => {
             searchKeys={['name','code','barcode']}
             searchPlaceholder="ابحث بالمنتج أو الكود أو الباركود..."
             rightToolbar={
-              <Select value={catFilter} onValueChange={setCatFilter}>
-                <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">كل التصنيفات</SelectItem>
-                  <SelectItem value="__none__">بدون تصنيف</SelectItem>
-                  {categories.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <div className="flex flex-wrap gap-2">
+                <Select value={catFilter} onValueChange={(v) => { setCatFilter(v); setSubcatFilter('all'); }}>
+                  <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">كل التصنيفات</SelectItem>
+                    <SelectItem value="__none__">بدون تصنيف</SelectItem>
+                    {mainCategories.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                {catFilter !== 'all' && catFilter !== '__none__' && subcategoriesFor(catFilter).length > 0 && (
+                  <Select value={subcatFilter} onValueChange={setSubcatFilter}>
+                    <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">كل التصنيفات الفرعية</SelectItem>
+                      {subcategoriesFor(catFilter).map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
             }
           />
         </TabsContent>
@@ -652,16 +695,30 @@ const Products = () => {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="sm:col-span-2">
+              <div>
                 <Label>التصنيف</Label>
                 <Select
-                  value={editing.categoryId ?? '__none__'}
-                  onValueChange={(v) => setEditing(s => ({ ...s, categoryId: v === '__none__' ? undefined : v }))}
+                  value={editingParentCategoryId}
+                  onValueChange={(v) => setEditing(s => ({ ...s, categoryId: v === '__none__' ? undefined : v, parentCategoryId: v === '__none__' ? undefined : v, subcategoryId: undefined }))}
                 >
                   <SelectTrigger className="mt-1.5"><SelectValue placeholder="اختر تصنيفاً" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__none__">بدون تصنيف</SelectItem>
-                    {categories.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                    {mainCategories.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>التصنيف الفرعي</Label>
+                <Select
+                  value={editingSubcategoryId}
+                  onValueChange={(v) => setEditing(s => ({ ...s, categoryId: v === '__none__' ? (editingParentCategoryId === '__none__' ? undefined : editingParentCategoryId) : v, subcategoryId: v === '__none__' ? undefined : v }))}
+                  disabled={editingParentCategoryId === '__none__' || subcategoriesFor(editingParentCategoryId).length === 0}
+                >
+                  <SelectTrigger className="mt-1.5"><SelectValue placeholder="اختر تصنيفاً فرعياً" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">بدون تصنيف فرعي</SelectItem>
+                    {subcategoriesFor(editingParentCategoryId).map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
@@ -681,7 +738,7 @@ const Products = () => {
                   </SelectContent>
                 </Select>
               </div>
-              <div><Label>نسبة VAT</Label><Input type="number" className="mt-1.5" value={editing.vatRate ?? 0} onChange={e => setEditing(s => ({ ...s, vatRate: Number(e.target.value) }))} disabled={editing.vatStatus !== 'taxable'} /></div>
+              <div><Label>نسبة الضريبة</Label><Input type="number" className="mt-1.5" value={editing.vatRate ?? 0} onChange={e => setEditing(s => ({ ...s, vatRate: Number(e.target.value) }))} disabled={editing.vatStatus !== 'taxable'} /></div>
               <div className="sm:col-span-2">
                 <Label>المورد</Label>
                 <Select
@@ -797,7 +854,7 @@ const Products = () => {
         <DialogContent className="max-w-md">
           <DialogHeader><DialogTitle>إدارة التصنيفات</DialogTitle></DialogHeader>
           <div className="space-y-4">
-            <div className="flex gap-2">
+            <div className="grid sm:grid-cols-[1fr,1fr,auto] gap-2">
               <Input
                 placeholder="اسم التصنيف الجديد"
                 value={newCat}
@@ -805,6 +862,13 @@ const Products = () => {
                 onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addCategory(); } }}
                 disabled={catSaving}
               />
+              <Select value={newCatParent} onValueChange={setNewCatParent}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__main__">تصنيف رئيسي</SelectItem>
+                  {mainCategories.map(c => <SelectItem key={c.id} value={c.id}>فرعي من: {c.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
               <Button onClick={addCategory} disabled={catSaving}>
                 {catSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Plus className="h-4 w-4 ml-1" /> إضافة</>}
               </Button>
@@ -815,26 +879,54 @@ const Products = () => {
               <p className="text-sm text-muted-foreground text-center py-6">لا توجد تصنيفات بعد.</p>
             ) : (
               <ul className="divide-y divide-border rounded-md border border-border">
-                {categories.map(c => (
-                  <li key={c.id} className="flex items-center justify-between px-3 py-2">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium text-sm">{c.name}</span>
-                      <span className="text-xs text-muted-foreground">({c.product_count})</span>
+                {mainCategories.map(c => (
+                  <li key={c.id} className="px-3 py-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-sm">{c.name}</span>
+                        <span className="text-xs text-muted-foreground">({c.product_count})</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Button variant="ghost" size="icon" title="حسابات التصنيف" onClick={() => setMappingCat(c)}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          disabled={c.product_count > 0 || (c.subcategory_count ?? 0) > 0}
+                          title={c.product_count > 0 ? 'مستخدم في منتجات' : (c.subcategory_count ?? 0) > 0 ? 'يحتوي على تصنيفات فرعية' : 'حذف'}
+                          onClick={() => removeCategory(c)}
+                        >
+                          <X className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-1">
-                      <Button variant="ghost" size="icon" title="حسابات التصنيف" onClick={() => setMappingCat(c)}>
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        disabled={c.product_count > 0}
-                        title={c.product_count > 0 ? 'مستخدم في منتجات' : 'حذف'}
-                        onClick={() => removeCategory(c)}
-                      >
-                        <X className="h-4 w-4 text-destructive" />
-                      </Button>
-                    </div>
+                    {subcategoriesFor(c.id).length > 0 && (
+                      <div className="mt-2 mr-5 border-r border-border pr-3 space-y-1">
+                        {subcategoriesFor(c.id).map(sub => (
+                          <div key={sub.id} className="flex items-center justify-between rounded-md bg-muted/30 px-2 py-1.5">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm">{sub.name}</span>
+                              <span className="text-xs text-muted-foreground">({sub.product_count})</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Button variant="ghost" size="icon" title="حسابات التصنيف" onClick={() => setMappingCat(sub)}>
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                disabled={sub.product_count > 0}
+                                title={sub.product_count > 0 ? 'مستخدم في منتجات' : 'حذف'}
+                                onClick={() => removeCategory(sub)}
+                              >
+                                <X className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -854,6 +946,20 @@ const Products = () => {
               <div>
                 <Label>اسم التصنيف</Label>
                 <Input className="mt-1.5" value={mappingCat.name} onChange={(e) => setMappingCat(s => s ? { ...s, name: e.target.value } : s)} />
+              </div>
+              <div>
+                <Label>التصنيف الرئيسي</Label>
+                <Select
+                  value={mappingCat.parent_id ?? '__main__'}
+                  onValueChange={(v) => setMappingCat(s => s ? { ...s, parent_id: v === '__main__' ? null : v } : s)}
+                  disabled={(mappingCat.subcategory_count ?? 0) > 0}
+                >
+                  <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__main__">تصنيف رئيسي</SelectItem>
+                    {mainCategories.filter(c => c.id !== mappingCat.id).map(c => <SelectItem key={c.id} value={c.id}>فرعي من: {c.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="grid sm:grid-cols-2 gap-3">
                 <div><Label className="text-xs">المبيعات</Label>{accountSelect(mappingCat.sales_account_id, (v) => setMappingCat(s => s ? { ...s, sales_account_id: v ?? null } : s))}</div>

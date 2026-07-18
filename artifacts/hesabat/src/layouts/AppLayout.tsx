@@ -35,54 +35,69 @@ type NavGroup = {
 
 const companyNavGroups: NavGroup[] = [
   {
-    label: 'نظرة عامة',
+    label: 'الرئيسية',
     items: [
       { to: '/app', label: 'الرئيسية', icon: LayoutDashboard, end: true },
       { to: '/app/reports', label: 'التقارير العامة', icon: BarChart3, feature: 'reports_basic' },
     ],
   },
   {
-    label: 'المبيعات والعملاء',
+    label: 'المبيعات',
     items: [
-      { to: '/app/clients', label: 'العملاء', icon: Users, feature: 'clients' },
       { to: '/app/invoices', label: 'الفواتير', icon: FileText, feature: 'invoices' },
       { to: '/app/credit-notes', label: 'الإشعارات الدائنة', icon: ArrowUpFromLine, feature: 'invoices' },
       { to: '/app/payments', label: 'التحصيلات', icon: CreditCard, feature: 'payments' },
+      { to: '/app/clients', label: 'العملاء', icon: Users, feature: 'clients' },
     ],
   },
   {
-    label: 'المشتريات والمخزون',
+    label: 'المشتريات',
     items: [
       { to: '/app/suppliers', label: 'الموردون', icon: Truck, feature: 'suppliers' },
       { to: '/app/purchases/invoices', label: 'فواتير الشراء', icon: FileText, feature: 'purchases' },
       { to: '/app/purchases/returns', label: 'مرتجعات الشراء', icon: ArrowUpFromLine, feature: 'purchases' },
       { to: '/app/purchases/supplier-payments', label: 'دفعات الموردين', icon: CreditCard, feature: 'purchases' },
       { to: '/app/payouts', label: 'المصروفات', icon: ArrowUpFromLine, feature: 'payouts' },
+    ],
+  },
+  {
+    label: 'المخزون',
+    items: [
       { to: '/app/products', label: 'المنتجات والمخزون', icon: Package, feature: 'products' },
       { to: '/app/inventory-write-offs', label: 'شطب / هالك المخزون', icon: Package, feature: 'products' },
     ],
   },
   {
-    label: 'المحاسبة',
+    label: 'المحاسبة الأساسية',
     items: [
       { to: '/app/accounts', label: 'الحسابات المالية', icon: Wallet, feature: 'accounts' },
-      { to: '/app/branches', label: 'الفروع', icon: Building2, feature: 'accounting' },
-      { to: '/app/cost-centers', label: 'مراكز التكلفة', icon: Target, feature: 'accounting' },
       { to: '/app/accounting/chart', label: 'دليل الحسابات', icon: BookOpen, feature: 'accounting' },
       { to: '/app/accounting/journals', label: 'قيود اليومية', icon: Scale, feature: 'accounting' },
+      { to: '/app/branches', label: 'الفروع', icon: Building2, feature: 'accounting' },
+      { to: '/app/cost-centers', label: 'مراكز التكلفة', icon: Target, feature: 'accounting' },
+      { to: '/app/accounting/fiscal-years', label: 'الفترات المالية', icon: CalendarDays, feature: 'accounting' },
+      { to: '/app/accounting/opening-balances', label: 'الأرصدة الافتتاحية', icon: FileText, feature: 'accounting' },
+      { to: '/app/accounting/year-end-closing', label: 'إقفال السنة', icon: Lock, feature: 'accounting' },
+      { to: '/app/accounting/settings', label: 'إعدادات المحاسبة', icon: Settings, feature: 'accounting' },
+    ],
+  },
+  {
+    label: 'العمليات والتقارير',
+    items: [
       { to: '/app/accounting/reports', label: 'التقارير المالية', icon: BarChart3, feature: 'accounting' },
       { to: '/app/accounting/bad-debts', label: 'الديون المعدومة', icon: ShieldCheck, feature: 'accounting' },
+      { to: '/app/accounting/bank-reconciliations', label: 'تسويات البنك', icon: Landmark, feature: 'accounting' },
+    ],
+  },
+  {
+    label: 'الأصول والرواتب',
+    items: [
       { to: '/app/accounting/assets', label: 'الأصول الثابتة', icon: Building2, feature: 'accounting' },
       { to: '/app/accounting/asset-categories', label: 'تصنيفات الأصول', icon: Layers, feature: 'accounting' },
       { to: '/app/accounting/depreciation-runs', label: 'تشغيلات الإهلاك', icon: ScrollText, feature: 'accounting' },
       { to: '/app/accounting/employees', label: 'الموظفون', icon: Users, feature: 'accounting' },
       { to: '/app/accounting/salary-components', label: 'مكونات الرواتب', icon: Layers, feature: 'accounting' },
       { to: '/app/accounting/payroll-runs', label: 'تشغيلات الرواتب', icon: CreditCard, feature: 'accounting' },
-      { to: '/app/accounting/bank-reconciliations', label: 'تسويات البنك', icon: Landmark, feature: 'accounting' },
-      { to: '/app/accounting/fiscal-years', label: 'الفترات المالية', icon: CalendarDays, feature: 'accounting' },
-      { to: '/app/accounting/opening-balances', label: 'الأرصدة الافتتاحية', icon: FileText, feature: 'accounting' },
-      { to: '/app/accounting/year-end-closing', label: 'إقفال السنة', icon: Lock, feature: 'accounting' },
-      { to: '/app/accounting/settings', label: 'إعدادات المحاسبة', icon: Settings, feature: 'accounting' },
     ],
   },
   {
@@ -168,6 +183,7 @@ const pageKey = (kind: 'company' | 'admin', pathname: string): string => {
   if (pathname.startsWith('/app/branches')) return 'branches';
   if (pathname.startsWith('/app/cost-centers')) return 'cost-centers';
   if (pathname.startsWith('/app/products')) return 'products';
+  if (pathname.startsWith('/app/inventory-write-offs')) return 'products';
   if (pathname.startsWith('/app/accounting')) return 'accounting';
   if (pathname.startsWith('/app/purchases')) return 'purchases';
   if (pathname.startsWith('/app/reports')) return 'reports';

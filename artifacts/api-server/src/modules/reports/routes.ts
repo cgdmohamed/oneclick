@@ -196,23 +196,285 @@ router.get('/suppliers', async (req, res, next) => {
 router.get('/inventory', async (req, res, next) => {
   try {
     const t = req.tenant!;
+    const params: unknown[] = [t.companyId];
+    const where = [`p.company_id = $1`, `p.product_type = 'stock'`];
+    const { category_id, subcategory_id } = req.query as Record<string, string>;
+    if (subcategory_id) {
+      params.push(subcategory_id);
+      where.push(`p.category_id = $${params.length}`);
+    } else if (category_id) {
+      params.push(category_id);
+      where.push(`(p.category_id = $${params.length} OR pc.parent_id = $${params.length})`);
+    }
     const rs = await t.db.query(`
       SELECT p.id, p.name, p.sku, p.product_type, p.quantity, p.alert_level, p.price, p.cost,
              COALESCE(NULLIF(p.average_cost, 0), p.cost, 0) AS average_cost,
              p.unit, p.is_active,
-             pc.name AS category_name,
+             CASE WHEN pc.parent_id IS NULL THEN pc.name ELSE parent_pc.name END AS category_name,
+             CASE WHEN pc.parent_id IS NULL THEN NULL ELSE pc.name END AS subcategory_name,
+             CASE WHEN pc.parent_id IS NULL THEN pc.id ELSE parent_pc.id END AS parent_category_id,
+             CASE WHEN pc.parent_id IS NULL THEN NULL ELSE pc.id END AS subcategory_id,
              s.name  AS supplier_name,
              COALESCE(NULLIF(p.inventory_value, 0), p.quantity * COALESCE(NULLIF(p.average_cost, 0), p.cost, 0)) AS stock_value
       FROM products p
-      LEFT JOIN product_categories pc ON pc.id = p.category_id
+      LEFT JOIN product_categories pc ON pc.id = p.category_id AND pc.company_id = p.company_id
+      LEFT JOIN product_categories parent_pc ON parent_pc.id = pc.parent_id AND parent_pc.company_id = pc.company_id
       LEFT JOIN suppliers s ON s.id = p.supplier_id
-      WHERE p.company_id = $1 AND p.product_type = 'stock'
+      WHERE ${where.join(' AND ')}
       ORDER BY p.name ASC
-    `, [t.companyId]);
+    `, params);
 
     const totalValue  = rs.rows.reduce((s: number, r: { stock_value: string }) => s + Number(r.stock_value), 0);
     const lowStockCnt = rs.rows.filter((r: { quantity: number; alert_level: number }) => r.quantity <= r.alert_level).length;
     res.json({ data: rs.rows, summary: { total_value: totalValue.toFixed(2), low_stock_count: lowStockCnt } });
+  } catch (e) { next(e); }
+});
+
+router.get('/product-sales', async (req, res, next) => {
+  try {
+    const t = req.tenant!;
+    const params: unknown[] = [t.companyId];
+    const salesWhere = [`i.company_id = $1`, `i.status NOT IN ('draft','cancelled')`];
+    const returnWhere = [`cn.company_id = $1`, `cn.status = 'posted'`];
+    const {
+      date_from, date_to, branch_id, cost_center_id,
+      category_id, subcategory_id, product_id, product_type,
+    } = req.query as Record<string, string>;
+
+    const add = (value: string) => {
+      params.push(value);
+      return `$${params.length}`;
+    };
+    if (date_from) {
+      const p = add(date_from);
+      salesWhere.push(`i.issue_date >= ${p}::date`);
+      returnWhere.push(`cn.credit_note_date >= ${p}::date`);
+    }
+    if (date_to) {
+      const p = add(date_to);
+      salesWhere.push(`i.issue_date < (${p}::date + interval '1 day')`);
+      returnWhere.push(`cn.credit_note_date < (${p}::date + interval '1 day')`);
+    }
+    if (branch_id) {
+      const p = add(branch_id);
+      salesWhere.push(`i.branch_id = ${p}`);
+      // Credit notes do not carry branch in V1; returns stay date/product filtered.
+    }
+    if (cost_center_id) {
+      const p = add(cost_center_id);
+      salesWhere.push(`ii.cost_center_id = ${p}`);
+    }
+    if (category_id) {
+      const p = add(category_id);
+      salesWhere.push(`(p.category_id = ${p} OR pc.parent_id = ${p})`);
+      returnWhere.push(`(rp.category_id = ${p} OR rpc.parent_id = ${p})`);
+    }
+    if (subcategory_id) {
+      const p = add(subcategory_id);
+      salesWhere.push(`p.category_id = ${p}`);
+      returnWhere.push(`rp.category_id = ${p}`);
+    }
+    if (product_id) {
+      const p = add(product_id);
+      salesWhere.push(`p.id = ${p}`);
+      returnWhere.push(`rp.id = ${p}`);
+    }
+    if (product_type) {
+      const p = add(product_type);
+      salesWhere.push(`p.product_type = ${p}`);
+      returnWhere.push(`rp.product_type = ${p}`);
+    }
+
+    const rs = await t.db.query(
+      `WITH sales AS (
+         SELECT
+           p.id AS product_id,
+           p.name AS product_name,
+           p.sku,
+           p.barcode,
+           p.product_type,
+           CASE WHEN pc.parent_id IS NULL THEN pc.name ELSE parent_pc.name END AS category,
+           CASE WHEN pc.parent_id IS NULL THEN NULL ELSE pc.name END AS subcategory,
+           COALESCE(SUM(ii.quantity),0) AS quantity_sold,
+           COALESCE(SUM(ii.quantity * ii.unit_price),0) AS gross_sales,
+           COALESCE(SUM(COALESCE(sl.total_value, ii.quantity * COALESCE(NULLIF(p.average_cost,0), p.cost, 0))),0) AS cogs
+         FROM invoice_items ii
+         JOIN invoices i ON i.id = ii.invoice_id AND i.company_id = ii.company_id
+         JOIN products p ON p.id = ii.product_id AND p.company_id = ii.company_id
+         LEFT JOIN product_categories pc ON pc.id = p.category_id AND pc.company_id = p.company_id
+         LEFT JOIN product_categories parent_pc ON parent_pc.id = pc.parent_id AND parent_pc.company_id = pc.company_id
+         LEFT JOIN stock_ledger sl
+           ON sl.company_id = ii.company_id
+          AND sl.product_id = ii.product_id
+          AND sl.source_type = 'invoice'
+          AND sl.source_id = ii.invoice_id
+         WHERE ${salesWhere.join(' AND ')}
+         GROUP BY p.id, p.name, p.sku, p.barcode, p.product_type, pc.parent_id, pc.name, parent_pc.name
+       ),
+       returns AS (
+         SELECT
+           rp.id AS product_id,
+           COALESCE(SUM(cni.quantity),0) AS quantity_returned,
+           COALESCE(SUM(cni.line_total),0) AS sales_returns
+         FROM credit_note_items cni
+         JOIN credit_notes cn ON cn.id = cni.credit_note_id AND cn.company_id = cni.company_id
+         JOIN products rp ON rp.id = cni.product_id AND rp.company_id = cni.company_id
+         LEFT JOIN product_categories rpc ON rpc.id = rp.category_id AND rpc.company_id = rp.company_id
+         WHERE ${returnWhere.join(' AND ')}
+         GROUP BY rp.id
+       )
+       SELECT
+         s.product_id,
+         s.product_name,
+         s.sku,
+         s.barcode,
+         s.product_type,
+         s.category,
+         s.subcategory,
+         s.quantity_sold,
+         COALESCE(r.quantity_returned,0) AS quantity_returned,
+         s.quantity_sold - COALESCE(r.quantity_returned,0) AS net_quantity_sold,
+         s.gross_sales,
+         COALESCE(r.sales_returns,0) AS sales_returns,
+         s.gross_sales - COALESCE(r.sales_returns,0) AS net_sales,
+         s.cogs,
+         s.gross_sales - COALESCE(r.sales_returns,0) - s.cogs AS gross_profit,
+         CASE WHEN (s.gross_sales - COALESCE(r.sales_returns,0)) > 0
+           THEN ROUND(((s.gross_sales - COALESCE(r.sales_returns,0) - s.cogs) / (s.gross_sales - COALESCE(r.sales_returns,0))) * 100, 2)
+           ELSE 0
+         END AS margin_percent,
+         p.quantity AS current_stock,
+         p.inventory_value
+       FROM sales s
+       JOIN products p ON p.id = s.product_id AND p.company_id = $1
+       LEFT JOIN returns r ON r.product_id = s.product_id
+       ORDER BY net_sales DESC, s.product_name ASC`,
+      params,
+    );
+
+    const summary = rs.rows.reduce((acc: any, row: any) => {
+      acc.quantity_sold += Number(row.quantity_sold ?? 0);
+      acc.quantity_returned += Number(row.quantity_returned ?? 0);
+      acc.net_quantity_sold += Number(row.net_quantity_sold ?? 0);
+      acc.gross_sales += Number(row.gross_sales ?? 0);
+      acc.sales_returns += Number(row.sales_returns ?? 0);
+      acc.net_sales += Number(row.net_sales ?? 0);
+      acc.cogs += Number(row.cogs ?? 0);
+      acc.gross_profit += Number(row.gross_profit ?? 0);
+      acc.inventory_value += Number(row.inventory_value ?? 0);
+      return acc;
+    }, {
+      quantity_sold: 0, quantity_returned: 0, net_quantity_sold: 0,
+      gross_sales: 0, sales_returns: 0, net_sales: 0, cogs: 0,
+      gross_profit: 0, inventory_value: 0,
+    });
+    summary.margin_percent = summary.net_sales > 0 ? Number(((summary.gross_profit / summary.net_sales) * 100).toFixed(2)) : 0;
+    res.json({ data: rs.rows, summary: { ...summary, count: rs.rows.length } });
+  } catch (e) { next(e); }
+});
+
+router.get('/stock-risk', async (req, res, next) => {
+  try {
+    const t = req.tenant!;
+    const params: unknown[] = [t.companyId];
+    const where = [`p.company_id = $1`, `p.product_type = 'stock'`];
+    const salesWhere = [`i.company_id = $1`, `i.status NOT IN ('draft','cancelled')`];
+    const {
+      date_from, date_to, from, to, category_id, subcategory_id, branch_id, product_id,
+      high_value_threshold,
+    } = req.query as Record<string, string>;
+    const start = date_from || from;
+    const end = date_to || to;
+    const add = (value: string) => {
+      params.push(value);
+      return `$${params.length}`;
+    };
+    if (category_id) {
+      const pidx = add(category_id);
+      where.push(`(p.category_id = ${pidx} OR pc.parent_id = ${pidx})`);
+    }
+    if (subcategory_id) {
+      const pidx = add(subcategory_id);
+      where.push(`p.category_id = ${pidx}`);
+    }
+    if (product_id) {
+      const pidx = add(product_id);
+      where.push(`p.id = ${pidx}`);
+    }
+    if (start) {
+      const pidx = add(start);
+      salesWhere.push(`i.issue_date >= ${pidx}::date`);
+    }
+    if (end) {
+      const pidx = add(end);
+      salesWhere.push(`i.issue_date < (${pidx}::date + interval '1 day')`);
+    }
+    if (branch_id) {
+      const pidx = add(branch_id);
+      salesWhere.push(`i.branch_id = ${pidx}`);
+    }
+    const threshold = Number(high_value_threshold ?? 10000);
+
+    const rs = await t.db.query(
+      `WITH period_sales AS (
+         SELECT ii.product_id,
+                COALESCE(SUM(ii.quantity),0) AS quantity_sold_period,
+                MAX(i.issue_date) AS last_sale_in_period
+         FROM invoice_items ii
+         JOIN invoices i ON i.id = ii.invoice_id AND i.company_id = ii.company_id
+         WHERE ${salesWhere.join(' AND ')}
+         GROUP BY ii.product_id
+       ),
+       lifetime_sales AS (
+         SELECT ii.product_id, MAX(i.issue_date) AS last_sale_date
+         FROM invoice_items ii
+         JOIN invoices i ON i.id = ii.invoice_id AND i.company_id = ii.company_id
+         WHERE i.company_id = $1 AND i.status NOT IN ('draft','cancelled')
+         GROUP BY ii.product_id
+       )
+       SELECT
+         p.id AS product_id,
+         p.name AS product_name,
+         p.sku,
+         p.barcode,
+         CASE WHEN pc.parent_id IS NULL THEN pc.name ELSE parent_pc.name END AS category,
+         CASE WHEN pc.parent_id IS NULL THEN NULL ELSE pc.name END AS subcategory,
+         p.quantity AS current_stock,
+         COALESCE(NULLIF(p.average_cost,0), p.cost, 0) AS average_cost,
+         COALESCE(NULLIF(p.inventory_value,0), p.quantity * COALESCE(NULLIF(p.average_cost,0), p.cost, 0)) AS inventory_value,
+         COALESCE(ps.quantity_sold_period,0) AS quantity_sold,
+         ls.last_sale_date,
+         CASE WHEN ls.last_sale_date IS NULL THEN NULL ELSE GREATEST(0, (CURRENT_DATE - ls.last_sale_date::date))::int END AS days_since_last_sale,
+         (p.quantity <= p.alert_level) AS low_stock,
+         (p.quantity <= 0) AS out_of_stock,
+         (COALESCE(ps.quantity_sold_period,0) = 0 AND p.quantity > 0) AS slow_moving,
+         (COALESCE(ps.quantity_sold_period,0) = 0 AND p.quantity > 0 AND COALESCE(NULLIF(p.inventory_value,0), p.quantity * COALESCE(NULLIF(p.average_cost,0), p.cost, 0)) >= $${params.length + 1}) AS high_value_slow_moving,
+         CASE
+           WHEN p.quantity <= 0 THEN 'إعادة التوريد أو إيقاف البيع مؤقتاً'
+           WHEN p.quantity <= p.alert_level THEN 'إعادة التوريد قريباً'
+           WHEN COALESCE(ps.quantity_sold_period,0) = 0 AND p.quantity > 0 AND COALESCE(NULLIF(p.inventory_value,0), p.quantity * COALESCE(NULLIF(p.average_cost,0), p.cost, 0)) >= $${params.length + 1} THEN 'راجع التسعير أو نفّذ عرض تصريف'
+           WHEN COALESCE(ps.quantity_sold_period,0) = 0 AND p.quantity > 0 THEN 'راجع الطلب أو خفّض إعادة الشراء'
+           ELSE 'المخزون طبيعي'
+         END AS suggested_action
+       FROM products p
+       LEFT JOIN product_categories pc ON pc.id = p.category_id AND pc.company_id = p.company_id
+       LEFT JOIN product_categories parent_pc ON parent_pc.id = pc.parent_id AND parent_pc.company_id = pc.company_id
+       LEFT JOIN period_sales ps ON ps.product_id = p.id
+       LEFT JOIN lifetime_sales ls ON ls.product_id = p.id
+       WHERE ${where.join(' AND ')}
+       ORDER BY high_value_slow_moving DESC, slow_moving DESC, out_of_stock DESC, low_stock DESC, inventory_value DESC, p.name`,
+      [...params, threshold],
+    );
+    const summary = {
+      low_stock: rs.rows.filter((r: any) => r.low_stock).length,
+      out_of_stock: rs.rows.filter((r: any) => r.out_of_stock).length,
+      slow_moving: rs.rows.filter((r: any) => r.slow_moving).length,
+      high_value_slow_moving: rs.rows.filter((r: any) => r.high_value_slow_moving).length,
+      inventory_value: rs.rows.reduce((sum: number, r: any) => sum + Number(r.inventory_value ?? 0), 0).toFixed(2),
+      threshold: threshold.toFixed(2),
+      count: rs.rows.length,
+    };
+    res.json({ data: rs.rows, summary });
   } catch (e) { next(e); }
 });
 
@@ -221,24 +483,28 @@ router.get('/inventory-write-offs', async (req, res, next) => {
     const t = req.tenant!;
     const params: unknown[] = [t.companyId];
     const where = [`iwo.company_id = $1`, `iwo.status = 'posted'`];
-    const { from, to, product_id, category_id, branch_id, cost_center_id, reason } = req.query as Record<string, string>;
+    const { from, to, product_id, category_id, subcategory_id, branch_id, cost_center_id, reason } = req.query as Record<string, string>;
     if (from) { params.push(from); where.push(`iwo.write_off_date >= $${params.length}::date`); }
     if (to) { params.push(to); where.push(`iwo.write_off_date < ($${params.length}::date + interval '1 day')`); }
     if (product_id) { params.push(product_id); where.push(`iwoi.product_id = $${params.length}`); }
-    if (category_id) { params.push(category_id); where.push(`p.category_id = $${params.length}`); }
+    if (subcategory_id) { params.push(subcategory_id); where.push(`p.category_id = $${params.length}`); }
+    else if (category_id) { params.push(category_id); where.push(`(p.category_id = $${params.length} OR pc.parent_id = $${params.length})`); }
     if (branch_id) { params.push(branch_id); where.push(`iwo.branch_id = $${params.length}`); }
     if (cost_center_id) { params.push(cost_center_id); where.push(`iwo.cost_center_id = $${params.length}`); }
     if (reason) { params.push(reason); where.push(`COALESCE(iwoi.reason, iwo.reason) = $${params.length}`); }
     const rs = await t.db.query(
       `SELECT iwo.id, iwo.write_off_number, iwo.write_off_date, iwo.reason AS document_reason,
               COALESCE(iwoi.reason, iwo.reason) AS reason,
-              p.id AS product_id, p.name AS product_name, p.sku, pc.name AS category_name,
+              p.id AS product_id, p.name AS product_name, p.sku,
+              CASE WHEN pc.parent_id IS NULL THEN pc.name ELSE parent_pc.name END AS category_name,
+              CASE WHEN pc.parent_id IS NULL THEN NULL ELSE pc.name END AS subcategory_name,
               iwoi.quantity, iwoi.unit_cost, iwoi.total_cost,
               b.name AS branch_name, cc.name AS cost_center_name
        FROM inventory_write_off_items iwoi
        JOIN inventory_write_offs iwo ON iwo.id = iwoi.write_off_id AND iwo.company_id = iwoi.company_id
        JOIN products p ON p.id = iwoi.product_id
-       LEFT JOIN product_categories pc ON pc.id = p.category_id
+       LEFT JOIN product_categories pc ON pc.id = p.category_id AND pc.company_id = p.company_id
+       LEFT JOIN product_categories parent_pc ON parent_pc.id = pc.parent_id AND parent_pc.company_id = pc.company_id
        LEFT JOIN branches b ON b.id = iwo.branch_id
        LEFT JOIN cost_centers cc ON cc.id = iwo.cost_center_id
        WHERE ${where.join(' AND ')}
@@ -256,20 +522,26 @@ router.get('/sales-returns', async (req, res, next) => {
     const t = req.tenant!;
     const params: unknown[] = [t.companyId];
     const where = [`cn.company_id = $1`, `cn.status != 'cancelled'`];
-    const { from, to, product_id, return_condition } = req.query as Record<string, string>;
+    const { from, to, product_id, category_id, subcategory_id, return_condition } = req.query as Record<string, string>;
     if (from) { params.push(from); where.push(`cn.credit_note_date >= $${params.length}::date`); }
     if (to) { params.push(to); where.push(`cn.credit_note_date < ($${params.length}::date + interval '1 day')`); }
     if (product_id) { params.push(product_id); where.push(`cni.product_id = $${params.length}`); }
+    if (subcategory_id) { params.push(subcategory_id); where.push(`p.category_id = $${params.length}`); }
+    else if (category_id) { params.push(category_id); where.push(`(p.category_id = $${params.length} OR pc.parent_id = $${params.length})`); }
     if (return_condition) { params.push(return_condition); where.push(`cni.return_condition = $${params.length}`); }
     const rs = await t.db.query(
       `SELECT cn.id, cn.credit_note_number, cn.credit_note_date, cn.status,
               c.name AS customer_name, p.name AS product_name, p.sku,
+              CASE WHEN pc.parent_id IS NULL THEN pc.name ELSE parent_pc.name END AS category_name,
+              CASE WHEN pc.parent_id IS NULL THEN NULL ELSE pc.name END AS subcategory_name,
               cni.description, cni.quantity, cni.unit_price, cni.vat_rate, cni.line_total,
               cni.return_condition, cni.return_to_stock
        FROM credit_note_items cni
        JOIN credit_notes cn ON cn.id = cni.credit_note_id AND cn.company_id = cni.company_id
        JOIN clients c ON c.id = cn.customer_id
        LEFT JOIN products p ON p.id = cni.product_id
+       LEFT JOIN product_categories pc ON pc.id = p.category_id AND pc.company_id = p.company_id
+       LEFT JOIN product_categories parent_pc ON parent_pc.id = pc.parent_id AND parent_pc.company_id = pc.company_id
        WHERE ${where.join(' AND ')}
        ORDER BY cn.credit_note_date DESC, cn.created_at DESC`,
       params,

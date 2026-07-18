@@ -125,7 +125,7 @@ const NewPurchaseInvoice = () => {
             <div><Label>الوصف</Label><Input className="mt-1.5" value={item.description} onChange={(e) => updateItem(idx, { description: e.target.value })} /></div>
             <div><Label>الكمية</Label><Input className="mt-1.5" type="number" value={item.quantity} onChange={(e) => updateItem(idx, { quantity: e.target.value })} /></div>
             <div><Label>تكلفة الوحدة</Label><Input className="mt-1.5" type="number" value={item.unit_cost} onChange={(e) => updateItem(idx, { unit_cost: e.target.value })} /></div>
-            <div><Label>VAT %</Label><Input className="mt-1.5" type="number" value={item.vat_rate} onChange={(e) => updateItem(idx, { vat_rate: e.target.value })} /></div>
+            <div><Label>نسبة الضريبة %</Label><Input className="mt-1.5" type="number" value={item.vat_rate} onChange={(e) => updateItem(idx, { vat_rate: e.target.value })} /></div>
             <Button variant="ghost" size="icon" className="text-destructive" onClick={() => setItems((prev) => prev.filter((_, i) => i !== idx))} disabled={items.length === 1}><Trash2 className="h-4 w-4" /></Button>
           </div>
         ))}

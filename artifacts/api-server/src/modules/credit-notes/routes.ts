@@ -115,12 +115,13 @@ async function postCreditNote(db: Queryable, companyId: string, creditNoteId: st
   const settings = await getSettings(db, companyId);
   const items = await db.query(
     `SELECT cni.*, p.product_type,
-            COALESCE(p.sales_returns_account_id, pc.sales_returns_account_id, $3::uuid) AS resolved_sales_returns_account_id,
-            COALESCE(p.inventory_account_id, pc.inventory_account_id, $4::uuid) AS resolved_inventory_account_id,
-            COALESCE(p.cogs_account_id, pc.cogs_account_id, $5::uuid) AS resolved_cogs_account_id
+            COALESCE(p.sales_returns_account_id, pc.sales_returns_account_id, parent_pc.sales_returns_account_id, $3::uuid) AS resolved_sales_returns_account_id,
+            COALESCE(p.inventory_account_id, pc.inventory_account_id, parent_pc.inventory_account_id, $4::uuid) AS resolved_inventory_account_id,
+            COALESCE(p.cogs_account_id, pc.cogs_account_id, parent_pc.cogs_account_id, $5::uuid) AS resolved_cogs_account_id
      FROM credit_note_items cni
      LEFT JOIN products p ON p.id = cni.product_id AND p.company_id = cni.company_id
      LEFT JOIN product_categories pc ON pc.id = p.category_id AND pc.company_id = p.company_id
+     LEFT JOIN product_categories parent_pc ON parent_pc.id = pc.parent_id AND parent_pc.company_id = pc.company_id
      WHERE cni.credit_note_id = $1 AND cni.company_id = $2
      ORDER BY cni.created_at`,
     [creditNoteId, companyId, settings.sales_returns_account_id, settings.inventory_account_id, settings.cogs_account_id],

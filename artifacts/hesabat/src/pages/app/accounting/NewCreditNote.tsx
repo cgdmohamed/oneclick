@@ -145,7 +145,7 @@ const NewCreditNote = () => {
             <div className="md:col-span-2"><Label>الوصف</Label><Input className="mt-1.5" value={item.description} onChange={(e) => updateItem(idx, { description: e.target.value })} /></div>
             <div><Label>الكمية</Label><Input className="mt-1.5" type="number" value={item.quantity} onChange={(e) => updateItem(idx, { quantity: e.target.value })} /></div>
             <div><Label>سعر الوحدة</Label><Input className="mt-1.5" type="number" value={item.unit_price} onChange={(e) => updateItem(idx, { unit_price: e.target.value })} /></div>
-            <div><Label>VAT %</Label><Input className="mt-1.5" type="number" value={item.vat_rate} onChange={(e) => updateItem(idx, { vat_rate: e.target.value })} /></div>
+            <div><Label>نسبة الضريبة %</Label><Input className="mt-1.5" type="number" value={item.vat_rate} onChange={(e) => updateItem(idx, { vat_rate: e.target.value })} /></div>
             <div><Label>حالة المرتجع</Label><Select value={item.return_condition} onValueChange={(v) => updateItem(idx, { return_condition: v as ItemForm['return_condition'], return_to_stock: v === 'resellable' })}><SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger><SelectContent>{(['resellable','damaged','inspection','scrap'] as const).map((v) => <SelectItem key={v} value={v}>{conditionLabel(v)}</SelectItem>)}</SelectContent></Select></div>
             <label className="h-10 flex items-center gap-2 text-sm">
               <input type="checkbox" checked={item.return_to_stock} onChange={(e) => updateItem(idx, { return_to_stock: e.target.checked })} />

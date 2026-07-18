@@ -46,7 +46,7 @@ const PurchaseReturnDetails = () => {
     { key: 'product', header: 'المنتج', cell: (r) => <span className="font-medium">{r.product_name ?? r.product_id}</span> },
     { key: 'qty', header: 'الكمية', cell: (r) => Number(r.quantity).toLocaleString('ar-SA') },
     { key: 'cost', header: 'تكلفة الوحدة', cell: (r) => formatCurrency(Number(r.unit_cost)) },
-    { key: 'vat', header: 'VAT', cell: (r) => `${Number(r.vat_rate)}%` },
+    { key: 'vat', header: 'الضريبة', cell: (r) => `${Number(r.vat_rate)}%` },
     { key: 'total', header: 'الإجمالي', cell: (r) => formatCurrency(Number(r.line_total)), className: 'text-end' },
   ];
   return (

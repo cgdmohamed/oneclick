@@ -70,7 +70,7 @@ const CreditNoteDetails = () => {
     { key: 'description', header: 'الوصف', cell: (r) => r.description },
     { key: 'quantity', header: 'الكمية', cell: (r) => Number(r.quantity), className: 'text-end' },
     { key: 'price', header: 'سعر الوحدة', cell: (r) => formatCurrency(Number(r.unit_price)), className: 'text-end' },
-    { key: 'vat', header: 'VAT', cell: (r) => `${Number(r.vat_rate)}%`, className: 'text-end' },
+    { key: 'vat', header: 'الضريبة', cell: (r) => `${Number(r.vat_rate)}%`, className: 'text-end' },
     { key: 'condition', header: 'حالة المرتجع', cell: (r) => conditionLabel(r.return_condition ?? 'resellable') },
     { key: 'stock', header: 'إرجاع للمخزون', cell: (r) => r.return_to_stock ? 'نعم' : 'لا' },
     { key: 'total', header: 'الإجمالي', cell: (r) => formatCurrency(Number(r.line_total)), className: 'text-end' },
