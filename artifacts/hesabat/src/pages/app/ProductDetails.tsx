@@ -206,15 +206,15 @@ const ProductDetails = () => {
       <PageHeader
         title={product?.name ?? 'تفاصيل المنتج'}
         description={product?.sku ? `SKU: ${product.sku}` : undefined}
-        actions={openingAllowed ? <Button onClick={() => setOpeningOpen(true)}><Plus className="h-4 w-4 ml-1" /> رصيد افتتاحي</Button> : undefined}
+        actions={openingAllowed ? <Button onClick={() => setOpeningOpen(true)}><Plus className="h-4 w-4 me-1" /> رصيد افتتاحي</Button> : undefined}
       />
 
       {product && (
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Card className="p-4"><div className="text-xs text-muted-foreground">الكمية الحالية</div><div className="text-2xl font-bold mt-1">{Number(product.quantity)}</div></Card>
-          <Card className="p-4"><div className="text-xs text-muted-foreground">متوسط التكلفة</div><div className="text-2xl font-bold mt-1">{formatCurrency(Number(product.average_cost ?? product.cost))}</div></Card>
-          <Card className="p-4"><div className="text-xs text-muted-foreground">قيمة المخزون</div><div className="text-2xl font-bold mt-1">{formatCurrency(Number(product.inventory_value ?? 0))}</div></Card>
-          <Card className="p-4"><div className="text-xs text-muted-foreground">الضريبة</div><div className="text-2xl font-bold mt-1">{vatLabel(product.vat_status, product.vat_rate)}</div></Card>
+          <Card className="p-4 text-start"><div className="text-xs text-muted-foreground">الكمية الحالية</div><div className="text-2xl font-bold mt-1 tabular-nums whitespace-nowrap">{Number(product.quantity)}</div></Card>
+          <Card className="p-4 text-start"><div className="text-xs text-muted-foreground">متوسط التكلفة</div><div className="text-2xl font-bold mt-1 tabular-nums whitespace-nowrap">{formatCurrency(Number(product.average_cost ?? product.cost))}</div></Card>
+          <Card className="p-4 text-start"><div className="text-xs text-muted-foreground">قيمة المخزون</div><div className="text-2xl font-bold mt-1 tabular-nums whitespace-nowrap">{formatCurrency(Number(product.inventory_value ?? 0))}</div></Card>
+          <Card className="p-4 text-start"><div className="text-xs text-muted-foreground">الضريبة</div><div className="text-2xl font-bold mt-1 tabular-nums whitespace-nowrap">{vatLabel(product.vat_status, product.vat_rate)}</div></Card>
         </div>
       )}
 
@@ -249,8 +249,8 @@ const ProductDetails = () => {
               <div><Label>إلى</Label><Input className="mt-1.5" type="date" value={to} onChange={(e) => setTo(e.target.value)} /></div>
               <Button onClick={() => setApplied({ from, to })}>تطبيق</Button>
               <div className="flex gap-2">
-                <Button variant="outline" onClick={() => window.print()}><Printer className="h-4 w-4 ml-1" /> طباعة</Button>
-                <Button variant="outline" onClick={exportStockCard}><Download className="h-4 w-4 ml-1" /> CSV</Button>
+                <Button variant="outline" onClick={() => window.print()}><Printer className="h-4 w-4 me-1" /> طباعة</Button>
+                <Button variant="outline" onClick={exportStockCard}><Download className="h-4 w-4 me-1" /> CSV</Button>
               </div>
             </div>
           </Card>
@@ -286,7 +286,7 @@ const ProductDetails = () => {
       </Tabs>
 
       <Dialog open={openingOpen} onOpenChange={setOpeningOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent dir="rtl" className="max-w-md">
           <DialogHeader><DialogTitle className="flex items-center gap-2"><Package className="h-5 w-5" /> رصيد افتتاحي</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <div><Label>الكمية الافتتاحية</Label><Input className="mt-1.5" type="number" min={0} value={opening.opening_quantity} onChange={(e) => setOpening(s => ({ ...s, opening_quantity: e.target.value }))} /></div>
@@ -305,9 +305,9 @@ const ProductDetails = () => {
 };
 
 const Info = ({ label, value }: { label: string; value: string }) => (
-  <div>
+  <div className="min-w-0 text-start">
     <div className="text-xs text-muted-foreground">{label}</div>
-    <div className="font-medium mt-1">{value}</div>
+    <div className="font-medium mt-1 tabular-nums break-words">{value}</div>
   </div>
 );
 

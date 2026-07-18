@@ -385,8 +385,8 @@ const ReportDetail = () => {
             <div className="flex items-center justify-between gap-3 mb-3">
               <h3 className="font-semibold">أفضل 10 منتجات</h3>
               <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={() => window.print()}><Printer className="h-4 w-4 ml-1" /> طباعة</Button>
-                <Button variant="outline" size="sm" onClick={exportProductSales}><Download className="h-4 w-4 ml-1" /> CSV</Button>
+                <Button variant="outline" size="sm" onClick={() => window.print()}><Printer className="h-4 w-4 me-1" /> طباعة</Button>
+                <Button variant="outline" size="sm" onClick={exportProductSales}><Download className="h-4 w-4 me-1" /> CSV</Button>
               </div>
             </div>
             <DataTable

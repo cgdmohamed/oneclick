@@ -63,15 +63,15 @@ export function DataTable<T extends { id: string }>({
         <div className="flex flex-col sm:flex-row sm:items-center gap-2 justify-between">
           {searchKeys?.length ? (
             <div className="relative flex-1 max-w-sm">
-              <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder={searchPlaceholder} className="pr-9" />
+              <Search className="pointer-events-none absolute end-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder={searchPlaceholder} className="pe-9 text-start" />
             </div>
           ) : <div />}
           {rightToolbar}
         </div>
       )}
       <div className="rounded-xl border border-border/70 bg-card overflow-hidden shadow-soft">
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto app-scrollbar">
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/40">
@@ -97,7 +97,7 @@ export function DataTable<T extends { id: string }>({
                 pageRows.map(row => (
                   <TableRow key={row.id} onClick={() => onRowClick?.(row)} className={onRowClick ? 'cursor-pointer hover:bg-muted/30' : ''}>
                     {columns.map(c => (
-                      <TableCell key={c.key} className={`text-start ${c.className ?? ''}`}>{c.cell(row)}</TableCell>
+                      <TableCell key={c.key} className={`text-start align-middle ${c.className ?? ''}`}>{c.cell(row)}</TableCell>
                     ))}
                   </TableRow>
                 ))
@@ -120,7 +120,7 @@ export function DataTable<T extends { id: string }>({
                 </Select>
               </div>
             </div>
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1" dir="rtl">
               <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setPage(1)} disabled={safePage === 1} aria-label="الصفحة الأولى">
                 <ChevronsRight className="h-4 w-4" />
               </Button>

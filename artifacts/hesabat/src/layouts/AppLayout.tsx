@@ -251,42 +251,44 @@ const AppShellInner = ({ kind }: { kind: 'company' | 'admin' }) => {
           <div className="flex items-center gap-2 px-2 py-2 min-w-0">
             <BrandLogo size={collapsed ? 'sm' : 'md'} variant={collapsed ? 'icon' : 'full'} />
             {!collapsed && kind !== 'admin' && companyName && (
-              <div className="min-w-0 border-r border-sidebar-border pr-2 mr-1">
+              <div className="min-w-0 border-s border-sidebar-border ps-2 ms-1 text-start">
                 <div className="font-semibold text-sidebar-foreground truncate text-sm">{companyName}</div>
                 <div className="text-xs text-sidebar-foreground/60 truncate">مساحة عمل الشركة</div>
               </div>
             )}
             {!collapsed && kind === 'admin' && (
-              <div className="min-w-0 border-r border-sidebar-border pr-2 mr-1">
+              <div className="min-w-0 border-s border-sidebar-border ps-2 ms-1 text-start">
                 <div className="text-xs text-sidebar-foreground/60 truncate">لوحة المشرف</div>
               </div>
             )}
           </div>
         </SidebarHeader>
-        <SidebarContent className="px-1.5 py-2">
-          {navGroups.map((group) => (
-            <SidebarGroup key={group.label} className="py-1.5">
-              {!collapsed && <SidebarGroupLabel className="text-[11px]">{group.label}</SidebarGroupLabel>}
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  {group.items.map(item => (
-                    <SidebarMenuItem key={item.to}>
-                      <SidebarMenuButton asChild tooltip={collapsed ? item.label : undefined}>
-                        <NavLink to={item.to} end={item.end} className={({ isActive }) => cn(
-                          'flex items-center gap-3',
-                          isActive && 'bg-sidebar-accent text-sidebar-accent-foreground font-semibold'
-                        )}>
-                          <item.icon className="h-4 w-4" />
-                          {!collapsed && <span className="flex-1 truncate">{item.label}</span>}
-                          {!collapsed && item.badge === 'pending-signups' && <PendingBadge />}
-                        </NavLink>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  ))}
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
-          ))}
+        <SidebarContent className="sidebar-scrollbar px-1.5 py-2">
+          <div className="min-w-0">
+            {navGroups.map((group) => (
+              <SidebarGroup key={group.label} className="py-1.5">
+                {!collapsed && <SidebarGroupLabel className="text-[11px] justify-start">{group.label}</SidebarGroupLabel>}
+                <SidebarGroupContent>
+                  <SidebarMenu>
+                    {group.items.map(item => (
+                      <SidebarMenuItem key={item.to}>
+                        <SidebarMenuButton asChild tooltip={collapsed ? item.label : undefined}>
+                          <NavLink to={item.to} end={item.end} className={({ isActive }) => cn(
+                            'flex w-full min-w-0 items-center gap-3 text-start',
+                            isActive && 'bg-sidebar-accent text-sidebar-accent-foreground font-semibold'
+                          )}>
+                            <item.icon className="h-4 w-4 shrink-0" />
+                            {!collapsed && <span className="min-w-0 flex-1 truncate">{item.label}</span>}
+                            {!collapsed && item.badge === 'pending-signups' && <PendingBadge />}
+                          </NavLink>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    ))}
+                  </SidebarMenu>
+                </SidebarGroupContent>
+              </SidebarGroup>
+            ))}
+          </div>
         </SidebarContent>
         <SidebarFooter className="border-t border-sidebar-border">
           <SidebarMenu>
@@ -325,7 +327,7 @@ const AppShellInner = ({ kind }: { kind: 'company' | 'admin' }) => {
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="gap-2 px-2">
                 <Avatar className="h-8 w-8"><AvatarFallback className="bg-primary text-primary-foreground text-xs">{user?.name?.[0] ?? 'م'}</AvatarFallback></Avatar>
-                <div className="hidden sm:block text-right">
+                <div className="hidden sm:block text-start">
                   <div className="text-sm font-semibold leading-tight">{user?.name}</div>
                   <div className="text-[11px] text-muted-foreground leading-tight">{roleLabel(user?.role ?? 'company_admin')}</div>
                 </div>
@@ -335,7 +337,7 @@ const AppShellInner = ({ kind }: { kind: 'company' | 'admin' }) => {
               <DropdownMenuLabel>{user?.email}</DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => navigate(kind === 'admin' ? '/admin/settings/account' : '/app/settings/account')}>
-                <UserCog className="h-4 w-4 mr-2" />
+                <UserCog className="h-4 w-4 me-2" />
                 الحساب الشخصي
               </DropdownMenuItem>
               {kind === 'company' && (
@@ -343,7 +345,7 @@ const AppShellInner = ({ kind }: { kind: 'company' | 'admin' }) => {
               )}
               {kind === 'company' && (
                 <DropdownMenuItem onClick={() => setOnboardingOpen(true)}>
-                  <Sparkles className="h-4 w-4 mr-2" />
+                  <Sparkles className="h-4 w-4 me-2" />
                   إعادة الجولة التعريفية
                 </DropdownMenuItem>
               )}

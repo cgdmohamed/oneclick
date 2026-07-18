@@ -2,7 +2,7 @@ import { getCurrencySymbol } from './currency';
 
 export const formatCurrency = (n: number, _currency?: string): string => {
   const formatted = new Intl.NumberFormat('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(n || 0);
-  return `${formatted} ${getCurrencySymbol()}`;
+  return `${formatted}\u00A0${getCurrencySymbol()}`;
 };
 
 const AR_MONTHS = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];

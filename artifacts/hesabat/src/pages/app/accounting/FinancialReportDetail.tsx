@@ -251,7 +251,7 @@ const FinancialReportDetail = () => {
   return (
     <div className="space-y-5">
       <Link to="/app/accounting/reports" className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1"><ArrowRight className="h-4 w-4" /> العودة للتقارير المالية</Link>
-      <PageHeader title={titleMap[type] ?? 'تقرير مالي'} actions={<Button variant="outline" onClick={() => window.print()}><Printer className="h-4 w-4 ml-1" /> طباعة</Button>} />
+      <PageHeader title={titleMap[type] ?? 'تقرير مالي'} actions={<Button variant="outline" onClick={() => window.print()}><Printer className="h-4 w-4 me-1" /> طباعة</Button>} />
       {(type === 'inventory' || !['inventory'].includes(type)) && (
         <Card className="p-4 border-border/60">
           <div className="grid sm:grid-cols-3 lg:grid-cols-6 gap-3 items-end">

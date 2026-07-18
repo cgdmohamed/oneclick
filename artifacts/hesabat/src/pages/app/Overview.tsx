@@ -105,9 +105,9 @@ const ProductTable = ({ rows, emptyTitle = 'لا توجد بيانات' }: { row
     <table className="w-full text-sm">
       <thead>
         <tr className="border-b border-border text-xs text-muted-foreground">
-          <th className="py-2 text-right font-semibold">المنتج</th>
-          <th className="py-2 text-right font-semibold">الكود / الباركود</th>
-          <th className="py-2 text-right font-semibold">التصنيف</th>
+          <th className="py-2 text-start font-semibold">المنتج</th>
+          <th className="py-2 text-start font-semibold">الكود / الباركود</th>
+          <th className="py-2 text-start font-semibold">التصنيف</th>
           <th className="py-2 text-end font-semibold">الكمية</th>
           <th className="py-2 text-end font-semibold">المبيعات</th>
           <th className="py-2 text-end font-semibold">مجمل الربح</th>
@@ -323,16 +323,16 @@ const Overview = () => {
 
         <TabsContent value="receivables" className="mt-4 grid lg:grid-cols-2 gap-5">
           <SmallList title="أكبر العملاء المتأخرين" rows={data?.receivables.topOverdueCustomers ?? []}>
-            <div className="space-y-2">{(data?.receivables.topOverdueCustomers ?? []).map((r) => <div key={r.id} className="flex justify-between rounded-md bg-muted/30 p-3"><span>{r.name}</span><span className="font-semibold text-destructive">{money(r.overdue_amount)}</span></div>)}</div>
+            <div className="space-y-2">{(data?.receivables.topOverdueCustomers ?? []).map((r) => <div key={r.id} className="flex justify-between gap-3 rounded-md bg-muted/30 p-3"><span>{r.name}</span><span className="font-semibold text-destructive whitespace-nowrap">{money(r.overdue_amount)}</span></div>)}</div>
           </SmallList>
           <SmallList title="تحصيلات قادمة" rows={data?.receivables.upcomingReceivables ?? []}>
-            <div className="space-y-2">{(data?.receivables.upcomingReceivables ?? []).map((r) => <div key={r.id} className="flex justify-between rounded-md bg-muted/30 p-3"><span>{r.customer_name} - {r.number}</span><span>{formatDateShort(r.due_date ?? '')} · {money(r.remaining)}</span></div>)}</div>
+            <div className="space-y-2">{(data?.receivables.upcomingReceivables ?? []).map((r) => <div key={r.id} className="flex justify-between gap-3 rounded-md bg-muted/30 p-3"><span>{r.customer_name} - {r.number}</span><span className="whitespace-nowrap">{formatDateShort(r.due_date ?? '')} · {money(r.remaining)}</span></div>)}</div>
           </SmallList>
           <SmallList title="أكبر الموردين المستحقين" rows={data?.payables.topSupplierPayables ?? []}>
-            <div className="space-y-2">{(data?.payables.topSupplierPayables ?? []).map((r) => <div key={r.id} className="flex justify-between rounded-md bg-muted/30 p-3"><span>{r.name}</span><span className="font-semibold text-warning">{money(r.payable_amount)}</span></div>)}</div>
+            <div className="space-y-2">{(data?.payables.topSupplierPayables ?? []).map((r) => <div key={r.id} className="flex justify-between gap-3 rounded-md bg-muted/30 p-3"><span>{r.name}</span><span className="font-semibold text-warning whitespace-nowrap">{money(r.payable_amount)}</span></div>)}</div>
           </SmallList>
           <SmallList title="مدفوعات موردين قادمة" rows={data?.payables.upcomingSupplierPayments ?? []}>
-            <div className="space-y-2">{(data?.payables.upcomingSupplierPayments ?? []).map((r) => <div key={r.id} className="flex justify-between rounded-md bg-muted/30 p-3"><span>{r.supplier_name} - {r.number}</span><span>{formatDateShort(r.due_date ?? '')} · {money(r.remaining)}</span></div>)}</div>
+            <div className="space-y-2">{(data?.payables.upcomingSupplierPayments ?? []).map((r) => <div key={r.id} className="flex justify-between gap-3 rounded-md bg-muted/30 p-3"><span>{r.supplier_name} - {r.number}</span><span className="whitespace-nowrap">{formatDateShort(r.due_date ?? '')} · {money(r.remaining)}</span></div>)}</div>
           </SmallList>
         </TabsContent>
 

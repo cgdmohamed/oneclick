@@ -138,6 +138,7 @@
   }
   html, body {
     @apply bg-background text-foreground;
+    direction: rtl;
     font-family: 'IBM Plex Sans Arabic', 'Cairo', system-ui, sans-serif;
     font-feature-settings: "kern", "liga", "ss01";
     -webkit-font-smoothing: antialiased;
@@ -168,6 +169,61 @@
   .text-page-accent { color: hsl(var(--page-accent)); }
   .border-page-accent { border-color: hsl(var(--page-accent) / 0.25); }
   .ring-page-accent { --tw-ring-color: hsl(var(--page-accent) / 0.3); }
+  .money-nowrap {
+    direction: ltr;
+    unicode-bidi: isolate;
+    white-space: nowrap;
+    display: inline-block;
+  }
+  .app-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--muted-foreground) / 0.35) hsl(var(--muted) / 0.45);
+  }
+  .app-scrollbar::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  .app-scrollbar::-webkit-scrollbar-track {
+    background: hsl(var(--muted) / 0.45);
+    border-radius: 999px;
+  }
+  .app-scrollbar::-webkit-scrollbar-thumb {
+    background: hsl(var(--muted-foreground) / 0.28);
+    border: 2px solid transparent;
+    border-radius: 999px;
+    background-clip: padding-box;
+  }
+  .app-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground) / 0.45);
+    background-clip: padding-box;
+  }
+  .sidebar-scrollbar {
+    direction: ltr;
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--sidebar-foreground) / 0.22) hsl(var(--sidebar-background) / 0.4);
+  }
+  .sidebar-scrollbar > * {
+    direction: rtl;
+  }
+  .sidebar-scrollbar::-webkit-scrollbar {
+    width: 7px;
+  }
+  .sidebar-scrollbar::-webkit-scrollbar-track {
+    background: hsl(var(--sidebar-background) / 0.55);
+    border-radius: 999px;
+  }
+  .sidebar-scrollbar::-webkit-scrollbar-thumb {
+    background: hsl(var(--sidebar-foreground) / 0.20);
+    border: 2px solid transparent;
+    border-radius: 999px;
+    background-clip: padding-box;
+  }
+  .sidebar-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--sidebar-foreground) / 0.34);
+    background-clip: padding-box;
+  }
 }
 
 @media print {

@@ -21,10 +21,10 @@ const accentMap = {
 
 export const StatCard = ({ title, value, icon: Icon, hint, trend, accent = 'primary' }: StatCardProps) => (
   <Card className="p-4 sm:p-5 shadow-soft border-border/60 hover:shadow-elev transition-shadow">
-    <div className="flex items-start justify-between gap-2 sm:gap-3">
+    <div className="flex items-start justify-between gap-2 sm:gap-3 text-start">
       <div className="space-y-1.5 min-w-0 flex-1">
         <p className="text-xs sm:text-sm text-muted-foreground line-clamp-1">{title}</p>
-        <p className="text-lg sm:text-2xl font-bold tracking-tight tabular-nums break-words leading-tight">{value}</p>
+        <p className="text-lg sm:text-2xl font-bold tracking-tight tabular-nums leading-tight whitespace-nowrap">{value}</p>
         {hint && <p className="text-xs text-muted-foreground line-clamp-1">{hint}</p>}
         {trend && (
           <p className={cn('text-xs font-medium', trend.positive ? 'text-success' : 'text-destructive')}>

@@ -584,14 +584,14 @@ const Products = () => {
       <PageHeader title="المنتجات والمخزون" description="إدارة المنتجات وحركة المخزون"
         actions={<>
           <Button variant="outline" size="sm" onClick={handleExport} disabled={exportLoading}>
-            {exportLoading ? <Loader2 className="h-4 w-4 animate-spin ml-1" /> : <Download className="h-4 w-4 ml-1" />}
+            {exportLoading ? <Loader2 className="h-4 w-4 animate-spin me-1" /> : <Download className="h-4 w-4 me-1" />}
             تصدير CSV
           </Button>
           <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
-            <Upload className="h-4 w-4 ml-1" /> استيراد CSV
+            <Upload className="h-4 w-4 me-1" /> استيراد CSV
           </Button>
-          <Button variant="outline" onClick={() => { reloadCats(); setCatsOpen(true); }}><Tags className="h-4 w-4 ml-1" /> التصنيفات</Button>
-          <Button onClick={() => { setEditing({ ...empty, id: '' }); setOpen(true); }}><Plus className="h-4 w-4 ml-1" /> منتج جديد</Button>
+          <Button variant="outline" onClick={() => { reloadCats(); setCatsOpen(true); }}><Tags className="h-4 w-4 me-1" /> التصنيفات</Button>
+          <Button onClick={() => { setEditing({ ...empty, id: '' }); setOpen(true); }}><Plus className="h-4 w-4 me-1" /> منتج جديد</Button>
         </>} />
 
       {lowStock.length > 0 && (
@@ -640,7 +640,7 @@ const Products = () => {
         <TabsContent value="movements" className="mt-4">
           <div className="flex justify-end mb-3">
             <Button onClick={() => { setNewMovement(emptyMovement); setMovementOpen(true); }}>
-              <Plus className="h-4 w-4 ml-1" /> حركة جديدة
+              <Plus className="h-4 w-4 me-1" /> حركة جديدة
             </Button>
           </div>
           <DataTable
@@ -870,7 +870,7 @@ const Products = () => {
                 </SelectContent>
               </Select>
               <Button onClick={addCategory} disabled={catSaving}>
-                {catSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Plus className="h-4 w-4 ml-1" /> إضافة</>}
+                {catSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Plus className="h-4 w-4 me-1" /> إضافة</>}
               </Button>
             </div>
             {catsLoading ? (
@@ -902,7 +902,7 @@ const Products = () => {
                       </div>
                     </div>
                     {subcategoriesFor(c.id).length > 0 && (
-                      <div className="mt-2 mr-5 border-r border-border pr-3 space-y-1">
+                      <div className="mt-2 ms-5 border-s border-border ps-3 space-y-1">
                         {subcategoriesFor(c.id).map(sub => (
                           <div key={sub.id} className="flex items-center justify-between rounded-md bg-muted/30 px-2 py-1.5">
                             <div className="flex items-center gap-2">
@@ -994,7 +994,7 @@ const Products = () => {
                 <p>التصنيفات غير الموجودة ستُنشأ تلقائياً. يمكن تنزيل نموذج لمعرفة الشكل الصحيح.</p>
               </div>
               <Button variant="outline" size="sm" onClick={handleTemplateDownload} className="shrink-0">
-                <Download className="h-4 w-4 ml-1" /> نموذج CSV
+                <Download className="h-4 w-4 me-1" /> نموذج CSV
               </Button>
             </div>
 
@@ -1041,7 +1041,7 @@ const Products = () => {
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="mr-auto text-xs"
+                    className="ms-auto text-xs"
                     onClick={() => { setImportFile(null); setImportPreview(null); }}
                   >
                     تغيير الملف
@@ -1054,9 +1054,9 @@ const Products = () => {
                     <table className="w-full text-sm">
                       <thead className="bg-muted/50 sticky top-0">
                         <tr>
-                          <th className="text-right px-3 py-2 font-medium text-muted-foreground w-16">الصف</th>
-                          <th className="text-right px-3 py-2 font-medium text-muted-foreground">اسم المنتج</th>
-                          <th className="text-right px-3 py-2 font-medium text-muted-foreground w-28">الحالة</th>
+                          <th className="text-start px-3 py-2 font-medium text-muted-foreground w-16">الصف</th>
+                          <th className="text-start px-3 py-2 font-medium text-muted-foreground">اسم المنتج</th>
+                          <th className="text-start px-3 py-2 font-medium text-muted-foreground w-28">الحالة</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-border">
@@ -1095,7 +1095,7 @@ const Products = () => {
               disabled={!importPreview || importPreview.created === 0 || importLoading}
             >
               {importLoading
-                ? <><Loader2 className="h-4 w-4 animate-spin ml-1" /> جارٍ المعالجة...</>
+                ? <><Loader2 className="h-4 w-4 animate-spin me-1" /> جارٍ المعالجة...</>
                 : `استيراد ${importPreview?.created ?? 0} منتج`}
             </Button>
           </DialogFooter>
