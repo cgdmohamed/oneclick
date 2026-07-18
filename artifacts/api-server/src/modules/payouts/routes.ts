@@ -3,12 +3,15 @@ import { z } from 'zod';
 import { parsePagination } from '../../utils/pagination.js';
 import { badRequest } from '../../utils/errors.js';
 import { assertPeriodOpen, postPayout } from '../accounting/posting.js';
+import { assertBranch, assertCostCenter } from '../../utils/dimensions.js';
 
 const schema = z.object({
   supplier_id:         z.string().uuid().optional().nullable(),
   expense_category_id: z.string().uuid().optional().nullable(),
   account_id:          z.string().uuid(),
   amount:              z.coerce.number().positive(),
+  branch_id:           z.string().uuid().optional().nullable(),
+  cost_center_id:      z.string().uuid().optional().nullable(),
   method:              z.string().default('cash'),
   paid_at:             z.string().optional(),
   reference:           z.string().optional().nullable(),
@@ -18,6 +21,8 @@ const schema = z.object({
 const patchSchema = z.object({
   supplier_id:         z.string().uuid().optional().nullable(),
   expense_category_id: z.string().uuid().optional().nullable(),
+  branch_id:           z.string().uuid().optional().nullable(),
+  cost_center_id:      z.string().uuid().optional().nullable(),
   method:              z.string().optional(),
   paid_at:             z.string().optional(),
   reference:           z.string().optional().nullable(),
@@ -85,8 +90,10 @@ r.post('/', async (req, res, next) => {
     const body = schema.parse(req.body);
     const paidAt = body.paid_at ?? new Date().toISOString();
     await assertPeriodOpen(t.db, t.companyId, paidAt);
+    await assertBranch(t.db, t.companyId, body.branch_id);
+    await assertCostCenter(t.db, t.companyId, body.cost_center_id);
 
-    const acctRs = await t.db.query(`SELECT id FROM accounts WHERE id = $1 AND company_id = $2`, [body.account_id, t.companyId]);
+    const acctRs = await t.db.query(`SELECT id FROM accounts WHERE id = $1 AND company_id = $2 AND is_active = TRUE`, [body.account_id, t.companyId]);
     if (!acctRs.rowCount) return res.status(422).json({ error: 'invalid_account', message: 'الحساب المالي غير صالح' });
 
     if (body.supplier_id) {
@@ -102,8 +109,8 @@ r.post('/', async (req, res, next) => {
     try {
       const ins = await t.db.query(
         `INSERT INTO payouts
-           (company_id, supplier_id, expense_category_id, account_id, amount, method, paid_at, reference, notes, created_by)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+           (company_id, supplier_id, expense_category_id, account_id, amount, method, paid_at, reference, notes, branch_id, cost_center_id, created_by)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
         [
           t.companyId,
           body.supplier_id ?? null,
@@ -114,10 +121,12 @@ r.post('/', async (req, res, next) => {
           paidAt,
           body.reference ?? null,
           body.notes ?? null,
+          body.branch_id ?? null,
+          body.cost_center_id ?? null,
           req.auth!.userId,
         ],
       );
-      await t.db.query(`UPDATE accounts SET balance = balance - $1 WHERE id = $2`, [body.amount, body.account_id]);
+      await t.db.query(`UPDATE accounts SET balance = balance - $1 WHERE id = $2 AND company_id = $3`, [body.amount, body.account_id, t.companyId]);
       await postPayout(t.db, t.companyId, ins.rows[0].id, req.auth!.userId);
       await t.db.query('COMMIT');
       res.status(201).json({ data: ins.rows[0] });
@@ -132,6 +141,8 @@ r.patch('/:id', async (req, res, next) => {
   try {
     const t = req.tenant!;
     const body = patchSchema.parse(req.body);
+    await assertBranch(t.db, t.companyId, body.branch_id);
+    await assertCostCenter(t.db, t.companyId, body.cost_center_id);
 
     const existing = await t.db.query(`SELECT * FROM payouts WHERE id = $1 AND company_id = $2`, [req.params.id, t.companyId]);
     if (!existing.rowCount) return res.status(404).json({ error: 'not_found' });
@@ -145,7 +156,7 @@ r.patch('/:id', async (req, res, next) => {
       if (!ecRs.rowCount) return res.status(422).json({ error: 'invalid_category' });
     }
 
-    const allowed: (keyof typeof body)[] = ['supplier_id','expense_category_id','method','paid_at','reference','notes'];
+    const allowed: (keyof typeof body)[] = ['supplier_id','expense_category_id','branch_id','cost_center_id','method','paid_at','reference','notes'];
     const fields = (Object.keys(body) as (keyof typeof body)[]).filter(k => allowed.includes(k));
     if (!fields.length) return res.json({ data: existing.rows[0] });
 
@@ -171,8 +182,8 @@ r.delete('/:id', async (req, res, next) => {
 
     await t.db.query('BEGIN');
     try {
-      await t.db.query(`UPDATE accounts SET balance = balance + $1 WHERE id = $2`, [payout.amount, payout.account_id]);
-      await t.db.query(`DELETE FROM payouts WHERE id = $1`, [req.params.id]);
+      await t.db.query(`UPDATE accounts SET balance = balance + $1 WHERE id = $2 AND company_id = $3`, [payout.amount, payout.account_id, t.companyId]);
+      await t.db.query(`DELETE FROM payouts WHERE id = $1 AND company_id = $2`, [req.params.id, t.companyId]);
       await t.db.query('COMMIT');
       res.json({ success: true });
     } catch (e) {

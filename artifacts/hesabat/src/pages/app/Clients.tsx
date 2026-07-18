@@ -7,13 +7,12 @@ import { Plus, Pencil, Trash2, Eye } from 'lucide-react';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { clients as initialClients } from '@/data/mock';
 import type { Client } from '@/types';
 import { toast } from 'sonner';
 import { formatDateShort } from '@/lib/format';
 import { useResource } from '@/hooks/useResource';
-import { CURRENCIES, getCurrencySymbol } from '@/lib/currency';
+import { EGP_CURRENCY_CODE, EGP_CURRENCY_SYMBOL } from '@/lib/currency';
 
 interface ClientRow {
   id: string;
@@ -29,8 +28,7 @@ interface ClientRow {
   created_at: string;
 }
 
-const derivedSymbol = (code: string) => CURRENCIES.find(x => x.code === code)?.symbol ?? getCurrencySymbol();
-const empty: Client = { id: '', companyId: 'co-1', name: '', phone: '', whatsapp: '', email: '', address: '', taxNumber: '', currency: 'SAR', currencySymbol: derivedSymbol('SAR'), createdAt: new Date().toISOString() };
+const empty: Client = { id: '', companyId: 'co-1', name: '', phone: '', whatsapp: '', email: '', address: '', taxNumber: '', currency: EGP_CURRENCY_CODE, currencySymbol: EGP_CURRENCY_SYMBOL, createdAt: new Date().toISOString() };
 
 const Clients = () => {
   const navigate = useNavigate();
@@ -47,8 +45,8 @@ const Clients = () => {
       email: r.email ?? '',
       address: r.address ?? '',
       taxNumber: r.tax_number ?? '',
-      currency: r.currency ?? 'SAR',
-      currencySymbol: derivedSymbol(r.currency ?? 'SAR'),
+      currency: EGP_CURRENCY_CODE,
+      currencySymbol: EGP_CURRENCY_SYMBOL,
       createdAt: r.created_at,
     }),
     toRow: (c) => ({
@@ -58,7 +56,7 @@ const Clients = () => {
       email: c.email || null,
       address: c.address || null,
       tax_number: c.taxNumber || null,
-      currency: c.currency || null,
+      currency: EGP_CURRENCY_CODE,
     }),
   });
 
@@ -83,10 +81,6 @@ const Clients = () => {
     { key: 'email', header: 'البريد', cell: r => <span className="text-sm text-muted-foreground">{r.email || '—'}</span> },
     { key: 'address', header: 'العنوان', cell: r => <span className="text-sm text-muted-foreground">{r.address || '—'}</span> },
     { key: 'tax', header: 'الرقم الضريبي', cell: r => <span className="text-sm">{r.taxNumber || '—'}</span> },
-    { key: 'currency', header: 'العملة', cell: r => {
-      const c = CURRENCIES.find(x => x.code === r.currency);
-      return <span className="text-sm">{c ? `${c.name} (${c.symbol})` : (r.currencySymbol || '—')}</span>;
-    }},
     { key: 'created', header: 'تاريخ الإضافة', cell: r => <span className="text-xs text-muted-foreground">{formatDateShort(r.createdAt)}</span> },
     { key: 'actions', header: '', cell: r => (
       <div className="flex justify-end gap-1">
@@ -113,22 +107,6 @@ const Clients = () => {
             <Field label="رقم واتساب" type="tel" value={editing.whatsapp ?? ''} onChange={v => setEditing(e => ({ ...e, whatsapp: v }))} />
             <Field label="البريد الإلكتروني" type="email" value={editing.email ?? ''} onChange={v => setEditing(e => ({ ...e, email: v }))} />
             <Field label="الرقم الضريبي" inputMode="numeric" pattern="[0-9]*" value={editing.taxNumber ?? ''} onChange={v => setEditing(e => ({ ...e, taxNumber: v }))} />
-            <div>
-              <Label>العملة</Label>
-              <Select
-                value={editing.currency || 'SAR'}
-                onValueChange={v => {
-                  setEditing(e => ({ ...e, currency: v, currencySymbol: derivedSymbol(v) }));
-                }}
-              >
-                <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {CURRENCIES.map(c => (
-                    <SelectItem key={c.code} value={c.code}>{c.name} ({c.symbol})</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
             <div className="sm:col-span-2"><Field label="العنوان" value={editing.address ?? ''} onChange={v => setEditing(e => ({ ...e, address: v }))} /></div>
           </div>
           <DialogFooter>

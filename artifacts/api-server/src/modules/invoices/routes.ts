@@ -11,23 +11,27 @@ import { enforceInvoiceLimit } from '../../middleware/planLimits.js';
 import { parsePagination } from '../../utils/pagination.js';
 
 import { round2 } from '../../utils/money.js';
+import { assertBranch, assertCostCenter } from '../../utils/dimensions.js';
 import { internalKindSchema } from '../notifications/kinds.js';
 import { assertPeriodOpen, postSalesInvoice, reverseJournalEntry } from '../accounting/posting.js';
 
 const router = Router();
+const EGP_CURRENCY_SYMBOL = 'ج.م';
 
 const itemSchema = z.object({
   product_id: z.string().uuid().optional().nullable(),
+  cost_center_id: z.string().uuid().optional().nullable(),
   description: z.string().min(1),
   quantity: z.coerce.number().positive(),
   unit_price: z.coerce.number().nonnegative(),
-  vat_rate: z.coerce.number().min(0).max(100).default(15),
+  vat_rate: z.coerce.number().min(0).max(100).optional().nullable(),
 });
 
 const createSchema = z.object({
   client_id: z.string().uuid(),
   issue_date: z.string().datetime().optional(),
   due_date: z.string().datetime().optional().nullable(),
+  branch_id: z.string().uuid().optional().nullable(),
   notes: z.string().optional().nullable(),
   discount: z.coerce.number().nonnegative().default(0),
   items: z.array(itemSchema).min(1),
@@ -95,9 +99,11 @@ router.post('/', enforceInvoiceLimit(), async (req, res, next) => {
   try {
     const t = req.tenant!;
     const body = createSchema.parse(req.body);
+    await assertBranch(t.db, t.companyId, body.branch_id);
+    for (const item of body.items) await assertCostCenter(t.db, t.companyId, item.cost_center_id);
 
     const compRes = await t.db.query(
-      `SELECT invoice_prefix, invoice_sequence, invoice_year_format, invoice_padding, invoice_separator
+      `SELECT invoice_prefix, invoice_sequence, invoice_year_format, invoice_padding, invoice_separator, vat_rate
        FROM companies WHERE id = $1 FOR UPDATE`,
       [t.companyId],
     );
@@ -128,8 +134,24 @@ router.post('/', enforceInvoiceLimit(), async (req, res, next) => {
     );
     await t.db.query(`UPDATE companies SET invoice_sequence = $1 WHERE id = $2`, [newSeq, t.companyId]);
 
+    const productIds = [...new Set(body.items.map((it) => it.product_id).filter(Boolean))];
+    const productDefaults = productIds.length
+      ? await t.db.query(
+          `SELECT id, product_type, vat_status, vat_rate
+           FROM products WHERE company_id = $1 AND id = ANY($2::uuid[])`,
+          [t.companyId, productIds],
+        )
+      : { rows: [] as any[] };
+    const productMap = new Map(productDefaults.rows.map((row) => [row.id, row]));
+    const defaultVatRate = Number(cfg.vat_rate ?? 0);
+    const items = body.items.map((it) => {
+      const product = it.product_id ? productMap.get(it.product_id) : null;
+      const vatRate = it.vat_rate ?? (product?.vat_status === 'taxable' ? Number(product.vat_rate ?? defaultVatRate) : product ? 0 : defaultVatRate);
+      return { ...it, vat_rate: vatRate };
+    });
+
     let subtotal = 0, vat = 0;
-    for (const it of body.items) {
+    for (const it of items) {
       const line = round2(it.quantity * it.unit_price);
       subtotal = round2(subtotal + line);
       vat = round2(vat + line * (it.vat_rate / 100));
@@ -140,26 +162,28 @@ router.post('/', enforceInvoiceLimit(), async (req, res, next) => {
     const invoiceStatus = body.draft ? 'draft' : 'sent';
     const invRes = await t.db.query(`
       INSERT INTO invoices (company_id, number, client_id, issue_date, due_date, status,
-                            subtotal, vat_amount, discount, total, paid, remaining, notes, created_by)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,0,$10,$11,$12)
+                            subtotal, vat_amount, discount, total, paid, remaining, notes, branch_id, created_by)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,0,$10,$11,$12,$13)
       RETURNING *
     `, [t.companyId, number, body.client_id, issueDate, body.due_date ?? null,
-        invoiceStatus, subtotal, vat, discount, total, body.notes ?? null, req.auth!.userId]);
+        invoiceStatus, subtotal, vat, discount, total, body.notes ?? null, body.branch_id ?? null, req.auth!.userId]);
     const invoice = invRes.rows[0];
 
-    for (const it of body.items) {
+    for (const it of items) {
       const line = round2(it.quantity * it.unit_price * (1 + it.vat_rate / 100));
       await t.db.query(`
-        INSERT INTO invoice_items (company_id, invoice_id, product_id, description, quantity, unit_price, vat_rate, line_total)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
-      `, [t.companyId, invoice.id, it.product_id ?? null, it.description, it.quantity, it.unit_price, it.vat_rate, line]);
+        INSERT INTO invoice_items (company_id, invoice_id, product_id, description, quantity, unit_price, vat_rate, line_total, cost_center_id)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+      `, [t.companyId, invoice.id, it.product_id ?? null, it.description, it.quantity, it.unit_price, it.vat_rate, line, it.cost_center_id ?? null]);
 
       if (it.product_id) {
         const productCost = await t.db.query(
-          `SELECT COALESCE(NULLIF(average_cost, 0), cost, 0) AS unit_cost
+          `SELECT product_type, COALESCE(NULLIF(average_cost, 0), cost, 0) AS unit_cost
            FROM products WHERE id = $1 AND company_id = $2`,
           [it.product_id, t.companyId],
         );
+        if (!productCost.rowCount) throw badRequest(`Invalid product for "${it.description}"`);
+        if (productCost.rows[0].product_type !== 'stock') continue;
         const unitCost = Number(productCost.rows[0]?.unit_cost ?? 0);
         const cogsValue = round2(it.quantity * unitCost);
         // DAT-05: refuse to oversell. The CHECK-style update returns 0 rows
@@ -311,7 +335,10 @@ router.post('/:id/cancel', async (req, res, next) => {
       await assertPeriodOpen(t.db, t.companyId, inv.issue_date);
 
       const items = await t.db.query(
-        `SELECT product_id, quantity FROM invoice_items WHERE invoice_id = $1 AND company_id = $2`,
+        `SELECT ii.product_id, ii.quantity, p.product_type
+         FROM invoice_items ii
+         LEFT JOIN products p ON p.id = ii.product_id AND p.company_id = ii.company_id
+         WHERE ii.invoice_id = $1 AND ii.company_id = $2`,
         [invoiceId, t.companyId],
       );
 
@@ -321,7 +348,7 @@ router.post('/:id/cancel', async (req, res, next) => {
       );
 
       for (const item of items.rows) {
-        if (item.product_id) {
+        if (item.product_id && item.product_type === 'stock') {
           await t.db.query(
             `UPDATE products SET quantity = quantity + $1 WHERE id = $2 AND company_id = $3`,
             [item.quantity, item.product_id, t.companyId],
@@ -376,7 +403,10 @@ router.delete('/:id', async (req, res, next) => {
     }
 
     const items = await t.db.query(
-      `SELECT product_id, quantity FROM invoice_items WHERE invoice_id = $1 AND company_id = $2`,
+      `SELECT ii.product_id, ii.quantity, p.product_type
+       FROM invoice_items ii
+       LEFT JOIN products p ON p.id = ii.product_id AND p.company_id = ii.company_id
+       WHERE ii.invoice_id = $1 AND ii.company_id = $2`,
       [invoiceId, t.companyId],
     );
 
@@ -386,7 +416,7 @@ router.delete('/:id', async (req, res, next) => {
     );
 
     for (const item of items.rows) {
-      if (item.product_id) {
+      if (item.product_id && item.product_type === 'stock') {
         await t.db.query(
           `UPDATE products SET quantity = quantity + $1 WHERE id = $2 AND company_id = $3`,
           [item.quantity, item.product_id, t.companyId],
@@ -429,7 +459,7 @@ async function loadInvoicePdfData(db: { query: typeof pool.query }, invoiceId: s
   const inv = await db.query(`SELECT * FROM invoices WHERE id = $1 AND company_id = $2`, [invoiceId, companyId]);
   if (!inv.rowCount) throw notFound('Invoice not found');
   const i = inv.rows[0];
-  const co = (await db.query(`SELECT name, address, tax_number, phone, currency FROM companies WHERE id = $1`, [companyId])).rows[0];
+  const co = (await db.query(`SELECT name, address, tax_number, phone FROM companies WHERE id = $1`, [companyId])).rows[0];
   const cl = (await db.query(`SELECT name, email, phone, tax_number FROM clients WHERE id = $1`, [i.client_id])).rows[0];
   const items = (await db.query(
     `SELECT description, quantity, unit_price, line_total FROM invoice_items WHERE invoice_id = $1 ORDER BY created_at`,
@@ -437,7 +467,7 @@ async function loadInvoicePdfData(db: { query: typeof pool.query }, invoiceId: s
   )).rows;
   return {
     number: i.number, issue_date: i.issue_date, due_date: i.due_date, status: i.status,
-    currency: co?.currency ?? 'SAR',
+    currency: EGP_CURRENCY_SYMBOL,
     subtotal: Number(i.subtotal), vat_amount: Number(i.vat_amount), discount: Number(i.discount),
     total: Number(i.total), paid: Number(i.paid), remaining: Number(i.remaining), notes: i.notes,
     company: co, client: cl,

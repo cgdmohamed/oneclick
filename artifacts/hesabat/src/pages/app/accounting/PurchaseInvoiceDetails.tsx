@@ -1,4 +1,4 @@
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { PageHeader } from '@/components/common/PageHeader';
 import { DataTable, type Column } from '@/components/common/DataTable';
@@ -12,6 +12,7 @@ import type { PurchaseInvoice, PurchaseInvoiceItem } from './types';
 
 const PurchaseInvoiceDetails = () => {
   const { id } = useParams();
+  const navigate = useNavigate();
   const { data } = useQuery({
     enabled: Boolean(id),
     queryKey: ['purchase-invoice', id],
@@ -28,7 +29,14 @@ const PurchaseInvoiceDetails = () => {
   return (
     <div className="space-y-5">
       <Link to="/app/purchases/invoices" className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1"><ArrowRight className="h-4 w-4" /> العودة لفواتير الشراء</Link>
-      <PageHeader title={`فاتورة شراء ${data.number}`} description={`${data.supplier_name ?? ''} · ${formatDateShort(data.invoice_date)}`} actions={data.journal_entry_id && <Link className="text-sm text-primary" to={`/app/accounting/journals/${data.journal_entry_id}`}>عرض القيد</Link>} />
+      <PageHeader
+        title={`فاتورة شراء ${data.number}`}
+        description={`${data.supplier_name ?? ''} · ${formatDateShort(data.invoice_date)}`}
+        actions={<div className="flex gap-2 flex-wrap">
+          <button className="text-sm text-primary" onClick={() => navigate('/app/purchases/returns/new')}>إنشاء مرتجع</button>
+          {data.journal_entry_id && <Link className="text-sm text-primary" to={`/app/accounting/journals/${data.journal_entry_id}`}>عرض القيد</Link>}
+        </div>}
+      />
       <div className="grid sm:grid-cols-4 gap-4">
         <StatCard title="الإجمالي" value={formatCurrency(Number(data.total))} icon={FileText} accent="primary" />
         <StatCard title="المدفوع" value={formatCurrency(Number(data.paid))} icon={Wallet} accent="success" />

@@ -35,7 +35,10 @@ import NewInvoice from "./pages/app/NewInvoice";
 import InvoiceDetails from "./pages/app/InvoiceDetails";
 import Payments from "./pages/app/Payments";
 import Accounts from "./pages/app/Accounts";
+import Branches from "./pages/app/Branches";
+import CostCenters from "./pages/app/CostCenters";
 import Products from "./pages/app/Products";
+import ProductDetails from "./pages/app/ProductDetails";
 import Reports from "./pages/app/Reports";
 import ReportDetail from "./pages/app/ReportDetail";
 import ChartOfAccounts from "./pages/app/accounting/ChartOfAccounts";
@@ -45,9 +48,34 @@ import JournalEntries from "./pages/app/accounting/JournalEntries";
 import JournalEntryDetails from "./pages/app/accounting/JournalEntryDetails";
 import NewJournalEntry from "./pages/app/accounting/NewJournalEntry";
 import OpeningBalances from "./pages/app/accounting/OpeningBalances";
+import BadDebts from "./pages/app/accounting/BadDebts";
+import YearEndClosing from "./pages/app/accounting/YearEndClosing";
+import AssetCategories from "./pages/app/accounting/AssetCategories";
+import FixedAssets from "./pages/app/accounting/FixedAssets";
+import NewFixedAsset from "./pages/app/accounting/NewFixedAsset";
+import FixedAssetDetails from "./pages/app/accounting/FixedAssetDetails";
+import DepreciationRuns from "./pages/app/accounting/DepreciationRuns";
+import NewDepreciationRun from "./pages/app/accounting/NewDepreciationRun";
+import Employees from "./pages/app/accounting/Employees";
+import SalaryComponents from "./pages/app/accounting/SalaryComponents";
+import PayrollRuns from "./pages/app/accounting/PayrollRuns";
+import NewPayrollRun from "./pages/app/accounting/NewPayrollRun";
+import PayrollRunDetails from "./pages/app/accounting/PayrollRunDetails";
+import BankReconciliations from "./pages/app/accounting/BankReconciliations";
+import NewBankReconciliation from "./pages/app/accounting/NewBankReconciliation";
+import BankReconciliationDetails from "./pages/app/accounting/BankReconciliationDetails";
 import PurchaseInvoices from "./pages/app/accounting/PurchaseInvoices";
 import NewPurchaseInvoice from "./pages/app/accounting/NewPurchaseInvoice";
 import PurchaseInvoiceDetails from "./pages/app/accounting/PurchaseInvoiceDetails";
+import PurchaseReturns from "./pages/app/accounting/PurchaseReturns";
+import NewPurchaseReturn from "./pages/app/accounting/NewPurchaseReturn";
+import PurchaseReturnDetails from "./pages/app/accounting/PurchaseReturnDetails";
+import InventoryWriteOffs from "./pages/app/accounting/InventoryWriteOffs";
+import NewInventoryWriteOff from "./pages/app/accounting/NewInventoryWriteOff";
+import InventoryWriteOffDetails from "./pages/app/accounting/InventoryWriteOffDetails";
+import CreditNotes from "./pages/app/accounting/CreditNotes";
+import NewCreditNote from "./pages/app/accounting/NewCreditNote";
+import CreditNoteDetails from "./pages/app/accounting/CreditNoteDetails";
 import SupplierPayments from "./pages/app/accounting/SupplierPayments";
 import FinancialReports from "./pages/app/accounting/FinancialReports";
 import FinancialReportDetail from "./pages/app/accounting/FinancialReportDetail";
@@ -135,9 +163,15 @@ const App = () => {
               <Route path="invoices" element={<Invoices />} />
               <Route path="invoices/new" element={<NewInvoice />} />
               <Route path="invoices/:id" element={<InvoiceDetails />} />
+              <Route path="credit-notes" element={<CreditNotes />} />
+              <Route path="credit-notes/new" element={<NewCreditNote />} />
+              <Route path="credit-notes/:id" element={<CreditNoteDetails />} />
               <Route path="payments" element={<Payments />} />
               <Route path="accounts" element={<Accounts />} />
+              <Route path="branches" element={<Branches />} />
+              <Route path="cost-centers" element={<CostCenters />} />
               <Route path="products" element={<Products />} />
+              <Route path="products/:id" element={<ProductDetails />} />
               <Route path="reports" element={<Reports />} />
               <Route path="reports/:type" element={<ReportDetail />} />
               <Route path="accounting/chart" element={<ChartOfAccounts />} />
@@ -147,11 +181,33 @@ const App = () => {
               <Route path="accounting/journals/new" element={<NewJournalEntry />} />
               <Route path="accounting/journals/:id" element={<JournalEntryDetails />} />
               <Route path="accounting/opening-balances" element={<OpeningBalances />} />
+              <Route path="accounting/bad-debts" element={<BadDebts />} />
+              <Route path="accounting/year-end-closing" element={<YearEndClosing />} />
+              <Route path="accounting/asset-categories" element={<AssetCategories />} />
+              <Route path="accounting/assets" element={<FixedAssets />} />
+              <Route path="accounting/assets/new" element={<NewFixedAsset />} />
+              <Route path="accounting/assets/:id" element={<FixedAssetDetails />} />
+              <Route path="accounting/depreciation-runs" element={<DepreciationRuns />} />
+              <Route path="accounting/depreciation-runs/new" element={<NewDepreciationRun />} />
+              <Route path="accounting/employees" element={<Employees />} />
+              <Route path="accounting/salary-components" element={<SalaryComponents />} />
+              <Route path="accounting/payroll-runs" element={<PayrollRuns />} />
+              <Route path="accounting/payroll-runs/new" element={<NewPayrollRun />} />
+              <Route path="accounting/payroll-runs/:id" element={<PayrollRunDetails />} />
+              <Route path="accounting/bank-reconciliations" element={<BankReconciliations />} />
+              <Route path="accounting/bank-reconciliations/new" element={<NewBankReconciliation />} />
+              <Route path="accounting/bank-reconciliations/:id" element={<BankReconciliationDetails />} />
               <Route path="accounting/reports" element={<FinancialReports />} />
               <Route path="accounting/reports/:type" element={<FinancialReportDetail />} />
               <Route path="purchases/invoices" element={<PurchaseInvoices />} />
               <Route path="purchases/invoices/new" element={<NewPurchaseInvoice />} />
               <Route path="purchases/invoices/:id" element={<PurchaseInvoiceDetails />} />
+              <Route path="purchases/returns" element={<PurchaseReturns />} />
+              <Route path="purchases/returns/new" element={<NewPurchaseReturn />} />
+              <Route path="purchases/returns/:id" element={<PurchaseReturnDetails />} />
+              <Route path="inventory-write-offs" element={<InventoryWriteOffs />} />
+              <Route path="inventory-write-offs/new" element={<NewInventoryWriteOff />} />
+              <Route path="inventory-write-offs/:id" element={<InventoryWriteOffDetails />} />
               <Route path="purchases/supplier-payments" element={<SupplierPayments />} />
               <Route path="notifications" element={<Notifications />} />
               <Route path="alerts-log" element={<AlertsLog />} />

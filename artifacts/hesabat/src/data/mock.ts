@@ -130,7 +130,7 @@ export const stockMovements: StockMovement[] = [
 
 export const notifications: Notification[] = [
   { id: 'n-1', companyId: 'co-1', category: 'invoice', title: 'فاتورة جديدة', body: 'تم إنشاء الفاتورة INV-2026-0008 للعميل مؤسسة الزهور التجارية.', date: daysAgo(0), read: false },
-  { id: 'n-2', companyId: 'co-1', category: 'payment', title: 'تم استلام دفعة', body: 'تم استلام دفعة بقيمة 1,840 ر.س على الفاتورة INV-2026-0006.', date: daysAgo(0), read: false },
+  { id: 'n-2', companyId: 'co-1', category: 'payment', title: 'تم استلام دفعة', body: 'تم استلام دفعة بقيمة 1,840 ج.م على الفاتورة INV-2026-0006.', date: daysAgo(0), read: false },
   { id: 'n-3', companyId: 'co-1', category: 'stock', title: 'تنبيه مخزون منخفض', body: 'المنتج "سماعات رأس بلوتوث" أوشك على النفاد (الكمية: 1).', date: daysAgo(1), read: false },
   { id: 'n-4', companyId: 'co-1', category: 'debt', title: 'فاتورة متأخرة', body: 'الفاتورة INV-2026-0003 متأخرة عن السداد منذ 5 أيام.', date: daysAgo(2), read: true },
   { id: 'n-5', companyId: 'co-1', category: 'product', title: 'تمت إضافة منتج', body: 'تمت إضافة منتج جديد إلى الكتالوج.', date: daysAgo(3), read: true },

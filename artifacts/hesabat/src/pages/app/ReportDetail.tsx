@@ -20,10 +20,12 @@ const titleMap: Record<string, string> = {
   payments:          'تقرير التحصيلات',
   payouts:           'تقرير المصروفات',
   remaining:         'تقرير المتبقي',
+  'sales-returns':   'تقرير مرتجعات المبيعات',
   'by-method':       'تقرير حسب وسيلة الدفع',
   'by-account':      'تقرير حسب الحساب المالي',
   suppliers:         'تقرير نشاط الموردين',
   inventory:         'تقرير المخزون',
+  'inventory-write-offs': 'تقرير هالك / شطب المخزون',
   'accounts-summary':'ملخص الحسابات المالية',
 };
 
@@ -37,6 +39,7 @@ interface PayoutReport {
   id: string; amount: string | number; method: string; paid_at: string;
   reference: string | null; notes: string | null;
   supplier_name: string | null; category_name: string | null; account_name: string;
+  branch_name?: string | null; cost_center_name?: string | null;
 }
 
 interface SupplierReport {
@@ -46,8 +49,22 @@ interface SupplierReport {
 
 interface InventoryRow {
   id: string; name: string; sku: string | null; quantity: number; alert_level: number;
-  price: string | number; cost: string | number; unit: string; is_active: boolean;
+  product_type?: string; price: string | number; cost: string | number; average_cost?: string | number; unit: string; is_active: boolean;
   category_name: string | null; supplier_name: string | null; stock_value: string | number;
+}
+
+interface InventoryWriteOffReportRow {
+  id: string; write_off_number: string; write_off_date: string; reason: string;
+  product_name: string; sku: string | null; category_name: string | null;
+  quantity: string | number; unit_cost: string | number; total_cost: string | number;
+  branch_name: string | null; cost_center_name: string | null;
+}
+
+interface SalesReturnReportRow {
+  id: string; credit_note_number: string; credit_note_date: string; status: string;
+  customer_name: string; product_name: string | null; sku: string | null; description: string;
+  quantity: string | number; unit_price: string | number; vat_rate: string | number; line_total: string | number;
+  return_condition: string; return_to_stock: boolean;
 }
 
 interface AccountSummaryRow {
@@ -55,17 +72,33 @@ interface AccountSummaryRow {
   total_collections: string | number; total_payouts: string | number;
 }
 
+interface DimensionRow { id: string; code: string | null; name: string; is_active: boolean }
+
 const ReportDetail = () => {
   const { type = 'invoices' } = useParams();
   const [from, setFrom] = useState('');
   const [to, setTo]     = useState('');
-  const [applied, setApplied] = useState<{ from: string; to: string }>({ from: '', to: '' });
+  const [branchId, setBranchId] = useState('');
+  const [costCenterId, setCostCenterId] = useState('');
+  const [applied, setApplied] = useState<{ from: string; to: string; branchId: string; costCenterId: string }>({ from: '', to: '', branchId: '', costCenterId: '' });
 
   const { list: clients }  = useClients();
   const { list: accounts } = useAccounts();
   const { list: invoices } = useInvoices();
 
   const apiOn = isApiConfigured();
+  const dimensionsEnabled = apiOn && type === 'payouts';
+
+  const branchesQuery = useQuery({
+    enabled: dimensionsEnabled,
+    queryKey: ['branches'],
+    queryFn: async () => (await api.get<{ data: DimensionRow[] }>('/api/branches')).data ?? [],
+  });
+  const costCentersQuery = useQuery({
+    enabled: dimensionsEnabled,
+    queryKey: ['cost-centers'],
+    queryFn: async () => (await api.get<{ data: DimensionRow[] }>('/api/cost-centers')).data ?? [],
+  });
 
   const paymentsQuery = useQuery({
     enabled: apiOn,
@@ -85,11 +118,13 @@ const ReportDetail = () => {
 
   const payoutsQuery = useQuery({
     enabled: apiOn && type === 'payouts',
-    queryKey: ['report-payouts', applied.from, applied.to],
+    queryKey: ['report-payouts', applied.from, applied.to, applied.branchId, applied.costCenterId],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (applied.from) params.set('from', applied.from);
       if (applied.to)   params.set('to', applied.to);
+      if (applied.branchId) params.set('branch_id', applied.branchId);
+      if (applied.costCenterId) params.set('cost_center_id', applied.costCenterId);
       const res = await api.get<{ data: PayoutReport[] }>(`/api/reports/payouts?${params}`);
       return res.data ?? [];
     },
@@ -109,6 +144,24 @@ const ReportDetail = () => {
     queryKey: ['report-inventory'],
     queryFn: async () => {
       const res = await api.get<{ data: InventoryRow[] }>('/api/reports/inventory');
+      return res.data ?? [];
+    },
+  });
+
+  const inventoryWriteOffsQuery = useQuery({
+    enabled: apiOn && type === 'inventory-write-offs',
+    queryKey: ['report-inventory-write-offs'],
+    queryFn: async () => {
+      const res = await api.get<{ data: InventoryWriteOffReportRow[] }>('/api/reports/inventory-write-offs');
+      return res.data ?? [];
+    },
+  });
+
+  const salesReturnsQuery = useQuery({
+    enabled: apiOn && type === 'sales-returns',
+    queryKey: ['report-sales-returns'],
+    queryFn: async () => {
+      const res = await api.get<{ data: SalesReturnReportRow[] }>('/api/reports/sales-returns');
       return res.data ?? [];
     },
   });
@@ -180,6 +233,8 @@ const ReportDetail = () => {
         { key: 'supplier', header: 'المورد',     cell: (r) => r.supplier_name ?? '—' },
         { key: 'category', header: 'التصنيف',   cell: (r) => r.category_name ?? '—' },
         { key: 'account',  header: 'الحساب',    cell: (r) => r.account_name },
+        { key: 'branch',   header: 'الفرع',     cell: (r) => r.branch_name ?? '—' },
+        { key: 'cost_center', header: 'مركز التكلفة', cell: (r) => r.cost_center_name ?? '—' },
         { key: 'method',   header: 'الطريقة',   cell: (r) => paymentMethodLabel(r.method) },
         { key: 'amount',   header: 'المبلغ',    cell: (r) => <span className="font-semibold text-destructive">{formatCurrency(Number(r.amount))}</span> },
         { key: 'ref',      header: 'المرجع',    cell: (r) => r.reference ?? '—' },
@@ -225,12 +280,41 @@ const ReportDetail = () => {
       return <DataTable data={inventoryQuery.data ?? []} columns={[
         { key: 'name',     header: 'المنتج',       cell: (r) => <span className="font-medium">{r.name}</span> },
         { key: 'sku',      header: 'SKU',           cell: (r) => r.sku ?? '—' },
+        { key: 'type',     header: 'النوع',         cell: (r) => r.product_type === 'stock' ? 'مخزني' : r.product_type ?? '—' },
         { key: 'category', header: 'التصنيف',      cell: (r) => r.category_name ?? '—' },
         { key: 'supplier', header: 'المورد',        cell: (r) => r.supplier_name ?? '—' },
         { key: 'qty',      header: 'الكمية',        cell: (r) => <span className={r.quantity <= r.alert_level ? 'text-destructive font-semibold' : 'font-semibold'}>{r.quantity} {r.unit}</span> },
-        { key: 'price',    header: 'سعر البيع',    cell: (r) => formatCurrency(Number(r.price)) },
+        { key: 'avg_cost', header: 'متوسط التكلفة', cell: (r) => formatCurrency(Number(r.average_cost ?? r.cost)) },
         { key: 'value',    header: 'قيمة المخزون', cell: (r) => formatCurrency(Number(r.stock_value)) },
       ] as Column<InventoryRow>[]} />;
+    }
+    if (type === 'sales-returns') {
+      const label = (v: string) => ({ resellable: 'صالح للبيع', damaged: 'تالف', inspection: 'تحت الفحص', scrap: 'خردة' }[v] ?? v);
+      return <DataTable data={salesReturnsQuery.data ?? []} columns={[
+        { key: 'date', header: 'التاريخ', cell: (r) => formatDateShort(r.credit_note_date) },
+        { key: 'number', header: 'الإشعار', cell: (r) => r.credit_note_number },
+        { key: 'customer', header: 'العميل', cell: (r) => r.customer_name },
+        { key: 'product', header: 'المنتج', cell: (r) => r.product_name ?? r.description },
+        { key: 'condition', header: 'حالة المرتجع', cell: (r) => label(r.return_condition) },
+        { key: 'stock', header: 'عاد للمخزون', cell: (r) => r.return_to_stock ? 'نعم' : 'لا' },
+        { key: 'qty', header: 'الكمية', cell: (r) => Number(r.quantity), className: 'text-end' },
+        { key: 'total', header: 'الإجمالي', cell: (r) => formatCurrency(Number(r.line_total)), className: 'text-end' },
+        { key: 'status', header: 'الحالة', cell: (r) => r.status },
+      ] as Column<SalesReturnReportRow>[]} />;
+    }
+    if (type === 'inventory-write-offs') {
+      return <DataTable data={inventoryWriteOffsQuery.data ?? []} columns={[
+        { key: 'date', header: 'التاريخ', cell: (r) => formatDateShort(r.write_off_date) },
+        { key: 'number', header: 'المستند', cell: (r) => r.write_off_number },
+        { key: 'product', header: 'المنتج', cell: (r) => <span className="font-medium">{r.product_name}</span> },
+        { key: 'category', header: 'التصنيف', cell: (r) => r.category_name ?? '—' },
+        { key: 'reason', header: 'السبب', cell: (r) => r.reason },
+        { key: 'branch', header: 'الفرع', cell: (r) => r.branch_name ?? '—' },
+        { key: 'cost_center', header: 'مركز التكلفة', cell: (r) => r.cost_center_name ?? '—' },
+        { key: 'qty', header: 'الكمية', cell: (r) => Number(r.quantity), className: 'text-end' },
+        { key: 'unit', header: 'تكلفة الوحدة', cell: (r) => formatCurrency(Number(r.unit_cost)), className: 'text-end' },
+        { key: 'total', header: 'الإجمالي', cell: (r) => formatCurrency(Number(r.total_cost)), className: 'text-end' },
+      ] as Column<InventoryWriteOffReportRow>[]} />;
     }
     if (type === 'accounts-summary') {
       return <DataTable data={accountsSummaryQuery.data ?? []} columns={[
@@ -244,8 +328,8 @@ const ReportDetail = () => {
     return null;
   };
 
-  const hasFilter   = applied.from || applied.to;
-  const showFilter  = !['suppliers','inventory','accounts-summary'].includes(type);
+  const hasFilter   = applied.from || applied.to || applied.branchId || applied.costCenterId;
+  const showFilter  = !['suppliers','inventory','inventory-write-offs','accounts-summary'].includes(type);
 
   return (
     <div>
@@ -256,12 +340,30 @@ const ReportDetail = () => {
 
       {showFilter && (
         <Card className="p-4 mb-5 border-border/60">
-          <div className="grid sm:grid-cols-4 gap-4 items-end">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-6 gap-4 items-end">
             <div><Label>من تاريخ</Label><Input type="date" className="mt-1.5" value={from} onChange={(e) => setFrom(e.target.value)} /></div>
             <div><Label>إلى تاريخ</Label><Input type="date" className="mt-1.5" value={to} onChange={(e) => setTo(e.target.value)} /></div>
-            <Button onClick={() => setApplied({ from, to })}>تطبيق الفلتر</Button>
+            {type === 'payouts' ? (
+              <>
+                <div>
+                  <Label>الفرع</Label>
+                  <select className="mt-1.5 h-10 w-full rounded-md border bg-background px-3 text-sm" value={branchId} onChange={(e) => setBranchId(e.target.value)}>
+                    <option value="">كل الفروع</option>
+                    {(branchesQuery.data ?? []).filter((b) => b.is_active).map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <Label>مركز التكلفة</Label>
+                  <select className="mt-1.5 h-10 w-full rounded-md border bg-background px-3 text-sm" value={costCenterId} onChange={(e) => setCostCenterId(e.target.value)}>
+                    <option value="">كل مراكز التكلفة</option>
+                    {(costCentersQuery.data ?? []).filter((c) => c.is_active).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                </div>
+              </>
+            ) : <><div /><div /></>}
+            <Button onClick={() => setApplied({ from, to, branchId, costCenterId })}>تطبيق الفلتر</Button>
             {hasFilter ? (
-              <Button variant="ghost" onClick={() => { setFrom(''); setTo(''); setApplied({ from: '', to: '' }); }}>مسح الفلتر</Button>
+              <Button variant="ghost" onClick={() => { setFrom(''); setTo(''); setBranchId(''); setCostCenterId(''); setApplied({ from: '', to: '', branchId: '', costCenterId: '' }); }}>مسح الفلتر</Button>
             ) : <div />}
           </div>
         </Card>

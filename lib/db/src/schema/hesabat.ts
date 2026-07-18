@@ -56,7 +56,7 @@ export const companies = pgTable('companies', {
   invoiceFooter: text('invoice_footer'),
   invoiceCurrencySymbol: varchar('invoice_currency_symbol', { length: 20 }),
   ownerName: varchar('owner_name', { length: 200 }),
-  currency: varchar('currency', { length: 10 }).notNull().default('SAR'),
+  currency: varchar('currency', { length: 10 }).notNull().default('EGP'),
   vatRate: numeric('vat_rate', { precision: 5, scale: 2 }).notNull().default('15.00'),
   smtpSettings: jsonb('smtp_settings'),
   isActive: boolean('is_active').notNull().default(true),

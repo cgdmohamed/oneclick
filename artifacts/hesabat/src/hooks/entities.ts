@@ -9,7 +9,7 @@ import {
   invoices as mockInvoices, notifications as mockNotifications, users as mockUsers,
 } from '@/data/mock';
 import { useResource, type ResourceConfig } from '@/hooks/useResource';
-import { CURRENCIES, getCurrencySymbol } from '@/lib/currency';
+import { EGP_CURRENCY_CODE, EGP_CURRENCY_SYMBOL } from '@/lib/currency';
 
 /* ---------- Clients ---------- */
 interface ClientRow {
@@ -22,19 +22,18 @@ export const clientsCfg: ResourceConfig<Client, ClientRow> = {
   key: 'clients',
   initial: mockClients,
   fromRow: (r) => {
-    const code = r.currency ?? 'SAR';
     return {
       id: r.id, companyId: r.company_id, name: r.name,
       phone: r.phone ?? '', email: r.email ?? '', address: r.address ?? '',
-      taxNumber: r.tax_number ?? '', currency: code,
-      currencySymbol: CURRENCIES.find(x => x.code === code)?.symbol ?? getCurrencySymbol(),
+      taxNumber: r.tax_number ?? '', currency: EGP_CURRENCY_CODE,
+      currencySymbol: EGP_CURRENCY_SYMBOL,
       createdAt: r.created_at,
     };
   },
   toRow: (c) => ({
     name: c.name, phone: c.phone || null, email: c.email || null,
     address: c.address || null, tax_number: c.taxNumber || null,
-    currency: c.currency || null,
+    currency: EGP_CURRENCY_CODE,
   }),
 };
 export const useClients = () => useResource(clientsCfg);
@@ -42,8 +41,14 @@ export const useClients = () => useResource(clientsCfg);
 /* ---------- Products ---------- */
 interface ProductRow {
   id: string; company_id: string; sku: string | null; name: string;
+  product_type?: 'stock' | 'service' | 'non_stock' | 'expense';
+  barcode?: string | null;
   price: string | number; cost: string | number; quantity: number;
-  alert_level: number; is_active: boolean;
+  average_cost?: string | number; inventory_value?: string | number;
+  alert_level: number; vat_status?: 'taxable' | 'exempt' | 'zero_rated'; vat_rate?: string | number; is_active: boolean;
+  category_id?: string | null; category_name?: string | null; supplier_id?: string | null; supplier_name?: string | null;
+  sales_account_id?: string | null; sales_returns_account_id?: string | null; inventory_account_id?: string | null;
+  cogs_account_id?: string | null; purchase_expense_account_id?: string | null; inventory_adjustment_account_id?: string | null;
 }
 export const productsCfg: ResourceConfig<Product, ProductRow> = {
   path: '/api/products',
@@ -51,12 +56,33 @@ export const productsCfg: ResourceConfig<Product, ProductRow> = {
   initial: mockProducts,
   fromRow: (r) => ({
     id: r.id, companyId: r.company_id, name: r.name, code: r.sku ?? '',
-    price: Number(r.price), quantity: r.quantity, alertLevel: r.alert_level,
+    productType: r.product_type ?? 'stock',
+    barcode: r.barcode ?? '',
+    price: Number(r.price), cost: Number(r.cost ?? 0), averageCost: Number(r.average_cost ?? r.cost ?? 0),
+    inventoryValue: Number(r.inventory_value ?? 0),
+    quantity: r.quantity, alertLevel: r.alert_level,
+    vatStatus: r.vat_status ?? 'taxable', vatRate: Number(r.vat_rate ?? 0),
+    categoryId: r.category_id ?? undefined, category: r.category_name ?? undefined,
+    supplierId: r.supplier_id ?? undefined, supplierName: r.supplier_name ?? undefined,
+    salesAccountId: r.sales_account_id ?? undefined,
+    salesReturnsAccountId: r.sales_returns_account_id ?? undefined,
+    inventoryAccountId: r.inventory_account_id ?? undefined,
+    cogsAccountId: r.cogs_account_id ?? undefined,
+    purchaseExpenseAccountId: r.purchase_expense_account_id ?? undefined,
+    inventoryAdjustmentAccountId: r.inventory_adjustment_account_id ?? undefined,
     status: r.is_active ? 'active' : 'inactive',
   }),
   toRow: (p) => ({
-    name: p.name, sku: p.code || null, price: p.price, quantity: p.quantity,
-    alert_level: p.alertLevel, is_active: p.status !== 'inactive',
+    name: p.name, sku: p.code || null, product_type: p.productType ?? 'stock',
+    barcode: p.barcode || null, price: p.price, cost: p.cost ?? 0, quantity: p.quantity,
+    alert_level: p.alertLevel, vat_status: p.vatStatus ?? 'taxable', vat_rate: p.vatRate ?? 0,
+    is_active: p.status !== 'inactive', category_id: p.categoryId ?? null, supplier_id: p.supplierId ?? null,
+    sales_account_id: p.salesAccountId ?? null,
+    sales_returns_account_id: p.salesReturnsAccountId ?? null,
+    inventory_account_id: p.inventoryAccountId ?? null,
+    cogs_account_id: p.cogsAccountId ?? null,
+    purchase_expense_account_id: p.purchaseExpenseAccountId ?? null,
+    inventory_adjustment_account_id: p.inventoryAdjustmentAccountId ?? null,
   }),
 };
 export const useProducts = () => useResource(productsCfg);

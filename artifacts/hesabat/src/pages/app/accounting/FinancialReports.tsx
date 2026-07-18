@@ -5,13 +5,21 @@ import { ArrowLeft, BookOpen, FileSpreadsheet } from 'lucide-react';
 
 const reports = [
   ['general-ledger', 'General Ledger', 'دفتر الأستاذ العام لكل القيود المرحلة.'],
+  ['account-statement', 'Account Statement', 'حركة ورصيد حساب محدد من دفتر الأستاذ.'],
   ['trial-balance', 'Trial Balance', 'إجمالي المدين والدائن ورصيد كل حساب.'],
   ['income-statement', 'Income Statement', 'الإيرادات والمصروفات وصافي الربح.'],
   ['balance-sheet', 'Balance Sheet', 'الأصول والالتزامات وحقوق الملكية.'],
   ['customer-ledger', 'Customer Ledger', 'أرصدة العملاء والفواتير والتحصيلات.'],
+  ['ar-aging', 'AR Aging', 'أرصدة العملاء غير المحصلة حسب فترات التأخير.'],
   ['supplier-ledger', 'Supplier Ledger', 'أرصدة الموردين والمشتريات والمدفوعات.'],
   ['vat', 'VAT Report', 'ضريبة المخرجات والمدخلات وصافي المستحق.'],
   ['inventory', 'Inventory Valuation', 'قيمة المخزون الحالية حسب المنتجات.'],
+  ['fixed-asset-register', 'Fixed Asset Register', 'تكلفة الأصول ومجمع الإهلاك وصافي القيمة.'],
+  ['depreciation-schedule', 'Depreciation Schedule', 'تفاصيل إهلاك الأصول حسب التشغيلات.'],
+  ['accumulated-depreciation', 'Accumulated Depreciation', 'ملخص مجمع الإهلاك حسب التصنيف.'],
+  ['payroll-summary', 'Payroll Summary', 'ملخص الرواتب حسب الشهر.'],
+  ['payroll-by-employee', 'Payroll by Employee', 'إجمالي الرواتب والاستقطاعات حسب الموظف.'],
+  ['payroll-by-dimension', 'Payroll by Branch/Cost Center', 'تحليل الرواتب حسب الفرع ومركز التكلفة.'],
 ] as const;
 
 const FinancialReports = () => (

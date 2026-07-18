@@ -5,6 +5,8 @@ import { requireRole } from '../../middleware/rbac.js';
 import { encryptSmtpPassword, isSmtpPasswordEncrypted } from '../../utils/crypto.js';
 
 const router = Router();
+const EGP_CURRENCY_CODE = 'EGP';
+const EGP_CURRENCY_SYMBOL = 'ج.م';
 
 router.get('/me', async (req, res, next) => {
   try {
@@ -57,6 +59,8 @@ router.patch('/me', requireRole('company_admin'), async (req, res, next) => {
   try {
     const t = req.tenant!;
     const body = updateSchema.parse(req.body);
+    if ('currency' in body) body.currency = EGP_CURRENCY_CODE;
+    if ('invoice_currency_symbol' in body) body.invoice_currency_symbol = EGP_CURRENCY_SYMBOL;
     const fields = (Object.keys(body) as Array<keyof typeof body>)
       .filter((k) => (UPDATABLE as readonly string[]).includes(k as string) && (body as Record<string, unknown>)[k as string] !== undefined);
     if (fields.length === 0) return res.json({ data: null });

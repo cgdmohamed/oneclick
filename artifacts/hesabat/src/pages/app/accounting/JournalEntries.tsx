@@ -47,7 +47,7 @@ const JournalEntries = () => {
             <option value="">كل الحالات</option><option value="draft">مسودة</option><option value="posted">مرحل</option><option value="reversed">معكوس</option>
           </select>
           <select className="h-10 rounded-md border bg-background px-3 text-sm" value={source} onChange={(e) => setSource(e.target.value)}>
-            <option value="">كل المصادر</option><option value="invoice">فاتورة بيع</option><option value="payment">تحصيل</option><option value="payout">مصروف</option><option value="purchase_invoice">فاتورة شراء</option><option value="supplier_payment">دفعة مورد</option><option value="stock_movement">حركة مخزون</option>
+            <option value="">كل المصادر</option><option value="invoice">فاتورة بيع</option><option value="payment">تحصيل</option><option value="payout">مصروف</option><option value="purchase_invoice">فاتورة شراء</option><option value="supplier_payment">دفعة مورد</option><option value="stock_movement">حركة مخزون</option><option value="year_end_closing">إقفال نهاية السنة</option>
           </select>
           <Button variant="ghost" onClick={() => { setFrom(''); setTo(''); setStatus(''); setSource(''); }}>مسح</Button>
         </div>

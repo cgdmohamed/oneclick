@@ -54,16 +54,12 @@ async function loadByPublicId(publicId: string): Promise<PublicInvoicePayload> {
   return payload;
 }
 
-const CURRENCY_SYMBOLS: Record<string, string> = {
-  SAR: 'ر.س', USD: '$', EUR: '€', GBP: '£', AED: 'د.إ',
-  KWD: 'د.ك', QAR: 'ر.ق', OMR: 'ر.ع', BHD: 'د.ب', JOD: 'د.أ',
-  EGP: 'ج.م', MAD: 'د.م',
-};
+const EGP_CURRENCY_CODE = 'EGP';
+const EGP_CURRENCY_SYMBOL = 'ج.م';
 
 router.get('/invoices/:publicId', async (req, res, next) => {
   try {
     const { invoice, items } = await loadByPublicId(req.params.publicId);
-    const currencyCode = (invoice.currency as string | null) ?? 'SAR';
     res.json({
       data: {
         id:              invoice.id,
@@ -87,8 +83,8 @@ router.get('/invoices/:publicId', async (req, res, next) => {
         company_phone:   invoice.company_phone,
         company_logo:    invoice.company_logo,
         company_stamp:   invoice.company_stamp,
-        currency:        invoice.currency,
-        currency_symbol: CURRENCY_SYMBOLS[currencyCode] ?? currencyCode,
+        currency:        EGP_CURRENCY_CODE,
+        currency_symbol: EGP_CURRENCY_SYMBOL,
         items: items.map((r, i) => ({
           id: String(i),
           name: r.description,

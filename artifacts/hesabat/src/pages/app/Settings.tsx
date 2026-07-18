@@ -13,7 +13,7 @@ import { Building2, Check, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { api, isApiConfigured, resolveAssetUrl, ApiError } from '@/lib/api';
-import { setCurrencySymbol, getCurrencySymbol, setCompanyCurrencyCode } from '@/lib/currency';
+import { EGP_CURRENCY_CODE, EGP_CURRENCY_SYMBOL, setCurrencySymbol, setCompanyCurrencyCode } from '@/lib/currency';
 import { InvoiceAlertsSettingsPanel } from '@/components/common/InvoiceAlertsSettings';
 
 interface CompanyProfile {
@@ -69,16 +69,6 @@ interface ClientInfo {
   taxNumber: string;
 }
 
-const CURRENCIES = [
-  { code: 'SAR', symbol: 'ر.س', name: 'ريال سعودي' },
-  { code: 'AED', symbol: 'د.إ', name: 'درهم إماراتي' },
-  { code: 'EGP', symbol: 'ج.م', name: 'جنيه مصري' },
-  { code: 'KWD', symbol: 'د.ك', name: 'دينار كويتي' },
-  { code: 'QAR', symbol: 'ر.ق', name: 'ريال قطري' },
-  { code: 'USD', symbol: '$', name: 'دولار أمريكي' },
-  { code: 'EUR', symbol: '€', name: 'يورو' },
-];
-
 const Settings = () => {
   const [profile, setProfile] = useState<CompanyProfile>({
     name: 'شركة الأفق للتجارة',
@@ -87,11 +77,11 @@ const Settings = () => {
     phone: '+2551112233',
     taxNumber: '300123456700003',
     commercialReg: '1010234567',
-    country: 'المملكة العربية السعودية',
-    city: 'الرياض',
-    district: 'حي الملقا',
-    street: 'شارع الأمير محمد بن سلمان',
-    postalCode: '13524',
+    country: 'مصر',
+    city: 'القاهرة',
+    district: '',
+    street: '',
+    postalCode: '',
   });
 
   const [invoiceCfg, setInvoiceCfg] = useState<InvoiceConfig>({
@@ -100,8 +90,8 @@ const Settings = () => {
     sequenceStart: 1,
     padding: 4,
     separator: '-',
-    currency: 'SAR',
-    currencySymbol: getCurrencySymbol(),
+    currency: EGP_CURRENCY_CODE,
+    currencySymbol: EGP_CURRENCY_SYMBOL,
     taxRate: 15,
     template: 'modern',
     accentColor: '#4F46E5',
@@ -133,14 +123,6 @@ const Settings = () => {
     if (key === 'taxNumber' && val && !/^\d{5,20}$/.test(val)) err = 'الرقم الضريبي غير صالح';
     if (key === 'address' && val.length > 200) err = 'العنوان طويل جداً';
     setClientErrors(p => ({ ...p, [key]: err || undefined }));
-  };
-
-  const onCurrencyChange = (code: string) => {
-    const c = CURRENCIES.find(x => x.code === code);
-    if (c) {
-      setI({ currency: c.code, currencySymbol: c.symbol });
-      setCurrencySymbol(c.symbol);
-    }
   };
 
   const [hydrationError, setHydrationError] = useState<string | null>(null);
@@ -199,8 +181,8 @@ const Settings = () => {
           sequenceStart: Number(r.invoice_sequence_start ?? c.sequenceStart),
           padding: Number(r.invoice_padding ?? c.padding),
           separator: (r.invoice_separator as string) ?? c.separator,
-          currency: currencyCode ?? c.currency,
-          currencySymbol: storedSymbol ?? (currencyCode ? (CURRENCIES.find(x => x.code === currencyCode)?.symbol ?? c.currencySymbol) : c.currencySymbol),
+          currency: EGP_CURRENCY_CODE,
+          currencySymbol: EGP_CURRENCY_SYMBOL,
           taxRate: Number(r.vat_rate ?? c.taxRate),
           template: ((r.invoice_template as InvoiceConfig['template']) ?? c.template),
           accentColor: (r.invoice_accent_color as string) ?? c.accentColor,
@@ -256,8 +238,8 @@ const Settings = () => {
             invoice_sequence_start: cfg.sequenceStart,
             invoice_padding: cfg.padding,
             invoice_separator: cfg.separator,
-            currency: cfg.currency,
-            invoice_currency_symbol: cfg.currencySymbol || null,
+            currency: EGP_CURRENCY_CODE,
+            invoice_currency_symbol: EGP_CURRENCY_SYMBOL,
             vat_rate: cfg.taxRate,
             invoice_template: cfg.template,
             invoice_accent_color: cfg.accentColor,
@@ -332,7 +314,7 @@ const Settings = () => {
     <div>
       <PageHeader
         title="إعدادات الشركة"
-        description="بيانات الشركة والعنوان والعملة ومعاينة الفاتورة"
+        description="بيانات الشركة والعنوان ومعاينة الفاتورة"
         actions={<SaveIndicator status={saveStatus} />}
       />
       {hydrationError && (
@@ -344,7 +326,7 @@ const Settings = () => {
         <TabsList>
           <TabsTrigger value="company">بيانات الشركة</TabsTrigger>
           <TabsTrigger value="address">العنوان</TabsTrigger>
-          <TabsTrigger value="invoice">الفاتورة والعملة</TabsTrigger>
+          <TabsTrigger value="invoice">الفاتورة</TabsTrigger>
           <TabsTrigger value="client">بيانات العميل</TabsTrigger>
           <TabsTrigger value="identity">الهوية والختم</TabsTrigger>
           <TabsTrigger value="smtp">البريد (SMTP)</TabsTrigger>
@@ -393,17 +375,9 @@ const Settings = () => {
             <Card className="p-6 border-border/60 lg:col-span-2 space-y-4 h-fit">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label>العملة</Label>
-                  <Select value={invoiceCfg.currency} onValueChange={onCurrencyChange}>
-                    <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {CURRENCIES.map(c => (
-                        <SelectItem key={c.code} value={c.code}>{c.name} ({c.symbol})</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Label>عملة النظام</Label>
+                  <Input className="mt-1.5" value={`${EGP_CURRENCY_CODE} (${EGP_CURRENCY_SYMBOL})`} disabled />
                 </div>
-                <div><Label>رمز العملة</Label><Input className="mt-1.5" value={invoiceCfg.currencySymbol} onChange={e => { setI({ currencySymbol: e.target.value }); setCurrencySymbol(e.target.value); }} /></div>
                 <div><Label>بادئة الفاتورة</Label><Input className="mt-1.5" value={invoiceCfg.prefix} onChange={e => setI({ prefix: e.target.value })} /></div>
                 <div><Label>نسبة الضريبة %</Label><Input type="number" className="mt-1.5" value={invoiceCfg.taxRate} onChange={e => setI({ taxRate: Number(e.target.value) })} /></div>
                 <div>
@@ -607,7 +581,7 @@ const InvoicePreview = ({ profile, cfg, address, client }: { profile: CompanyPro
   const subtotal = sampleItems.reduce((s, i) => s + i.qty * i.price, 0);
   const tax = +(subtotal * (cfg.taxRate / 100)).toFixed(2);
   const total = subtotal + tax;
-  const fmt = (n: number) => `${new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(n)} ${cfg.currencySymbol}`;
+  const fmt = (n: number) => `${new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(n)} ${EGP_CURRENCY_SYMBOL}`;
 
   const isMinimal = cfg.template === 'minimal';
   const isClassic = cfg.template === 'classic';

@@ -1,8 +1,8 @@
 import { getCurrencySymbol } from './currency';
 
-export const formatCurrency = (n: number, currency?: string): string => {
+export const formatCurrency = (n: number, _currency?: string): string => {
   const formatted = new Intl.NumberFormat('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(n || 0);
-  return `${formatted} ${currency ?? getCurrencySymbol()}`;
+  return `${formatted} ${getCurrencySymbol()}`;
 };
 
 const AR_MONTHS = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];

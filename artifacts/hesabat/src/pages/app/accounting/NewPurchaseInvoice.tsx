@@ -14,7 +14,15 @@ import { toast } from 'sonner';
 import type { ChartAccount, PurchaseInvoice } from './types';
 
 interface Supplier { id: string; name: string; }
-interface Product { id: string; name: string; cost?: string | number; }
+interface Product {
+  id: string;
+  name: string;
+  barcode?: string | null;
+  product_type?: 'stock' | 'service' | 'non_stock' | 'expense';
+  cost?: string | number;
+  vat_status?: 'taxable' | 'exempt' | 'zero_rated';
+  vat_rate?: string | number;
+}
 interface ItemForm {
   product_id: string;
   expense_account_id: string;
@@ -105,9 +113,15 @@ const NewPurchaseInvoice = () => {
               if (value.startsWith('expense:')) updateItem(idx, { product_id: '', expense_account_id: value.replace('expense:', '') });
               else {
                 const p = (products.data ?? []).find((prod) => prod.id === value);
-                updateItem(idx, { product_id: value, expense_account_id: '', description: p?.name ?? item.description, unit_cost: String(p?.cost ?? item.unit_cost) });
+                updateItem(idx, {
+                  product_id: value,
+                  expense_account_id: p?.product_type === 'stock' ? '' : item.expense_account_id,
+                  description: p?.name ?? item.description,
+                  unit_cost: String(p?.cost ?? item.unit_cost),
+                  vat_rate: String(p?.vat_status === 'taxable' ? Number(p?.vat_rate ?? item.vat_rate) : 0),
+                });
               }
-            }}><option value="">اختر</option>{(products.data ?? []).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}{expenseAccounts.map((a) => <option key={a.id} value={`expense:${a.id}`}>مصروف: {a.code} - {a.name}</option>)}</select></div>
+            }}><option value="">اختر</option>{(products.data ?? []).map((p) => <option key={p.id} value={p.id}>{p.name}{p.barcode ? ` - ${p.barcode}` : ''}</option>)}{expenseAccounts.map((a) => <option key={a.id} value={`expense:${a.id}`}>مصروف: {a.code} - {a.name}</option>)}</select></div>
             <div><Label>الوصف</Label><Input className="mt-1.5" value={item.description} onChange={(e) => updateItem(idx, { description: e.target.value })} /></div>
             <div><Label>الكمية</Label><Input className="mt-1.5" type="number" value={item.quantity} onChange={(e) => updateItem(idx, { quantity: e.target.value })} /></div>
             <div><Label>تكلفة الوحدة</Label><Input className="mt-1.5" type="number" value={item.unit_cost} onChange={(e) => updateItem(idx, { unit_cost: e.target.value })} /></div>

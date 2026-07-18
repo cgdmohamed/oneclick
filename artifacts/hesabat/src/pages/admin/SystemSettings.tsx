@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { api, isApiConfigured } from '@/lib/api';
-import { getCurrencySymbol, setCurrencySymbol } from '@/lib/currency';
+import { EGP_CURRENCY_SYMBOL, setCurrencySymbol } from '@/lib/currency';
 import { useBrand, DEFAULT_BRAND, type BrandSettings } from '@/lib/brand';
 import { BrandLogo } from '@/components/common/BrandLogo';
 import { Upload, Trash2, RotateCcw } from 'lucide-react';
@@ -49,7 +49,7 @@ const SystemSettings = () => {
   const [s, setS] = useState({
     appName: 'ون كليك',
     supportEmail: 'support@oneclick.eg',
-    currency: getCurrencySymbol(),
+    currency: EGP_CURRENCY_SYMBOL,
     invoicePrefix: 'INV',
   });
   const [generalLoading, setGeneralLoading] = useState(true);
@@ -70,7 +70,7 @@ const SystemSettings = () => {
           setS({
             appName: json.data.appName ?? 'ون كليك',
             supportEmail: json.data.supportEmail ?? 'support@oneclick.eg',
-            currency: json.data.currency ?? getCurrencySymbol(),
+            currency: EGP_CURRENCY_SYMBOL,
             invoicePrefix: json.data.invoicePrefix ?? 'INV',
           });
           if (json.data.currency) setCurrencySymbol(json.data.currency);
@@ -344,7 +344,7 @@ const SystemSettings = () => {
               rows={2}
               value={contact.address}
               onChange={e => setContact(v => ({ ...v, address: e.target.value }))}
-              placeholder="الرياض، المملكة العربية السعودية"
+              placeholder="القاهرة، مصر"
             />
           </div>
         </div>
@@ -423,8 +423,8 @@ const SystemSettings = () => {
             <Label>العملة الافتراضية</Label>
             <Input
               className="mt-1.5"
-              value={s.currency}
-              onChange={e => { setS(v => ({ ...v, currency: e.target.value })); setCurrencySymbol(e.target.value); }}
+              value={EGP_CURRENCY_SYMBOL}
+              disabled
             />
           </div>
           <div><Label>بادئة الفاتورة</Label><Input className="mt-1.5" value={s.invoicePrefix} onChange={e => setS(v => ({ ...v, invoicePrefix: e.target.value }))} /></div>
@@ -435,8 +435,8 @@ const SystemSettings = () => {
             if (!isApiConfigured()) { toast.error('هذا الإجراء يتطلب الاتصال بالخادم'); return; }
             setGeneralSaving(true);
             try {
-              await api.put('/api/platform/settings/general', s);
-              setCurrencySymbol(s.currency);
+              await api.put('/api/platform/settings/general', { ...s, currency: EGP_CURRENCY_SYMBOL });
+              setCurrencySymbol(EGP_CURRENCY_SYMBOL);
               toast.success('تم حفظ الإعدادات');
             } catch {
               toast.error('تعذّر حفظ الإعدادات');

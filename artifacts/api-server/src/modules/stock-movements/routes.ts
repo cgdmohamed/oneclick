@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { parsePagination } from '../../utils/pagination.js';
 import { round2 } from '../../utils/money.js';
 import { assertPeriodOpen, createJournalEntry, getSettings } from '../accounting/posting.js';
+import { badRequest } from '../../utils/errors.js';
 
 const schema = z.object({
   product_id:  z.string().uuid(),
@@ -20,26 +21,73 @@ r.get('/', async (req, res, next) => {
     const t = req.tenant!;
     const p = parsePagination(req);
     const params: unknown[] = [t.companyId];
-    let where = `WHERE sm.company_id = $1`;
+    let stockWhere = `WHERE sm.company_id = $1`;
+    let ledgerWhere = `WHERE sl.company_id = $1 AND sl.source_type IN ('purchase_return', 'purchase_return_cancel', 'credit_note', 'credit_note_cancel', 'write_off', 'write_off_cancel')`;
 
     const productId = req.query.product_id as string | undefined;
     if (productId) {
       params.push(productId);
-      where += ` AND sm.product_id = $${params.length}`;
+      stockWhere += ` AND sm.product_id = $${params.length}`;
+      ledgerWhere += ` AND sl.product_id = $${params.length}`;
     }
 
+    const combinedRows = `
+      SELECT sm.id,
+             sm.company_id,
+             sm.product_id,
+             sm.supplier_id,
+             sm.type,
+             sm.quantity,
+             sm.reason,
+             sm.created_by,
+             sm.unit_cost,
+             sm.total_value,
+             sm.created_at,
+             p.name AS product_name,
+             s.name AS supplier_name
+      FROM stock_movements sm
+      LEFT JOIN products p ON p.id = sm.product_id
+      LEFT JOIN suppliers s ON s.id = sm.supplier_id
+      ${stockWhere}
+      UNION ALL
+      SELECT sl.id,
+             sl.company_id,
+             sl.product_id,
+             pr.supplier_id,
+             CASE WHEN sl.quantity_out > 0 THEN 'out' ELSE 'in' END AS type,
+             CASE WHEN sl.quantity_out > 0 THEN sl.quantity_out ELSE sl.quantity_in END AS quantity,
+             CASE
+               WHEN sl.source_type = 'purchase_return_cancel' THEN 'إلغاء مرتجع شراء'
+               WHEN sl.source_type = 'credit_note' THEN 'مرتجع بيع / إشعار دائن'
+               WHEN sl.source_type = 'credit_note_cancel' THEN 'إلغاء إشعار دائن'
+               WHEN sl.source_type = 'write_off' THEN 'هالك / شطب مخزون'
+               WHEN sl.source_type = 'write_off_cancel' THEN 'إلغاء شطب مخزون'
+               ELSE 'مرتجع شراء'
+             END AS reason,
+             NULL AS created_by,
+             sl.unit_cost,
+             sl.total_value,
+             sl.movement_date AS created_at,
+             p.name AS product_name,
+             s.name AS supplier_name
+      FROM stock_ledger sl
+      JOIN products p ON p.id = sl.product_id
+      LEFT JOIN purchase_returns pr ON pr.id = sl.source_id AND pr.company_id = sl.company_id
+      LEFT JOIN credit_notes cn ON cn.id = sl.source_id AND cn.company_id = sl.company_id
+      LEFT JOIN inventory_write_offs iwo ON iwo.id = sl.source_id AND iwo.company_id = sl.company_id
+      LEFT JOIN suppliers s ON s.id = pr.supplier_id
+      ${ledgerWhere}
+    `;
+
     const totalQ = await t.db.query(
-      `SELECT count(*)::int AS count FROM stock_movements sm ${where}`, params,
+      `SELECT count(*)::int AS count FROM (${combinedRows}) rows`, params,
     );
     const total = Number(totalQ.rows[0]?.count ?? 0);
 
     const applied = p.applyTo(
-      `SELECT sm.*, p.name AS product_name, s.name AS supplier_name
-       FROM stock_movements sm
-       LEFT JOIN products p ON p.id = sm.product_id
-       LEFT JOIN suppliers s ON s.id = sm.supplier_id
-       ${where}
-       ORDER BY sm.created_at DESC`,
+      `SELECT *
+       FROM (${combinedRows}) rows
+       ORDER BY created_at DESC`,
       params,
     );
     const rs = await t.db.query(applied.sql, applied.params);
@@ -53,8 +101,19 @@ r.post('/', async (req, res, next) => {
     const body = schema.parse(req.body);
     await assertPeriodOpen(t.db, t.companyId, new Date());
 
-    const prodRs = await t.db.query(`SELECT * FROM products WHERE id = $1 AND company_id = $2`, [body.product_id, t.companyId]);
+    const prodRs = await t.db.query(
+      `SELECT p.*,
+              COALESCE(p.inventory_account_id, pc.inventory_account_id) AS resolved_inventory_account_id,
+              COALESCE(p.inventory_adjustment_account_id, pc.inventory_adjustment_account_id) AS resolved_inventory_adjustment_account_id
+       FROM products p
+       LEFT JOIN product_categories pc ON pc.id = p.category_id AND pc.company_id = p.company_id
+       WHERE p.id = $1 AND p.company_id = $2`,
+      [body.product_id, t.companyId],
+    );
     if (!prodRs.rowCount) return res.status(422).json({ error: 'invalid_product', message: 'المنتج غير صالح' });
+    if (prodRs.rows[0].product_type !== 'stock') {
+      return res.status(422).json({ error: 'not_stock_product', message: 'حركات المخزون متاحة للمنتجات المخزنية فقط' });
+    }
 
     if (body.supplier_id) {
       const sRs = await t.db.query(`SELECT 1 FROM suppliers WHERE id = $1 AND company_id = $2`, [body.supplier_id, t.companyId]);
@@ -106,6 +165,9 @@ r.post('/', async (req, res, next) => {
         ],
       );
       const settings = await getSettings(t.db, t.companyId);
+      const inventoryAccountId = prodRs.rows[0].resolved_inventory_account_id ?? settings.inventory_account_id;
+      const adjustmentAccountId = prodRs.rows[0].resolved_inventory_adjustment_account_id ?? settings.inventory_adjustment_account_id;
+      if (!inventoryAccountId || !adjustmentAccountId) throw badRequest('Missing inventory accounting settings');
       const value = round2(body.quantity * Number(ins.rows[0].unit_cost ?? 0));
       const je = await createJournalEntry(t.db, {
         companyId: t.companyId,
@@ -115,12 +177,12 @@ r.post('/', async (req, res, next) => {
         userId: req.auth!.userId,
         lines: delta >= 0
           ? [
-              { accountId: settings.inventory_account_id, debit: value, description: body.reason },
-              { accountId: settings.inventory_adjustment_account_id, credit: value, description: body.reason },
+              { accountId: inventoryAccountId, debit: value, description: body.reason },
+              { accountId: adjustmentAccountId, credit: value, description: body.reason },
             ]
           : [
-              { accountId: settings.inventory_adjustment_account_id, debit: value, description: body.reason },
-              { accountId: settings.inventory_account_id, credit: value, description: body.reason },
+              { accountId: adjustmentAccountId, debit: value, description: body.reason },
+              { accountId: inventoryAccountId, credit: value, description: body.reason },
             ],
       });
       await t.db.query(`UPDATE stock_movements SET journal_entry_id = $1 WHERE id = $2 AND company_id = $3`, [je.id, ins.rows[0].id, t.companyId]);

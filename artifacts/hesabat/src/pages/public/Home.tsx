@@ -239,9 +239,9 @@ const Home = () => {
                 <Field label="تاريخ الإصدار" value="15 رمضان 1447" />
               </div>
               <div className="rounded-xl bg-muted/40 p-4 space-y-2 text-sm">
-                <div className="flex justify-between"><span className="text-muted-foreground">المجموع</span><span>9,000 ر.س</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">الضريبة 15%</span><span>1,350 ر.س</span></div>
-                <div className="flex justify-between font-bold pt-2 border-t border-border"><span>الإجمالي</span><span>10,350 ر.س</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">المجموع</span><span>9,000 ج.م</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">الضريبة 15%</span><span>1,350 ج.م</span></div>
+                <div className="flex justify-between font-bold pt-2 border-t border-border"><span>الإجمالي</span><span>10,350 ج.م</span></div>
               </div>
             </Card>
           </div>

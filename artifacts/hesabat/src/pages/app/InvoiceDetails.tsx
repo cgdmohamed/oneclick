@@ -13,7 +13,7 @@ import { formatCurrency, formatDate, paymentMethodLabel, invoiceStatusLabel } fr
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { PaymentForm } from '@/components/common/PaymentForm';
-import { Plus, Share2, Mail, MessageCircle, Printer, Copy, Send, XCircle } from 'lucide-react';
+import { Plus, Share2, Mail, MessageCircle, Printer, Copy, Send, XCircle, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Payment, PaymentSplit, Invoice, InvoiceStatus } from '@/types';
 import { api, ApiError, isApiConfigured } from '@/lib/api';
@@ -207,6 +207,16 @@ const InvoiceDetails = () => {
             {isDraft && (
               <Button onClick={sendDraft}>
                 <Send className="h-4 w-4 ml-1" /> إرسال الفاتورة
+              </Button>
+            )}
+            {!isDraft && !isCancelled && (
+              <Button variant="outline" onClick={() => navigate(`/app/credit-notes/new?invoice=${invoice.id}`)}>
+                <RotateCcw className="h-4 w-4 ml-1" /> إشعار دائن
+              </Button>
+            )}
+            {!isDraft && !isCancelled && remaining > 0 && (
+              <Button variant="outline" onClick={() => navigate(`/app/accounting/bad-debts?invoice=${invoice.id}`)}>
+                <XCircle className="h-4 w-4 ml-1" /> إعدام دين
               </Button>
             )}
             {canCancel && (

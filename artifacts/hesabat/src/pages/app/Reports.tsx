@@ -14,10 +14,12 @@ const reports = [
   { id: 'payments',         icon: CreditCard,        title: 'تقرير التحصيلات',             desc: 'تتبع التحصيلات المسجلة على الفواتير.' },
   { id: 'payouts',          icon: ArrowUpFromLine,   title: 'تقرير المصروفات',             desc: 'جميع المدفوعات الصادرة للموردين والنفقات.' },
   { id: 'remaining',        icon: TrendingDown,      title: 'تقرير المتبقي',               desc: 'الفواتير غير المسددة كلياً أو جزئياً.' },
+  { id: 'sales-returns',    icon: ArrowUpFromLine,   title: 'تقرير مرتجعات المبيعات',      desc: 'الإشعارات الدائنة حسب حالة المرتجع.' },
   { id: 'by-method',        icon: Wallet,            title: 'تقرير حسب وسيلة الدفع',      desc: 'تجميع التحصيلات حسب طريقة السداد.' },
   { id: 'by-account',       icon: Building2,         title: 'تقرير حسب الحساب المالي',    desc: 'حركات الإيداع لكل حساب مالي.' },
   { id: 'suppliers',        icon: Truck,             title: 'تقرير نشاط الموردين',        desc: 'إجمالي المصروفات والمنتجات لكل مورد.' },
   { id: 'inventory',        icon: Package,           title: 'تقرير المخزون',              desc: 'الكميات والقيم الحالية لجميع المنتجات.' },
+  { id: 'inventory-write-offs', icon: Package,        title: 'تقرير هالك / شطب المخزون',   desc: 'الكميات والتكلفة حسب السبب والمنتج.' },
   { id: 'accounts-summary', icon: Wallet,            title: 'ملخص الحسابات المالية',      desc: 'أرصدة التحصيلات والمصروفات لكل حساب.' },
 ];
 

@@ -45,12 +45,27 @@ export interface Product {
   companyId: UUID;
   name: string;
   code: string;
+  productType?: 'stock' | 'service' | 'non_stock' | 'expense';
+  barcode?: string;
   price: number;
+  cost?: number;
+  averageCost?: number;
+  inventoryValue?: number;
   quantity: number;
   alertLevel: number;
+  vatStatus?: 'taxable' | 'exempt' | 'zero_rated';
+  vatRate?: number;
   imageUrl?: string;
   category?: string;
   categoryId?: UUID;
+  supplierId?: UUID;
+  supplierName?: string;
+  salesAccountId?: UUID;
+  salesReturnsAccountId?: UUID;
+  inventoryAccountId?: UUID;
+  cogsAccountId?: UUID;
+  purchaseExpenseAccountId?: UUID;
+  inventoryAdjustmentAccountId?: UUID;
   status: 'active' | 'inactive';
 }
 

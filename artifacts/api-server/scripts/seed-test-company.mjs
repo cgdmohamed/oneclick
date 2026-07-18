@@ -81,8 +81,8 @@ async function run() {
 
     if (!existingCompany) {
       const { rows: [newCompany] } = await client.query(`
-        INSERT INTO companies (name, email, currency)
-        VALUES ('شركة الاختبار', 'company@test.com', 'SAR')
+        INSERT INTO companies (name, email, currency, invoice_currency_symbol)
+        VALUES ('شركة الاختبار', 'company@test.com', 'EGP', 'ج.م')
         RETURNING id
       `);
       companyId = newCompany.id;

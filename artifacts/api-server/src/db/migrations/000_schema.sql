@@ -71,7 +71,7 @@ CREATE TABLE IF NOT EXISTS companies (
   invoice_year_format  varchar(10)  NOT NULL DEFAULT 'full',
   invoice_padding      integer      NOT NULL DEFAULT 4,
   invoice_separator    varchar(5)   NOT NULL DEFAULT '-',
-  currency             varchar(10)  NOT NULL DEFAULT 'SAR',
+  currency             varchar(10)  NOT NULL DEFAULT 'EGP',
   vat_rate             numeric(5,2) NOT NULL DEFAULT 15.00,
   smtp_settings        jsonb,
   is_active            boolean     NOT NULL DEFAULT true,

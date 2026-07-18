@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { PageHeader } from '@/components/common/PageHeader';
 import { DataTable, Column } from '@/components/common/DataTable';
 import { Button } from '@/components/ui/button';
@@ -24,28 +25,53 @@ interface ProductRow {
   id: string;
   company_id: string;
   sku: string | null;
+  barcode: string | null;
+  product_type: 'stock' | 'service' | 'non_stock' | 'expense';
   name: string;
   price: string | number;
   cost: string | number;
+  average_cost: string | number;
+  inventory_value: string | number;
   quantity: number;
   alert_level: number;
+  vat_status: 'taxable' | 'exempt' | 'zero_rated';
+  vat_rate: string | number;
   image_url: string | null;
   is_active: boolean;
   category_id: string | null;
   category_name: string | null;
   supplier_id: string | null;
   supplier_name: string | null;
+  sales_account_id: string | null;
+  sales_returns_account_id: string | null;
+  inventory_account_id: string | null;
+  cogs_account_id: string | null;
+  purchase_expense_account_id: string | null;
+  inventory_adjustment_account_id: string | null;
 }
 
 interface Category {
   id: string;
   name: string;
   product_count: number;
+  sales_account_id?: string | null;
+  sales_returns_account_id?: string | null;
+  inventory_account_id?: string | null;
+  cogs_account_id?: string | null;
+  purchase_expense_account_id?: string | null;
+  inventory_adjustment_account_id?: string | null;
 }
 
 interface Supplier {
   id: string;
   name: string;
+}
+
+interface ChartAccount {
+  id: string;
+  code: string;
+  name: string;
+  is_active: boolean;
 }
 
 interface StockMovement {
@@ -73,8 +99,11 @@ const emptyMovement: NewMovement = {
 };
 
 const NO_SUPPLIER = '__none__';
+const NO_ACCOUNT = '__none__';
 
 const movementTypeLabel = (t: string) => t === 'in' ? 'وارد' : t === 'out' ? 'صادر' : 'تعديل';
+const productTypeLabel = (t?: string) => t === 'service' ? 'خدمة' : t === 'non_stock' ? 'غير مخزني' : t === 'expense' ? 'مصروف' : 'مخزني';
+const vatStatusLabel = (t?: string) => t === 'exempt' ? 'معفى' : t === 'zero_rated' ? 'صفرية' : 'خاضع';
 
 interface ImportRowResult {
   row: number;
@@ -90,7 +119,24 @@ interface ImportPreview {
   skipped: number;
 }
 
-const empty: Product = { id: '', companyId: 'co-1', name: '', code: '', category: '', price: 0, quantity: 0, alertLevel: 5, status: 'active' };
+const empty: Product = {
+  id: '',
+  companyId: 'co-1',
+  name: '',
+  code: '',
+  barcode: '',
+  productType: 'stock',
+  category: '',
+  price: 0,
+  cost: 0,
+  averageCost: 0,
+  inventoryValue: 0,
+  quantity: 0,
+  alertLevel: 5,
+  vatStatus: 'taxable',
+  vatRate: 14,
+  status: 'active',
+};
 
 const useCategories = () => {
   const [categories, setCategories] = useState<Category[]>([]);
@@ -147,37 +193,69 @@ const Products = () => {
       companyId: r.company_id,
       name: r.name,
       code: r.sku ?? '',
+      barcode: r.barcode ?? '',
+      productType: r.product_type ?? 'stock',
       price: Number(r.price),
+      cost: Number(r.cost ?? 0),
+      averageCost: Number(r.average_cost ?? r.cost ?? 0),
+      inventoryValue: Number(r.inventory_value ?? 0),
       quantity: r.quantity,
       alertLevel: r.alert_level,
+      vatStatus: r.vat_status ?? 'taxable',
+      vatRate: Number(r.vat_rate ?? 0),
       imageUrl: r.image_url ?? undefined,
       status: r.is_active ? 'active' : 'inactive',
       categoryId: r.category_id ?? undefined,
       category: r.category_name ?? undefined,
       supplierId: r.supplier_id ?? undefined,
       supplierName: r.supplier_name ?? undefined,
+      salesAccountId: r.sales_account_id ?? undefined,
+      salesReturnsAccountId: r.sales_returns_account_id ?? undefined,
+      inventoryAccountId: r.inventory_account_id ?? undefined,
+      cogsAccountId: r.cogs_account_id ?? undefined,
+      purchaseExpenseAccountId: r.purchase_expense_account_id ?? undefined,
+      inventoryAdjustmentAccountId: r.inventory_adjustment_account_id ?? undefined,
     }),
     toRow: (p) => ({
       name: p.name,
       sku: p.code || null,
+      barcode: p.barcode || null,
+      product_type: p.productType ?? 'stock',
       price: p.price,
+      cost: p.cost ?? 0,
       quantity: p.quantity,
       alert_level: p.alertLevel,
+      vat_status: p.vatStatus ?? 'taxable',
+      vat_rate: p.vatStatus === 'taxable' ? p.vatRate ?? 0 : 0,
       image_url: p.imageUrl ?? null,
       is_active: p.status !== 'inactive',
       category_id: p.categoryId ?? null,
       supplier_id: (p as unknown as { supplierId?: string }).supplierId ?? null,
+      sales_account_id: p.salesAccountId ?? null,
+      sales_returns_account_id: p.salesReturnsAccountId ?? null,
+      inventory_account_id: p.inventoryAccountId ?? null,
+      cogs_account_id: p.cogsAccountId ?? null,
+      purchase_expense_account_id: p.purchaseExpenseAccountId ?? null,
+      inventory_adjustment_account_id: p.inventoryAdjustmentAccountId ?? null,
     }),
   });
 
   const { categories, loading: catsLoading, reload: reloadCats, create: createCat, remove: removeCat } = useCategories();
   const suppliers = useSuppliers();
+  const chartAccountsQuery = useQuery({
+    enabled: isApiConfigured(),
+    queryKey: ['chart-accounts'],
+    queryFn: async () => (await api.get<{ data: ChartAccount[] }>('/api/accounting/chart-accounts?limit=500')).data ?? [],
+  });
+  const chartAccounts = chartAccountsQuery.data ?? [];
 
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Product>(empty);
   const [toDelete, setToDelete] = useState<Product | null>(null);
   const [catsOpen, setCatsOpen] = useState(false);
   const [newCat, setNewCat] = useState('');
+  const [mappingCat, setMappingCat] = useState<Category | null>(null);
+  const [catMappingSaving, setCatMappingSaving] = useState(false);
   const [catSaving, setCatSaving] = useState(false);
   const [catFilter, setCatFilter] = useState<string>('all');
   const { list: invoices } = useInvoices();
@@ -282,6 +360,22 @@ const Products = () => {
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'تعذّر حذف التصنيف';
       toast.error(msg);
+    }
+  };
+
+  const updateCategoryMapping = async () => {
+    if (!mappingCat) return;
+    setCatMappingSaving(true);
+    try {
+      const res = await api.patch<{ data: Category }>(`/api/categories/${mappingCat.id}`, mappingCat);
+      await reloadCats();
+      setMappingCat(res.data);
+      toast.success('تم حفظ حسابات التصنيف');
+      setMappingCat(null);
+    } catch {
+      toast.error('تعذّر حفظ حسابات التصنيف');
+    } finally {
+      setCatMappingSaving(false);
     }
   };
 
@@ -402,14 +496,19 @@ const Products = () => {
     ), className: 'w-14' },
     { key: 'name', header: 'المنتج', cell: r => (
       <div className="flex items-center gap-2">
-        <span className="font-medium">{r.name}</span>
+        <Link to={`/app/products/${r.id}`} className="font-medium text-primary hover:underline">{r.name}</Link>
         {r.quantity <= r.alertLevel && <AlertTriangle className="h-4 w-4 text-warning" />}
       </div>
     )},
     { key: 'code', header: 'الكود', cell: r => <span className="text-muted-foreground text-sm">{r.code}</span> },
+    { key: 'barcode', header: 'الباركود', cell: r => <span className="text-muted-foreground text-sm">{r.barcode || '—'}</span> },
+    { key: 'type', header: 'النوع', cell: r => productTypeLabel(r.productType) },
     { key: 'category', header: 'التصنيف', cell: r => <span className="text-muted-foreground text-sm">{r.category || '—'}</span> },
     { key: 'supplier', header: 'المورد', cell: r => <span className="text-muted-foreground text-sm">{(r as unknown as { supplierName?: string }).supplierName || '—'}</span> },
     { key: 'price', header: 'السعر', cell: r => formatCurrency(r.price) },
+    { key: 'vat', header: 'VAT', cell: r => r.vatStatus === 'taxable' ? `${r.vatRate ?? 0}%` : vatStatusLabel(r.vatStatus) },
+    { key: 'avg_cost', header: 'متوسط التكلفة', cell: r => formatCurrency(r.averageCost ?? r.cost ?? 0) },
+    { key: 'inv_value', header: 'قيمة المخزون', cell: r => r.productType === 'stock' ? formatCurrency(r.inventoryValue ?? 0) : '—' },
     { key: 'qty', header: 'الكمية', cell: r => <span className={r.quantity <= r.alertLevel ? 'text-destructive font-semibold' : ''}>{r.quantity}</span> },
     { key: 'alert', header: 'حد التنبيه', cell: r => r.alertLevel },
     { key: 'status', header: 'الحالة', cell: r => <StatusBadge status={r.status} /> },
@@ -432,7 +531,21 @@ const Products = () => {
     }},
   ];
 
-  const lowStock = list.filter(p => p.quantity <= p.alertLevel);
+  const stockProducts = list.filter(p => p.productType === 'stock');
+  const lowStock = stockProducts.filter(p => p.quantity <= p.alertLevel);
+  const accountSelect = (
+    value: string | undefined | null,
+    onChange: (value: string | undefined) => void,
+    placeholder = 'إعدادات الشركة',
+  ) => (
+    <Select value={value ?? NO_ACCOUNT} onValueChange={(v) => onChange(v === NO_ACCOUNT ? undefined : v)}>
+      <SelectTrigger className="mt-1.5"><SelectValue placeholder={placeholder} /></SelectTrigger>
+      <SelectContent>
+        <SelectItem value={NO_ACCOUNT}>{placeholder}</SelectItem>
+        {chartAccounts.map(a => <SelectItem key={a.id} value={a.id}>{a.code} - {a.name}</SelectItem>)}
+      </SelectContent>
+    </Select>
+  );
 
   return (
     <div>
@@ -467,8 +580,8 @@ const Products = () => {
           <DataTable
             data={filteredList}
             columns={columns}
-            searchKeys={['name','code']}
-            searchPlaceholder="ابحث بالمنتج أو الكود..."
+            searchKeys={['name','code','barcode']}
+            searchPlaceholder="ابحث بالمنتج أو الكود أو الباركود..."
             rightToolbar={
               <Select value={catFilter} onValueChange={setCatFilter}>
                 <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
@@ -526,6 +639,19 @@ const Products = () => {
             <div className="grid sm:grid-cols-2 gap-4">
               <div><Label>اسم المنتج</Label><Input className="mt-1.5" value={editing.name} onChange={e => setEditing(s => ({ ...s, name: e.target.value }))} /></div>
               <div><Label>الكود</Label><Input className="mt-1.5" value={editing.code} onChange={e => setEditing(s => ({ ...s, code: e.target.value }))} /></div>
+              <div><Label>الباركود</Label><Input className="mt-1.5" value={editing.barcode ?? ''} onChange={e => setEditing(s => ({ ...s, barcode: e.target.value }))} /></div>
+              <div>
+                <Label>نوع المنتج</Label>
+                <Select value={editing.productType ?? 'stock'} onValueChange={(v) => setEditing(s => ({ ...s, productType: v as Product['productType'] }))}>
+                  <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="stock">مخزني</SelectItem>
+                    <SelectItem value="service">خدمة</SelectItem>
+                    <SelectItem value="non_stock">غير مخزني</SelectItem>
+                    <SelectItem value="expense">مصروف</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="sm:col-span-2">
                 <Label>التصنيف</Label>
                 <Select
@@ -540,9 +666,22 @@ const Products = () => {
                 </Select>
               </div>
               <div><Label>السعر</Label><Input type="number" className="mt-1.5" value={editing.price} onChange={e => setEditing(s => ({ ...s, price: Number(e.target.value) }))} /></div>
-              <div><Label>الكمية</Label><Input type="number" className="mt-1.5" value={editing.quantity} onChange={e => setEditing(s => ({ ...s, quantity: Number(e.target.value) }))} /></div>
+              <div><Label>التكلفة</Label><Input type="number" className="mt-1.5" value={editing.cost ?? 0} onChange={e => setEditing(s => ({ ...s, cost: Number(e.target.value) }))} /></div>
+              <div><Label>الكمية</Label><Input type="number" className="mt-1.5" value={editing.quantity} onChange={e => setEditing(s => ({ ...s, quantity: Number(e.target.value) }))} disabled={editing.productType !== 'stock'} /></div>
               <div><Label>حد التنبيه</Label><Input type="number" className="mt-1.5" value={editing.alertLevel} onChange={e => setEditing(s => ({ ...s, alertLevel: Number(e.target.value) }))} /></div>
               <div><Label>الوحدة</Label><Input className="mt-1.5" value={(editing as { unit?: string }).unit ?? ''} onChange={e => setEditing(s => ({ ...s, unit: e.target.value }))} placeholder="قطعة" /></div>
+              <div>
+                <Label>حالة الضريبة</Label>
+                <Select value={editing.vatStatus ?? 'taxable'} onValueChange={(v) => setEditing(s => ({ ...s, vatStatus: v as Product['vatStatus'], vatRate: v === 'taxable' ? s.vatRate : 0 }))}>
+                  <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="taxable">خاضع</SelectItem>
+                    <SelectItem value="exempt">معفى</SelectItem>
+                    <SelectItem value="zero_rated">صفرية</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div><Label>نسبة VAT</Label><Input type="number" className="mt-1.5" value={editing.vatRate ?? 0} onChange={e => setEditing(s => ({ ...s, vatRate: Number(e.target.value) }))} disabled={editing.vatStatus !== 'taxable'} /></div>
               <div className="sm:col-span-2">
                 <Label>المورد</Label>
                 <Select
@@ -555,6 +694,17 @@ const Products = () => {
                     {suppliers.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
+              </div>
+              <div className="sm:col-span-2 border-t border-border pt-4">
+                <Label className="font-semibold">حسابات محاسبية اختيارية</Label>
+                <div className="grid sm:grid-cols-2 gap-3 mt-2">
+                  <div><Label className="text-xs">المبيعات</Label>{accountSelect(editing.salesAccountId, (v) => setEditing(s => ({ ...s, salesAccountId: v })))}</div>
+                  <div><Label className="text-xs">مرتجعات المبيعات</Label>{accountSelect(editing.salesReturnsAccountId, (v) => setEditing(s => ({ ...s, salesReturnsAccountId: v })))}</div>
+                  <div><Label className="text-xs">المخزون</Label>{accountSelect(editing.inventoryAccountId, (v) => setEditing(s => ({ ...s, inventoryAccountId: v })))}</div>
+                  <div><Label className="text-xs">تكلفة البضاعة</Label>{accountSelect(editing.cogsAccountId, (v) => setEditing(s => ({ ...s, cogsAccountId: v })))}</div>
+                  <div><Label className="text-xs">مصروف مشتريات</Label>{accountSelect(editing.purchaseExpenseAccountId, (v) => setEditing(s => ({ ...s, purchaseExpenseAccountId: v })))}</div>
+                  <div><Label className="text-xs">تسوية مخزون</Label>{accountSelect(editing.inventoryAdjustmentAccountId, (v) => setEditing(s => ({ ...s, inventoryAdjustmentAccountId: v })))}</div>
+                </div>
               </div>
             </div>
           </div>
@@ -579,7 +729,7 @@ const Products = () => {
               <Select value={newMovement.product_id} onValueChange={v => setNewMovement(p => ({ ...p, product_id: v }))}>
                 <SelectTrigger className="mt-1.5"><SelectValue placeholder="اختر منتجاً" /></SelectTrigger>
                 <SelectContent>
-                  {list.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                  {stockProducts.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -671,15 +821,20 @@ const Products = () => {
                       <span className="font-medium text-sm">{c.name}</span>
                       <span className="text-xs text-muted-foreground">({c.product_count})</span>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      disabled={c.product_count > 0}
-                      title={c.product_count > 0 ? 'مستخدم في منتجات' : 'حذف'}
-                      onClick={() => removeCategory(c)}
-                    >
-                      <X className="h-4 w-4 text-destructive" />
-                    </Button>
+                    <div className="flex items-center gap-1">
+                      <Button variant="ghost" size="icon" title="حسابات التصنيف" onClick={() => setMappingCat(c)}>
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        disabled={c.product_count > 0}
+                        title={c.product_count > 0 ? 'مستخدم في منتجات' : 'حذف'}
+                        onClick={() => removeCategory(c)}
+                      >
+                        <X className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -687,6 +842,34 @@ const Products = () => {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setCatsOpen(false)}>إغلاق</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!mappingCat} onOpenChange={(o) => !o && setMappingCat(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle>حسابات التصنيف</DialogTitle></DialogHeader>
+          {mappingCat && (
+            <div className="space-y-4">
+              <div>
+                <Label>اسم التصنيف</Label>
+                <Input className="mt-1.5" value={mappingCat.name} onChange={(e) => setMappingCat(s => s ? { ...s, name: e.target.value } : s)} />
+              </div>
+              <div className="grid sm:grid-cols-2 gap-3">
+                <div><Label className="text-xs">المبيعات</Label>{accountSelect(mappingCat.sales_account_id, (v) => setMappingCat(s => s ? { ...s, sales_account_id: v ?? null } : s))}</div>
+                <div><Label className="text-xs">مرتجعات المبيعات</Label>{accountSelect(mappingCat.sales_returns_account_id, (v) => setMappingCat(s => s ? { ...s, sales_returns_account_id: v ?? null } : s))}</div>
+                <div><Label className="text-xs">المخزون</Label>{accountSelect(mappingCat.inventory_account_id, (v) => setMappingCat(s => s ? { ...s, inventory_account_id: v ?? null } : s))}</div>
+                <div><Label className="text-xs">تكلفة البضاعة</Label>{accountSelect(mappingCat.cogs_account_id, (v) => setMappingCat(s => s ? { ...s, cogs_account_id: v ?? null } : s))}</div>
+                <div><Label className="text-xs">مصروف مشتريات</Label>{accountSelect(mappingCat.purchase_expense_account_id, (v) => setMappingCat(s => s ? { ...s, purchase_expense_account_id: v ?? null } : s))}</div>
+                <div><Label className="text-xs">تسوية مخزون</Label>{accountSelect(mappingCat.inventory_adjustment_account_id, (v) => setMappingCat(s => s ? { ...s, inventory_adjustment_account_id: v ?? null } : s))}</div>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setMappingCat(null)}>إلغاء</Button>
+            <Button onClick={updateCategoryMapping} disabled={catMappingSaving}>
+              {catMappingSaving ? 'جارٍ الحفظ...' : 'حفظ'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -701,7 +884,7 @@ const Products = () => {
             <div className="rounded-lg border border-border bg-muted/30 p-4 flex items-start gap-3">
               <FileText className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
               <div className="flex-1 text-sm text-muted-foreground">
-                <p className="mb-1">الأعمدة المطلوبة: <span className="font-mono text-foreground text-xs">name, sku, description, price, cost, quantity, alert_level, unit, category, status</span></p>
+                <p className="mb-1">الأعمدة المطلوبة: <span className="font-mono text-foreground text-xs">name, sku, barcode, product_type, description, price, cost, quantity, alert_level, unit, category, supplier, vat_status, vat_rate, status</span></p>
                 <p>التصنيفات غير الموجودة ستُنشأ تلقائياً. يمكن تنزيل نموذج لمعرفة الشكل الصحيح.</p>
               </div>
               <Button variant="outline" size="sm" onClick={handleTemplateDownload} className="shrink-0">

@@ -29,7 +29,7 @@ interface ContactSettings {
 const DEFAULTS: ContactSettings = {
   email: 'support@oneclick.eg',
   phone: '+2 11 000 0000',
-  address: 'الرياض، المملكة العربية السعودية',
+  address: 'القاهرة، مصر',
   twitter: '',
   linkedin: '',
   whatsapp: '',

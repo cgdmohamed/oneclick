@@ -15,9 +15,9 @@ import { InvoiceSummary } from '@/components/common/InvoiceSummary';
 import { useClients, useProducts } from '@/hooks/entities';
 import { api, ApiError, isApiConfigured } from '@/lib/api';
 import { useQueryClient } from '@tanstack/react-query';
-import { CURRENCIES } from '@/lib/currency';
+import { EGP_CURRENCY_CODE } from '@/lib/currency';
 
-interface Item { id: string; name: string; quantity: number; unitPrice: number; productId?: string }
+interface Item { id: string; name: string; quantity: number; unitPrice: number; productId?: string; vatRate?: number }
 
 /* ── Quick-create forms ─────────────────────────────────────────── */
 interface NewClientForm {
@@ -27,7 +27,7 @@ interface NewProductForm {
   name: string; sku: string; price: string; quantity: string; unit: string; category_id: string; alertLevel: string;
 }
 
-const emptyClient: NewClientForm = { name: '', phone: '', whatsapp: '', email: '', address: '', tax_number: '', currency: 'SAR' };
+const emptyClient: NewClientForm = { name: '', phone: '', whatsapp: '', email: '', address: '', tax_number: '', currency: EGP_CURRENCY_CODE };
 const NO_CATEGORY = '__none__';
 const emptyProduct: NewProductForm = { name: '', sku: '', price: '', quantity: '0', unit: 'قطعة', category_id: NO_CATEGORY, alertLevel: '5' };
 
@@ -42,7 +42,7 @@ const NewInvoice = () => {
 
   /* Invoice state */
   const [clientId, setClientId] = useState('');
-  const [items, setItems]       = useState<Item[]>([{ id: 'i1', name: '', quantity: 1, unitPrice: 0 }]);
+  const [items, setItems]       = useState<Item[]>([{ id: 'i1', name: '', quantity: 1, unitPrice: 0, vatRate: 15 }]);
   const [taxRate, setTaxRate]   = useState(15);
   const [discount, setDiscount] = useState(0);
   const [dueDate, setDueDate]   = useState(new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10));
@@ -85,7 +85,7 @@ const NewInvoice = () => {
         email:      newClient.email      || null,
         address:    newClient.address    || null,
         tax_number: newClient.tax_number || null,
-        currency:   newClient.currency   || 'SAR',
+        currency:   EGP_CURRENCY_CODE,
       });
       await qc.invalidateQueries({ queryKey: ['clients'] });
       setClientId(res.data.id);
@@ -157,7 +157,7 @@ const NewInvoice = () => {
       const created = res.data;
       await qc.invalidateQueries({ queryKey: ['products'] });
       if (addProductRow !== null) {
-        update(addProductRow, { productId: created.id, name: created.name, unitPrice: Number(created.price) });
+        update(addProductRow, { productId: created.id, name: created.name, unitPrice: Number(created.price), vatRate: taxRate });
       }
       toast.success(`تم إضافة المنتج «${created.name}»`);
       setProductOpen(false);
@@ -174,23 +174,23 @@ const NewInvoice = () => {
     setDupProduct(null);
     setProductOpen(false);
     const ex = products.find(p => p.id === pid);
-    if (ex) update(rowIndex, { productId: ex.id, name: ex.name, unitPrice: ex.price });
+    if (ex) update(rowIndex, { productId: ex.id, name: ex.name, unitPrice: ex.price, vatRate: ex.vatRate ?? taxRate });
   };
 
   /* ── Invoice line helpers ───────────────────────────────────── */
   const totals = useMemo(() => {
     const subtotal = items.reduce((s, it) => s + it.quantity * it.unitPrice, 0);
-    const tax      = +(subtotal * (taxRate / 100)).toFixed(2);
+    const tax      = +items.reduce((s, it) => s + it.quantity * it.unitPrice * ((it.vatRate ?? taxRate) / 100), 0).toFixed(2);
     const total    = +(subtotal + tax - discount).toFixed(2);
     return { subtotal, tax, total };
   }, [items, taxRate, discount]);
 
-  const addItem    = () => setItems(p => [...p, { id: `i${Date.now()}`, name: '', quantity: 1, unitPrice: 0 }]);
+  const addItem    = () => setItems(p => [...p, { id: `i${Date.now()}`, name: '', quantity: 1, unitPrice: 0, vatRate: taxRate }]);
   const update     = (i: number, patch: Partial<Item>) => setItems(p => p.map((it, idx) => idx === i ? { ...it, ...patch } : it));
   const remove     = (i: number) => setItems(p => p.filter((_, idx) => idx !== i));
   const pickProduct = (i: number, pid: string) => {
     const p = products.find(x => x.id === pid);
-    if (p) update(i, { productId: pid, name: p.name, unitPrice: p.price });
+    if (p) update(i, { productId: pid, name: p.name, unitPrice: p.price, vatRate: p.vatRate ?? taxRate });
   };
 
   /* ── Submit ─────────────────────────────────────────────────── */
@@ -210,7 +210,7 @@ const NewInvoice = () => {
             description: it.name,
             quantity:    it.quantity,
             unit_price:  it.unitPrice,
-            vat_rate:    taxRate,
+            vat_rate:    it.vatRate ?? taxRate,
           })),
         });
         qc.invalidateQueries({ queryKey: ['invoices'] });
@@ -283,7 +283,7 @@ const NewInvoice = () => {
                       <Select value={it.productId ?? ''} onValueChange={(v) => pickProduct(i, v)}>
                         <SelectTrigger className="flex-1"><SelectValue placeholder="اختياري" /></SelectTrigger>
                         <SelectContent>
-                          {products.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                          {products.map(p => <SelectItem key={p.id} value={p.id}>{p.name}{p.barcode ? ` - ${p.barcode}` : ''}</SelectItem>)}
                         </SelectContent>
                       </Select>
                       <Button
@@ -298,7 +298,7 @@ const NewInvoice = () => {
                       </Button>
                     </div>
                   </div>
-                  <div className="col-span-12 md:col-span-3">
+                  <div className="col-span-12 md:col-span-2">
                     <Label className="text-xs">الوصف</Label>
                     <Input value={it.name} onChange={e => update(i, { name: e.target.value })} placeholder="اسم المنتج/الخدمة" />
                   </div>
@@ -309,6 +309,10 @@ const NewInvoice = () => {
                   <div className="col-span-6 md:col-span-2">
                     <Label className="text-xs">سعر الوحدة</Label>
                     <Input type="number" min={0} step="0.01" value={it.unitPrice} onChange={e => update(i, { unitPrice: Number(e.target.value) })} />
+                  </div>
+                  <div className="col-span-6 md:col-span-1">
+                    <Label className="text-xs">VAT</Label>
+                    <Input type="number" min={0} step="0.01" value={it.vatRate ?? taxRate} onChange={e => update(i, { vatRate: Number(e.target.value) })} />
                   </div>
                   <div className="col-span-2 md:col-span-1 flex justify-end">
                     <Button type="button" variant="ghost" size="icon" onClick={() => remove(i)} disabled={items.length === 1}>
@@ -390,15 +394,6 @@ const NewInvoice = () => {
                 <Label>الرقم الضريبي</Label>
                 <Input className="mt-1.5" inputMode="numeric" pattern="[0-9]*" value={newClient.tax_number} onChange={e => setNewClient(p => ({ ...p, tax_number: e.target.value }))} />
               </div>
-            </div>
-            <div>
-              <Label>العملة</Label>
-              <Select value={newClient.currency || 'SAR'} onValueChange={v => setNewClient(p => ({ ...p, currency: v }))}>
-                <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {CURRENCIES.map(c => <SelectItem key={c.code} value={c.code}>{c.name} ({c.symbol})</SelectItem>)}
-                </SelectContent>
-              </Select>
             </div>
             <div>
               <Label>العنوان</Label>

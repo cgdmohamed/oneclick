@@ -35,7 +35,7 @@ const KEY_DEFAULTS: Record<SettingsKey, Record<string, unknown>> = {
   general: {
     appName: 'ون كليك',
     supportEmail: 'support@oneclick.eg',
-    currency: 'ر.س',
+    currency: 'ج.م',
     invoicePrefix: 'INV',
   },
   branding: {
