@@ -14,6 +14,7 @@ import { toast } from 'sonner';
 import type { ChartAccount, PurchaseInvoice } from './types';
 
 interface Supplier { id: string; name: string; }
+interface Account { id: string; name: string; type: string; }
 interface Product {
   id: string;
   name: string;
@@ -44,11 +45,14 @@ const NewPurchaseInvoice = () => {
   const [dueDate, setDueDate] = useState('');
   const [notes, setNotes] = useState('');
   const [draft, setDraft] = useState(false);
+  const [enableInitialPayment, setEnableInitialPayment] = useState(false);
+  const [initialPayment, setInitialPayment] = useState({ amount: '0', account_id: '', method: 'cash', reference: '', notes: '' });
   const [items, setItems] = useState<ItemForm[]>([blankItem()]);
   const [saving, setSaving] = useState(false);
 
   const suppliers = useQuery({ queryKey: ['suppliers'], queryFn: async () => (await api.get<{ data: Supplier[] }>('/api/suppliers?page_size=300')).data ?? [] });
   const products = useQuery({ queryKey: ['products'], queryFn: async () => (await api.get<{ data: Product[] }>('/api/products?page_size=300')).data ?? [] });
+  const paymentAccounts = useQuery({ queryKey: ['accounts'], queryFn: async () => (await api.get<{ data: Account[] }>('/api/accounts?page_size=300')).data ?? [] });
   const accounts = useQuery({ queryKey: ['chart-accounts'], queryFn: async () => (await api.get<{ data: ChartAccount[] }>('/api/accounting/chart-accounts')).data ?? [] });
   const expenseAccounts = (accounts.data ?? []).filter((a) => a.type === 'expense' && a.is_active);
   const totals = useMemo(() => {
@@ -62,6 +66,9 @@ const NewPurchaseInvoice = () => {
     if (!number.trim()) return toast.error('أدخل رقم فاتورة الشراء');
     const validItems = items.filter((i) => i.description && Number(i.quantity) > 0 && Number(i.unit_cost) >= 0);
     if (!validItems.length) return toast.error('أضف بنداً واحداً على الأقل');
+    const paymentAmount = Number(initialPayment.amount || 0);
+    if (!draft && enableInitialPayment && paymentAmount > totals.total + 0.005) return toast.error('مبلغ الدفع أكبر من إجمالي الفاتورة');
+    if (!draft && enableInitialPayment && paymentAmount > 0 && !initialPayment.account_id) return toast.error('اختر حساب الدفع');
     setSaving(true);
     try {
       const res = await api.post<{ data: PurchaseInvoice }>('/api/purchases/invoices', {
@@ -72,6 +79,13 @@ const NewPurchaseInvoice = () => {
         due_date: dueDate ? new Date(dueDate).toISOString() : null,
         notes: notes || null,
         draft,
+        initial_payment: !draft && enableInitialPayment && paymentAmount > 0 ? {
+          amount: paymentAmount,
+          account_id: initialPayment.account_id,
+          method: initialPayment.method,
+          reference: initialPayment.reference || null,
+          notes: initialPayment.notes || null,
+        } : null,
         items: validItems.map((item) => ({
           product_id: item.product_id || null,
           expense_account_id: item.product_id ? null : item.expense_account_id || null,
@@ -135,6 +149,21 @@ const NewPurchaseInvoice = () => {
         <div className="text-sm text-muted-foreground">قبل الضريبة: {formatCurrency(totals.subtotal)} · الضريبة: {formatCurrency(totals.vat)} · الإجمالي: <span className="font-semibold text-foreground">{formatCurrency(totals.total)}</span></div>
         <Button onClick={submit} disabled={saving}>{saving ? 'جار الحفظ...' : 'حفظ فاتورة الشراء'}</Button>
       </div>
+      <Card className="p-4 border-border/60 space-y-3">
+        <label className="flex items-center gap-2 text-sm font-medium">
+          <input type="checkbox" checked={enableInitialPayment} onChange={(e) => setEnableInitialPayment(e.target.checked)} disabled={draft} />
+          دفع عند إنشاء فاتورة الشراء
+        </label>
+        {enableInitialPayment && !draft && (
+          <div className="grid md:grid-cols-5 gap-3 items-end">
+            <div><Label>مبلغ الدفع</Label><Input className="mt-1.5" type="number" min="0" max={totals.total} step="0.01" value={initialPayment.amount} onChange={(e) => setInitialPayment((p) => ({ ...p, amount: e.target.value }))} /></div>
+            <div><Label>حساب الدفع</Label><select className="mt-1.5 h-10 w-full rounded-md border bg-background px-3 text-sm" value={initialPayment.account_id} onChange={(e) => setInitialPayment((p) => ({ ...p, account_id: e.target.value }))}><option value="">اختر الحساب</option>{(paymentAccounts.data ?? []).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select></div>
+            <div><Label>الطريقة</Label><select className="mt-1.5 h-10 w-full rounded-md border bg-background px-3 text-sm" value={initialPayment.method} onChange={(e) => setInitialPayment((p) => ({ ...p, method: e.target.value }))}><option value="cash">نقدي</option><option value="bank">تحويل بنكي</option><option value="wallet">محفظة إلكترونية</option></select></div>
+            <div><Label>المرجع</Label><Input className="mt-1.5" value={initialPayment.reference} onChange={(e) => setInitialPayment((p) => ({ ...p, reference: e.target.value }))} /></div>
+            <div><Label>ملاحظات الدفع</Label><Input className="mt-1.5" value={initialPayment.notes} onChange={(e) => setInitialPayment((p) => ({ ...p, notes: e.target.value }))} /></div>
+          </div>
+        )}
+      </Card>
     </div>
   );
 };

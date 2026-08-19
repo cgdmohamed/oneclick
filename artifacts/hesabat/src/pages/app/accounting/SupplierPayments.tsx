@@ -26,15 +26,16 @@ const SupplierPayments = () => {
   const suppliers = useQuery({ queryKey: ['suppliers'], queryFn: async () => (await api.get<{ data: Supplier[] }>('/api/suppliers?page_size=300')).data ?? [] });
   const accounts = useQuery({ queryKey: ['accounts'], queryFn: async () => (await api.get<{ data: Account[] }>('/api/accounts?page_size=300')).data ?? [] });
   const invoices = useQuery({ queryKey: ['purchase-invoices'], queryFn: async () => (await api.get<{ data: PurchaseInvoice[] }>('/api/purchases/invoices?page_size=300')).data ?? [] });
-  const supplierInvoices = (invoices.data ?? []).filter((i) => i.supplier_id === form.supplier_id && Number(i.remaining) > 0);
+  const supplierInvoices = (invoices.data ?? []).filter((i) => (!form.supplier_id || i.supplier_id === form.supplier_id) && Number(i.remaining) > 0);
   const submit = async () => {
-    if (!form.supplier_id || !form.account_id) return toast.error('اختر المورد وحساب الدفع');
+    if (!form.purchase_invoice_id && !form.supplier_id) return toast.error('اختر المورد أو فاتورة الشراء');
+    if (!form.account_id) return toast.error('اختر حساب الدفع');
     const amount = Number(form.amount);
     if (!amount || amount <= 0) return toast.error('أدخل مبلغاً صحيحاً');
     setSaving(true);
     try {
       const res = await api.post<{ data: SupplierPayment }>('/api/purchases/supplier-payments', {
-        supplier_id: form.supplier_id,
+        supplier_id: form.supplier_id || null,
         purchase_invoice_id: form.purchase_invoice_id || null,
         account_id: form.account_id,
         amount,
@@ -67,17 +68,20 @@ const SupplierPayments = () => {
   ];
   return (
     <div className="space-y-5">
-      <PageHeader title="دفعات الموردين" description="سداد أرصدة الموردين وربطها بقيود اليوميات" actions={<Button onClick={() => setOpen(true)}><Plus className="h-4 w-4 ml-1" /> دفعة مورد</Button>} />
+      <PageHeader title="دفعات الموردين" description="سداد أرصدة الموردين وربطها بقيود اليوميات" actions={<Button onClick={() => setOpen(true)}><Plus className="h-4 w-4 me-1" /> تسجيل دفع</Button>} />
       <DataTable data={payments.data ?? []} columns={columns} searchKeys={['supplier_name', 'reference']} emptyTitle="لا توجد دفعات موردين" />
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent dir="rtl" className="max-w-lg">
           <DialogHeader><DialogTitle>دفعة مورد جديدة</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
-              <div><Label>المورد</Label><select className="mt-1.5 h-10 w-full rounded-md border bg-background px-3 text-sm" value={form.supplier_id} onChange={(e) => setForm((p) => ({ ...p, supplier_id: e.target.value, purchase_invoice_id: '' }))}><option value="">اختر المورد</option>{(suppliers.data ?? []).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
+              <div><Label>المورد</Label><select className="mt-1.5 h-10 w-full rounded-md border bg-background px-3 text-sm" value={form.supplier_id} onChange={(e) => setForm((p) => ({ ...p, supplier_id: e.target.value, purchase_invoice_id: '' }))}><option value="">سيتم استنتاجه من الفاتورة</option>{(suppliers.data ?? []).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
               <div><Label>حساب الدفع</Label><select className="mt-1.5 h-10 w-full rounded-md border bg-background px-3 text-sm" value={form.account_id} onChange={(e) => setForm((p) => ({ ...p, account_id: e.target.value }))}><option value="">اختر الحساب</option>{(accounts.data ?? []).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select></div>
             </div>
-            <div><Label>فاتورة الشراء (اختياري)</Label><select className="mt-1.5 h-10 w-full rounded-md border bg-background px-3 text-sm" value={form.purchase_invoice_id} onChange={(e) => setForm((p) => ({ ...p, purchase_invoice_id: e.target.value }))}><option value="">بدون ربط</option>{supplierInvoices.map((i) => <option key={i.id} value={i.id}>{i.number} - متبقي {formatCurrency(Number(i.remaining))}</option>)}</select></div>
+            <div><Label>فاتورة الشراء (اختياري)</Label><select className="mt-1.5 h-10 w-full rounded-md border bg-background px-3 text-sm" value={form.purchase_invoice_id} onChange={(e) => {
+              const inv = (invoices.data ?? []).find((i) => i.id === e.target.value);
+              setForm((p) => ({ ...p, purchase_invoice_id: e.target.value, supplier_id: inv?.supplier_id ?? p.supplier_id, amount: inv ? String(inv.remaining) : p.amount }));
+            }}><option value="">بدون ربط</option>{supplierInvoices.map((i) => <option key={i.id} value={i.id}>{i.number} - متبقي {formatCurrency(Number(i.remaining))}</option>)}</select></div>
             <div className="grid grid-cols-2 gap-3">
               <div><Label>المبلغ</Label><Input className="mt-1.5" type="number" value={form.amount} onChange={(e) => setForm((p) => ({ ...p, amount: e.target.value }))} /></div>
               <div><Label>التاريخ</Label><Input className="mt-1.5" type="date" value={form.paid_at} onChange={(e) => setForm((p) => ({ ...p, paid_at: e.target.value }))} /></div>

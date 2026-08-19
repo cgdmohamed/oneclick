@@ -13,7 +13,7 @@ import { parsePagination } from '../../utils/pagination.js';
 import { round2 } from '../../utils/money.js';
 import { assertBranch, assertCostCenter } from '../../utils/dimensions.js';
 import { internalKindSchema } from '../notifications/kinds.js';
-import { assertPeriodOpen, postSalesInvoice, reverseJournalEntry } from '../accounting/posting.js';
+import { assertPeriodOpen, postCustomerPayment, postSalesInvoice, reverseJournalEntry } from '../accounting/posting.js';
 
 const router = Router();
 const EGP_CURRENCY_SYMBOL = 'ج.م';
@@ -36,6 +36,13 @@ const createSchema = z.object({
   discount: z.coerce.number().nonnegative().default(0),
   items: z.array(itemSchema).min(1),
   draft: z.boolean().optional().default(false),
+  initial_collection: z.object({
+    amount: z.coerce.number().nonnegative().default(0),
+    account_id: z.string().uuid().optional().nullable(),
+    method: z.string().default('cash'),
+    reference: z.string().optional().nullable(),
+    notes: z.string().optional().nullable(),
+  }).optional().nullable(),
 });
 
 function buildNumber(prefix: string, seq: number, year: number, fmt: string, sep: string, pad: number) {
@@ -96,11 +103,15 @@ router.get('/:id', async (req, res, next) => {
 });
 
 router.post('/', enforceInvoiceLimit(), async (req, res, next) => {
+  let txStarted = false;
   try {
     const t = req.tenant!;
     const body = createSchema.parse(req.body);
     await assertBranch(t.db, t.companyId, body.branch_id);
     for (const item of body.items) await assertCostCenter(t.db, t.companyId, item.cost_center_id);
+
+    await t.db.query('BEGIN');
+    txStarted = true;
 
     const compRes = await t.db.query(
       `SELECT invoice_prefix, invoice_sequence, invoice_year_format, invoice_padding, invoice_separator, vat_rate
@@ -158,6 +169,14 @@ router.post('/', enforceInvoiceLimit(), async (req, res, next) => {
     }
     const discount = round2(body.discount);
     const total = round2(Math.max(0, subtotal + vat - discount));
+    const initialAmount = round2(Number(body.initial_collection?.amount ?? 0));
+    if (body.draft && initialAmount > 0) throw badRequest('Initial collection is not allowed for draft invoices');
+    if (initialAmount > total) throw badRequest('Initial collection exceeds invoice total');
+    if (initialAmount > 0 && !body.initial_collection?.account_id) throw badRequest('Receiving account is required for initial collection');
+    if (initialAmount > 0) {
+      const account = await t.db.query(`SELECT 1 FROM accounts WHERE id = $1 AND company_id = $2 AND is_active = TRUE`, [body.initial_collection!.account_id, t.companyId]);
+      if (!account.rowCount) throw badRequest('Active receiving account not found');
+    }
 
     const invoiceStatus = body.draft ? 'draft' : 'sent';
     const invRes = await t.db.query(`
@@ -210,6 +229,40 @@ router.post('/', enforceInvoiceLimit(), async (req, res, next) => {
 
     if (!body.draft) {
       await postSalesInvoice(t.db, t.companyId, invoice.id, req.auth!.userId);
+      if (initialAmount > 0) {
+        const payment = await t.db.query(
+          `INSERT INTO payments
+           (company_id, invoice_id, client_id, collection_type, account_id, amount, paid_at, method, reference, notes, branch_id, created_by)
+           VALUES ($1,$2,$3,'invoice_collection',$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
+          [
+            t.companyId,
+            invoice.id,
+            body.client_id,
+            body.initial_collection!.account_id,
+            initialAmount,
+            issueDate,
+            body.initial_collection!.method,
+            body.initial_collection!.reference ?? null,
+            body.initial_collection!.notes ?? null,
+            body.branch_id ?? null,
+            req.auth!.userId,
+          ],
+        );
+        const remaining = round2(Math.max(0, total - initialAmount));
+        const status = remaining <= 0.005 ? 'paid' : 'partial';
+        await t.db.query(
+          `UPDATE invoices SET paid = $1, remaining = $2, status = $3 WHERE id = $4 AND company_id = $5`,
+          [initialAmount, remaining, status, invoice.id, t.companyId],
+        );
+        await t.db.query(
+          `UPDATE accounts SET balance = balance + $1 WHERE id = $2 AND company_id = $3`,
+          [initialAmount, body.initial_collection!.account_id, t.companyId],
+        );
+        await postCustomerPayment(t.db, t.companyId, payment.rows[0].id, req.auth!.userId);
+        invoice.paid = initialAmount;
+        invoice.remaining = remaining;
+        invoice.status = status;
+      }
     }
 
     await audit(t.db, {
@@ -219,8 +272,15 @@ router.post('/', enforceInvoiceLimit(), async (req, res, next) => {
       data: { number, total, items: body.items.length, draft: body.draft },
     });
 
+    await t.db.query('COMMIT');
+    txStarted = false;
     res.status(201).json({ data: invoice });
-  } catch (e) { next(e); }
+  } catch (e) {
+    if (txStarted) {
+      try { await req.tenant?.db.query('ROLLBACK'); } catch { /* ignore rollback errors */ }
+    }
+    next(e);
+  }
 });
 
 /** Promote a draft invoice to sent and trigger the email notification flow. */

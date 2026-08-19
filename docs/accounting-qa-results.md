@@ -100,6 +100,29 @@ Use one company with:
 - Payouts, supplier payments, and payroll payments now reject inactive operational money accounts.
 - Journal posting now rejects chart accounts from another company and inactive chart accounts for new postings.
 - Journal reversal is allowed to reverse historical inactive-account lines without mutating the original.
+- Collections now support invoice collections and general receipts; general receipts can post without customer/invoice and credit a selected chart account.
+- Payouts now support optional supplier and optional selected debit account, falling back to General Expenses when no debit account is selected.
+- Sales invoice creation can include immediate collection, posted in the same transaction as the invoice.
+- Purchase invoice creation can include immediate supplier payment, posted in the same transaction as the purchase invoice.
+- Supplier payments can infer supplier from the selected purchase invoice.
+- Balance Sheet now uses posted/reversed journal lines only and includes current-year profit/loss in equity so expenses do not break the accounting equation.
+
+## Client Feedback QA Scenarios
+
+| Scenario | Expected result | Status |
+|---|---|---|
+| Sales invoice without collection | Invoice posts AR/Sales/VAT and remains unpaid/sent | Ready for live test |
+| Sales invoice with partial collection | Invoice posts sales journal plus collection journal; status partial | Ready for live test |
+| Sales invoice with full collection | Invoice posts sales journal plus collection journal; status paid | Ready for live test |
+| General receipt without customer/invoice | Dr Cash/Bank/Wallet, Cr selected credit account; no invoice update | Ready for live test |
+| Purchase invoice without payment | Purchase/AP journal posts and payable remains open | Ready for live test |
+| Purchase invoice with partial payment | Purchase journal plus supplier payment journal; remaining payable updated | Ready for live test |
+| Purchase invoice with full payment | Purchase journal plus supplier payment journal; status paid | Ready for live test |
+| Payout without supplier using General Expenses | Dr General Expenses, Cr Cash/Bank/Wallet | Ready for live test |
+| Payout without supplier using selected debit account | Dr selected debit account, Cr Cash/Bank/Wallet | Ready for live test |
+| Balance Sheet after sales, collections, expenses, purchases, supplier payments | Assets = Liabilities + Equity including current-year P/L | Ready for live test |
+| Trial Balance after same flow | Total debit equals total credit | Ready for live test |
+| Locked periods block posting | Invoice collections, general receipts, payouts, purchases, supplier payments reject locked dates | Ready for live test |
 
 ## Known Limitations
 

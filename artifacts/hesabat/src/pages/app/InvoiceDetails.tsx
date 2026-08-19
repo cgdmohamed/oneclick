@@ -124,10 +124,10 @@ const InvoiceDetails = () => {
         await qc.invalidateQueries({ queryKey: ['invoices'] });
         await qc.invalidateQueries({ queryKey: ['payments'] });
         await qc.invalidateQueries({ queryKey: ['reports-overview'] });
-        toast.success('تم تسجيل الدفعة');
+        toast.success('تم تسجيل التحصيل');
         setOpen(false);
       } catch (e) {
-        toast.error(e instanceof ApiError ? e.message : 'تعذّر تسجيل الدفعة');
+        toast.error(e instanceof ApiError ? e.message : 'تعذّر تسجيل التحصيل');
       }
       return;
     }
@@ -137,7 +137,7 @@ const InvoiceDetails = () => {
     };
     setExtraPayments(prev => [p, ...prev]);
     setOpen(false);
-    toast.success('تم تسجيل الدفعة');
+    toast.success('تم تسجيل التحصيل');
   };
 
   const publicUrl = `${window.location.origin}/invoice/${invoice.publicId}`;
@@ -250,10 +250,10 @@ const InvoiceDetails = () => {
             {!isDraft && !isCancelled && (
               <Sheet open={open} onOpenChange={setOpen}>
                 <SheetTrigger asChild>
-                  <Button disabled={remaining <= 0}><Plus className="h-4 w-4 ml-1" /> تسجيل دفعة</Button>
+                  <Button disabled={remaining <= 0}><Plus className="h-4 w-4 me-1" /> تسجيل تحصيل</Button>
                 </SheetTrigger>
                 <SheetContent side="left" className="w-full sm:max-w-lg overflow-y-auto">
-                  <SheetHeader><SheetTitle>تسجيل دفعة جديدة</SheetTitle></SheetHeader>
+                  <SheetHeader><SheetTitle>تسجيل تحصيل جديد</SheetTitle></SheetHeader>
                   <div className="mt-6"><PaymentForm remaining={remaining} onSubmit={recordPayment} onCancel={() => setOpen(false)} /></div>
                 </SheetContent>
               </Sheet>

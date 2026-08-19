@@ -14,10 +14,11 @@ import { toast } from 'sonner';
 import { InvoiceSummary } from '@/components/common/InvoiceSummary';
 import { useClients, useProducts } from '@/hooks/entities';
 import { api, ApiError, isApiConfigured } from '@/lib/api';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { EGP_CURRENCY_CODE } from '@/lib/currency';
 
 interface Item { id: string; name: string; quantity: number; unitPrice: number; productId?: string; vatRate?: number }
+interface Account { id: string; name: string; type: string; }
 
 /* ── Quick-create forms ─────────────────────────────────────────── */
 interface NewClientForm {
@@ -46,7 +47,14 @@ const NewInvoice = () => {
   const [taxRate, setTaxRate]   = useState(15);
   const [discount, setDiscount] = useState(0);
   const [dueDate, setDueDate]   = useState(new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10));
+  const [enableInitialCollection, setEnableInitialCollection] = useState(false);
+  const [initialCollection, setInitialCollection] = useState({ amount: '0', account_id: '', method: 'cash', reference: '', notes: '' });
   const [saving, setSaving]     = useState(false);
+  const accounts = useQuery({
+    enabled: isApiConfigured(),
+    queryKey: ['accounts'],
+    queryFn: async () => (await api.get<{ data: Account[] }>('/api/accounts?page_size=300')).data ?? [],
+  });
 
   /* Default client once list loads */
   if (!clientId && clients[0]) setClientId(clients[0].id);
@@ -197,6 +205,9 @@ const NewInvoice = () => {
   const submit = async (draft: boolean) => {
     if (!clientId) return toast.error('اختر عميلاً');
     if (items.some(it => !it.name || it.quantity <= 0)) return toast.error('أكمل بيانات بنود الفاتورة');
+    const collectionAmount = Number(initialCollection.amount || 0);
+    if (!draft && enableInitialCollection && collectionAmount > totals.total + 0.005) return toast.error('مبلغ التحصيل أكبر من إجمالي الفاتورة');
+    if (!draft && enableInitialCollection && collectionAmount > 0 && !initialCollection.account_id) return toast.error('اختر حساب التحصيل');
     setSaving(true);
     try {
       if (isApiConfigured()) {
@@ -205,6 +216,13 @@ const NewInvoice = () => {
           due_date:  new Date(dueDate).toISOString(),
           discount,
           draft,
+          initial_collection: !draft && enableInitialCollection && collectionAmount > 0 ? {
+            amount: collectionAmount,
+            account_id: initialCollection.account_id,
+            method: initialCollection.method,
+            reference: initialCollection.reference || null,
+            notes: initialCollection.notes || null,
+          } : null,
           items: items.map(it => ({
             product_id:  it.productId ?? null,
             description: it.name,
@@ -343,6 +361,36 @@ const NewInvoice = () => {
         {/* ── Sidebar summary ── */}
         <div className="space-y-4">
           <InvoiceSummary subtotal={totals.subtotal} tax={totals.tax} discount={discount} total={totals.total} paid={0} remaining={totals.total} />
+          <Card className="p-5 border-border/60 space-y-3">
+            <label className="flex items-center gap-2 text-sm font-medium">
+              <input type="checkbox" checked={enableInitialCollection} onChange={(e) => setEnableInitialCollection(e.target.checked)} />
+              تحصيل عند إنشاء الفاتورة
+            </label>
+            {enableInitialCollection && (
+              <div className="space-y-3">
+                <div>
+                  <Label>مبلغ التحصيل</Label>
+                  <Input className="mt-1.5" type="number" min="0" max={totals.total} step="0.01" value={initialCollection.amount} onChange={(e) => setInitialCollection((p) => ({ ...p, amount: e.target.value }))} />
+                </div>
+                <div>
+                  <Label>حساب التحصيل</Label>
+                  <Select value={initialCollection.account_id} onValueChange={(v) => setInitialCollection((p) => ({ ...p, account_id: v }))}>
+                    <SelectTrigger className="mt-1.5"><SelectValue placeholder="اختر الحساب" /></SelectTrigger>
+                    <SelectContent>{(accounts.data ?? []).map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>الطريقة</Label>
+                  <Select value={initialCollection.method} onValueChange={(v) => setInitialCollection((p) => ({ ...p, method: v }))}>
+                    <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
+                    <SelectContent><SelectItem value="cash">نقدي</SelectItem><SelectItem value="bank">تحويل بنكي</SelectItem><SelectItem value="wallet">محفظة إلكترونية</SelectItem></SelectContent>
+                  </Select>
+                </div>
+                <Input placeholder="المرجع" value={initialCollection.reference} onChange={(e) => setInitialCollection((p) => ({ ...p, reference: e.target.value }))} />
+                <Input placeholder="ملاحظات" value={initialCollection.notes} onChange={(e) => setInitialCollection((p) => ({ ...p, notes: e.target.value }))} />
+              </div>
+            )}
+          </Card>
           <Card className="p-5 border-border/60 space-y-2">
             <Button className="w-full" onClick={() => submit(false)} disabled={saving}>
               {saving ? 'جارٍ الحفظ...' : 'حفظ الفاتورة وإرسالها'}

@@ -458,23 +458,27 @@ export async function postSalesInvoice(db: Queryable, companyId: string, invoice
 
 export async function postCustomerPayment(db: Queryable, companyId: string, paymentId: string, userId?: string | null) {
   const payment = await db.query(
-    `SELECT p.*, i.number AS invoice_number FROM payments p JOIN invoices i ON i.id = p.invoice_id
+    `SELECT p.*, i.number AS invoice_number FROM payments p LEFT JOIN invoices i ON i.id = p.invoice_id
      WHERE p.id = $1 AND p.company_id = $2`,
     [paymentId, companyId],
   );
   if (!payment.rowCount || payment.rows[0].journal_entry_id) return payment.rows[0]?.journal_entry_id;
   const s = await getSettings(db, companyId);
+  const pay = payment.rows[0];
   const cashAccountId = await moneyAccountChartAccount(db, companyId, payment.rows[0].account_id);
+  const creditAccountId = pay.collection_type === 'general_receipt'
+    ? requireAccount(pay.credit_account_id, 'general receipt credit')
+    : requireAccount(s.accounts_receivable_account_id, 'accounts receivable');
   const je = await createJournalEntry(db, {
     companyId,
-    entryDate: payment.rows[0].paid_at,
-    memo: `Collection for invoice ${payment.rows[0].invoice_number}`,
+    entryDate: pay.paid_at,
+    memo: pay.collection_type === 'general_receipt' ? `General receipt ${pay.reference ?? paymentId}` : `Collection for invoice ${pay.invoice_number}`,
     source: { type: 'payment', id: paymentId },
     userId,
-    branchId: payment.rows[0].branch_id ?? null,
+    branchId: pay.branch_id ?? null,
     lines: [
-      { accountId: cashAccountId, debit: Number(payment.rows[0].amount), description: payment.rows[0].reference, branchId: payment.rows[0].branch_id },
-      { accountId: s.accounts_receivable_account_id, credit: Number(payment.rows[0].amount), description: payment.rows[0].reference, branchId: payment.rows[0].branch_id },
+      { accountId: cashAccountId, debit: Number(pay.amount), description: pay.reference ?? pay.notes, branchId: pay.branch_id },
+      { accountId: creditAccountId, credit: Number(pay.amount), description: pay.reference ?? pay.notes, branchId: pay.branch_id },
     ],
   });
   await db.query(`UPDATE payments SET journal_entry_id = $1 WHERE id = $2 AND company_id = $3`, [je.id, paymentId, companyId]);
@@ -485,6 +489,7 @@ export async function postPayout(db: Queryable, companyId: string, payoutId: str
   const payout = await db.query(`SELECT * FROM payouts WHERE id = $1 AND company_id = $2`, [payoutId, companyId]);
   if (!payout.rowCount || payout.rows[0].journal_entry_id) return payout.rows[0]?.journal_entry_id;
   const s = await getSettings(db, companyId);
+  const debitAccountId = payout.rows[0].debit_account_id ?? s.general_expenses_account_id;
   const cashAccountId = await moneyAccountChartAccount(db, companyId, payout.rows[0].account_id);
   const je = await createJournalEntry(db, {
     companyId,
@@ -494,7 +499,7 @@ export async function postPayout(db: Queryable, companyId: string, payoutId: str
     userId,
     branchId: payout.rows[0].branch_id ?? null,
     lines: [
-      { accountId: s.general_expenses_account_id, debit: Number(payout.rows[0].amount), description: payout.rows[0].notes, branchId: payout.rows[0].branch_id, costCenterId: payout.rows[0].cost_center_id },
+      { accountId: requireAccount(debitAccountId, 'payout debit account'), debit: Number(payout.rows[0].amount), description: payout.rows[0].notes, branchId: payout.rows[0].branch_id, costCenterId: payout.rows[0].cost_center_id },
       { accountId: cashAccountId, credit: Number(payout.rows[0].amount), description: payout.rows[0].notes, branchId: payout.rows[0].branch_id },
     ],
   });

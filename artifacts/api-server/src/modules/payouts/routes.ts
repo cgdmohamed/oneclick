@@ -8,6 +8,7 @@ import { assertBranch, assertCostCenter } from '../../utils/dimensions.js';
 const schema = z.object({
   supplier_id:         z.string().uuid().optional().nullable(),
   expense_category_id: z.string().uuid().optional().nullable(),
+  debit_account_id:    z.string().uuid().optional().nullable(),
   account_id:          z.string().uuid(),
   amount:              z.coerce.number().positive(),
   branch_id:           z.string().uuid().optional().nullable(),
@@ -21,6 +22,7 @@ const schema = z.object({
 const patchSchema = z.object({
   supplier_id:         z.string().uuid().optional().nullable(),
   expense_category_id: z.string().uuid().optional().nullable(),
+  debit_account_id:    z.string().uuid().optional().nullable(),
   branch_id:           z.string().uuid().optional().nullable(),
   cost_center_id:      z.string().uuid().optional().nullable(),
   method:              z.string().optional(),
@@ -52,10 +54,12 @@ r.get('/', async (req, res, next) => {
 
     const applied = p.applyTo(
       `SELECT py.*, a.name AS account_name,
+              da.code AS debit_account_code, da.name AS debit_account_name,
               s.name AS supplier_name,
               ec.name AS category_name
        FROM payouts py
        LEFT JOIN accounts a ON a.id = py.account_id
+       LEFT JOIN chart_accounts da ON da.id = py.debit_account_id
        LEFT JOIN suppliers s ON s.id = py.supplier_id
        LEFT JOIN expense_categories ec ON ec.id = py.expense_category_id
        ${where}
@@ -71,9 +75,10 @@ r.get('/:id', async (req, res, next) => {
   try {
     const t = req.tenant!;
     const rs = await t.db.query(
-      `SELECT py.*, a.name AS account_name, s.name AS supplier_name, ec.name AS category_name
+      `SELECT py.*, a.name AS account_name, da.code AS debit_account_code, da.name AS debit_account_name, s.name AS supplier_name, ec.name AS category_name
        FROM payouts py
        LEFT JOIN accounts a ON a.id = py.account_id
+       LEFT JOIN chart_accounts da ON da.id = py.debit_account_id
        LEFT JOIN suppliers s ON s.id = py.supplier_id
        LEFT JOIN expense_categories ec ON ec.id = py.expense_category_id
        WHERE py.id = $1 AND py.company_id = $2`,
@@ -104,17 +109,22 @@ r.post('/', async (req, res, next) => {
       const ecRs = await t.db.query(`SELECT 1 FROM expense_categories WHERE id = $1 AND company_id = $2`, [body.expense_category_id, t.companyId]);
       if (!ecRs.rowCount) return res.status(422).json({ error: 'invalid_category', message: 'التصنيف غير صالح' });
     }
+    if (body.debit_account_id) {
+      const debitRs = await t.db.query(`SELECT 1 FROM chart_accounts WHERE id = $1 AND company_id = $2 AND is_active = TRUE`, [body.debit_account_id, t.companyId]);
+      if (!debitRs.rowCount) throw badRequest('Active debit account not found');
+    }
 
     await t.db.query('BEGIN');
     try {
       const ins = await t.db.query(
         `INSERT INTO payouts
-           (company_id, supplier_id, expense_category_id, account_id, amount, method, paid_at, reference, notes, branch_id, cost_center_id, created_by)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
+           (company_id, supplier_id, expense_category_id, debit_account_id, account_id, amount, method, paid_at, reference, notes, branch_id, cost_center_id, created_by)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
         [
           t.companyId,
           body.supplier_id ?? null,
           body.expense_category_id ?? null,
+          body.debit_account_id ?? null,
           body.account_id,
           body.amount,
           body.method,
@@ -155,8 +165,12 @@ r.patch('/:id', async (req, res, next) => {
       const ecRs = await t.db.query(`SELECT 1 FROM expense_categories WHERE id = $1 AND company_id = $2`, [body.expense_category_id, t.companyId]);
       if (!ecRs.rowCount) return res.status(422).json({ error: 'invalid_category' });
     }
+    if (body.debit_account_id) {
+      const debitRs = await t.db.query(`SELECT 1 FROM chart_accounts WHERE id = $1 AND company_id = $2 AND is_active = TRUE`, [body.debit_account_id, t.companyId]);
+      if (!debitRs.rowCount) throw badRequest('Active debit account not found');
+    }
 
-    const allowed: (keyof typeof body)[] = ['supplier_id','expense_category_id','branch_id','cost_center_id','method','paid_at','reference','notes'];
+    const allowed: (keyof typeof body)[] = ['supplier_id','expense_category_id','debit_account_id','branch_id','cost_center_id','method','paid_at','reference','notes'];
     const fields = (Object.keys(body) as (keyof typeof body)[]).filter(k => allowed.includes(k));
     if (!fields.length) return res.json({ data: existing.rows[0] });
 

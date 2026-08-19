@@ -30,10 +30,17 @@ const invoiceSchema = z.object({
   discount: z.coerce.number().nonnegative().default(0),
   draft: z.boolean().default(false),
   items: z.array(itemSchema).min(1),
+  initial_payment: z.object({
+    amount: z.coerce.number().nonnegative().default(0),
+    account_id: z.string().uuid().optional().nullable(),
+    method: z.string().default('cash'),
+    reference: z.string().optional().nullable(),
+    notes: z.string().optional().nullable(),
+  }).optional().nullable(),
 });
 
 const supplierPaymentSchema = z.object({
-  supplier_id: z.string().uuid(),
+  supplier_id: z.string().uuid().optional().nullable(),
   purchase_invoice_id: z.string().uuid().optional().nullable(),
   account_id: z.string().uuid(),
   amount: z.coerce.number().positive(),
@@ -341,6 +348,14 @@ r.post('/invoices', async (req, res, next) => {
     }
     const total = round2(Math.max(0, subtotal + vat - body.discount));
     const status = body.draft ? 'draft' : 'posted';
+    const initialPaymentAmount = round2(Number(body.initial_payment?.amount ?? 0));
+    if (body.draft && initialPaymentAmount > 0) throw badRequest('Initial payment is not allowed for draft purchase invoices');
+    if (initialPaymentAmount > total) throw badRequest('Initial payment exceeds purchase invoice total');
+    if (initialPaymentAmount > 0 && !body.initial_payment?.account_id) throw badRequest('Payment account is required for initial payment');
+    if (initialPaymentAmount > 0) {
+      const account = await t.db.query(`SELECT 1 FROM accounts WHERE id = $1 AND company_id = $2 AND is_active = TRUE`, [body.initial_payment!.account_id, t.companyId]);
+      if (!account.rowCount) throw badRequest('Active payment account not found');
+    }
 
     await t.db.query('BEGIN');
     try {
@@ -384,7 +399,40 @@ r.post('/invoices', async (req, res, next) => {
         }
       }
 
-      if (!body.draft) await postPurchaseInvoice(t.db, t.companyId, pi.rows[0].id, req.auth!.userId);
+      if (!body.draft) {
+        await postPurchaseInvoice(t.db, t.companyId, pi.rows[0].id, req.auth!.userId);
+        if (initialPaymentAmount > 0) {
+          const remaining = round2(Math.max(0, total - initialPaymentAmount));
+          const paymentStatus = remaining <= 0.005 ? 'paid' : 'partial';
+          await t.db.query(
+            `UPDATE purchase_invoices SET paid = $1, remaining = $2, status = $3 WHERE id = $4 AND company_id = $5`,
+            [initialPaymentAmount, remaining, paymentStatus, pi.rows[0].id, t.companyId],
+          );
+          const sp = await t.db.query(
+            `INSERT INTO supplier_payments
+             (company_id, supplier_id, purchase_invoice_id, account_id, amount, paid_at, method, reference, notes, branch_id, created_by)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
+            [
+              t.companyId,
+              body.supplier_id,
+              pi.rows[0].id,
+              body.initial_payment!.account_id,
+              initialPaymentAmount,
+              invoiceDate,
+              body.initial_payment!.method,
+              body.initial_payment!.reference ?? null,
+              body.initial_payment!.notes ?? null,
+              body.branch_id ?? null,
+              req.auth!.userId,
+            ],
+          );
+          await t.db.query(`UPDATE accounts SET balance = balance - $1 WHERE id = $2 AND company_id = $3`, [initialPaymentAmount, body.initial_payment!.account_id, t.companyId]);
+          await postSupplierPayment(t.db, t.companyId, sp.rows[0].id, req.auth!.userId);
+          pi.rows[0].paid = initialPaymentAmount;
+          pi.rows[0].remaining = remaining;
+          pi.rows[0].status = paymentStatus;
+        }
+      }
       await audit(t.db, { companyId: t.companyId, userId: req.auth!.userId, action: body.draft ? 'purchase_invoice.draft' : 'purchase_invoice.post', entity: 'purchase_invoice', entityId: pi.rows[0].id, data: { total } });
       await t.db.query('COMMIT');
       res.status(201).json({ data: pi.rows[0] });
@@ -400,7 +448,14 @@ r.post('/supplier-payments', async (req, res, next) => {
     const t = req.tenant!;
     const body = supplierPaymentSchema.parse(req.body);
     await assertBranch(t.db, t.companyId, body.branch_id);
-    const supplier = await t.db.query(`SELECT 1 FROM suppliers WHERE id = $1 AND company_id = $2`, [body.supplier_id, t.companyId]);
+    let supplierId = body.supplier_id ?? null;
+    if (body.purchase_invoice_id) {
+      const piSupplier = await t.db.query(`SELECT supplier_id FROM purchase_invoices WHERE id = $1 AND company_id = $2`, [body.purchase_invoice_id, t.companyId]);
+      if (!piSupplier.rowCount) throw notFound('Purchase invoice not found');
+      supplierId = piSupplier.rows[0].supplier_id;
+    }
+    if (!supplierId) throw badRequest('Supplier is required when no purchase invoice is selected');
+    const supplier = await t.db.query(`SELECT 1 FROM suppliers WHERE id = $1 AND company_id = $2`, [supplierId, t.companyId]);
     if (!supplier.rowCount) throw notFound('Supplier not found');
     const account = await t.db.query(`SELECT 1 FROM accounts WHERE id = $1 AND company_id = $2 AND is_active = TRUE`, [body.account_id, t.companyId]);
     if (!account.rowCount) throw badRequest('Active payment account not found');
@@ -410,8 +465,9 @@ r.post('/supplier-payments', async (req, res, next) => {
     await t.db.query('BEGIN');
     try {
       if (body.purchase_invoice_id) {
-        const pi = await t.db.query(`SELECT total, paid FROM purchase_invoices WHERE id = $1 AND company_id = $2 FOR UPDATE`, [body.purchase_invoice_id, t.companyId]);
+        const pi = await t.db.query(`SELECT total, paid, supplier_id FROM purchase_invoices WHERE id = $1 AND company_id = $2 FOR UPDATE`, [body.purchase_invoice_id, t.companyId]);
         if (!pi.rowCount) throw notFound('Purchase invoice not found');
+        if (pi.rows[0].supplier_id !== supplierId) throw badRequest('Purchase invoice does not belong to supplier');
         const paid = round2(Number(pi.rows[0].paid) + body.amount);
         const remaining = round2(Number(pi.rows[0].total) - paid);
         if (remaining < -0.005) throw badRequest('Payment exceeds payable balance');
@@ -426,7 +482,7 @@ r.post('/supplier-payments', async (req, res, next) => {
         `INSERT INTO supplier_payments
          (company_id, supplier_id, purchase_invoice_id, account_id, amount, paid_at, method, reference, notes, branch_id, created_by)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
-        [t.companyId, body.supplier_id, body.purchase_invoice_id ?? null, body.account_id, body.amount, paidAt, body.method, body.reference ?? null, body.notes ?? null, body.branch_id ?? null, req.auth!.userId],
+        [t.companyId, supplierId, body.purchase_invoice_id ?? null, body.account_id, body.amount, paidAt, body.method, body.reference ?? null, body.notes ?? null, body.branch_id ?? null, req.auth!.userId],
       );
       await t.db.query(`UPDATE accounts SET balance = balance - $1 WHERE id = $2 AND company_id = $3`, [body.amount, body.account_id, t.companyId]);
       await postSupplierPayment(t.db, t.companyId, sp.rows[0].id, req.auth!.userId);

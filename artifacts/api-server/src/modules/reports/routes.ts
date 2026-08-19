@@ -941,17 +941,56 @@ router.get('/balance-sheet', async (req, res, next) => {
     const branchId = typeof req.query.branch_id === 'string' ? req.query.branch_id : null;
     const params: unknown[] = branchId ? [t.companyId, to, branchId] : [t.companyId, to];
     const rs = await t.db.query(
-      `SELECT ca.code, ca.name, ca.type,
-              COALESCE(SUM(jel.debit - jel.credit),0) AS debit_balance,
-              COALESCE(SUM(jel.credit - jel.debit),0) AS credit_balance
+      `WITH posted_lines AS (
+         SELECT jel.account_id, jel.debit, jel.credit
+         FROM journal_entry_lines jel
+         JOIN journal_entries je ON je.id = jel.journal_entry_id
+         WHERE jel.company_id = $1
+           AND je.company_id = $1
+           AND je.status IN ('posted','reversed')
+           AND je.entry_date <= $2::date
+           ${branchId ? 'AND COALESCE(jel.branch_id, je.branch_id) = $3' : ''}
+       )
+       SELECT ca.code, ca.name, ca.type,
+              COALESCE(SUM(pl.debit - pl.credit),0) AS debit_balance,
+              COALESCE(SUM(pl.credit - pl.debit),0) AS credit_balance,
+              FALSE AS is_virtual
        FROM chart_accounts ca
-       LEFT JOIN journal_entry_lines jel ON jel.account_id = ca.id
-       LEFT JOIN journal_entries je ON je.id = jel.journal_entry_id AND je.status IN ('posted','reversed') AND je.entry_date <= $2
+       LEFT JOIN posted_lines pl ON pl.account_id = ca.id
        WHERE ca.company_id = $1 AND ca.type IN ('asset','liability','equity')
-       ${branchId ? 'AND COALESCE(jel.branch_id, je.branch_id) = $3' : ''}
        GROUP BY ca.code, ca.name, ca.type ORDER BY ca.code`,
       params,
     );
+    const pl = await t.db.query(
+      `WITH posted_lines AS (
+         SELECT ca.type, jel.debit, jel.credit
+         FROM journal_entry_lines jel
+         JOIN journal_entries je ON je.id = jel.journal_entry_id
+         JOIN chart_accounts ca ON ca.id = jel.account_id AND ca.company_id = jel.company_id
+         WHERE jel.company_id = $1
+           AND je.company_id = $1
+           AND je.status IN ('posted','reversed')
+           AND je.entry_date <= $2::date
+           AND COALESCE(je.source_type, '') != 'year_end_closing'
+           AND ca.type IN ('revenue','expense')
+           ${branchId ? 'AND COALESCE(jel.branch_id, je.branch_id) = $3' : ''}
+       )
+       SELECT
+         COALESCE(SUM(CASE WHEN type = 'revenue' THEN credit - debit ELSE 0 END),0) AS revenue,
+         COALESCE(SUM(CASE WHEN type = 'expense' THEN debit - credit ELSE 0 END),0) AS expenses
+       FROM posted_lines`,
+      params,
+    );
+    const currentYearProfitLoss = Number(pl.rows[0]?.revenue ?? 0) - Number(pl.rows[0]?.expenses ?? 0);
+    const virtualRow = {
+      code: 'CYPL',
+      name: 'صافي ربح/خسارة الفترة',
+      type: 'equity',
+      debit_balance: currentYearProfitLoss < 0 ? Math.abs(currentYearProfitLoss).toFixed(2) : '0.00',
+      credit_balance: currentYearProfitLoss >= 0 ? currentYearProfitLoss.toFixed(2) : '0.00',
+      is_virtual: true,
+    };
+    const rows = [...rs.rows, virtualRow];
     const assets = rs.rows
       .filter((r: { type: string }) => r.type === 'asset')
       .reduce((s: number, r: { debit_balance: string }) => s + Number(r.debit_balance), 0);
@@ -961,7 +1000,10 @@ router.get('/balance-sheet', async (req, res, next) => {
     const equity = rs.rows
       .filter((r: { type: string }) => r.type === 'equity')
       .reduce((s: number, r: { credit_balance: string }) => s + Number(r.credit_balance), 0);
-    res.json({ data: rs.rows, summary: { assets: assets.toFixed(2), liabilities: liabilities.toFixed(2), equity: equity.toFixed(2), liabilities_and_equity: (liabilities + equity).toFixed(2), difference: (assets - liabilities - equity).toFixed(2), is_balanced: Math.abs(assets - liabilities - equity) <= 0.005 }, warnings: meta.warnings });
+    const equityTotal = equity + currentYearProfitLoss;
+    const liabilitiesAndEquity = liabilities + equityTotal;
+    const difference = assets - liabilitiesAndEquity;
+    res.json({ data: rows, summary: { assets: assets.toFixed(2), liabilities: liabilities.toFixed(2), equity: equity.toFixed(2), current_year_profit_loss: currentYearProfitLoss.toFixed(2), equity_total: equityTotal.toFixed(2), liabilities_and_equity: liabilitiesAndEquity.toFixed(2), difference: difference.toFixed(2), is_balanced: Math.abs(difference) <= 0.005 }, warnings: meta.warnings });
   } catch (e) { next(e); }
 });
 

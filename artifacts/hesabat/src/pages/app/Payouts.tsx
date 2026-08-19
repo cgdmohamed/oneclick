@@ -24,6 +24,9 @@ interface PayoutRow {
   notes: string | null;
   account_id: string;
   account_name: string;
+  debit_account_id: string | null;
+  debit_account_code: string | null;
+  debit_account_name: string | null;
   supplier_id: string | null;
   supplier_name: string | null;
   expense_category_id: string | null;
@@ -33,10 +36,12 @@ interface PayoutRow {
 interface Account { id: string; name: string; type: string; }
 interface Supplier { id: string; name: string; }
 interface ExpenseCategory { id: string; name: string; }
+interface ChartAccount { id: string; code: string; name: string; type: string; is_active: boolean; }
 
 interface NewPayout {
   supplier_id: string;
   expense_category_id: string;
+  debit_account_id: string;
   account_id: string;
   amount: string;
   method: string;
@@ -46,7 +51,7 @@ interface NewPayout {
 }
 
 const emptyPayout: NewPayout = {
-  supplier_id: '', expense_category_id: '', account_id: '',
+  supplier_id: '', expense_category_id: '', debit_account_id: '', account_id: '',
   amount: '', method: 'cash',
   paid_at: new Date().toISOString().slice(0, 10),
   reference: '', notes: '',
@@ -91,6 +96,11 @@ const Payouts = () => {
       return res.data ?? [];
     },
   });
+  const { data: chartAccounts = [] } = useQuery({
+    enabled: apiOn,
+    queryKey: ['chart-accounts'],
+    queryFn: async () => (await api.get<{ data: ChartAccount[] }>('/api/accounting/chart-accounts?limit=500')).data ?? [],
+  });
 
   const [open, setOpen]           = useState(false);
   const [form, setForm]           = useState<NewPayout>(emptyPayout);
@@ -108,6 +118,7 @@ const Payouts = () => {
       await api.post('/api/payouts', {
         supplier_id:         form.supplier_id         || null,
         expense_category_id: form.expense_category_id || null,
+        debit_account_id:    form.debit_account_id    || null,
         account_id:          form.account_id,
         amount,
         method:    form.method,
@@ -118,11 +129,11 @@ const Payouts = () => {
       qc.invalidateQueries({ queryKey: ['payouts'] });
       qc.invalidateQueries({ queryKey: ['accounts'] });
       qc.invalidateQueries({ queryKey: ['reports-overview'] });
-      toast.success('تم تسجيل المصروف');
+      toast.success('تم تسجيل سند الدفع');
       setOpen(false);
       setForm(emptyPayout);
     } catch {
-      toast.error('تعذّر حفظ المصروف');
+      toast.error('تعذّر حفظ سند الدفع');
     } finally {
       setSaving(false);
     }
@@ -135,9 +146,9 @@ const Payouts = () => {
       qc.invalidateQueries({ queryKey: ['payouts'] });
       qc.invalidateQueries({ queryKey: ['accounts'] });
       qc.invalidateQueries({ queryKey: ['reports-overview'] });
-      toast.success('تم حذف المصروف');
+      toast.success('تم حذف سند الدفع');
     } catch {
-      toast.error('تعذّر حذف المصروف');
+      toast.error('تعذّر حذف سند الدفع');
     } finally {
       setToDelete(null);
     }
@@ -147,6 +158,7 @@ const Payouts = () => {
     { key: 'date',     header: 'التاريخ',    cell: (r) => <span className="text-muted-foreground text-sm">{formatDateShort(r.paid_at)}</span> },
     { key: 'supplier', header: 'المورد',     cell: (r) => r.supplier_name ?? <span className="text-muted-foreground">—</span> },
     { key: 'category', header: 'التصنيف',   cell: (r) => r.category_name ?? <span className="text-muted-foreground">—</span> },
+    { key: 'debit', header: 'حساب المصروف/المدين', cell: (r) => r.debit_account_name ? `${r.debit_account_code ?? ''} ${r.debit_account_name}` : <span className="text-muted-foreground">إعدادات المصروفات العامة</span> },
     { key: 'account',  header: 'الحساب',    cell: (r) => r.account_name },
     { key: 'method',   header: 'الطريقة',   cell: (r) => paymentMethodLabel(r.method) },
     { key: 'amount',   header: 'المبلغ',    cell: (r) => <span className="font-semibold text-destructive">{formatCurrency(Number(r.amount))}</span>, className: 'text-end' },
@@ -163,10 +175,10 @@ const Payouts = () => {
 
   return (
     <div className="space-y-5">
-      <PageHeader title="المصروفات" description="تتبع المدفوعات الصادرة للموردين والنفقات" />
+      <PageHeader title="المدفوعات / المصروفات" description="سندات دفع للموردين أو مصروفات عامة بدون مورد" />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard title="إجمالي المصروفات" value={formatCurrency(totalPayouts)} icon={ArrowUpFromLine} accent="destructive" />
+        <StatCard title="إجمالي المدفوعات" value={formatCurrency(totalPayouts)} icon={ArrowUpFromLine} accent="destructive" />
         <StatCard title="عدد العمليات" value={payouts.length} icon={Wallet} accent="info" />
       </div>
 
@@ -176,14 +188,14 @@ const Payouts = () => {
         loading={isLoading}
         rightToolbar={
           <Button onClick={() => setOpen(true)}>
-            <Plus className="h-4 w-4 ml-1" /> تسجيل مصروف
+            <Plus className="h-4 w-4 me-1" /> سند دفع جديد
           </Button>
         }
       />
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-lg" dir="rtl">
-          <DialogHeader><DialogTitle>تسجيل مصروف جديد</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>سند دفع جديد</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -197,6 +209,16 @@ const Payouts = () => {
                 <Label>المبلغ *</Label>
                 <Input className="mt-1.5" type="number" min="0" step="0.01" value={form.amount} onChange={(e) => setForm(p => ({ ...p, amount: e.target.value }))} placeholder="0.00" />
               </div>
+            </div>
+            <div>
+              <Label>حساب المصروف/المدين (اختياري)</Label>
+              <Select value={form.debit_account_id || '__none__'} onValueChange={(v) => setForm(p => ({ ...p, debit_account_id: v === '__none__' ? '' : v }))}>
+                <SelectTrigger className="mt-1.5"><SelectValue placeholder="استخدام المصروفات العامة" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">استخدام المصروفات العامة</SelectItem>
+                  {chartAccounts.filter((a) => a.is_active).map(a => <SelectItem key={a.id} value={a.id}>{a.code} - {a.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -248,7 +270,7 @@ const Payouts = () => {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>إلغاء</Button>
-            <Button onClick={submit} disabled={saving}>{saving ? 'جارٍ الحفظ...' : 'حفظ المصروف'}</Button>
+            <Button onClick={submit} disabled={saving}>{saving ? 'جارٍ الحفظ...' : 'حفظ سند الدفع'}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
