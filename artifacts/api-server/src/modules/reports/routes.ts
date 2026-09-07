@@ -939,6 +939,15 @@ router.get('/balance-sheet', async (req, res, next) => {
     const meta = await reportMeta(t.db, t.companyId, req.query);
     const to = typeof req.query.to === 'string' ? req.query.to : new Date().toISOString().slice(0, 10);
     const branchId = typeof req.query.branch_id === 'string' ? req.query.branch_id : null;
+    const fiscalYear = await t.db.query(
+      `SELECT id, starts_on
+       FROM fiscal_years
+       WHERE company_id = $1 AND starts_on <= $2::date AND ends_on >= $2::date
+       ORDER BY starts_on DESC LIMIT 1`,
+      [t.companyId, to],
+    );
+    const fiscalYearId = fiscalYear.rows[0]?.id ?? null;
+    const currentYearStart = fiscalYear.rows[0]?.starts_on ?? `${to.slice(0, 4)}-01-01`;
     const params: unknown[] = branchId ? [t.companyId, to, branchId] : [t.companyId, to];
     const rs = await t.db.query(
       `WITH posted_lines AS (
@@ -961,6 +970,7 @@ router.get('/balance-sheet', async (req, res, next) => {
        GROUP BY ca.code, ca.name, ca.type ORDER BY ca.code`,
       params,
     );
+    const plParams: unknown[] = branchId ? [t.companyId, to, currentYearStart, branchId] : [t.companyId, to, currentYearStart];
     const pl = await t.db.query(
       `WITH posted_lines AS (
          SELECT ca.type, jel.debit, jel.credit
@@ -971,17 +981,32 @@ router.get('/balance-sheet', async (req, res, next) => {
            AND je.company_id = $1
            AND je.status IN ('posted','reversed')
            AND je.entry_date <= $2::date
+           AND je.entry_date >= $3::date
            AND COALESCE(je.source_type, '') != 'year_end_closing'
            AND ca.type IN ('revenue','expense')
-           ${branchId ? 'AND COALESCE(jel.branch_id, je.branch_id) = $3' : ''}
+           ${branchId ? 'AND COALESCE(jel.branch_id, je.branch_id) = $4' : ''}
        )
        SELECT
          COALESCE(SUM(CASE WHEN type = 'revenue' THEN credit - debit ELSE 0 END),0) AS revenue,
          COALESCE(SUM(CASE WHEN type = 'expense' THEN debit - credit ELSE 0 END),0) AS expenses
        FROM posted_lines`,
-      params,
+      plParams,
     );
-    const currentYearProfitLoss = Number(pl.rows[0]?.revenue ?? 0) - Number(pl.rows[0]?.expenses ?? 0);
+    const closing = fiscalYearId
+      ? await t.db.query(
+          `SELECT id FROM journal_entries
+           WHERE company_id = $1
+             AND fiscal_year_id = $2
+             AND source_type = 'year_end_closing'
+             AND status IN ('posted','reversed')
+             AND entry_date <= $3::date
+           LIMIT 1`,
+          [t.companyId, fiscalYearId, to],
+        )
+      : { rowCount: 0 };
+    const currentYearProfitLoss = closing.rowCount
+      ? 0
+      : Number(pl.rows[0]?.revenue ?? 0) - Number(pl.rows[0]?.expenses ?? 0);
     const virtualRow = {
       code: 'CYPL',
       name: 'صافي ربح/خسارة الفترة',
@@ -1003,7 +1028,7 @@ router.get('/balance-sheet', async (req, res, next) => {
     const equityTotal = equity + currentYearProfitLoss;
     const liabilitiesAndEquity = liabilities + equityTotal;
     const difference = assets - liabilitiesAndEquity;
-    res.json({ data: rows, summary: { assets: assets.toFixed(2), liabilities: liabilities.toFixed(2), equity: equity.toFixed(2), current_year_profit_loss: currentYearProfitLoss.toFixed(2), equity_total: equityTotal.toFixed(2), liabilities_and_equity: liabilitiesAndEquity.toFixed(2), difference: difference.toFixed(2), is_balanced: Math.abs(difference) <= 0.005 }, warnings: meta.warnings });
+    res.json({ data: rows, summary: { assets: assets.toFixed(2), liabilities: liabilities.toFixed(2), equity: equity.toFixed(2), current_year_start: currentYearStart, current_year_profit_loss: currentYearProfitLoss.toFixed(2), equity_total: equityTotal.toFixed(2), liabilities_and_equity: liabilitiesAndEquity.toFixed(2), difference: difference.toFixed(2), is_balanced: Math.abs(difference) <= 0.005 }, warnings: meta.warnings });
   } catch (e) { next(e); }
 });
 

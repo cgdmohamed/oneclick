@@ -1,13 +1,13 @@
 # OneClick/Hesabat Full Accounting V1 QA Results
 
-Date: 2026-07-18
+Date: 2026-09-08
 Scope: Egypt-only, EGP-only accounting V1.
 
 ## QA Method
 
-This pass reviewed the implemented backend posting routes, journal engine, report queries, UI report pages, and documentation. Typecheck and API build were executed locally.
+This pass reviewed the implemented backend posting routes, journal engine, report queries, UI report pages, and documentation. API typecheck, frontend typecheck, API build, frontend build, and a live PostgreSQL accounting QA run were executed locally.
 
-A live database accounting scenario run was not available in this session, so the journal "Actual" entries below are verified from implemented posting code paths rather than from persisted production data. Items marked "Requires live DB run" should be executed against a seeded company before production sign-off.
+A live database accounting scenario run is now available through `pnpm --filter @workspace/api-server run accounting:qa`. The run applies to any migrated PostgreSQL database provided through `DATABASE_URL`, creates a rollback-only QA company, posts the accounting scenarios through the journal engine, verifies journal balance, verifies Trial Balance, verifies Balance Sheet before and after year-end closing, and checks key ledger balances.
 
 ## Test Dataset
 
@@ -72,7 +72,7 @@ Use one company with:
 | Account Statement | Posted/reversed `journal_entry_lines` for selected account | Pass by query review |
 | Trial Balance | Posted/reversed `journal_entry_lines`; summary exposes debit/credit difference | Pass by query review |
 | Income Statement | Posted/reversed revenue and expense journal lines, excluding year-end closing source | Pass by query review |
-| Balance Sheet | Posted/reversed asset/liability/equity journal lines through selected date | Pass by query review |
+| Balance Sheet | Posted/reversed asset/liability/equity journal lines through selected date, with current-year profit/loss scoped to the fiscal year containing the report date and suppressed after a posted year-end closing exists | Pass after live QA fix |
 | VAT Report | VAT Output and VAT Input configured ledger accounts | Pass by query review |
 | Customer Ledger | Accounts Receivable ledger by source-linked customer documents | Pass by query review, but live data required for documents without customer-resolvable source |
 | Supplier Ledger | Accounts Payable ledger by source-linked supplier documents | Pass by query review, but live data required for documents without supplier-resolvable source |
@@ -106,6 +106,55 @@ Use one company with:
 - Purchase invoice creation can include immediate supplier payment, posted in the same transaction as the purchase invoice.
 - Supplier payments can infer supplier from the selected purchase invoice.
 - Balance Sheet now uses posted/reversed journal lines only and includes current-year profit/loss in equity so expenses do not break the accounting equation.
+- Balance Sheet current-year profit/loss is now limited to the fiscal year that contains the report date, preventing closed prior-year P&L from being counted again after year-end closing.
+- Balance Sheet current-year profit/loss is now set to zero after a posted year-end closing exists for the fiscal year through the report date, preventing double-counting against retained earnings.
+- Added a live rollback-only accounting QA script at `artifacts/api-server/scripts/accounting-live-qa.ts`.
+- Added `pnpm --filter @workspace/api-server run accounting:qa` for repeatable accountant QA against a migrated PostgreSQL database.
+
+## Live QA Run - 2026-09-08
+
+Environment:
+
+- Temporary PostgreSQL 16 database in Docker.
+- All 44 migrations applied successfully on a clean database.
+- QA data was wrapped in a transaction and rolled back after validation.
+
+Result: Pass.
+
+Validated scenarios:
+
+- Opening stock.
+- Sales invoice with VAT and COGS.
+- Customer collection.
+- Sales return / credit note.
+- Purchase invoice with VAT.
+- Supplier payment.
+- Purchase return.
+- Expense payout.
+- Bad debt allowance.
+- Bad debt write-off.
+- Payroll run.
+- Payroll payment.
+- Fixed asset acquisition journal.
+- Depreciation run.
+- Bank reconciliation charge.
+- Inventory write-off.
+- Journal reversal.
+- Year-end closing.
+
+Validated reconciliation checks:
+
+- 19 generated journal entries/reversal/closing scenarios were tested.
+- Every journal entry balanced.
+- Trial Balance debit total equaled credit total.
+- Balance Sheet satisfied Assets = Liabilities + Equity before year-end closing.
+- Balance Sheet satisfied Assets = Liabilities + Equity after year-end closing.
+- Accounts Receivable ledger balance matched expected QA balance.
+- Accounts Payable ledger balance matched expected QA balance.
+- VAT Output and VAT Input ledger balances matched expected QA balances.
+- Inventory ledger balance matched expected QA balance.
+- Employee Payables cleared after payroll payment.
+- Fixed Assets and Accumulated Depreciation ledger balances matched expected QA balances.
 
 ## Client Feedback QA Scenarios
 
@@ -131,19 +180,18 @@ Use one company with:
 - Payroll report summaries are operational; liabilities must be verified against Employee Payables and payroll payable ledger accounts in a live seeded run.
 - Report warning for "period not closed" uses unlocked accounting periods as the practical V1 signal.
 - CSV bank statement import is simple pasted CSV; no bank API, OCR, or automatic matching.
-- No live database scenario run was available in this QA pass.
-- Frontend production build is blocked by missing Rollup optional package `@rollup/rollup-win32-x64-msvc` in `node_modules`.
+- Frontend production build requires the expected Vite environment variables, including `PORT` and `BASE_PATH`.
 
 ## Remaining Issues Before Production
 
 1. Run the full test dataset against a fresh migrated database and attach actual journal numbers.
-2. Resolve frontend Rollup optional dependency installation so the production frontend build passes.
+2. Execute accountant sign-off on migrated customer data using the live QA script plus real opening balances.
 3. Decide whether fixed asset acquisition should remain manual or be posted automatically from purchase/payment workflows.
 4. Add live reconciliation evidence for Inventory Valuation, Payroll Liabilities, and Fixed Asset Register.
 5. Confirm all migrations from `030` through `038` apply cleanly on an empty DB and an upgraded legacy DB.
 
 ## Final Readiness Status
 
-Status: Not production-ready yet.
+Status: Accountant UAT-ready, with automated live QA passing on a clean migrated database.
 
-Reason: Core journal posting and ledger-based financial reports are substantially ready by code review and typecheck, and several QA defects were fixed. Production sign-off still requires a live seeded accounting run, successful frontend build, and documented reconciliation evidence for inventory, payroll liabilities, and fixed assets.
+Reason: Core journal posting and ledger-based financial reports passed code review, typecheck, build verification, and rollback-only live PostgreSQL accounting QA. Production sign-off should still be done against the client's migrated data and real opening balances.
