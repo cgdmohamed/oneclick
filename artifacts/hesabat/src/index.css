@@ -230,5 +230,22 @@
   .no-print { display: none !important; }
   body { background: white; direction: rtl; }
   .print-area { box-shadow: none !important; border: none !important; }
+  body.print-single-area * {
+    visibility: hidden !important;
+  }
+  body.print-single-area [data-print-area],
+  body.print-single-area [data-print-area] * {
+    visibility: visible !important;
+  }
+  body.print-single-area [data-print-area] {
+    position: absolute !important;
+    inset-block-start: 0 !important;
+    inset-inline: 0 !important;
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    border: 0 !important;
+  }
   @page { size: A4; margin: 16mm; }
 }

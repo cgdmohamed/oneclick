@@ -18,6 +18,7 @@ import { toast } from 'sonner';
 import type { Payment, PaymentSplit, Invoice, InvoiceStatus } from '@/types';
 import { api, ApiError, isApiConfigured } from '@/lib/api';
 import { useAccounts } from '@/hooks/entities';
+import { printElementOnly } from '@/lib/print';
 
 interface ApiItem { id: string; description: string; quantity: number; unit_price: string | number; product_id: string | null }
 interface ApiPayment { id: string; amount: string | number; paid_at: string; method: string; account_id: string; reference: string | null; notes: string | null }
@@ -246,7 +247,7 @@ const InvoiceDetails = () => {
               <Copy className="h-4 w-4 ml-1" /> نسخ الرابط العام
             </Button>
             <Button variant="outline" asChild><Link to={`/invoice/${invoice.publicId}`} target="_blank"><Share2 className="h-4 w-4 ml-1" /> عرض عام</Link></Button>
-            <Button onClick={() => window.print()}><Printer className="h-4 w-4 ml-1" /> طباعة</Button>
+            <Button onClick={printElementOnly}><Printer className="h-4 w-4 ml-1" /> طباعة</Button>
             {!isDraft && !isCancelled && (
               <Sheet open={open} onOpenChange={setOpen}>
                 <SheetTrigger asChild>
@@ -297,6 +298,10 @@ const InvoiceDetails = () => {
               ))}
             </tbody>
           </table>
+
+          <div className="hidden print:block mt-6">
+            <InvoiceSummary subtotal={invoice.subtotal} tax={invoice.tax} discount={invoice.discount} total={invoice.total} paid={paid} remaining={remaining} />
+          </div>
 
           <PrintableQr invoiceId={invoice.id} value={publicUrl} invoiceNumber={invoice.number} />
 

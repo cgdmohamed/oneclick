@@ -10,6 +10,7 @@ import { PrintableQr } from '@/components/common/PrintableQr';
 import { isQrPublicVisible } from '@/hooks/useInvoiceQr';
 import { EmptyState } from '@/components/common/EmptyState';
 import { API_URL } from '@/lib/api';
+import { printElementOnly } from '@/lib/print';
 import type { InvoiceStatus } from '@/types';
 
 
@@ -79,13 +80,13 @@ const PublicInvoice = () => {
             <ArrowRight className="h-4 w-4" /> العودة للرئيسية
           </Link>
           <div className="flex items-center gap-2">
-            <Button onClick={() => window.print()} variant="outline" size="sm">
+            <Button onClick={printElementOnly} variant="outline" size="sm">
               <Printer className="h-4 w-4 ml-2" /> طباعة
             </Button>
           </div>
         </div>
 
-        <Card className="p-8 md:p-10 shadow-soft border-border/60 print:shadow-none print:border-0">
+        <Card data-print-area className="p-8 md:p-10 shadow-soft border-border/60 print:shadow-none print:border-0 print-area">
           <div className="flex items-start justify-between gap-4 pb-6 border-b border-border">
             <div>
               <div className="flex items-center gap-2 mb-2">
