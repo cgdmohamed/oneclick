@@ -120,7 +120,12 @@ router.get('/', requireSuperAdmin, async (req, res, next) => {
     const p = parsePagination(req);
     const totalQ = await t.db.query(`SELECT count(*)::int AS count FROM subscriptions s WHERE s.status != 'cancelled'`);
     const a = p.applyTo(`
-      SELECT s.*, c.name AS company_name, p.name AS plan_name
+      SELECT s.*, c.name AS company_name, p.name AS plan_name,
+             COALESCE((
+               SELECT SUM(sp.amount)
+               FROM subscription_payments sp
+               WHERE sp.subscription_id = s.id
+             ),0) AS paid_total
       FROM subscriptions s
       JOIN companies c ON c.id = s.company_id
       JOIN plans p ON p.id = s.plan_id

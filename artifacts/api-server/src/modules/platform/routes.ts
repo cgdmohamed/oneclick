@@ -278,10 +278,14 @@ router.get('/companies', async (_req, res, next) => {
       SELECT c.id, c.name, c.email, c.phone, c.is_active, c.review_status, c.created_at,
              (SELECT u.id FROM users u
               JOIN user_companies uc ON uc.user_id = u.id
-              WHERE uc.company_id = c.id AND uc.is_default = true LIMIT 1) AS owner_user_id,
+              WHERE uc.company_id = c.id
+              ORDER BY uc.is_default DESC, uc.created_at ASC
+              LIMIT 1) AS owner_user_id,
              (SELECT u.name FROM users u
               JOIN user_companies uc ON uc.user_id = u.id
-              WHERE uc.company_id = c.id AND uc.is_default = true LIMIT 1) AS owner_name,
+              WHERE uc.company_id = c.id
+              ORDER BY uc.is_default DESC, uc.created_at ASC
+              LIMIT 1) AS owner_name,
              (SELECT p.name FROM subscriptions s
               JOIN plans p ON p.id = s.plan_id
               WHERE s.company_id = c.id ORDER BY s.created_at DESC LIMIT 1) AS plan_name,
@@ -298,7 +302,9 @@ router.get('/companies/:id', async (req, res, next) => {
     const rs = await pool.query(`
       SELECT c.id, c.name, c.email, c.phone, c.is_active, c.review_status, c.review_notes, c.created_at,
              (SELECT u.name FROM users u JOIN user_companies uc ON uc.user_id = u.id
-              WHERE uc.company_id = c.id AND uc.is_default = true LIMIT 1) AS owner_name,
+              WHERE uc.company_id = c.id
+              ORDER BY uc.is_default DESC, uc.created_at ASC
+              LIMIT 1) AS owner_name,
              (SELECT s.plan_id FROM subscriptions s
               WHERE s.company_id = c.id ORDER BY s.created_at DESC LIMIT 1) AS plan_id,
              (SELECT p.name FROM subscriptions s JOIN plans p ON p.id = s.plan_id
@@ -833,10 +839,14 @@ const SIGNUP_COLS = `
   c.created_at,
   (SELECT u.name FROM users u
    JOIN user_companies uc ON uc.user_id = u.id
-   WHERE uc.company_id = c.id AND uc.is_default = true LIMIT 1) AS owner_name,
+   WHERE uc.company_id = c.id
+   ORDER BY uc.is_default DESC, uc.created_at ASC
+   LIMIT 1) AS owner_name,
   (SELECT u.email_verified_at FROM users u
    JOIN user_companies uc ON uc.user_id = u.id
-   WHERE uc.company_id = c.id AND uc.is_default = true LIMIT 1) AS email_verified_at,
+   WHERE uc.company_id = c.id
+   ORDER BY uc.is_default DESC, uc.created_at ASC
+   LIMIT 1) AS email_verified_at,
   (SELECT p.name FROM subscriptions s
    JOIN plans p ON p.id = s.plan_id
    WHERE s.company_id = c.id ORDER BY s.created_at DESC LIMIT 1) AS plan_name,
