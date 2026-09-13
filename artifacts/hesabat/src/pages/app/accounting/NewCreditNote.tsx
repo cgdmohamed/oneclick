@@ -15,7 +15,13 @@ import { toast } from 'sonner';
 import type { CreditNote } from './types';
 
 interface Customer { id: string; name: string }
-interface Product { id: string; name: string; price: string | number }
+interface Product {
+  id: string;
+  name: string;
+  price: string | number;
+  vat_status?: 'taxable' | 'exempt' | 'zero_rated';
+  vat_rate?: string | number | null;
+}
 interface InvoiceRow { id: string; client_id: string; number: string; status: string }
 interface InvoiceItem { id: string; product_id: string | null; description: string; quantity: string | number; unit_price: string | number; vat_rate?: string | number }
 interface InvoiceDetails extends InvoiceRow { items: InvoiceItem[] }
@@ -72,6 +78,19 @@ const NewCreditNote = () => {
   }, [items]);
 
   const updateItem = (idx: number, patch: Partial<ItemForm>) => setItems((prev) => prev.map((item, i) => i === idx ? { ...item, ...patch } : item));
+  const pickProduct = (idx: number, productId: string) => {
+    if (productId === 'none') {
+      updateItem(idx, { product_id: '' });
+      return;
+    }
+    const product = (products.data ?? []).find((p) => p.id === productId);
+    updateItem(idx, {
+      product_id: productId,
+      description: product?.name ?? items[idx]?.description ?? '',
+      unit_price: product ? String(product.price ?? 0) : items[idx]?.unit_price ?? '',
+      vat_rate: product ? String(product.vat_status === 'taxable' ? Number(product.vat_rate ?? 15) : 0) : items[idx]?.vat_rate ?? '15',
+    });
+  };
   const fillFromInvoice = () => {
     const invoice = selectedInvoice.data;
     if (!invoice) return;
@@ -141,7 +160,7 @@ const NewCreditNote = () => {
       <Card className="p-4 border-border/60 space-y-3">
         {items.map((item, idx) => (
           <div key={idx} className="grid md:grid-cols-9 gap-3 items-end">
-            <div><Label>المنتج</Label><Select value={item.product_id || 'none'} onValueChange={(v) => updateItem(idx, { product_id: v === 'none' ? '' : v, description: (products.data ?? []).find((p) => p.id === v)?.name ?? item.description })}><SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="none">بدون منتج</SelectItem>{(products.data ?? []).map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select></div>
+            <div><Label>المنتج</Label><Select value={item.product_id || 'none'} onValueChange={(v) => pickProduct(idx, v)}><SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="none">بدون منتج</SelectItem>{(products.data ?? []).map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select></div>
             <div className="md:col-span-2"><Label>الوصف</Label><Input className="mt-1.5" value={item.description} onChange={(e) => updateItem(idx, { description: e.target.value })} /></div>
             <div><Label>الكمية</Label><Input className="mt-1.5" type="number" value={item.quantity} onChange={(e) => updateItem(idx, { quantity: e.target.value })} /></div>
             <div><Label>سعر الوحدة</Label><Input className="mt-1.5" type="number" value={item.unit_price} onChange={(e) => updateItem(idx, { unit_price: e.target.value })} /></div>

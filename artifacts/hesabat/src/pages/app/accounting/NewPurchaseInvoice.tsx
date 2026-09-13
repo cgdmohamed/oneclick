@@ -21,6 +21,7 @@ interface Product {
   barcode?: string | null;
   product_type?: 'stock' | 'service' | 'non_stock' | 'expense';
   cost?: string | number;
+  average_cost?: string | number;
   vat_status?: 'taxable' | 'exempt' | 'zero_rated';
   vat_rate?: string | number;
 }
@@ -131,7 +132,7 @@ const NewPurchaseInvoice = () => {
                   product_id: value,
                   expense_account_id: p?.product_type === 'stock' ? '' : item.expense_account_id,
                   description: p?.name ?? item.description,
-                  unit_cost: String(p?.cost ?? item.unit_cost),
+                  unit_cost: String(p?.cost ?? p?.average_cost ?? item.unit_cost),
                   vat_rate: String(p?.vat_status === 'taxable' ? Number(p?.vat_rate ?? item.vat_rate) : 0),
                 });
               }

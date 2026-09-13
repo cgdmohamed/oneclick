@@ -14,7 +14,14 @@ import { toast } from 'sonner';
 import type { PurchaseInvoice, PurchaseReturn } from './types';
 
 interface Supplier { id: string; name: string }
-interface Product { id: string; name: string; cost?: string | number }
+interface Product {
+  id: string;
+  name: string;
+  cost?: string | number;
+  average_cost?: string | number;
+  vat_status?: 'taxable' | 'exempt' | 'zero_rated';
+  vat_rate?: string | number | null;
+}
 interface ItemForm { product_id: string; quantity: string; unit_cost: string; vat_rate: string }
 
 const blankItem = (): ItemForm => ({ product_id: '', quantity: '1', unit_cost: '', vat_rate: '15' });
@@ -109,7 +116,11 @@ const NewPurchaseReturn = () => {
           <div key={idx} className="grid xl:grid-cols-[1.6fr_0.8fr_0.9fr_0.7fr_auto] gap-2 items-end">
             <div><Label>المنتج</Label><select className="mt-1.5 h-10 w-full rounded-md border bg-background px-3 text-sm" value={item.product_id} onChange={(e) => {
               const p = (products.data ?? []).find((prod) => prod.id === e.target.value);
-              updateItem(idx, { product_id: e.target.value, unit_cost: String(p?.cost ?? item.unit_cost) });
+              updateItem(idx, {
+                product_id: e.target.value,
+                unit_cost: String(p?.cost ?? p?.average_cost ?? item.unit_cost),
+                vat_rate: String(p ? (p.vat_status === 'taxable' ? Number(p.vat_rate ?? item.vat_rate) : 0) : item.vat_rate),
+              });
             }}><option value="">اختر منتجاً</option>{(products.data ?? []).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div>
             <div><Label>الكمية</Label><Input className="mt-1.5" type="number" value={item.quantity} onChange={(e) => updateItem(idx, { quantity: e.target.value })} /></div>
             <div><Label>تكلفة الوحدة</Label><Input className="mt-1.5" type="number" value={item.unit_cost} onChange={(e) => updateItem(idx, { unit_cost: e.target.value })} /></div>
