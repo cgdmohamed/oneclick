@@ -1,5 +1,5 @@
 import pg from 'pg';
-import { createJournalEntry, ensureAccountingSetup, ensureFiscalYear, reverseJournalEntry } from '../src/modules/accounting/posting.js';
+import { createJournalEntry, ensureAccountingSetup, ensureFiscalYear, postSalesInvoice, reverseJournalEntry } from '../src/modules/accounting/posting.js';
 
 const { Pool } = pg;
 
@@ -288,6 +288,32 @@ async function run() {
     await assertBalancedJournals(client, companyId);
     await assertTrialBalance(client, companyId);
     await assertBalanceSheet(client, companyId, '2026-12-31');
+
+    const qaCustomer = await one<{ id: string }>(
+      client,
+      `INSERT INTO clients (company_id, name) VALUES ($1, 'QA Posting Customer') RETURNING id`,
+      [companyId],
+    );
+    const operationalInvoice = await one<{ id: string }>(
+      client,
+      `INSERT INTO invoices
+       (company_id, number, client_id, issue_date, status, subtotal, vat_amount, discount, total, paid, remaining, created_by)
+       VALUES ($1, 'QA-POST-001', $2, '2027-01-15', 'sent', 100, 14, 0, 114, 0, 114, $3)
+       RETURNING id`,
+      [companyId, qaCustomer.id, user.id],
+    );
+    await client.query(
+      `INSERT INTO invoice_items
+       (company_id, invoice_id, description, quantity, unit_price, vat_rate, line_total)
+       VALUES ($1, $2, 'QA service posting item', 1, 100, 14, 114)`,
+      [companyId, operationalInvoice.id],
+    );
+    const salesPostingJournalId = await postSalesInvoice(client, companyId, operationalInvoice.id, user.id);
+    if (!salesPostingJournalId) fail('Sales invoice posting did not create a journal entry');
+    results.push('Operational sales invoice posting: postSalesInvoice');
+    await assertBalancedJournals(client, companyId);
+    await assertTrialBalance(client, companyId);
+    await assertBalanceSheet(client, companyId, '2027-01-15');
 
     await client.query('ROLLBACK');
     console.log(JSON.stringify({ ok: true, company_id: companyId, journal_entries_tested: results.length, scenarios: results }, null, 2));

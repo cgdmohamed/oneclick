@@ -141,10 +141,11 @@ Validated scenarios:
 - Inventory write-off.
 - Journal reversal.
 - Year-end closing.
+- Operational sales invoice posting through `postSalesInvoice`.
 
 Validated reconciliation checks:
 
-- 19 generated journal entries/reversal/closing scenarios were tested.
+- 20 generated journal entries/reversal/closing/posting scenarios were tested.
 - Every journal entry balanced.
 - Trial Balance debit total equaled credit total.
 - Balance Sheet satisfied Assets = Liabilities + Equity before year-end closing.

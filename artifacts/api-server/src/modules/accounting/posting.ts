@@ -397,7 +397,7 @@ export async function postSalesInvoice(db: Queryable, companyId: string, invoice
      LEFT JOIN product_categories pc ON pc.id = p.category_id AND pc.company_id = p.company_id
      LEFT JOIN product_categories parent_pc ON parent_pc.id = pc.parent_id AND parent_pc.company_id = pc.company_id
      WHERE ii.invoice_id = $1 AND ii.company_id = $2
-     GROUP BY ii.cost_center_id, account_id`,
+     GROUP BY 1, 2`,
     [invoiceId, companyId, s.sales_revenue_account_id],
   );
   const subtotal = Number(inv.subtotal) || 0;
@@ -432,7 +432,7 @@ export async function postSalesInvoice(db: Queryable, companyId: string, invoice
      LEFT JOIN product_categories parent_pc ON parent_pc.id = pc.parent_id AND parent_pc.company_id = pc.company_id
      WHERE ii.invoice_id = $1 AND ii.company_id = $2
        AND p.product_type = 'stock'
-     GROUP BY ii.cost_center_id, cogs_account_id, inventory_account_id`,
+     GROUP BY 1, 2, 3`,
     [invoiceId, companyId, s.cogs_account_id, s.inventory_account_id],
   );
   for (const row of cogs.rows) {
