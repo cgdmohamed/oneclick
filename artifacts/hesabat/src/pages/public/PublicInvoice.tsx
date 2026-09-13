@@ -50,19 +50,33 @@ const PublicInvoice = () => {
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
+    const load = async (showLoading = true) => {
+      if (showLoading) setLoading(true);
       try {
-        const res = await fetch(`${API_URL}/api/public/invoices/${publicId}`);
+        const res = await fetch(`${API_URL}/api/public/invoices/${publicId}`, { cache: 'no-store' });
         if (!res.ok) { if (!cancelled) setNotFound(true); return; }
         const json = await res.json();
-        if (!cancelled) setData(json.data);
+        if (!cancelled) {
+          setData(json.data);
+          setNotFound(false);
+        }
       } catch {
         if (!cancelled) setNotFound(true);
       } finally {
         if (!cancelled) setLoading(false);
       }
-    })();
-    return () => { cancelled = true; };
+    };
+    const refreshOnFocus = () => {
+      if (document.visibilityState === 'visible') void load(false);
+    };
+    void load();
+    window.addEventListener('focus', refreshOnFocus);
+    document.addEventListener('visibilitychange', refreshOnFocus);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('focus', refreshOnFocus);
+      document.removeEventListener('visibilitychange', refreshOnFocus);
+    };
   }, [publicId]);
 
   if (loading) return <div className="container py-12 text-center text-muted-foreground">جارٍ التحميل…</div>;

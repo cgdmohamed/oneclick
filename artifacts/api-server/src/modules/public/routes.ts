@@ -61,6 +61,16 @@ const EGP_CURRENCY_SYMBOL = 'ج.م';
 router.get('/invoices/:publicId', async (req, res, next) => {
   try {
     const { invoice, items } = await loadByPublicId(req.params.publicId);
+    let qrPublicVisible = invoice.qr_public_visible !== false;
+    try {
+      const qrRs = await pool.query<{ qr_public_visible: boolean }>(
+        `SELECT qr_public_visible FROM invoices WHERE public_id = $1 LIMIT 1`,
+        [req.params.publicId],
+      );
+      if (qrRs.rowCount) qrPublicVisible = qrRs.rows[0].qr_public_visible !== false;
+    } catch {
+      // Older databases before migration 044 simply default to showing QR.
+    }
     res.json({
       data: {
         id:              invoice.id,
@@ -86,7 +96,7 @@ router.get('/invoices/:publicId', async (req, res, next) => {
         company_stamp:   invoice.company_stamp,
         currency:        EGP_CURRENCY_CODE,
         currency_symbol: EGP_CURRENCY_SYMBOL,
-        qr_public_visible: invoice.qr_public_visible !== false,
+        qr_public_visible: qrPublicVisible,
         items: items.map((r, i) => ({
           id: String(i),
           name: r.description,

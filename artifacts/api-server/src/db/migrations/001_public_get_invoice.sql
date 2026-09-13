@@ -1,6 +1,9 @@
 -- Migration 001: public_get_invoice(uuid) → jsonb
 -- SECURITY DEFINER so callers need no tenant context (no SET LOCAL required).
 -- Used by /api/public/invoices/:publicId to serve public invoice data + PDFs.
+ALTER TABLE invoices
+  ADD COLUMN IF NOT EXISTS qr_public_visible BOOLEAN NOT NULL DEFAULT TRUE;
+
 CREATE OR REPLACE FUNCTION public_get_invoice(p_public_id uuid)
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -16,7 +19,8 @@ BEGIN
   SELECT i.id, i.number, i.public_id, i.issue_date, i.due_date,
          i.status, i.subtotal, i.vat_amount, i.discount,
          i.total, i.paid, i.remaining, i.notes,
-         i.company_id, i.client_id
+         i.company_id, i.client_id,
+         COALESCE(i.qr_public_visible, TRUE) AS qr_public_visible
   INTO v_invoice
   FROM invoices i
   WHERE i.public_id = p_public_id
@@ -63,6 +67,7 @@ BEGIN
       'paid',           v_invoice.paid,
       'remaining',      v_invoice.remaining,
       'notes',          v_invoice.notes,
+      'qr_public_visible', v_invoice.qr_public_visible,
       'client_name',    v_client.name,
       'client_email',   v_client.email,
       'client_phone',   v_client.phone,
