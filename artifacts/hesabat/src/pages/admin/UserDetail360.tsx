@@ -9,12 +9,64 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ArrowRight, Mail, Building2, Crown, FileText, CreditCard, Activity, ShieldCheck, Wallet, AlertCircle } from 'lucide-react';
 import { api, ApiError, isApiConfigured } from '@/lib/api';
-import { roleLabel, formatDate, formatDateShort } from '@/lib/format';
+import { roleLabel, formatCurrency, formatDate, formatDateShort, invoiceStatusLabel, paymentMethodLabel } from '@/lib/format';
 
 interface ApiCompany {
   company_id: string;
   company_name: string;
   role: string;
+  is_active?: boolean;
+  review_status?: string;
+  created_at?: string;
+  users_count?: number;
+  stats?: {
+    invoices_count: number;
+    total_sales: string;
+    total_paid: string;
+    total_remaining: string;
+  } | null;
+  subscription?: {
+    status: string;
+    started_at: string;
+    expires_at: string | null;
+    amount: string;
+    plan_name: string;
+    plan_code: string;
+    max_users: number;
+    max_invoices_monthly: number;
+  } | null;
+}
+
+interface ApiInvoice {
+  id: string;
+  number: string;
+  issue_date: string;
+  status: string;
+  total: string;
+  paid: string;
+  remaining: string;
+  company_name: string;
+  client_name: string | null;
+}
+
+interface ApiPayment {
+  id: string;
+  amount: string;
+  paid_at: string;
+  method: string;
+  reference: string | null;
+  company_name: string;
+  account_name: string | null;
+  invoice_number: string | null;
+}
+
+interface ApiActivity {
+  id: string;
+  action: string;
+  entity: string;
+  entity_id: string | null;
+  created_at: string;
+  company_name: string | null;
 }
 
 interface ApiUser {
@@ -22,8 +74,15 @@ interface ApiUser {
   email: string;
   name: string;
   is_super_admin: boolean;
+  disabled?: boolean;
+  email_verified_at?: string | null;
+  onboarding_done?: boolean;
   created_at: string;
+  updated_at?: string;
   companies: ApiCompany[] | null;
+  recent_invoices?: ApiInvoice[];
+  recent_payments?: ApiPayment[];
+  activity?: ApiActivity[];
 }
 
 const UserDetail360 = () => {
@@ -90,6 +149,17 @@ const UserDetail360 = () => {
   const companies = user.companies ?? [];
   const primaryCompany = companies[0] ?? null;
   const displayRole = user.is_super_admin ? 'super_admin' : (primaryCompany?.role ?? 'viewer');
+  const totals = companies.reduce((acc, company) => {
+    const stats = company.stats;
+    acc.invoices += Number(stats?.invoices_count ?? 0);
+    acc.sales += Number(stats?.total_sales ?? 0);
+    acc.paid += Number(stats?.total_paid ?? 0);
+    acc.remaining += Number(stats?.total_remaining ?? 0);
+    return acc;
+  }, { invoices: 0, sales: 0, paid: 0, remaining: 0 });
+  const recentInvoices = user.recent_invoices ?? [];
+  const recentPayments = user.recent_payments ?? [];
+  const activity = user.activity ?? [];
 
   return (
     <div>
@@ -132,10 +202,10 @@ const UserDetail360 = () => {
       </Card>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
-        <EmptyStatCard title="إجمالي الفواتير" icon={FileText} accent="primary" />
-        <EmptyStatCard title="إجمالي المبيعات" icon={Wallet} accent="success" />
-        <EmptyStatCard title="إجمالي المحصّل" icon={CreditCard} accent="info" />
-        <EmptyStatCard title="متبقي على العملاء" icon={Activity} accent="warning" />
+        <StatCard title="إجمالي الفواتير" value={totals.invoices.toLocaleString('en-US')} icon={FileText} tone="primary" />
+        <StatCard title="إجمالي المبيعات" value={formatCurrency(totals.sales)} icon={Wallet} tone="success" />
+        <StatCard title="إجمالي المحصّل" value={formatCurrency(totals.paid)} icon={CreditCard} tone="info" />
+        <StatCard title="متبقي على العملاء" value={formatCurrency(totals.remaining)} icon={Activity} tone="warning" />
       </div>
 
       <Tabs dir="rtl" defaultValue="overview">
@@ -156,6 +226,9 @@ const UserDetail360 = () => {
                 <Row label="الاسم">{user.name}</Row>
                 <Row label="البريد">{user.email}</Row>
                 <Row label="الدور">{roleLabel(displayRole)}</Row>
+                <Row label="حالة الحساب">{user.disabled ? 'معطل' : 'نشط'}</Row>
+                <Row label="تأكيد البريد">{user.email_verified_at ? 'مؤكد' : 'غير مؤكد'}</Row>
+                <Row label="اكتمل الإعداد">{user.onboarding_done ? 'نعم' : 'لا'}</Row>
                 <Row label="تاريخ التسجيل">{formatDate(user.created_at)}</Row>
                 <Row label="الشركة الأساسية">{primaryCompany?.company_name ?? 'منصة ون كليك'}</Row>
               </dl>
@@ -174,7 +247,9 @@ const UserDetail360 = () => {
                       </Avatar>
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-medium truncate">{c.company_name}</div>
-                        <div className="text-xs text-muted-foreground truncate">{formatDateShort(user.created_at)}</div>
+                        <div className="text-xs text-muted-foreground truncate">
+                          {c.users_count ?? 0} مستخدم · {c.stats?.invoices_count ?? 0} فاتورة
+                        </div>
                       </div>
                       <Badge variant="outline" className="text-xs">{roleLabel(c.role)}</Badge>
                     </li>
@@ -186,19 +261,74 @@ const UserDetail360 = () => {
         </TabsContent>
 
         <TabsContent value="subscription" className="mt-4">
-          <ComingSoonCard message="بيانات الاشتراك غير متاحة بعد." />
+          <Card className="p-5 border-border/60 shadow-soft">
+            <h3 className="font-semibold mb-3">الاشتراكات</h3>
+            <SimpleTable
+              empty="لا توجد اشتراكات مرتبطة."
+              headers={['الشركة', 'الباقة', 'الحالة', 'المبلغ', 'المستخدمون', 'ينتهي في']}
+              rows={companies.map(company => [
+                company.company_name,
+                company.subscription?.plan_name ?? '—',
+                subscriptionStatusLabel(company.subscription?.status),
+                formatCurrency(Number(company.subscription?.amount ?? 0)),
+                `${company.users_count ?? 0} / ${company.subscription?.max_users ?? '—'}`,
+                company.subscription?.expires_at ? formatDateShort(company.subscription.expires_at) : '—',
+              ])}
+            />
+          </Card>
         </TabsContent>
 
         <TabsContent value="invoices" className="mt-4">
-          <ComingSoonCard message="بيانات الفواتير غير متاحة بعد." />
+          <Card className="p-5 border-border/60 shadow-soft">
+            <h3 className="font-semibold mb-3">آخر الفواتير</h3>
+            <SimpleTable
+              empty="لا توجد فواتير مرتبطة."
+              headers={['الرقم', 'الشركة', 'العميل', 'التاريخ', 'الحالة', 'الإجمالي', 'المتبقي']}
+              rows={recentInvoices.map(invoice => [
+                invoice.number,
+                invoice.company_name,
+                invoice.client_name ?? '—',
+                formatDateShort(invoice.issue_date),
+                invoiceStatusLabel(invoice.status),
+                formatCurrency(Number(invoice.total)),
+                formatCurrency(Number(invoice.remaining)),
+              ])}
+            />
+          </Card>
         </TabsContent>
 
         <TabsContent value="payments" className="mt-4">
-          <ComingSoonCard message="بيانات المدفوعات غير متاحة بعد." />
+          <Card className="p-5 border-border/60 shadow-soft">
+            <h3 className="font-semibold mb-3">آخر المدفوعات</h3>
+            <SimpleTable
+              empty="لا توجد مدفوعات مرتبطة."
+              headers={['التاريخ', 'الشركة', 'الفاتورة', 'الحساب', 'الطريقة', 'المبلغ']}
+              rows={recentPayments.map(payment => [
+                formatDateShort(payment.paid_at),
+                payment.company_name,
+                payment.invoice_number ?? payment.reference ?? '—',
+                payment.account_name ?? '—',
+                paymentMethodLabel(payment.method),
+                formatCurrency(Number(payment.amount)),
+              ])}
+            />
+          </Card>
         </TabsContent>
 
         <TabsContent value="activity" className="mt-4">
-          <ComingSoonCard message="سجل النشاط غير متاح بعد." />
+          <Card className="p-5 border-border/60 shadow-soft">
+            <h3 className="font-semibold mb-3">سجل النشاط</h3>
+            <SimpleTable
+              empty="لا يوجد نشاط مسجل لهذا المستخدم."
+              headers={['التاريخ', 'الشركة', 'الإجراء', 'الكيان']}
+              rows={activity.map(item => [
+                formatDateShort(item.created_at),
+                item.company_name ?? 'المنصة',
+                item.action,
+                item.entity,
+              ])}
+            />
+          </Card>
         </TabsContent>
 
         <TabsContent value="permissions" className="mt-4">
@@ -238,24 +368,62 @@ const Row = ({ label, children }: { label: string; children: React.ReactNode }) 
   </div>
 );
 
-const EmptyStatCard = ({ title, icon: Icon, accent }: { title: string; icon: React.ElementType; accent: string }) => (
-  <Card className={`p-4 border-border/60 shadow-soft border-t-2 border-t-${accent}/40`}>
+const toneClasses: Record<string, { border: string; bg: string; text: string }> = {
+  primary: { border: 'border-t-primary/40', bg: 'bg-primary/10', text: 'text-primary' },
+  success: { border: 'border-t-success/40', bg: 'bg-success/10', text: 'text-success' },
+  info: { border: 'border-t-info/40', bg: 'bg-info/10', text: 'text-info' },
+  warning: { border: 'border-t-warning/40', bg: 'bg-warning/10', text: 'text-warning' },
+};
+
+const StatCard = ({ title, value, icon: Icon, tone }: { title: string; value: string; icon: React.ElementType; tone: string }) => {
+  const classes = toneClasses[tone] ?? toneClasses.primary;
+  return (
+  <Card className={`p-4 border-border/60 shadow-soft border-t-2 ${classes.border}`}>
     <div className="flex items-start justify-between gap-2">
       <div>
         <p className="text-xs text-muted-foreground mb-1">{title}</p>
-        <p className="text-xl font-bold text-muted-foreground/50">—</p>
+        <p className="text-xl font-bold whitespace-nowrap">{value}</p>
       </div>
-      <div className={`p-2 rounded-lg bg-${accent}/10`}>
-        <Icon className={`h-4 w-4 text-${accent}`} />
+      <div className={`p-2 rounded-lg ${classes.bg}`}>
+        <Icon className={`h-4 w-4 ${classes.text}`} />
       </div>
     </div>
   </Card>
+  );
+};
+
+const SimpleTable = ({ headers, rows, empty }: { headers: string[]; rows: React.ReactNode[][]; empty: string }) => (
+  <div className="overflow-x-auto">
+    <table className="w-full text-sm">
+      <thead>
+        <tr className="border-b text-muted-foreground">
+          {headers.map(header => <th key={header} className="text-start py-2 px-3 font-medium whitespace-nowrap">{header}</th>)}
+        </tr>
+      </thead>
+      <tbody>
+        {rows.length === 0 ? (
+          <tr><td colSpan={headers.length} className="py-8 text-center text-muted-foreground">{empty}</td></tr>
+        ) : rows.map((row, index) => (
+          <tr key={index} className="border-b last:border-0">
+            {row.map((cell, cellIndex) => (
+              <td key={cellIndex} className="py-2.5 px-3 whitespace-nowrap">{cell}</td>
+            ))}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
 );
 
-const ComingSoonCard = ({ message }: { message: string }) => (
-  <Card className="p-8 border-border/60 shadow-soft text-center">
-    <p className="text-sm text-muted-foreground">{message}</p>
-  </Card>
-);
+function subscriptionStatusLabel(status?: string | null) {
+  switch (status) {
+    case 'active': return 'نشط';
+    case 'trialing': return 'تجريبي';
+    case 'past_due': return 'متأخر';
+    case 'cancelled': return 'ملغي';
+    case 'expired': return 'منتهي';
+    default: return '—';
+  }
+}
 
 export default UserDetail360;

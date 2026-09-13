@@ -1108,15 +1108,49 @@ router.get('/users/:id', async (req, res, next) => {
   try {
     const rs = await pool.query(
       `SELECT
-        u.id, u.email, u.name, u.is_super_admin, u.created_at,
+        u.id, u.email, u.name, u.is_super_admin, u.disabled, u.email_verified_at,
+        u.onboarding_done, u.created_at, u.updated_at,
         json_agg(
           json_build_object(
             'company_id', uc.company_id,
             'company_name', c.name,
+            'is_active', c.is_active,
+            'review_status', c.review_status,
+            'created_at', c.created_at,
             'role', COALESCE(
               (SELECT ur.role FROM user_roles ur
                WHERE ur.user_id = u.id AND ur.company_id = uc.company_id LIMIT 1),
               'viewer'
+            ),
+            'subscription', (
+              SELECT json_build_object(
+                'status', s.status,
+                'started_at', s.started_at,
+                'expires_at', s.expires_at,
+                'amount', s.amount,
+                'plan_name', p.name,
+                'plan_code', p.code,
+                'max_users', p.max_users,
+                'max_invoices_monthly', p.max_invoices_monthly
+              )
+              FROM subscriptions s
+              JOIN plans p ON p.id = s.plan_id
+              WHERE s.company_id = c.id
+              ORDER BY s.created_at DESC
+              LIMIT 1
+            ),
+            'stats', (
+              SELECT json_build_object(
+                'invoices_count', COUNT(i.id)::int,
+                'total_sales', COALESCE(SUM(i.total),0),
+                'total_paid', COALESCE(SUM(i.paid),0),
+                'total_remaining', COALESCE(SUM(i.remaining),0)
+              )
+              FROM invoices i
+              WHERE i.company_id = c.id AND i.status != 'cancelled'
+            ),
+            'users_count', (
+              SELECT COUNT(*)::int FROM user_companies uc2 WHERE uc2.company_id = c.id
             )
           )
         ) FILTER (WHERE uc.company_id IS NOT NULL) AS companies
@@ -1128,7 +1162,50 @@ router.get('/users/:id', async (req, res, next) => {
       [req.params.id],
     );
     if (!rs.rowCount) throw notFound('User not found');
-    res.json(rs.rows[0]);
+    const companyIds = (rs.rows[0].companies ?? []).map((company: { company_id: string }) => company.company_id);
+    const recentInvoices = companyIds.length
+      ? await pool.query(
+          `SELECT i.id, i.number, i.issue_date, i.status, i.total, i.paid, i.remaining,
+                  c.name AS company_name, cl.name AS client_name
+           FROM invoices i
+           JOIN companies c ON c.id = i.company_id
+           LEFT JOIN clients cl ON cl.id = i.client_id
+           WHERE i.company_id = ANY($1::uuid[])
+           ORDER BY i.issue_date DESC, i.created_at DESC
+           LIMIT 10`,
+          [companyIds],
+        )
+      : { rows: [] };
+    const recentPayments = companyIds.length
+      ? await pool.query(
+          `SELECT p.id, p.amount, p.paid_at, p.method, p.reference,
+                  c.name AS company_name, a.name AS account_name,
+                  i.number AS invoice_number
+           FROM payments p
+           JOIN companies c ON c.id = p.company_id
+           LEFT JOIN accounts a ON a.id = p.account_id
+           LEFT JOIN invoices i ON i.id = p.invoice_id
+           WHERE p.company_id = ANY($1::uuid[])
+           ORDER BY p.paid_at DESC, p.created_at DESC
+           LIMIT 10`,
+          [companyIds],
+        )
+      : { rows: [] };
+    const activity = await pool.query(
+      `SELECT a.id, a.action, a.entity, a.entity_id, a.created_at, c.name AS company_name
+       FROM audit_log a
+       LEFT JOIN companies c ON c.id = a.company_id
+       WHERE a.user_id = $1
+       ORDER BY a.created_at DESC
+       LIMIT 20`,
+      [req.params.id],
+    );
+    res.json({
+      ...rs.rows[0],
+      recent_invoices: recentInvoices.rows,
+      recent_payments: recentPayments.rows,
+      activity: activity.rows,
+    });
   } catch (e) { next(e); }
 });
 
