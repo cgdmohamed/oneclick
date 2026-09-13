@@ -12,13 +12,19 @@ router.get('/features', async (req, res, next) => {
   try {
     const t = req.tenant!;
     const rs = await t.db.query(`
+      WITH current_subscription AS (
+        SELECT plan_id
+        FROM subscriptions
+        WHERE company_id = $1
+          AND status IN ('active', 'trialing')
+        ORDER BY created_at DESC
+        LIMIT 1
+      )
       SELECT fa.feature_key
-      FROM subscriptions s
+      FROM current_subscription s
       JOIN feature_access fa ON fa.plan_id = s.plan_id
-      WHERE s.company_id = $1
-        AND s.status IN ('active', 'trialing')
-        AND fa.enabled = true
-      ORDER BY s.created_at DESC
+      WHERE fa.enabled = true
+      ORDER BY fa.feature_key
     `, [t.companyId]);
     res.json({ data: rs.rows.map((r: { feature_key: string }) => r.feature_key) });
   } catch (e) { next(e); }

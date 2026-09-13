@@ -660,6 +660,19 @@ router.put('/feature-access', async (req, res, next) => {
           [e.plan_id, e.feature_key, e.enabled],
         );
       }
+      const byPlan = new Map<string, string[]>();
+      for (const e of body.entries) {
+        if (!byPlan.has(e.plan_id)) byPlan.set(e.plan_id, []);
+        if (e.enabled) byPlan.get(e.plan_id)!.push(e.feature_key);
+      }
+      for (const [planId, enabledKeys] of byPlan.entries()) {
+        await c.query(
+          `UPDATE plans
+           SET features = jsonb_set(COALESCE(features, '{}'::jsonb), '{access}', to_jsonb($2::text[]), true)
+           WHERE id = $1`,
+          [planId, Array.from(new Set(enabledKeys))],
+        );
+      }
       await c.query('COMMIT');
     } catch (err) { await c.query('ROLLBACK'); throw err; } finally { c.release(); }
     await audit(pool, {
