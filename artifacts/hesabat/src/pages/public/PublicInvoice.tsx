@@ -7,7 +7,6 @@ import { BrandLogo } from '@/components/common/BrandLogo';
 import { formatCurrency, formatDate, invoiceStatusLabel } from '@/lib/format';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { PrintableQr } from '@/components/common/PrintableQr';
-import { isQrPublicVisible } from '@/hooks/useInvoiceQr';
 import { EmptyState } from '@/components/common/EmptyState';
 import { API_URL } from '@/lib/api';
 import { printElementOnly } from '@/lib/print';
@@ -36,6 +35,7 @@ interface PublicInvoiceData {
   company_stamp: string | null;
   currency: string | null;
   currency_symbol: string | null;
+  qr_public_visible?: boolean | null;
   items: Array<{ id: string; name: string; quantity: number; unit_price: number | string }>;
 }
 
@@ -155,13 +155,12 @@ const PublicInvoice = () => {
             </div>
           </div>
 
-          {isQrPublicVisible(data.id) && (
-            <PrintableQr
-              invoiceId={data.id}
-              value={`${window.location.origin}/invoice/${publicId}`}
-              invoiceNumber={data.number}
-            />
-          )}
+          <PrintableQr
+            invoiceId={data.id}
+            value={`${window.location.origin}/invoice/${publicId}`}
+            invoiceNumber={data.number}
+            visible={data.qr_public_visible !== false}
+          />
 
           {data.company_stamp && (
             <div className="mt-8 flex justify-end">

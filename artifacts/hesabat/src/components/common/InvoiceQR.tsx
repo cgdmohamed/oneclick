@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
@@ -8,28 +8,20 @@ import {
   useInvoiceQr,
   qrStorageKey,
   notifyQrChange,
-  isQrPublicVisible,
-  setQrPublicVisible,
 } from '@/hooks/useInvoiceQr';
 
 interface Props {
   invoiceId: string;
   value: string;
   invoiceNumber: string;
+  publicVisible: boolean;
+  onPublicVisibleChange: (visible: boolean) => void;
+  savingVisibility?: boolean;
 }
 
-export const InvoiceQR = ({ invoiceId, value, invoiceNumber }: Props) => {
+export const InvoiceQR = ({ invoiceId, value, invoiceNumber, publicVisible, onPublicVisibleChange, savingVisibility }: Props) => {
   const { src, custom } = useInvoiceQr(invoiceId, value);
   const fileRef = useRef<HTMLInputElement>(null);
-  const [publicVisible, setPublicVisibleState] = useState(true);
-
-  useEffect(() => { setPublicVisibleState(isQrPublicVisible(invoiceId)); }, [invoiceId]);
-
-  const togglePublic = (v: boolean) => {
-    setPublicVisibleState(v);
-    setQrPublicVisible(invoiceId, v);
-    toast.success(v ? 'سيظهر QR في الصفحة العامة' : 'تم إخفاء QR من الصفحة العامة');
-  };
 
   const onUpload = (file: File) => {
     if (!file.type.startsWith('image/')) return toast.error('يجب اختيار ملف صورة');
@@ -111,7 +103,8 @@ export const InvoiceQR = ({ invoiceId, value, invoiceNumber }: Props) => {
         <Switch
           id={`qr-public-${invoiceId}`}
           checked={publicVisible}
-          onCheckedChange={togglePublic}
+          onCheckedChange={onPublicVisibleChange}
+          disabled={savingVisibility}
         />
       </div>
     </div>

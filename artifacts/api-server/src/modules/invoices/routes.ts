@@ -448,6 +448,35 @@ router.post('/:id/cancel', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+router.patch('/:id/qr-visibility', async (req, res, next) => {
+  try {
+    const t = req.tenant!;
+    const body = z.object({
+      qr_public_visible: z.boolean(),
+    }).parse(req.body);
+
+    const rs = await t.db.query(
+      `UPDATE invoices
+       SET qr_public_visible = $1
+       WHERE id = $2 AND company_id = $3
+       RETURNING id, qr_public_visible`,
+      [body.qr_public_visible, req.params.id, t.companyId],
+    );
+    if (!rs.rowCount) throw notFound('Invoice not found');
+
+    await audit(t.db, {
+      companyId: t.companyId,
+      userId: req.auth!.userId,
+      action: 'invoice.qr_visibility',
+      entity: 'invoice',
+      entityId: req.params.id,
+      data: { qr_public_visible: body.qr_public_visible },
+    });
+
+    res.json({ data: rs.rows[0] });
+  } catch (e) { next(e); }
+});
+
 router.delete('/:id', async (req, res, next) => {
   try {
     const t = req.tenant!;

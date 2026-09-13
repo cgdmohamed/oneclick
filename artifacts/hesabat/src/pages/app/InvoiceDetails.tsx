@@ -29,6 +29,7 @@ interface ApiInvoice {
   subtotal: string | number; vat_amount: string | number; discount: string | number;
   total: string | number; paid: string | number; remaining: string | number;
   status: string; notes: string | null;
+  qr_public_visible?: boolean | null;
   client_name: string; client_email: string | null; client_tax: string | null;
   client_phone: string | null; client_whatsapp: string | null;
   items: ApiItem[]; payments: ApiPayment[];
@@ -142,6 +143,21 @@ const InvoiceDetails = () => {
   };
 
   const publicUrl = `${window.location.origin}/invoice/${invoice.publicId}`;
+  const qrPublicVisible = apiOn && apiInvoice ? apiInvoice.qr_public_visible !== false : true;
+
+  const updateQrVisibility = async (visible: boolean) => {
+    if (!apiOn) {
+      toast.error('تعديل ظهور QR يتطلب الاتصال بالخادم');
+      return;
+    }
+    try {
+      await api.patch(`/api/invoices/${invoice.id}/qr-visibility`, { qr_public_visible: visible });
+      await qc.invalidateQueries({ queryKey: ['invoice', invoice.id] });
+      toast.success(visible ? 'سيظهر QR في الفاتورة والطباعة' : 'تم إخفاء QR من الفاتورة والطباعة');
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : 'تعذّر تحديث ظهور QR');
+    }
+  };
 
   const sendEmail = async () => {
     if (apiOn) {
@@ -303,7 +319,7 @@ const InvoiceDetails = () => {
             <InvoiceSummary subtotal={invoice.subtotal} tax={invoice.tax} discount={invoice.discount} total={invoice.total} paid={paid} remaining={remaining} />
           </div>
 
-          <PrintableQr invoiceId={invoice.id} value={publicUrl} invoiceNumber={invoice.number} />
+          <PrintableQr invoiceId={invoice.id} value={publicUrl} invoiceNumber={invoice.number} visible={qrPublicVisible} />
 
           <div className="flex flex-wrap gap-2 mt-5 no-print">
             <Button variant="outline" size="sm" onClick={sendEmail}><Mail className="h-4 w-4 ml-1" /> إرسال عبر البريد الإلكتروني</Button>
@@ -321,7 +337,13 @@ const InvoiceDetails = () => {
         <div className="space-y-5">
           <InvoiceSummary subtotal={invoice.subtotal} tax={invoice.tax} discount={invoice.discount} total={invoice.total} paid={paid} remaining={remaining} />
 
-          <InvoiceQR invoiceId={invoice.id} value={publicUrl} invoiceNumber={invoice.number} />
+          <InvoiceQR
+            invoiceId={invoice.id}
+            value={publicUrl}
+            invoiceNumber={invoice.number}
+            publicVisible={qrPublicVisible}
+            onPublicVisibleChange={updateQrVisibility}
+          />
 
           <Card className="p-5 border-border/60">
             <h3 className="font-semibold mb-3">سجل المدفوعات</h3>
