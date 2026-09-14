@@ -17,7 +17,7 @@ import { api, ApiError, isApiConfigured } from '@/lib/api';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { EGP_CURRENCY_CODE } from '@/lib/currency';
 
-interface Item { id: string; name: string; quantity: number; unitPrice: number; productId?: string; vatRate?: number }
+interface Item { id: string; name: string; quantity: number; unitPrice: number; discount: number; productId?: string; vatRate?: number }
 interface Account { id: string; name: string; type: string; }
 
 /* ── Quick-create forms ─────────────────────────────────────────── */
@@ -52,7 +52,7 @@ const NewInvoice = ({ asModal = false, defaultClientId, onCancel, onCreated }: N
 
   /* Invoice state */
   const [clientId, setClientId] = useState('');
-  const [items, setItems]       = useState<Item[]>([{ id: 'i1', name: '', quantity: 1, unitPrice: 0, vatRate: 15 }]);
+  const [items, setItems]       = useState<Item[]>([{ id: 'i1', name: '', quantity: 1, unitPrice: 0, discount: 0, vatRate: 15 }]);
   const [taxRate, setTaxRate]   = useState(15);
   const [discount, setDiscount] = useState(0);
   const [dueDate, setDueDate]   = useState(new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10));
@@ -201,14 +201,20 @@ const NewInvoice = ({ asModal = false, defaultClientId, onCancel, onCreated }: N
   };
 
   /* ── Invoice line helpers ───────────────────────────────────── */
+  const lineGross = (it: Item) => it.quantity * it.unitPrice;
+  const lineDiscount = (it: Item) => Math.min(Math.max(Number(it.discount || 0), 0), lineGross(it));
+  const lineNet = (it: Item) => lineGross(it) - lineDiscount(it);
+
   const totals = useMemo(() => {
-    const subtotal = items.reduce((s, it) => s + it.quantity * it.unitPrice, 0);
-    const tax      = +items.reduce((s, it) => s + it.quantity * it.unitPrice * ((it.vatRate ?? taxRate) / 100), 0).toFixed(2);
-    const total    = +(subtotal + tax - discount).toFixed(2);
-    return { subtotal, tax, total };
+    const subtotal = items.reduce((s, it) => s + lineGross(it), 0);
+    const itemDiscount = items.reduce((s, it) => s + lineDiscount(it), 0);
+    const totalDiscount = discount + itemDiscount;
+    const tax      = +items.reduce((s, it) => s + lineGross(it) * ((it.vatRate ?? taxRate) / 100), 0).toFixed(2);
+    const total    = +Math.max(0, subtotal + tax - totalDiscount).toFixed(2);
+    return { subtotal, itemDiscount, totalDiscount, tax, total };
   }, [items, taxRate, discount]);
 
-  const addItem    = () => setItems(p => [...p, { id: `i${Date.now()}`, name: '', quantity: 1, unitPrice: 0, vatRate: taxRate }]);
+  const addItem    = () => setItems(p => [...p, { id: `i${Date.now()}`, name: '', quantity: 1, unitPrice: 0, discount: 0, vatRate: taxRate }]);
   const update     = (i: number, patch: Partial<Item>) => setItems(p => p.map((it, idx) => idx === i ? { ...it, ...patch } : it));
   const remove     = (i: number) => setItems(p => p.filter((_, idx) => idx !== i));
   const pickProduct = (i: number, pid: string) => {
@@ -229,7 +235,7 @@ const NewInvoice = ({ asModal = false, defaultClientId, onCancel, onCreated }: N
         const res = await api.post<{ data: { id: string } }>('/api/invoices', {
           client_id: clientId,
           due_date:  new Date(dueDate).toISOString(),
-          discount,
+          discount: totals.totalDiscount,
           draft,
           initial_collection: !draft && enableInitialCollection && collectionAmount > 0 ? {
             amount: collectionAmount,
@@ -312,7 +318,7 @@ const NewInvoice = ({ asModal = false, defaultClientId, onCancel, onCreated }: N
             <div className="space-y-2">
               {items.map((it, i) => (
                 <div key={it.id} className="grid grid-cols-12 gap-2 items-end p-3 rounded-lg border border-border/70 bg-card">
-                  <div className="col-span-12 md:col-span-4">
+                  <div className="col-span-12 md:col-span-3">
                     <Label className="text-xs">المنتج</Label>
                     <div className="flex gap-1 mt-0.5">
                       <Select value={it.productId ?? ''} onValueChange={(v) => pickProduct(i, v)}>
@@ -337,13 +343,17 @@ const NewInvoice = ({ asModal = false, defaultClientId, onCancel, onCreated }: N
                     <Label className="text-xs">الوصف</Label>
                     <Input value={it.name} onChange={e => update(i, { name: e.target.value })} placeholder="اسم المنتج/الخدمة" />
                   </div>
-                  <div className="col-span-4 md:col-span-2">
+                  <div className="col-span-4 md:col-span-1">
                     <Label className="text-xs">الكمية</Label>
                     <Input type="number" min={1} value={it.quantity} onChange={e => update(i, { quantity: Number(e.target.value) })} />
                   </div>
                   <div className="col-span-6 md:col-span-2">
                     <Label className="text-xs">سعر الوحدة</Label>
                     <Input type="number" min={0} step="0.01" value={it.unitPrice} onChange={e => update(i, { unitPrice: Number(e.target.value) })} />
+                  </div>
+                  <div className="col-span-6 md:col-span-1">
+                    <Label className="text-xs">خصم البند</Label>
+                    <Input type="number" min={0} step="0.01" value={it.discount} onChange={e => update(i, { discount: Number(e.target.value) })} />
                   </div>
                   <div className="col-span-6 md:col-span-1">
                     <Label className="text-xs">الضريبة</Label>
@@ -355,7 +365,7 @@ const NewInvoice = ({ asModal = false, defaultClientId, onCancel, onCreated }: N
                     </Button>
                   </div>
                   <div className="col-span-12 text-end text-sm text-muted-foreground">
-                    الإجمالي: <span className="font-semibold text-foreground">{formatCurrency(it.quantity * it.unitPrice)}</span>
+                    الإجمالي بعد خصم البند: <span className="font-semibold text-foreground">{formatCurrency(lineNet(it))}</span>
                   </div>
                 </div>
               ))}
@@ -369,15 +379,20 @@ const NewInvoice = ({ asModal = false, defaultClientId, onCancel, onCreated }: N
               <Input type="number" min={0} value={taxRate} onChange={e => setTaxRate(Number(e.target.value))} className="mt-1.5" />
             </div>
             <div>
-              <Label>الخصم</Label>
+              <Label>خصم إضافي على الفاتورة</Label>
               <Input type="number" min={0} value={discount} onChange={e => setDiscount(Number(e.target.value))} className="mt-1.5" />
+              {totals.itemDiscount > 0 && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  خصومات البنود: {formatCurrency(totals.itemDiscount)}
+                </p>
+              )}
             </div>
           </div>
         </Card>
 
         {/* ── Sidebar summary ── */}
         <div className="space-y-4">
-          <InvoiceSummary subtotal={totals.subtotal} tax={totals.tax} discount={discount} total={totals.total} paid={0} remaining={totals.total} />
+          <InvoiceSummary subtotal={totals.subtotal} tax={totals.tax} discount={totals.totalDiscount} total={totals.total} paid={0} remaining={totals.total} />
           <Card className="p-5 border-border/60 space-y-3">
             <label className="flex items-center gap-2 text-sm font-medium">
               <input type="checkbox" checked={enableInitialCollection} onChange={(e) => setEnableInitialCollection(e.target.checked)} />
