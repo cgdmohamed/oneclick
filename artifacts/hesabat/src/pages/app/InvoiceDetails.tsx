@@ -376,12 +376,13 @@ const InvoiceDetails = () => {
                 <Paperclip className="h-4 w-4 text-primary" />
                 ملحق داخلي
               </h3>
-              {internalAttachment.type === 'text' ? (
+              {internalAttachment.text && (
                 <div className="rounded-lg bg-muted/40 p-3 text-sm whitespace-pre-wrap">
                   <FileText className="h-4 w-4 inline-block ml-1 text-muted-foreground" />
                   {internalAttachment.text}
                 </div>
-              ) : (
+              )}
+              {internalAttachment.type === 'image' && (
                 <div className="space-y-3">
                   {internalAttachment.url && (
                     <img

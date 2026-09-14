@@ -212,6 +212,7 @@ router.post('/', enforceInvoiceLimit(), async (req, res, next) => {
       if (!String(upload.rows[0].mime_type).startsWith('image/')) throw badRequest('Internal attachment must be an image');
       if (upload.rows[0].is_public) throw badRequest('Internal attachment must be private');
       internalAttachmentType = 'image';
+      internalAttachmentText = internalAttachment.text?.trim() || null;
       internalAttachmentUploadId = internalAttachment.upload_id;
     }
     const initialAmount = round2(Number(body.initial_collection?.amount ?? 0));

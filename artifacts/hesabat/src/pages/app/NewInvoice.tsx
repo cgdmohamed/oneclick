@@ -10,7 +10,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Plus, Trash2, PackagePlus, UserPlus, AlertTriangle, Paperclip, Image as ImageIcon, X, Check, ChevronsUpDown } from 'lucide-react';
+import { Plus, Trash2, PackagePlus, UserPlus, AlertTriangle, Paperclip, Image as ImageIcon, X, Check, ChevronsUpDown, WalletCards } from 'lucide-react';
 import { formatCurrency } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -60,7 +60,6 @@ const NewInvoice = ({ asModal = false, defaultClientId, onCancel, onCreated }: N
   const [taxRate, setTaxRate]   = useState(15);
   const [discount, setDiscount] = useState(0);
   const [dueDate, setDueDate]   = useState(new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10));
-  const [enableInitialCollection, setEnableInitialCollection] = useState(false);
   const [initialCollection, setInitialCollection] = useState({ amount: '0', account_id: '', method: 'cash', reference: '', notes: '' });
   const [internalAttachment, setInternalAttachment] = useState<{
     type: 'none' | 'text' | 'image';
@@ -262,7 +261,7 @@ const NewInvoice = ({ asModal = false, defaultClientId, onCancel, onCreated }: N
       form.append('file', file);
       form.append('kind', 'attachment');
       const res = await api.upload<{ data: { id: string; url: string } }>('/api/uploads', form);
-      setInternalAttachment({ type: 'image', text: '', uploadId: res.data.id, fileName: file.name });
+      setInternalAttachment((prev) => ({ ...prev, type: 'image', uploadId: res.data.id, fileName: file.name }));
       toast.success('تم رفع الملحق الداخلي');
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : 'تعذّر رفع الملحق');
@@ -275,12 +274,10 @@ const NewInvoice = ({ asModal = false, defaultClientId, onCancel, onCreated }: N
   const submit = async (draft: boolean) => {
     if (!clientId) return toast.error('اختر عميلاً');
     if (items.some(it => !it.name || it.quantity <= 0)) return toast.error('أكمل بيانات بنود الفاتورة');
-    if (internalAttachment.type === 'text' && !internalAttachment.text.trim()) return toast.error('اكتب نص الملحق الداخلي أو ألغِ الملحق');
-    if (internalAttachment.type === 'image' && !internalAttachment.uploadId) return toast.error('ارفع صورة الملحق الداخلي أولاً');
     if (attachmentUploading) return toast.error('انتظر انتهاء رفع الملحق');
     const collectionAmount = Number(initialCollection.amount || 0);
-    if (!draft && enableInitialCollection && collectionAmount > totals.total + 0.005) return toast.error('مبلغ التحصيل أكبر من إجمالي الفاتورة');
-    if (!draft && enableInitialCollection && collectionAmount > 0 && !initialCollection.account_id) return toast.error('اختر حساب التحصيل');
+    if (collectionAmount > totals.total + 0.005) return toast.error('مبلغ التحصيل أكبر من إجمالي الفاتورة');
+    if (!draft && collectionAmount > 0 && !initialCollection.account_id) return toast.error('اختر حساب التحصيل');
     setSaving(true);
     try {
       if (isApiConfigured()) {
@@ -288,15 +285,16 @@ const NewInvoice = ({ asModal = false, defaultClientId, onCancel, onCreated }: N
           client_id: clientId,
           due_date:  new Date(dueDate).toISOString(),
           discount: totals.headerDiscount,
-          internal_attachment: internalAttachment.type === 'none' ? null : internalAttachment.type === 'text' ? {
-            type: 'text',
-            text: internalAttachment.text.trim(),
-          } : {
+          internal_attachment: internalAttachment.uploadId ? {
             type: 'image',
             upload_id: internalAttachment.uploadId,
-          },
+            text: internalAttachment.text.trim() || null,
+          } : internalAttachment.text.trim() ? {
+            type: 'text',
+            text: internalAttachment.text.trim(),
+          } : null,
           draft,
-          initial_collection: !draft && enableInitialCollection && collectionAmount > 0 ? {
+          initial_collection: !draft && collectionAmount > 0 ? {
             amount: collectionAmount,
             account_id: initialCollection.account_id,
             method: initialCollection.method,
@@ -377,8 +375,19 @@ const NewInvoice = ({ asModal = false, defaultClientId, onCancel, onCreated }: N
             </div>
             <div className="space-y-2">
               {items.map((it, i) => (
-                <div key={it.id} className="grid grid-cols-12 gap-2 items-end p-3 rounded-lg border border-border/70 bg-card">
-                  <div className="col-span-12 md:col-span-3">
+                <div key={it.id} className="rounded-lg border border-border/70 bg-card p-3 space-y-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <div className="text-sm font-medium">بند رقم {i + 1}</div>
+                      <div className="text-xs text-muted-foreground">اختر المنتج ثم عدّل الوصف والسعر عند الحاجة.</div>
+                    </div>
+                    <Button type="button" variant="ghost" size="icon" onClick={() => remove(i)} disabled={items.length === 1}>
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  </div>
+
+                  <div className="grid grid-cols-1 xl:grid-cols-[minmax(240px,1.1fr)_minmax(260px,1.3fr)] gap-3">
+                    <div>
                     <Label className="text-xs">المنتج</Label>
                     <div className="flex gap-1 mt-0.5">
                       <Popover open={productPickerOpen === it.id} onOpenChange={(open) => setProductPickerOpen(open ? it.id : null)}>
@@ -437,95 +446,38 @@ const NewInvoice = ({ asModal = false, defaultClientId, onCancel, onCreated }: N
                       </Button>
                     </div>
                   </div>
-                  <div className="col-span-12 md:col-span-2">
+                    <div>
                     <Label className="text-xs">الوصف</Label>
                     <Input value={it.name} onChange={e => update(i, { name: e.target.value })} placeholder="اسم المنتج/الخدمة" />
                   </div>
-                  <div className="col-span-4 md:col-span-1">
+                  </div>
+
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                    <div>
                     <Label className="text-xs">الكمية</Label>
                     <Input type="number" min={1} value={it.quantity} onChange={e => update(i, { quantity: Number(e.target.value) })} />
                   </div>
-                  <div className="col-span-6 md:col-span-2">
+                    <div>
                     <Label className="text-xs">سعر الوحدة</Label>
                     <Input type="number" min={0} step="0.01" value={it.unitPrice} onChange={e => update(i, { unitPrice: Number(e.target.value) })} />
                   </div>
-                  <div className="col-span-6 md:col-span-1">
+                    <div>
                     <Label className="text-xs">خصم البند</Label>
                     <Input type="number" min={0} step="0.01" value={it.discount} onChange={e => update(i, { discount: Number(e.target.value) })} />
                   </div>
-                  <div className="col-span-6 md:col-span-1">
+                    <div>
                     <Label className="text-xs">الضريبة</Label>
                     <Input type="number" min={0} step="0.01" value={it.vatRate ?? taxRate} onChange={e => update(i, { vatRate: Number(e.target.value) })} />
                   </div>
-                  <div className="col-span-2 md:col-span-1 flex justify-end">
-                    <Button type="button" variant="ghost" size="icon" onClick={() => remove(i)} disabled={items.length === 1}>
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
                   </div>
-                  <div className="col-span-12 text-end text-sm text-muted-foreground">
+
+                  <div className="rounded-md bg-muted/40 px-3 py-2 text-end text-sm text-muted-foreground">
                     الإجمالي بعد خصم البند: <span className="font-semibold text-foreground">{formatCurrency(lineNet(it))}</span>
                   </div>
                 </div>
               ))}
             </div>
           </div>
-
-          <Card className="p-4 border-border/60 bg-muted/20 space-y-3">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <div className="font-semibold inline-flex items-center gap-2">
-                  <Paperclip className="h-4 w-4 text-primary" />
-                  ملحق داخلي
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">لن يظهر في الرابط العام أو الطباعة.</p>
-              </div>
-              {internalAttachment.type !== 'none' && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setInternalAttachment({ type: 'none', text: '', uploadId: '', fileName: '' })}
-                >
-                  <X className="h-4 w-4 ml-1" /> إزالة
-                </Button>
-              )}
-            </div>
-            <Select
-              value={internalAttachment.type}
-              onValueChange={(value: 'none' | 'text' | 'image') => setInternalAttachment((prev) => ({ ...prev, type: value }))}
-            >
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">بدون ملحق</SelectItem>
-                <SelectItem value="text">نص داخلي</SelectItem>
-                <SelectItem value="image">صورة داخلية</SelectItem>
-              </SelectContent>
-            </Select>
-            {internalAttachment.type === 'text' && (
-              <Textarea
-                rows={3}
-                value={internalAttachment.text}
-                onChange={(e) => setInternalAttachment((prev) => ({ ...prev, text: e.target.value }))}
-                placeholder="اكتب ملاحظة أو ملحقًا داخليًا مرتبطًا بهذه الفاتورة..."
-              />
-            )}
-            {internalAttachment.type === 'image' && (
-              <div className="flex flex-wrap items-center gap-2">
-                <Button type="button" variant="outline" disabled={attachmentUploading} onClick={() => document.getElementById('invoice-internal-attachment')?.click()}>
-                  <ImageIcon className="h-4 w-4 ml-1" />
-                  {attachmentUploading ? 'جارٍ الرفع...' : internalAttachment.fileName ? 'تغيير الصورة' : 'رفع صورة'}
-                </Button>
-                {internalAttachment.fileName && <span className="text-sm text-muted-foreground">{internalAttachment.fileName}</span>}
-                <Input
-                  id="invoice-internal-attachment"
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(e) => uploadInternalImage(e.target.files?.[0])}
-                />
-              </div>
-            )}
-          </Card>
 
           {/* Tax + discount */}
           <div className="grid sm:grid-cols-2 gap-4">
@@ -548,35 +500,59 @@ const NewInvoice = ({ asModal = false, defaultClientId, onCancel, onCreated }: N
         {/* ── Sidebar summary ── */}
         <div className="space-y-4">
           <InvoiceSummary subtotal={totals.subtotal} tax={totals.tax} discount={totals.totalDiscount} total={totals.total} paid={0} remaining={totals.total} />
-          <Card className="p-5 border-border/60 space-y-3">
-            <label className="flex items-center gap-2 text-sm font-medium">
-              <input type="checkbox" checked={enableInitialCollection} onChange={(e) => setEnableInitialCollection(e.target.checked)} />
-              تحصيل عند إنشاء الفاتورة
-            </label>
-            {enableInitialCollection && (
-              <div className="space-y-3">
-                <div>
-                  <Label>مبلغ التحصيل</Label>
-                  <Input className="mt-1.5" type="number" min="0" max={totals.total} step="0.01" value={initialCollection.amount} onChange={(e) => setInitialCollection((p) => ({ ...p, amount: e.target.value }))} />
+          <Card className="p-5 border-border/60 space-y-4 bg-primary/5">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <div className="mt-0.5 rounded-lg bg-primary p-2 text-primary-foreground">
+                  <WalletCards className="h-4 w-4" />
                 </div>
                 <div>
-                  <Label>حساب التحصيل</Label>
-                  <Select value={initialCollection.account_id} onValueChange={(v) => setInitialCollection((p) => ({ ...p, account_id: v }))}>
-                    <SelectTrigger className="mt-1.5"><SelectValue placeholder="اختر الحساب" /></SelectTrigger>
-                    <SelectContent>{(accounts.data ?? []).map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}</SelectContent>
-                  </Select>
+                  <div className="font-semibold">تحصيل عند إنشاء الفاتورة</div>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    اترك مبلغ التحصيل صفرًا إذا لم يتم الدفع الآن.
+                  </p>
                 </div>
-                <div>
-                  <Label>الطريقة</Label>
-                  <Select value={initialCollection.method} onValueChange={(v) => setInitialCollection((p) => ({ ...p, method: v }))}>
-                    <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
-                    <SelectContent><SelectItem value="cash">نقدي</SelectItem><SelectItem value="bank">تحويل بنكي</SelectItem><SelectItem value="wallet">محفظة إلكترونية</SelectItem></SelectContent>
-                  </Select>
-                </div>
-                <Input placeholder="المرجع" value={initialCollection.reference} onChange={(e) => setInitialCollection((p) => ({ ...p, reference: e.target.value }))} />
-                <Input placeholder="ملاحظات" value={initialCollection.notes} onChange={(e) => setInitialCollection((p) => ({ ...p, notes: e.target.value }))} />
               </div>
-            )}
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <Label>مبلغ التحصيل</Label>
+                <Input className="mt-1.5 bg-background" type="number" min="0" max={totals.total} step="0.01" value={initialCollection.amount} onChange={(e) => setInitialCollection((p) => ({ ...p, amount: e.target.value }))} />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  type="button"
+                  className="bg-emerald-600 text-white hover:bg-emerald-700"
+                  onClick={() => setInitialCollection((p) => ({ ...p, amount: totals.total.toFixed(2) }))}
+                >
+                  تحصيل كامل
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setInitialCollection((p) => ({ ...p, amount: '0', account_id: '', reference: '', notes: '' }))}
+                >
+                  أجل
+                </Button>
+              </div>
+              <div>
+                <Label>حساب التحصيل</Label>
+                <Select value={initialCollection.account_id} onValueChange={(v) => setInitialCollection((p) => ({ ...p, account_id: v }))}>
+                  <SelectTrigger className="mt-1.5 bg-background"><SelectValue placeholder="اختر الحساب عند وجود تحصيل" /></SelectTrigger>
+                  <SelectContent>{(accounts.data ?? []).map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>طريقة التحصيل</Label>
+                <Select value={initialCollection.method} onValueChange={(v) => setInitialCollection((p) => ({ ...p, method: v }))}>
+                  <SelectTrigger className="mt-1.5 bg-background"><SelectValue /></SelectTrigger>
+                  <SelectContent><SelectItem value="cash">نقدي</SelectItem><SelectItem value="bank">تحويل بنكي</SelectItem><SelectItem value="wallet">محفظة إلكترونية</SelectItem></SelectContent>
+                </Select>
+              </div>
+              <Input className="bg-background" placeholder="مرجع التحصيل - اختياري" value={initialCollection.reference} onChange={(e) => setInitialCollection((p) => ({ ...p, reference: e.target.value }))} />
+              <Input className="bg-background" placeholder="ملاحظات التحصيل - اختياري" value={initialCollection.notes} onChange={(e) => setInitialCollection((p) => ({ ...p, notes: e.target.value }))} />
+            </div>
           </Card>
           <Card className="p-5 border-border/60 space-y-2">
             <Button className="w-full" onClick={() => submit(false)} disabled={saving}>
@@ -590,6 +566,81 @@ const NewInvoice = ({ asModal = false, defaultClientId, onCancel, onCreated }: N
                 إلغاء
               </Button>
             )}
+          </Card>
+
+          <Card className="p-5 border-border/60 space-y-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="font-semibold inline-flex items-center gap-2">
+                  <Paperclip className="h-4 w-4 text-primary" />
+                  ملحق داخلي
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">ملاحظات أو صورة داخلية لا تظهر للعميل أو في الطباعة.</p>
+              </div>
+              {(internalAttachment.text || internalAttachment.uploadId) && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setInternalAttachment({ type: 'none', text: '', uploadId: '', fileName: '' })}
+                >
+                  <X className="h-4 w-4 ml-1" /> مسح
+                </Button>
+              )}
+            </div>
+            <Textarea
+              rows={4}
+              value={internalAttachment.text}
+              onChange={(e) => setInternalAttachment((prev) => ({
+                ...prev,
+                text: e.target.value,
+                type: prev.uploadId ? 'image' : e.target.value.trim() ? 'text' : 'none',
+              }))}
+              placeholder="اكتب نص الملحق الداخلي هنا..."
+            />
+            <button
+              type="button"
+              className={cn(
+                'w-full rounded-lg border border-dashed p-4 text-center transition-colors',
+                internalAttachment.uploadId ? 'border-primary/50 bg-primary/5' : 'border-border bg-muted/20 hover:bg-muted/40',
+              )}
+              onClick={() => document.getElementById('invoice-internal-attachment')?.click()}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                e.preventDefault();
+                void uploadInternalImage(e.dataTransfer.files?.[0]);
+              }}
+              disabled={attachmentUploading}
+            >
+              <ImageIcon className="mx-auto mb-2 h-5 w-5 text-primary" />
+              <div className="text-sm font-medium">
+                {attachmentUploading ? 'جارٍ رفع الصورة...' : internalAttachment.fileName || 'اسحب صورة هنا أو اضغط للرفع'}
+              </div>
+              <div className="mt-1 text-xs text-muted-foreground">PNG أو JPG أو WEBP بحد أقصى 5 ميجابايت</div>
+            </button>
+            {internalAttachment.uploadId && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="w-full"
+                onClick={() => setInternalAttachment((prev) => ({
+                  ...prev,
+                  uploadId: '',
+                  fileName: '',
+                  type: prev.text.trim() ? 'text' : 'none',
+                }))}
+              >
+                إزالة الصورة
+              </Button>
+            )}
+            <Input
+              id="invoice-internal-attachment"
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => uploadInternalImage(e.target.files?.[0])}
+            />
           </Card>
         </div>
       </div>
