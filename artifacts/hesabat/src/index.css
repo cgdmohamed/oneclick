@@ -228,24 +228,39 @@
 
 @media print {
   .no-print { display: none !important; }
-  body { background: white; direction: rtl; }
+  html,
+  body {
+    background: white !important;
+    direction: rtl;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+  }
   .print-area { box-shadow: none !important; border: none !important; }
-  body.print-single-area * {
-    visibility: hidden !important;
+  body.print-single-area > :not(.print-only-clone) {
+    display: none !important;
   }
-  body.print-single-area [data-print-area],
-  body.print-single-area [data-print-area] * {
-    visibility: visible !important;
-  }
-  body.print-single-area [data-print-area] {
-    position: absolute !important;
-    inset-block-start: 0 !important;
-    inset-inline: 0 !important;
+  body.print-single-area .print-only-clone {
+    display: block !important;
+    position: static !important;
     width: 100% !important;
     max-width: none !important;
     margin: 0 !important;
+    padding: 0 !important;
     box-shadow: none !important;
     border: 0 !important;
+    break-after: avoid !important;
+    page-break-after: avoid !important;
+  }
+  body.print-single-area .print-only-clone > :last-child {
+    break-after: avoid !important;
+    page-break-after: avoid !important;
   }
   @page { size: A4; margin: 16mm; }
+}
+
+@media screen {
+  .print-only-clone {
+    display: none !important;
+  }
 }
