@@ -1,6 +1,6 @@
 import { useEffect, useSyncExternalStore } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -31,7 +31,6 @@ import Suppliers from "./pages/app/Suppliers";
 import SupplierDetail from "./pages/app/SupplierDetail";
 import Payouts from "./pages/app/Payouts";
 import Invoices from "./pages/app/Invoices";
-import NewInvoice from "./pages/app/NewInvoice";
 import InvoiceDetails from "./pages/app/InvoiceDetails";
 import Payments from "./pages/app/Payments";
 import Accounts from "./pages/app/Accounts";
@@ -161,7 +160,7 @@ const App = () => {
               <Route path="suppliers/:id" element={<SupplierDetail />} />
               <Route path="payouts" element={<Payouts />} />
               <Route path="invoices" element={<Invoices />} />
-              <Route path="invoices/new" element={<NewInvoice />} />
+              <Route path="invoices/new" element={<Navigate to="/app/invoices?new=1" replace />} />
               <Route path="invoices/:id" element={<InvoiceDetails />} />
               <Route path="credit-notes" element={<CreditNotes />} />
               <Route path="credit-notes/new" element={<NewCreditNote />} />

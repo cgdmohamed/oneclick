@@ -65,7 +65,7 @@ const buildSteps = (companyName: string): Step[] => [
       'بعد المراجعة، اعتمد الفاتورة وشارك رابطها العام مع عميلك.',
       'يمكن للعميل الاطلاع على الفاتورة مباشرة عبر الرابط دون الحاجة لتسجيل دخول.',
     ],
-    cta: { label: 'فاتورة جديدة', to: '/app/invoices/new' },
+    cta: { label: 'فاتورة جديدة', to: '/app/invoices?new=1' },
   },
   {
     key: 'team',

@@ -1,22 +1,50 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { PageHeader } from '@/components/common/PageHeader';
 import { DataTable, Column } from '@/components/common/DataTable';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Plus } from 'lucide-react';
 import type { Invoice, InvoiceStatus } from '@/types';
 import { formatCurrency, formatDateShort, invoiceStatusLabel } from '@/lib/format';
 import { StatusBadge } from '@/components/common/StatusBadge';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useInvoices, useClients } from '@/hooks/entities';
+import { useQueryClient } from '@tanstack/react-query';
+import NewInvoice from './NewInvoice';
 
 type Row = Invoice & { clientName?: string };
 
 const Invoices = () => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const qc = useQueryClient();
   const { list: invoices } = useInvoices();
   const { list: clients } = useClients();
   const [status, setStatus] = useState<InvoiceStatus | 'all'>('all');
+  const requestedNewInvoice = searchParams.get('new') === '1';
+  const requestedClientId = searchParams.get('client');
+  const [newInvoiceOpen, setNewInvoiceOpen] = useState(requestedNewInvoice);
+
+  useEffect(() => {
+    setNewInvoiceOpen(requestedNewInvoice);
+  }, [requestedNewInvoice]);
+
+  const openNewInvoice = () => {
+    const next = new URLSearchParams(searchParams);
+    next.set('new', '1');
+    setSearchParams(next);
+    setNewInvoiceOpen(true);
+  };
+
+  const closeNewInvoice = () => {
+    setNewInvoiceOpen(false);
+    const next = new URLSearchParams(searchParams);
+    next.delete('new');
+    next.delete('client');
+    setSearchParams(next, { replace: true });
+  };
+
   const filtered = useMemo(
     () => (status === 'all' ? invoices : invoices.filter(i => i.status === status)) as Row[],
     [status, invoices],
@@ -39,7 +67,7 @@ const Invoices = () => {
   return (
     <div>
       <PageHeader title="الفواتير" description="إدارة فواتير شركتك"
-        actions={<Button onClick={() => navigate('/app/invoices/new')}><Plus className="h-4 w-4 ml-1" /> فاتورة جديدة</Button>} />
+        actions={<Button onClick={openNewInvoice}><Plus className="h-4 w-4 ml-1" /> فاتورة جديدة</Button>} />
 
       <DataTable
         data={filtered}
@@ -63,6 +91,27 @@ const Invoices = () => {
         }
         onRowClick={(r) => navigate(`/app/invoices/${r.id}`)}
       />
+
+      <Dialog open={newInvoiceOpen} onOpenChange={(open) => open ? openNewInvoice() : closeNewInvoice()}>
+        <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-[1180px]" dir="rtl">
+          <DialogHeader>
+            <DialogTitle>فاتورة جديدة</DialogTitle>
+            <DialogDescription>أنشئ فاتورة دون مغادرة قائمة الفواتير.</DialogDescription>
+          </DialogHeader>
+          {newInvoiceOpen && (
+            <NewInvoice
+              asModal
+              defaultClientId={requestedClientId}
+              onCancel={closeNewInvoice}
+              onCreated={(invoiceId) => {
+                closeNewInvoice();
+                qc.invalidateQueries({ queryKey: ['invoices'] });
+                if (invoiceId) navigate(`/app/invoices/${invoiceId}`);
+              }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

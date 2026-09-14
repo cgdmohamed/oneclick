@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Plus, Trash2, PackagePlus, UserPlus, AlertTriangle } from 'lucide-react';
 import { formatCurrency } from '@/lib/format';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { InvoiceSummary } from '@/components/common/InvoiceSummary';
 import { useClients, useProducts } from '@/hooks/entities';
@@ -35,11 +35,20 @@ const emptyProduct: NewProductForm = { name: '', sku: '', price: '', quantity: '
 /* ── Helpers ────────────────────────────────────────────────────── */
 const normalize = (s: string) => s.trim().toLowerCase();
 
-const NewInvoice = () => {
+interface NewInvoiceProps {
+  asModal?: boolean;
+  defaultClientId?: string | null;
+  onCancel?: () => void;
+  onCreated?: (invoiceId: string | null) => void;
+}
+
+const NewInvoice = ({ asModal = false, defaultClientId, onCancel, onCreated }: NewInvoiceProps) => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const qc       = useQueryClient();
   const { list: clients }  = useClients();
   const { list: products } = useProducts();
+  const requestedClientId = defaultClientId ?? searchParams.get('client');
 
   /* Invoice state */
   const [clientId, setClientId] = useState('');
@@ -57,7 +66,13 @@ const NewInvoice = () => {
   });
 
   /* Default client once list loads */
-  if (!clientId && clients[0]) setClientId(clients[0].id);
+  useEffect(() => {
+    if (requestedClientId && clients.some(c => c.id === requestedClientId)) {
+      setClientId(requestedClientId);
+      return;
+    }
+    if (!clientId && clients[0]) setClientId(clients[0].id);
+  }, [clientId, clients, requestedClientId]);
 
   /* ── Quick client creation ──────────────────────────────────── */
   const [clientOpen, setClientOpen]       = useState(false);
@@ -234,10 +249,12 @@ const NewInvoice = () => {
         qc.invalidateQueries({ queryKey: ['invoices'] });
         qc.invalidateQueries({ queryKey: ['reports-overview'] });
         toast.success(draft ? 'تم حفظ المسودة' : 'تم حفظ الفاتورة');
-        navigate(`/app/invoices/${res.data.id}`);
+        if (onCreated) onCreated(res.data.id);
+        else navigate(`/app/invoices/${res.data.id}`);
       } else {
         toast.success(draft ? 'حفظ مسودة (تجريبي)' : 'حفظ فاتورة (تجريبي)');
-        navigate('/app/invoices');
+        if (onCreated) onCreated(null);
+        else navigate('/app/invoices');
       }
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : 'تعذّر حفظ الفاتورة');
@@ -249,7 +266,7 @@ const NewInvoice = () => {
   /* ── Render ─────────────────────────────────────────────────── */
   return (
     <div>
-      <PageHeader title="فاتورة جديدة" description="أنشئ فاتورة لعميلك" />
+      {!asModal && <PageHeader title="فاتورة جديدة" description="أنشئ فاتورة لعميلك" />}
 
       <div className="grid lg:grid-cols-3 gap-5">
         {/* ── Main form ── */}
@@ -398,6 +415,11 @@ const NewInvoice = () => {
             <Button className="w-full" variant="outline" onClick={() => submit(true)} disabled={saving}>
               {saving ? 'جارٍ الحفظ...' : 'حفظ كمسودة'}
             </Button>
+            {asModal && (
+              <Button className="w-full" variant="ghost" onClick={onCancel} disabled={saving}>
+                إلغاء
+              </Button>
+            )}
           </Card>
         </div>
       </div>

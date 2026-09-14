@@ -317,7 +317,7 @@ const ClientDetail = () => {
             <Button variant="outline" onClick={() => navigate('/app/clients')}>
               <UserIcon className="h-4 w-4 ml-1" /> تعديل البيانات
             </Button>
-            <Button onClick={() => navigate(`/app/invoices/new?client=${client.id}`)}>
+            <Button onClick={() => navigate(`/app/invoices?new=1&client=${client.id}`)}>
               <Plus className="h-4 w-4 ml-1" /> فاتورة جديدة
             </Button>
           </div>
