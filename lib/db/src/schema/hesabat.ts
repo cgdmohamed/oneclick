@@ -265,6 +265,7 @@ export const invoiceItems = pgTable('invoice_items', {
   description: varchar('description', { length: 300 }).notNull(),
   quantity: numeric('quantity', { precision: 12, scale: 3 }).notNull().default('1'),
   unitPrice: numeric('unit_price', { precision: 12, scale: 2 }).notNull().default('0'),
+  discount: numeric('discount', { precision: 14, scale: 2 }).notNull().default('0'),
   vatRate: numeric('vat_rate', { precision: 5, scale: 2 }).notNull().default('15.00'),
   lineTotal: numeric('line_total', { precision: 14, scale: 2 }).notNull().default('0'),
 }, (t) => ({

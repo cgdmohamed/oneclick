@@ -35,6 +35,7 @@ interface PublicInvoicePayload {
     description: string;
     quantity: string | number;
     unit_price: string | number;
+    discount?: string | number;
     line_total: string | number;
     created_at: string;
   }>;
@@ -102,6 +103,8 @@ router.get('/invoices/:publicId', async (req, res, next) => {
           name: r.description,
           quantity: Number(r.quantity),
           unit_price: Number(r.unit_price),
+          discount: Number(r.discount ?? 0),
+          line_total: Number(r.line_total ?? 0),
         })),
       },
     });

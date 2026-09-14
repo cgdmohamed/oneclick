@@ -20,7 +20,7 @@ import { api, ApiError, isApiConfigured, resolveAssetUrl } from '@/lib/api';
 import { useAccounts } from '@/hooks/entities';
 import { printElementOnly } from '@/lib/print';
 
-interface ApiItem { id: string; description: string; quantity: number; unit_price: string | number; product_id: string | null }
+interface ApiItem { id: string; description: string; quantity: number; unit_price: string | number; discount?: string | number | null; line_total?: string | number | null; product_id: string | null }
 interface ApiPayment { id: string; amount: string | number; paid_at: string; method: string; account_id: string; reference: string | null; notes: string | null }
 interface ApiInvoice {
   id: string; company_id: string; client_id: string; number: string;
@@ -68,7 +68,7 @@ const InvoiceDetails = () => {
   const [open, setOpen] = useState(false);
 
   /* --- Normalize for rendering --- */
-  type ViewItem = { id: string; name: string; quantity: number; unitPrice: number };
+  type ViewItem = { id: string; name: string; quantity: number; unitPrice: number; discount: number; netTotal: number };
   type ViewPayment = { id: string; date: string; amount: number; splits: PaymentSplit[] };
   let invoice: Invoice;
   let viewItems: ViewItem[];
@@ -92,7 +92,18 @@ const InvoiceDetails = () => {
     clientPhone = d.client_phone ?? '';
     clientWhatsapp = d.client_whatsapp ?? '';
     clientEmail = d.client_email ?? '';
-    viewItems = d.items.map(it => ({ id: it.id, name: it.description, quantity: Number(it.quantity), unitPrice: Number(it.unit_price) }));
+    viewItems = d.items.map(it => {
+      const gross = Number(it.quantity) * Number(it.unit_price);
+      const itemDiscount = Number(it.discount ?? 0);
+      return {
+        id: it.id,
+        name: it.description,
+        quantity: Number(it.quantity),
+        unitPrice: Number(it.unit_price),
+        discount: itemDiscount,
+        netTotal: Math.max(0, gross - itemDiscount),
+      };
+    });
     viewPayments = d.payments.map(p => ({
       id: p.id, date: p.paid_at, amount: Number(p.amount),
       splits: [{ method: p.method as PaymentSplit['method'], accountId: p.account_id, amount: Number(p.amount) }],
@@ -104,7 +115,7 @@ const InvoiceDetails = () => {
     clientPhone = mc?.phone ?? '';
     clientWhatsapp = mc?.whatsapp ?? '';
     clientEmail = mc?.email ?? '';
-    viewItems = invoice.items.map(it => ({ id: it.id, name: it.name, quantity: it.quantity, unitPrice: it.unitPrice }));
+    viewItems = invoice.items.map(it => ({ id: it.id, name: it.name, quantity: it.quantity, unitPrice: it.unitPrice, discount: 0, netTotal: it.quantity * it.unitPrice }));
     viewPayments = mockAllPayments.map(p => ({ id: p.id, date: p.date, amount: p.amount, splits: p.splits }));
   }
 
@@ -312,6 +323,7 @@ const InvoiceDetails = () => {
                 <th className="py-2 font-semibold">الوصف</th>
                 <th className="py-2 font-semibold w-20">الكمية</th>
                 <th className="py-2 font-semibold w-28">سعر الوحدة</th>
+                <th className="py-2 font-semibold w-28">الخصم</th>
                 <th className="py-2 font-semibold w-28 text-end">الإجمالي</th>
               </tr>
             </thead>
@@ -321,7 +333,8 @@ const InvoiceDetails = () => {
                   <td className="py-3">{it.name}</td>
                   <td className="py-3">{it.quantity}</td>
                   <td className="py-3">{formatCurrency(it.unitPrice)}</td>
-                  <td className="py-3 text-end">{formatCurrency(it.quantity * it.unitPrice)}</td>
+                  <td className="py-3">{it.discount > 0 ? formatCurrency(it.discount) : '—'}</td>
+                  <td className="py-3 text-end">{formatCurrency(it.netTotal)}</td>
                 </tr>
               ))}
             </tbody>

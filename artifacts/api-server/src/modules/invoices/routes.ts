@@ -24,6 +24,7 @@ const itemSchema = z.object({
   description: z.string().min(1),
   quantity: z.coerce.number().positive(),
   unit_price: z.coerce.number().nonnegative(),
+  discount: z.coerce.number().nonnegative().optional().default(0),
   vat_rate: z.coerce.number().min(0).max(100).optional().nullable(),
 });
 
@@ -175,12 +176,17 @@ router.post('/', enforceInvoiceLimit(), async (req, res, next) => {
     });
 
     const lineBases = items.map((it) => round2(it.quantity * it.unit_price));
+    const lineDiscounts = items.map((it, index) => round2(Math.min(Number(it.discount ?? 0), lineBases[index] ?? 0)));
+    const lineNets = lineBases.map((line, index) => round2(Math.max(0, line - (lineDiscounts[index] ?? 0))));
     const subtotal = round2(lineBases.reduce((sum, line) => sum + line, 0));
-    const discount = round2(Math.min(Number(body.discount), subtotal));
+    const itemDiscount = round2(lineDiscounts.reduce((sum, line) => sum + line, 0));
+    const headerDiscount = round2(Math.min(Number(body.discount), Math.max(0, subtotal - itemDiscount)));
+    const discount = round2(itemDiscount + headerDiscount);
+    const headerDiscountBase = round2(lineNets.reduce((sum, line) => sum + line, 0));
     let vat = 0;
     for (const [index, it] of items.entries()) {
-      const line = lineBases[index] ?? 0;
-      const allocatedDiscount = subtotal > 0 ? round2(discount * (line / subtotal)) : 0;
+      const line = lineNets[index] ?? 0;
+      const allocatedDiscount = headerDiscountBase > 0 ? round2(headerDiscount * (line / headerDiscountBase)) : 0;
       const taxableLine = round2(Math.max(0, line - allocatedDiscount));
       vat = round2(vat + taxableLine * (it.vat_rate / 100));
     }
@@ -231,12 +237,15 @@ router.post('/', enforceInvoiceLimit(), async (req, res, next) => {
         body.branch_id ?? null, req.auth!.userId]);
     const invoice = invRes.rows[0];
 
-    for (const it of items) {
-      const line = round2(it.quantity * it.unit_price * (1 + it.vat_rate / 100));
+    for (const [index, it] of items.entries()) {
+      const lineBase = lineBases[index] ?? round2(it.quantity * it.unit_price);
+      const itemDiscountForLine = lineDiscounts[index] ?? 0;
+      const lineNet = round2(Math.max(0, lineBase - itemDiscountForLine));
+      const line = round2(lineNet * (1 + it.vat_rate / 100));
       await t.db.query(`
-        INSERT INTO invoice_items (company_id, invoice_id, product_id, description, quantity, unit_price, vat_rate, line_total, cost_center_id)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
-      `, [t.companyId, invoice.id, it.product_id ?? null, it.description, it.quantity, it.unit_price, it.vat_rate, line, it.cost_center_id ?? null]);
+        INSERT INTO invoice_items (company_id, invoice_id, product_id, description, quantity, unit_price, discount, vat_rate, line_total, cost_center_id)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+      `, [t.companyId, invoice.id, it.product_id ?? null, it.description, it.quantity, it.unit_price, itemDiscountForLine, it.vat_rate, line, it.cost_center_id ?? null]);
 
       if (it.product_id) {
         const productCost = await t.db.query(
@@ -583,7 +592,7 @@ interface InvoiceEmailData {
   notes?: string | null;
   company: { name: string; address?: string | null; tax_number?: string | null; phone?: string | null };
   client:  { name: string; email?: string | null; phone?: string | null; tax_number?: string | null };
-  items: Array<{ description: string; quantity: number; unit_price: number; line_total: number }>;
+  items: Array<{ description: string; quantity: number; unit_price: number; discount: number; line_total: number }>;
 }
 
 /** Build the invoice data needed for email notifications. */
@@ -594,7 +603,7 @@ async function loadInvoicePdfData(db: { query: typeof pool.query }, invoiceId: s
   const co = (await db.query(`SELECT name, address, tax_number, phone FROM companies WHERE id = $1`, [companyId])).rows[0];
   const cl = (await db.query(`SELECT name, email, phone, tax_number FROM clients WHERE id = $1`, [i.client_id])).rows[0];
   const items = (await db.query(
-    `SELECT description, quantity, unit_price, line_total FROM invoice_items WHERE invoice_id = $1 ORDER BY created_at`,
+    `SELECT description, quantity, unit_price, discount, line_total FROM invoice_items WHERE invoice_id = $1 ORDER BY created_at`,
     [invoiceId],
   )).rows;
   return {
@@ -603,7 +612,7 @@ async function loadInvoicePdfData(db: { query: typeof pool.query }, invoiceId: s
     subtotal: Number(i.subtotal), vat_amount: Number(i.vat_amount), discount: Number(i.discount),
     total: Number(i.total), paid: Number(i.paid), remaining: Number(i.remaining), notes: i.notes,
     company: co, client: cl,
-    items: items.map((r) => ({ description: r.description, quantity: Number(r.quantity), unit_price: Number(r.unit_price), line_total: Number(r.line_total) })),
+    items: items.map((r) => ({ description: r.description, quantity: Number(r.quantity), unit_price: Number(r.unit_price), discount: Number(r.discount ?? 0), line_total: Number(r.line_total) })),
   };
 }
 

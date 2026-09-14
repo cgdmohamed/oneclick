@@ -220,15 +220,17 @@ const NewInvoice = ({ asModal = false, defaultClientId, onCancel, onCreated }: N
   const totals = useMemo(() => {
     const subtotal = items.reduce((s, it) => s + lineGross(it), 0);
     const itemDiscount = items.reduce((s, it) => s + lineDiscount(it), 0);
-    const totalDiscount = Math.min(subtotal, discount + itemDiscount);
+    const headerDiscount = Math.min(Math.max(Number(discount || 0), 0), Math.max(0, subtotal - itemDiscount));
+    const totalDiscount = Math.min(subtotal, headerDiscount + itemDiscount);
     const taxBase = Math.max(0, subtotal - totalDiscount);
+    const headerDiscountBase = Math.max(0, subtotal - itemDiscount);
     const tax = +items.reduce((s, it) => {
-      const gross = lineGross(it);
-      const allocatedDiscount = subtotal > 0 ? totalDiscount * (gross / subtotal) : 0;
-      return s + Math.max(0, gross - allocatedDiscount) * ((it.vatRate ?? taxRate) / 100);
+      const netAfterItemDiscount = lineNet(it);
+      const allocatedHeaderDiscount = headerDiscountBase > 0 ? headerDiscount * (netAfterItemDiscount / headerDiscountBase) : 0;
+      return s + Math.max(0, netAfterItemDiscount - allocatedHeaderDiscount) * ((it.vatRate ?? taxRate) / 100);
     }, 0).toFixed(2);
     const total    = +(taxBase + tax).toFixed(2);
-    return { subtotal, itemDiscount, totalDiscount, tax, total };
+    return { subtotal, itemDiscount, headerDiscount, totalDiscount, tax, total };
   }, [items, taxRate, discount]);
 
   const addItem    = () => setItems(p => [...p, { id: `i${Date.now()}`, name: '', quantity: 1, unitPrice: 0, discount: 0, vatRate: taxRate }]);
@@ -285,7 +287,7 @@ const NewInvoice = ({ asModal = false, defaultClientId, onCancel, onCreated }: N
         const res = await api.post<{ data: { id: string } }>('/api/invoices', {
           client_id: clientId,
           due_date:  new Date(dueDate).toISOString(),
-          discount: totals.totalDiscount,
+          discount: totals.headerDiscount,
           internal_attachment: internalAttachment.type === 'none' ? null : internalAttachment.type === 'text' ? {
             type: 'text',
             text: internalAttachment.text.trim(),
@@ -306,6 +308,7 @@ const NewInvoice = ({ asModal = false, defaultClientId, onCancel, onCreated }: N
             description: it.name,
             quantity:    it.quantity,
             unit_price:  it.unitPrice,
+            discount:    lineDiscount(it),
             vat_rate:    it.vatRate ?? taxRate,
           })),
         });

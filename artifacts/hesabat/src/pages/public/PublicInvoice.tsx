@@ -36,7 +36,7 @@ interface PublicInvoiceData {
   currency: string | null;
   currency_symbol: string | null;
   qr_public_visible?: boolean | null;
-  items: Array<{ id: string; name: string; quantity: number; unit_price: number | string }>;
+  items: Array<{ id: string; name: string; quantity: number; unit_price: number | string; discount?: number | string; line_total?: number | string }>;
 }
 
 const mapStatus = (s: string): InvoiceStatus =>
@@ -152,7 +152,7 @@ const PublicInvoice = () => {
                     <td className="py-3">{it.name}</td>
                     <td className="py-3">{it.quantity}</td>
                     <td className="py-3">{fc(num(it.unit_price))}</td>
-                    <td className="py-3 text-end">{fc(it.quantity * num(it.unit_price))}</td>
+                    <td className="py-3 text-end">{fc(Math.max(0, it.quantity * num(it.unit_price) - num(it.discount ?? 0)))}</td>
                   </tr>
                 ))}
               </tbody>
