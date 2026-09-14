@@ -174,14 +174,17 @@ router.post('/', enforceInvoiceLimit(), async (req, res, next) => {
       return { ...it, vat_rate: vatRate };
     });
 
-    let subtotal = 0, vat = 0;
-    for (const it of items) {
-      const line = round2(it.quantity * it.unit_price);
-      subtotal = round2(subtotal + line);
-      vat = round2(vat + line * (it.vat_rate / 100));
+    const lineBases = items.map((it) => round2(it.quantity * it.unit_price));
+    const subtotal = round2(lineBases.reduce((sum, line) => sum + line, 0));
+    const discount = round2(Math.min(Number(body.discount), subtotal));
+    let vat = 0;
+    for (const [index, it] of items.entries()) {
+      const line = lineBases[index] ?? 0;
+      const allocatedDiscount = subtotal > 0 ? round2(discount * (line / subtotal)) : 0;
+      const taxableLine = round2(Math.max(0, line - allocatedDiscount));
+      vat = round2(vat + taxableLine * (it.vat_rate / 100));
     }
-    const discount = round2(body.discount);
-    const total = round2(Math.max(0, subtotal + vat - discount));
+    const total = round2(Math.max(0, subtotal - discount + vat));
     const internalAttachment = body.internal_attachment;
     let internalAttachmentType: 'text' | 'image' | null = null;
     let internalAttachmentText: string | null = null;

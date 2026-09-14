@@ -216,9 +216,14 @@ const NewInvoice = ({ asModal = false, defaultClientId, onCancel, onCreated }: N
   const totals = useMemo(() => {
     const subtotal = items.reduce((s, it) => s + lineGross(it), 0);
     const itemDiscount = items.reduce((s, it) => s + lineDiscount(it), 0);
-    const totalDiscount = discount + itemDiscount;
-    const tax      = +items.reduce((s, it) => s + lineGross(it) * ((it.vatRate ?? taxRate) / 100), 0).toFixed(2);
-    const total    = +Math.max(0, subtotal + tax - totalDiscount).toFixed(2);
+    const totalDiscount = Math.min(subtotal, discount + itemDiscount);
+    const taxBase = Math.max(0, subtotal - totalDiscount);
+    const tax = +items.reduce((s, it) => {
+      const gross = lineGross(it);
+      const allocatedDiscount = subtotal > 0 ? totalDiscount * (gross / subtotal) : 0;
+      return s + Math.max(0, gross - allocatedDiscount) * ((it.vatRate ?? taxRate) / 100);
+    }, 0).toFixed(2);
+    const total    = +(taxBase + tax).toFixed(2);
     return { subtotal, itemDiscount, totalDiscount, tax, total };
   }, [items, taxRate, discount]);
 
