@@ -13,10 +13,10 @@ import { formatCurrency, formatDate, paymentMethodLabel, invoiceStatusLabel } fr
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { PaymentForm } from '@/components/common/PaymentForm';
-import { Plus, Share2, Mail, MessageCircle, Printer, Copy, Send, XCircle, RotateCcw } from 'lucide-react';
+import { Plus, Share2, Mail, MessageCircle, Printer, Copy, Send, XCircle, RotateCcw, Paperclip, Image as ImageIcon, FileText } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Payment, PaymentSplit, Invoice, InvoiceStatus } from '@/types';
-import { api, ApiError, isApiConfigured } from '@/lib/api';
+import { api, ApiError, isApiConfigured, resolveAssetUrl } from '@/lib/api';
 import { useAccounts } from '@/hooks/entities';
 import { printElementOnly } from '@/lib/print';
 
@@ -30,6 +30,12 @@ interface ApiInvoice {
   total: string | number; paid: string | number; remaining: string | number;
   status: string; notes: string | null;
   qr_public_visible?: boolean | null;
+  internal_attachment_type?: 'text' | 'image' | null;
+  internal_attachment_text?: string | null;
+  internal_attachment_upload_id?: string | null;
+  internal_attachment_filename?: string | null;
+  internal_attachment_mime_type?: string | null;
+  internal_attachment_url?: string | null;
   client_name: string; client_email: string | null; client_tax: string | null;
   client_phone: string | null; client_whatsapp: string | null;
   items: ApiItem[]; payments: ApiPayment[];
@@ -209,6 +215,12 @@ const InvoiceDetails = () => {
   };
 
   const rawStatus = apiOn && apiInvoice ? apiInvoice.status : invoice.status;
+  const internalAttachment = apiOn && apiInvoice?.internal_attachment_type ? {
+    type: apiInvoice.internal_attachment_type,
+    text: apiInvoice.internal_attachment_text ?? '',
+    fileName: apiInvoice.internal_attachment_filename ?? 'ملحق داخلي',
+    url: apiInvoice.internal_attachment_url ?? null,
+  } : null;
 
   const isDraft = rawStatus === 'draft';
   const isCancelled = rawStatus === 'cancelled';
@@ -344,6 +356,37 @@ const InvoiceDetails = () => {
             publicVisible={qrPublicVisible}
             onPublicVisibleChange={updateQrVisibility}
           />
+
+          {internalAttachment && (
+            <Card className="p-5 border-border/60 no-print">
+              <h3 className="font-semibold mb-3 inline-flex items-center gap-2">
+                <Paperclip className="h-4 w-4 text-primary" />
+                ملحق داخلي
+              </h3>
+              {internalAttachment.type === 'text' ? (
+                <div className="rounded-lg bg-muted/40 p-3 text-sm whitespace-pre-wrap">
+                  <FileText className="h-4 w-4 inline-block ml-1 text-muted-foreground" />
+                  {internalAttachment.text}
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {internalAttachment.url && (
+                    <img
+                      src={resolveAssetUrl(internalAttachment.url)}
+                      alt={internalAttachment.fileName}
+                      className="max-h-56 w-full rounded-md border border-border object-contain bg-muted/30"
+                    />
+                  )}
+                  <Button variant="outline" size="sm" asChild disabled={!internalAttachment.url}>
+                    <a href={resolveAssetUrl(internalAttachment.url) ?? '#'} target="_blank" rel="noreferrer">
+                      <ImageIcon className="h-4 w-4 ml-1" /> فتح الصورة
+                    </a>
+                  </Button>
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground mt-3">هذا الملحق داخلي ولا يظهر للعميل أو في الطباعة.</p>
+            </Card>
+          )}
 
           <Card className="p-5 border-border/60">
             <h3 className="font-semibold mb-3">سجل المدفوعات</h3>

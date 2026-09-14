@@ -248,6 +248,9 @@ export const invoices = pgTable('invoices', {
   paid: numeric('paid', { precision: 14, scale: 2 }).notNull().default('0'),
   remaining: numeric('remaining', { precision: 14, scale: 2 }).notNull().default('0'),
   notes: text('notes'),
+  internalAttachmentType: varchar('internal_attachment_type', { length: 20 }),
+  internalAttachmentText: text('internal_attachment_text'),
+  internalAttachmentUploadId: uuid('internal_attachment_upload_id'),
   createdBy: uuid('created_by').references(() => users.id),
 }, (t) => ({
   byCompany: index('invoices_company_idx').on(t.companyId),

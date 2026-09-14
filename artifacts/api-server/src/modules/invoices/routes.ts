@@ -27,12 +27,19 @@ const itemSchema = z.object({
   vat_rate: z.coerce.number().min(0).max(100).optional().nullable(),
 });
 
+const internalAttachmentSchema = z.object({
+  type: z.enum(['text', 'image']),
+  text: z.string().optional().nullable(),
+  upload_id: z.string().uuid().optional().nullable(),
+}).optional().nullable();
+
 const createSchema = z.object({
   client_id: z.string().uuid(),
   issue_date: z.string().datetime().optional(),
   due_date: z.string().datetime().optional().nullable(),
   branch_id: z.string().uuid().optional().nullable(),
   notes: z.string().optional().nullable(),
+  internal_attachment: internalAttachmentSchema,
   discount: z.coerce.number().nonnegative().default(0),
   items: z.array(itemSchema).min(1),
   draft: z.boolean().optional().default(false),
@@ -91,8 +98,14 @@ router.get('/:id', async (req, res, next) => {
     const t = req.tenant!;
     const inv = await t.db.query(
       `SELECT i.*, c.name AS client_name, c.email AS client_email, c.tax_number AS client_tax,
-              c.phone AS client_phone, c.whatsapp AS client_whatsapp
-       FROM invoices i JOIN clients c ON c.id = i.client_id WHERE i.id = $1 AND i.company_id = $2`,
+              c.phone AS client_phone, c.whatsapp AS client_whatsapp,
+              u.filename AS internal_attachment_filename,
+              u.mime_type AS internal_attachment_mime_type,
+              u.url AS internal_attachment_url
+       FROM invoices i
+       JOIN clients c ON c.id = i.client_id
+       LEFT JOIN uploads u ON u.id = i.internal_attachment_upload_id AND u.company_id = i.company_id
+       WHERE i.id = $1 AND i.company_id = $2`,
       [req.params.id, t.companyId],
     );
     if (!inv.rowCount) throw notFound('Invoice not found');
@@ -169,6 +182,29 @@ router.post('/', enforceInvoiceLimit(), async (req, res, next) => {
     }
     const discount = round2(body.discount);
     const total = round2(Math.max(0, subtotal + vat - discount));
+    const internalAttachment = body.internal_attachment;
+    let internalAttachmentType: 'text' | 'image' | null = null;
+    let internalAttachmentText: string | null = null;
+    let internalAttachmentUploadId: string | null = null;
+    if (internalAttachment?.type === 'text') {
+      const text = internalAttachment.text?.trim() ?? '';
+      if (!text) throw badRequest('Internal attachment text is required');
+      internalAttachmentType = 'text';
+      internalAttachmentText = text;
+    } else if (internalAttachment?.type === 'image') {
+      if (!internalAttachment.upload_id) throw badRequest('Internal attachment image is required');
+      const upload = await t.db.query(
+        `SELECT id, mime_type, is_public
+           FROM uploads
+          WHERE id = $1 AND company_id = $2`,
+        [internalAttachment.upload_id, t.companyId],
+      );
+      if (!upload.rowCount) throw badRequest('Internal attachment upload not found');
+      if (!String(upload.rows[0].mime_type).startsWith('image/')) throw badRequest('Internal attachment must be an image');
+      if (upload.rows[0].is_public) throw badRequest('Internal attachment must be private');
+      internalAttachmentType = 'image';
+      internalAttachmentUploadId = internalAttachment.upload_id;
+    }
     const initialAmount = round2(Number(body.initial_collection?.amount ?? 0));
     if (body.draft && initialAmount > 0) throw badRequest('Initial collection is not allowed for draft invoices');
     if (initialAmount > total) throw badRequest('Initial collection exceeds invoice total');
@@ -181,11 +217,15 @@ router.post('/', enforceInvoiceLimit(), async (req, res, next) => {
     const invoiceStatus = body.draft ? 'draft' : 'sent';
     const invRes = await t.db.query(`
       INSERT INTO invoices (company_id, number, client_id, issue_date, due_date, status,
-                            subtotal, vat_amount, discount, total, paid, remaining, notes, branch_id, created_by)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,0,$10,$11,$12,$13)
+                            subtotal, vat_amount, discount, total, paid, remaining, notes,
+                            internal_attachment_type, internal_attachment_text, internal_attachment_upload_id,
+                            branch_id, created_by)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,0,$10,$11,$12,$13,$14,$15,$16)
       RETURNING *
     `, [t.companyId, number, body.client_id, issueDate, body.due_date ?? null,
-        invoiceStatus, subtotal, vat, discount, total, body.notes ?? null, body.branch_id ?? null, req.auth!.userId]);
+        invoiceStatus, subtotal, vat, discount, total, body.notes ?? null,
+        internalAttachmentType, internalAttachmentText, internalAttachmentUploadId,
+        body.branch_id ?? null, req.auth!.userId]);
     const invoice = invRes.rows[0];
 
     for (const it of items) {

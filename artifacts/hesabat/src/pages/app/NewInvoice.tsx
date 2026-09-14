@@ -4,10 +4,11 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Plus, Trash2, PackagePlus, UserPlus, AlertTriangle } from 'lucide-react';
+import { Plus, Trash2, PackagePlus, UserPlus, AlertTriangle, Paperclip, Image as ImageIcon, X } from 'lucide-react';
 import { formatCurrency } from '@/lib/format';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -58,6 +59,13 @@ const NewInvoice = ({ asModal = false, defaultClientId, onCancel, onCreated }: N
   const [dueDate, setDueDate]   = useState(new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10));
   const [enableInitialCollection, setEnableInitialCollection] = useState(false);
   const [initialCollection, setInitialCollection] = useState({ amount: '0', account_id: '', method: 'cash', reference: '', notes: '' });
+  const [internalAttachment, setInternalAttachment] = useState<{
+    type: 'none' | 'text' | 'image';
+    text: string;
+    uploadId: string;
+    fileName: string;
+  }>({ type: 'none', text: '', uploadId: '', fileName: '' });
+  const [attachmentUploading, setAttachmentUploading] = useState(false);
   const [saving, setSaving]     = useState(false);
   const accounts = useQuery({
     enabled: isApiConfigured(),
@@ -222,10 +230,33 @@ const NewInvoice = ({ asModal = false, defaultClientId, onCancel, onCreated }: N
     if (p) update(i, { productId: pid, name: p.name, unitPrice: p.price, vatRate: p.vatRate ?? taxRate });
   };
 
+  const uploadInternalImage = async (file: File | undefined) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) return toast.error('الملحق الداخلي يجب أن يكون صورة');
+    if (file.size > 5 * 1024 * 1024) return toast.error('حجم الصورة يجب ألا يتجاوز 5 ميجابايت');
+    if (!isApiConfigured()) return toast.error('رفع الصور يتطلب الاتصال بالخادم');
+    setAttachmentUploading(true);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      form.append('kind', 'attachment');
+      const res = await api.upload<{ data: { id: string; url: string } }>('/api/uploads', form);
+      setInternalAttachment({ type: 'image', text: '', uploadId: res.data.id, fileName: file.name });
+      toast.success('تم رفع الملحق الداخلي');
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : 'تعذّر رفع الملحق');
+    } finally {
+      setAttachmentUploading(false);
+    }
+  };
+
   /* ── Submit ─────────────────────────────────────────────────── */
   const submit = async (draft: boolean) => {
     if (!clientId) return toast.error('اختر عميلاً');
     if (items.some(it => !it.name || it.quantity <= 0)) return toast.error('أكمل بيانات بنود الفاتورة');
+    if (internalAttachment.type === 'text' && !internalAttachment.text.trim()) return toast.error('اكتب نص الملحق الداخلي أو ألغِ الملحق');
+    if (internalAttachment.type === 'image' && !internalAttachment.uploadId) return toast.error('ارفع صورة الملحق الداخلي أولاً');
+    if (attachmentUploading) return toast.error('انتظر انتهاء رفع الملحق');
     const collectionAmount = Number(initialCollection.amount || 0);
     if (!draft && enableInitialCollection && collectionAmount > totals.total + 0.005) return toast.error('مبلغ التحصيل أكبر من إجمالي الفاتورة');
     if (!draft && enableInitialCollection && collectionAmount > 0 && !initialCollection.account_id) return toast.error('اختر حساب التحصيل');
@@ -236,6 +267,13 @@ const NewInvoice = ({ asModal = false, defaultClientId, onCancel, onCreated }: N
           client_id: clientId,
           due_date:  new Date(dueDate).toISOString(),
           discount: totals.totalDiscount,
+          internal_attachment: internalAttachment.type === 'none' ? null : internalAttachment.type === 'text' ? {
+            type: 'text',
+            text: internalAttachment.text.trim(),
+          } : {
+            type: 'image',
+            upload_id: internalAttachment.uploadId,
+          },
           draft,
           initial_collection: !draft && enableInitialCollection && collectionAmount > 0 ? {
             amount: collectionAmount,
@@ -371,6 +409,63 @@ const NewInvoice = ({ asModal = false, defaultClientId, onCancel, onCreated }: N
               ))}
             </div>
           </div>
+
+          <Card className="p-4 border-border/60 bg-muted/20 space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="font-semibold inline-flex items-center gap-2">
+                  <Paperclip className="h-4 w-4 text-primary" />
+                  ملحق داخلي
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">لن يظهر في الرابط العام أو الطباعة.</p>
+              </div>
+              {internalAttachment.type !== 'none' && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setInternalAttachment({ type: 'none', text: '', uploadId: '', fileName: '' })}
+                >
+                  <X className="h-4 w-4 ml-1" /> إزالة
+                </Button>
+              )}
+            </div>
+            <Select
+              value={internalAttachment.type}
+              onValueChange={(value: 'none' | 'text' | 'image') => setInternalAttachment((prev) => ({ ...prev, type: value }))}
+            >
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">بدون ملحق</SelectItem>
+                <SelectItem value="text">نص داخلي</SelectItem>
+                <SelectItem value="image">صورة داخلية</SelectItem>
+              </SelectContent>
+            </Select>
+            {internalAttachment.type === 'text' && (
+              <Textarea
+                rows={3}
+                value={internalAttachment.text}
+                onChange={(e) => setInternalAttachment((prev) => ({ ...prev, text: e.target.value }))}
+                placeholder="اكتب ملاحظة أو ملحقًا داخليًا مرتبطًا بهذه الفاتورة..."
+              />
+            )}
+            {internalAttachment.type === 'image' && (
+              <div className="flex flex-wrap items-center gap-2">
+                <Button type="button" variant="outline" disabled={attachmentUploading} onClick={() => document.getElementById('invoice-internal-attachment')?.click()}>
+                  <ImageIcon className="h-4 w-4 ml-1" />
+                  {attachmentUploading ? 'جارٍ الرفع...' : internalAttachment.fileName ? 'تغيير الصورة' : 'رفع صورة'}
+                </Button>
+                {internalAttachment.fileName && <span className="text-sm text-muted-foreground">{internalAttachment.fileName}</span>}
+                <Input
+                  id="invoice-internal-attachment"
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => uploadInternalImage(e.target.files?.[0])}
+                />
+              </div>
+            )}
+          </Card>
 
           {/* Tax + discount */}
           <div className="grid sm:grid-cols-2 gap-4">
