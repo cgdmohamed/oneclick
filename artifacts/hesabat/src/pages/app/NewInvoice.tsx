@@ -6,10 +6,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Plus, Trash2, PackagePlus, UserPlus, AlertTriangle, Paperclip, Image as ImageIcon, X } from 'lucide-react';
+import { Plus, Trash2, PackagePlus, UserPlus, AlertTriangle, Paperclip, Image as ImageIcon, X, Check, ChevronsUpDown } from 'lucide-react';
 import { formatCurrency } from '@/lib/format';
+import { cn } from '@/lib/utils';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { InvoiceSummary } from '@/components/common/InvoiceSummary';
@@ -66,6 +69,7 @@ const NewInvoice = ({ asModal = false, defaultClientId, onCancel, onCreated }: N
     fileName: string;
   }>({ type: 'none', text: '', uploadId: '', fileName: '' });
   const [attachmentUploading, setAttachmentUploading] = useState(false);
+  const [productPickerOpen, setProductPickerOpen] = useState<string | null>(null);
   const [saving, setSaving]     = useState(false);
   const accounts = useQuery({
     enabled: isApiConfigured(),
@@ -233,6 +237,16 @@ const NewInvoice = ({ asModal = false, defaultClientId, onCancel, onCreated }: N
   const pickProduct = (i: number, pid: string) => {
     const p = products.find(x => x.id === pid);
     if (p) update(i, { productId: pid, name: p.name, unitPrice: p.price, vatRate: p.vatRate ?? taxRate });
+    setProductPickerOpen(null);
+  };
+
+  const productSearchText = (p: typeof products[number]) =>
+    [p.name, p.code, p.barcode].filter(Boolean).join(' ');
+
+  const productDisplayName = (productId?: string) => {
+    const p = products.find(x => x.id === productId);
+    if (!p) return '';
+    return `${p.name}${p.barcode ? ` - ${p.barcode}` : p.code ? ` - ${p.code}` : ''}`;
   };
 
   const uploadInternalImage = async (file: File | undefined) => {
@@ -364,12 +378,50 @@ const NewInvoice = ({ asModal = false, defaultClientId, onCancel, onCreated }: N
                   <div className="col-span-12 md:col-span-3">
                     <Label className="text-xs">المنتج</Label>
                     <div className="flex gap-1 mt-0.5">
-                      <Select value={it.productId ?? ''} onValueChange={(v) => pickProduct(i, v)}>
-                        <SelectTrigger className="flex-1"><SelectValue placeholder="اختياري" /></SelectTrigger>
-                        <SelectContent>
-                          {products.map(p => <SelectItem key={p.id} value={p.id}>{p.name}{p.barcode ? ` - ${p.barcode}` : ''}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
+                      <Popover open={productPickerOpen === it.id} onOpenChange={(open) => setProductPickerOpen(open ? it.id : null)}>
+                        <PopoverTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            role="combobox"
+                            aria-expanded={productPickerOpen === it.id}
+                            className="h-9 flex-1 justify-between px-3 font-normal"
+                          >
+                            <span className="truncate text-start">
+                              {it.productId ? productDisplayName(it.productId) : 'ابحث عن منتج...'}
+                            </span>
+                            <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[320px] p-0" align="start" dir="rtl">
+                          <Command filter={(value, search) => value.toLowerCase().includes(search.toLowerCase()) ? 1 : 0}>
+                            <CommandInput placeholder="ابحث بالاسم أو الكود أو الباركود..." />
+                            <CommandList>
+                              <CommandEmpty>لا توجد منتجات مطابقة</CommandEmpty>
+                              <CommandGroup>
+                                {products.map(p => (
+                                  <CommandItem
+                                    key={p.id}
+                                    value={productSearchText(p)}
+                                    onSelect={() => pickProduct(i, p.id)}
+                                  >
+                                    <Check className={cn('h-4 w-4', it.productId === p.id ? 'opacity-100' : 'opacity-0')} />
+                                    <div className="min-w-0 flex-1 text-start">
+                                      <div className="truncate font-medium">{p.name}</div>
+                                      {(p.barcode || p.code) && (
+                                        <div className="truncate text-xs text-muted-foreground">
+                                          {[p.code, p.barcode].filter(Boolean).join(' - ')}
+                                        </div>
+                                      )}
+                                    </div>
+                                    <span className="shrink-0 text-xs text-muted-foreground">{formatCurrency(p.price)}</span>
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
                       <Button
                         type="button"
                         variant="outline"
