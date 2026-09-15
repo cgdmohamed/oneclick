@@ -40,6 +40,8 @@ const createSchema = z.object({
   due_date: z.string().datetime().optional().nullable(),
   branch_id: z.string().uuid().optional().nullable(),
   notes: z.string().optional().nullable(),
+  reference_number: z.string().trim().max(100).optional().nullable(),
+  po_number: z.string().trim().max(100).optional().nullable(),
   internal_attachment: internalAttachmentSchema,
   discount: z.coerce.number().nonnegative().default(0),
   items: z.array(itemSchema).min(1),
@@ -184,13 +186,28 @@ router.post('/', enforceInvoiceLimit(), async (req, res, next) => {
     const discount = round2(itemDiscount + headerDiscount);
     const headerDiscountBase = round2(lineNets.reduce((sum, line) => sum + line, 0));
     let vat = 0;
+    // Net/tax amounts after BOTH item and header discount are allocated,
+    // stored per line below so vat_amount always reconciles against the
+    // sum of invoice_items.tax_amount (audit trail for VAT-01 mismatches).
+    const lineTaxableAmounts: number[] = [];
+    const lineTaxAmounts: number[] = [];
     for (const [index, it] of items.entries()) {
       const line = lineNets[index] ?? 0;
       const allocatedDiscount = headerDiscountBase > 0 ? round2(headerDiscount * (line / headerDiscountBase)) : 0;
       const taxableLine = round2(Math.max(0, line - allocatedDiscount));
-      vat = round2(vat + taxableLine * (it.vat_rate / 100));
+      const lineVat = round2(taxableLine * (it.vat_rate / 100));
+      lineTaxableAmounts.push(taxableLine);
+      lineTaxAmounts.push(lineVat);
+      vat = round2(vat + lineVat);
     }
     const total = round2(Math.max(0, subtotal - discount + vat));
+    // VAT-01 safeguard: refuse to save an invoice whose stored total doesn't
+    // reconcile with subtotal - discount + vat (the exact class of mismatch
+    // reported against this screen), instead of persisting inconsistent
+    // figures silently.
+    if (Math.abs(round2(subtotal - discount + vat) - total) > 0.01) {
+      throw badRequest('Invoice total does not reconcile with subtotal, discount and VAT');
+    }
     const internalAttachment = body.internal_attachment;
     let internalAttachmentType: 'text' | 'image' | null = null;
     let internalAttachmentText: string | null = null;
@@ -228,25 +245,38 @@ router.post('/', enforceInvoiceLimit(), async (req, res, next) => {
     const invRes = await t.db.query(`
       INSERT INTO invoices (company_id, number, client_id, issue_date, due_date, status,
                             subtotal, vat_amount, discount, total, paid, remaining, notes,
+                            reference_number, po_number,
                             internal_attachment_type, internal_attachment_text, internal_attachment_upload_id,
                             branch_id, created_by)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,0,$10,$11,$12,$13,$14,$15,$16)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,0,$10,$11,$12,$13,$14,$15,$16,$17,$18)
       RETURNING *
     `, [t.companyId, number, body.client_id, issueDate, body.due_date ?? null,
         invoiceStatus, subtotal, vat, discount, total, body.notes ?? null,
+        body.reference_number?.trim() || null, body.po_number?.trim() || null,
         internalAttachmentType, internalAttachmentText, internalAttachmentUploadId,
         body.branch_id ?? null, req.auth!.userId]);
     const invoice = invRes.rows[0];
+
+    // Snapshot each line's SKU so the invoice keeps showing it even if the
+    // product is later renamed or re-coded.
+    const skuMap = productIds.length
+      ? await t.db.query(`SELECT id, sku FROM products WHERE company_id = $1 AND id = ANY($2::uuid[])`, [t.companyId, productIds])
+      : { rows: [] as any[] };
+    const skuByProductId = new Map(skuMap.rows.map((row) => [row.id, row.sku]));
 
     for (const [index, it] of items.entries()) {
       const lineBase = lineBases[index] ?? round2(it.quantity * it.unit_price);
       const itemDiscountForLine = lineDiscounts[index] ?? 0;
       const lineNet = round2(Math.max(0, lineBase - itemDiscountForLine));
       const line = round2(lineNet * (1 + it.vat_rate / 100));
+      const netAmount = lineTaxableAmounts[index] ?? lineNet;
+      const taxAmount = lineTaxAmounts[index] ?? 0;
+      const grossAmount = round2(netAmount + taxAmount);
       await t.db.query(`
-        INSERT INTO invoice_items (company_id, invoice_id, product_id, description, quantity, unit_price, discount, vat_rate, line_total, cost_center_id)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
-      `, [t.companyId, invoice.id, it.product_id ?? null, it.description, it.quantity, it.unit_price, itemDiscountForLine, it.vat_rate, line, it.cost_center_id ?? null]);
+        INSERT INTO invoice_items (company_id, invoice_id, product_id, description, quantity, unit_price, discount, vat_rate, line_total, cost_center_id, sku, net_amount, tax_amount, gross_amount)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+      `, [t.companyId, invoice.id, it.product_id ?? null, it.description, it.quantity, it.unit_price, itemDiscountForLine, it.vat_rate, line, it.cost_center_id ?? null,
+          it.product_id ? (skuByProductId.get(it.product_id) ?? null) : null, netAmount, taxAmount, grossAmount]);
 
       if (it.product_id) {
         const productCost = await t.db.query(

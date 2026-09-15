@@ -13,6 +13,7 @@ export type JournalLineInput = {
   credit?: number;
   branchId?: string | null;
   costCenterId?: string | null;
+  clientId?: string | null;
 };
 
 type SourceRef = {
@@ -268,8 +269,8 @@ export async function createJournalEntry(db: Queryable, args: {
   for (const line of args.lines) {
     await db.query(
       `INSERT INTO journal_entry_lines
-       (company_id, journal_entry_id, account_id, description, debit, credit, line_no, branch_id, cost_center_id)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+       (company_id, journal_entry_id, account_id, description, debit, credit, line_no, branch_id, cost_center_id, client_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
       [
         args.companyId,
         je.rows[0].id,
@@ -280,6 +281,7 @@ export async function createJournalEntry(db: Queryable, args: {
         lineNo++,
         line.branchId ?? args.branchId ?? null,
         line.costCenterId ?? null,
+        line.clientId ?? null,
       ],
     );
   }
@@ -384,8 +386,15 @@ export async function postSalesInvoice(db: Queryable, companyId: string, invoice
   const s = await getSettings(db, companyId);
   const inv = invoice.rows[0];
   const revenue = round2(Number(inv.subtotal) - Number(inv.discount ?? 0));
+  // VAT-01 safeguard: never post a journal entry for an invoice whose
+  // stored total doesn't reconcile with subtotal - discount + vat. This is
+  // the last gate before the figures reach the general ledger.
+  const expectedTotal = round2(Number(inv.subtotal) - Number(inv.discount ?? 0) + Number(inv.vat_amount ?? 0));
+  if (Math.abs(expectedTotal - Number(inv.total)) > 0.01) {
+    throw badRequest(`Invoice ${inv.number} total does not reconcile with subtotal, discount and VAT — refusing to post`);
+  }
   const lines: JournalLineInput[] = [
-    { accountId: s.accounts_receivable_account_id, debit: Number(inv.total), description: `Invoice ${inv.number}`, branchId: inv.branch_id },
+    { accountId: s.accounts_receivable_account_id, debit: Number(inv.total), description: `Invoice ${inv.number}`, branchId: inv.branch_id, clientId: inv.client_id },
   ];
   const revenueGroups = await db.query(
     `SELECT
@@ -478,7 +487,7 @@ export async function postCustomerPayment(db: Queryable, companyId: string, paym
     branchId: pay.branch_id ?? null,
     lines: [
       { accountId: cashAccountId, debit: Number(pay.amount), description: pay.reference ?? pay.notes, branchId: pay.branch_id },
-      { accountId: creditAccountId, credit: Number(pay.amount), description: pay.reference ?? pay.notes, branchId: pay.branch_id },
+      { accountId: creditAccountId, credit: Number(pay.amount), description: pay.reference ?? pay.notes, branchId: pay.branch_id, clientId: pay.collection_type === 'general_receipt' ? null : pay.client_id },
     ],
   });
   await db.query(`UPDATE payments SET journal_entry_id = $1 WHERE id = $2 AND company_id = $3`, [je.id, paymentId, companyId]);
