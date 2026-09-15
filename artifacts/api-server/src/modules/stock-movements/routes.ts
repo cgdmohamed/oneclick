@@ -165,28 +165,34 @@ r.post('/', async (req, res, next) => {
           updatedProduct.rows[0].inventory_value,
         ],
       );
-      const settings = await getSettings(t.db, t.companyId);
-      const inventoryAccountId = prodRs.rows[0].resolved_inventory_account_id ?? settings.inventory_account_id;
-      const adjustmentAccountId = prodRs.rows[0].resolved_inventory_adjustment_account_id ?? settings.inventory_adjustment_account_id;
-      if (!inventoryAccountId || !adjustmentAccountId) throw badRequest('Missing inventory accounting settings');
       const value = round2(body.quantity * Number(ins.rows[0].unit_cost ?? 0));
-      const je = await createJournalEntry(t.db, {
-        companyId: t.companyId,
-        entryDate: new Date(),
-        memo: `Stock ${body.type}: ${body.reason ?? prodRs.rows[0].name}`,
-        source: { type: 'stock_movement', id: ins.rows[0].id },
-        userId: req.auth!.userId,
-        lines: delta >= 0
-          ? [
-              { accountId: inventoryAccountId, debit: value, description: body.reason },
-              { accountId: adjustmentAccountId, credit: value, description: body.reason },
-            ]
-          : [
-              { accountId: adjustmentAccountId, debit: value, description: body.reason },
-              { accountId: inventoryAccountId, credit: value, description: body.reason },
-            ],
-      });
-      await t.db.query(`UPDATE stock_movements SET journal_entry_id = $1 WHERE id = $2 AND company_id = $3`, [je.id, ins.rows[0].id, t.companyId]);
+      // A stock movement with no cost basis (e.g. a quantity-only count
+      // correction on a product that has no cost yet) has zero monetary
+      // impact — skip posting a journal entry rather than trying to insert
+      // a debit=0/credit=0 line, which the database correctly rejects.
+      if (value > 0) {
+        const settings = await getSettings(t.db, t.companyId);
+        const inventoryAccountId = prodRs.rows[0].resolved_inventory_account_id ?? settings.inventory_account_id;
+        const adjustmentAccountId = prodRs.rows[0].resolved_inventory_adjustment_account_id ?? settings.inventory_adjustment_account_id;
+        if (!inventoryAccountId || !adjustmentAccountId) throw badRequest('Missing inventory accounting settings');
+        const je = await createJournalEntry(t.db, {
+          companyId: t.companyId,
+          entryDate: new Date(),
+          memo: `Stock ${body.type}: ${body.reason ?? prodRs.rows[0].name}`,
+          source: { type: 'stock_movement', id: ins.rows[0].id },
+          userId: req.auth!.userId,
+          lines: delta >= 0
+            ? [
+                { accountId: inventoryAccountId, debit: value, description: body.reason },
+                { accountId: adjustmentAccountId, credit: value, description: body.reason },
+              ]
+            : [
+                { accountId: adjustmentAccountId, debit: value, description: body.reason },
+                { accountId: inventoryAccountId, credit: value, description: body.reason },
+              ],
+        });
+        await t.db.query(`UPDATE stock_movements SET journal_entry_id = $1 WHERE id = $2 AND company_id = $3`, [je.id, ins.rows[0].id, t.companyId]);
+      }
       await t.db.query('COMMIT');
       res.status(201).json({ data: ins.rows[0] });
     } catch (e) {
