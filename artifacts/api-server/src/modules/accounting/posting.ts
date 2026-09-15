@@ -1,6 +1,6 @@
 import { badRequest, conflict, notFound } from '../../utils/errors.js';
 import { round2 } from '../../utils/money.js';
-import { assertBranch, assertCostCenter } from '../../utils/dimensions.js';
+import { assertBranch, assertCostCenter, assertProject } from '../../utils/dimensions.js';
 
 type Queryable = {
   query: (sql: string, params?: unknown[]) => Promise<{ rows: any[]; rowCount: number | null }>;
@@ -14,6 +14,7 @@ export type JournalLineInput = {
   branchId?: string | null;
   costCenterId?: string | null;
   clientId?: string | null;
+  projectId?: string | null;
 };
 
 type SourceRef = {
@@ -215,6 +216,7 @@ export async function createJournalEntry(db: Queryable, args: {
   for (const line of args.lines) {
     await assertBranch(db, args.companyId, line.branchId);
     await assertCostCenter(db, args.companyId, line.costCenterId);
+    await assertProject(db, args.companyId, line.projectId);
   }
   const fiscalYearId = await ensureFiscalYear(db, args.companyId, args.entryDate);
   const periodId = args.allowLockedPeriod
@@ -269,8 +271,8 @@ export async function createJournalEntry(db: Queryable, args: {
   for (const line of args.lines) {
     await db.query(
       `INSERT INTO journal_entry_lines
-       (company_id, journal_entry_id, account_id, description, debit, credit, line_no, branch_id, cost_center_id, client_id)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+       (company_id, journal_entry_id, account_id, description, debit, credit, line_no, branch_id, cost_center_id, client_id, project_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
       [
         args.companyId,
         je.rows[0].id,
@@ -282,6 +284,7 @@ export async function createJournalEntry(db: Queryable, args: {
         line.branchId ?? args.branchId ?? null,
         line.costCenterId ?? null,
         line.clientId ?? null,
+        line.projectId ?? null,
       ],
     );
   }
@@ -394,11 +397,12 @@ export async function postSalesInvoice(db: Queryable, companyId: string, invoice
     throw badRequest(`Invoice ${inv.number} total does not reconcile with subtotal, discount and VAT — refusing to post`);
   }
   const lines: JournalLineInput[] = [
-    { accountId: s.accounts_receivable_account_id, debit: Number(inv.total), description: `Invoice ${inv.number}`, branchId: inv.branch_id, clientId: inv.client_id },
+    { accountId: s.accounts_receivable_account_id, debit: Number(inv.total), description: `Invoice ${inv.number}`, branchId: inv.branch_id, clientId: inv.client_id, costCenterId: inv.cost_center_id ?? null, projectId: inv.project_id ?? null },
   ];
   const revenueGroups = await db.query(
     `SELECT
        ii.cost_center_id,
+       ii.project_id,
        COALESCE(p.sales_account_id, pc.sales_account_id, parent_pc.sales_account_id, $3::uuid) AS account_id,
        COALESCE(SUM(ii.quantity * ii.unit_price),0) AS amount
      FROM invoice_items ii
@@ -406,14 +410,14 @@ export async function postSalesInvoice(db: Queryable, companyId: string, invoice
      LEFT JOIN product_categories pc ON pc.id = p.category_id AND pc.company_id = p.company_id
      LEFT JOIN product_categories parent_pc ON parent_pc.id = pc.parent_id AND parent_pc.company_id = pc.company_id
      WHERE ii.invoice_id = $1 AND ii.company_id = $2
-     GROUP BY 1, 2`,
+     GROUP BY 1, 2, 3`,
     [invoiceId, companyId, s.sales_revenue_account_id],
   );
   const subtotal = Number(inv.subtotal) || 0;
   const revenueRows = revenueGroups.rows.map((row) => {
     const gross = Number(row.amount);
     const discountShare = subtotal > 0 ? round2(Number(inv.discount ?? 0) * (gross / subtotal)) : 0;
-    return { costCenterId: row.cost_center_id ?? null, accountId: row.account_id as string | null, amount: round2(gross - discountShare) };
+    return { costCenterId: row.cost_center_id ?? null, projectId: row.project_id ?? null, accountId: row.account_id as string | null, amount: round2(gross - discountShare) };
   });
   const allocatedRevenue = round2(revenueRows.reduce((sum, row) => sum + row.amount, 0));
   if (revenueRows.length > 0) {
@@ -421,18 +425,19 @@ export async function postSalesInvoice(db: Queryable, companyId: string, invoice
   }
   for (const row of revenueRows) {
     if (row.amount > 0) {
-      lines.push({ accountId: s.sales_revenue_account_id, credit: row.amount, description: `Invoice ${inv.number}`, branchId: inv.branch_id, costCenterId: row.costCenterId });
+      lines.push({ accountId: s.sales_revenue_account_id, credit: row.amount, description: `Invoice ${inv.number}`, branchId: inv.branch_id, costCenterId: row.costCenterId, projectId: row.projectId });
       lines[lines.length - 1].accountId = requireAccount(row.accountId ?? s.sales_revenue_account_id, 'sales revenue');
     }
   }
   if (revenueGroups.rows.length === 0 && revenue > 0) {
-    lines.push({ accountId: s.sales_revenue_account_id, credit: revenue, description: `Invoice ${inv.number}`, branchId: inv.branch_id });
+    lines.push({ accountId: s.sales_revenue_account_id, credit: revenue, description: `Invoice ${inv.number}`, branchId: inv.branch_id, costCenterId: inv.cost_center_id ?? null, projectId: inv.project_id ?? null });
   }
-  if (Number(inv.vat_amount) > 0) lines.push({ accountId: s.sales_vat_account_id, credit: Number(inv.vat_amount), description: `Invoice ${inv.number}`, branchId: inv.branch_id });
+  if (Number(inv.vat_amount) > 0) lines.push({ accountId: s.sales_vat_account_id, credit: Number(inv.vat_amount), description: `Invoice ${inv.number}`, branchId: inv.branch_id, costCenterId: inv.cost_center_id ?? null, projectId: inv.project_id ?? null });
 
   const cogs = await db.query(
     `SELECT
        ii.cost_center_id,
+       ii.project_id,
        COALESCE(p.cogs_account_id, pc.cogs_account_id, parent_pc.cogs_account_id, $3::uuid) AS cogs_account_id,
        COALESCE(p.inventory_account_id, pc.inventory_account_id, parent_pc.inventory_account_id, $4::uuid) AS inventory_account_id,
        COALESCE(SUM(ii.quantity * COALESCE(NULLIF(p.average_cost, 0), p.cost, 0)),0) AS amount
@@ -441,14 +446,14 @@ export async function postSalesInvoice(db: Queryable, companyId: string, invoice
      LEFT JOIN product_categories parent_pc ON parent_pc.id = pc.parent_id AND parent_pc.company_id = pc.company_id
      WHERE ii.invoice_id = $1 AND ii.company_id = $2
        AND p.product_type = 'stock'
-     GROUP BY 1, 2, 3`,
+     GROUP BY 1, 2, 3, 4`,
     [invoiceId, companyId, s.cogs_account_id, s.inventory_account_id],
   );
   for (const row of cogs.rows) {
     const cogsAmount = round2(Number(row.amount ?? 0));
     if (cogsAmount > 0) {
-      lines.push({ accountId: requireAccount(row.cogs_account_id ?? s.cogs_account_id, 'cost of goods sold'), debit: cogsAmount, description: `COGS ${inv.number}`, branchId: inv.branch_id, costCenterId: row.cost_center_id ?? null });
-      lines.push({ accountId: requireAccount(row.inventory_account_id ?? s.inventory_account_id, 'inventory'), credit: cogsAmount, description: `COGS ${inv.number}`, branchId: inv.branch_id, costCenterId: row.cost_center_id ?? null });
+      lines.push({ accountId: requireAccount(row.cogs_account_id ?? s.cogs_account_id, 'cost of goods sold'), debit: cogsAmount, description: `COGS ${inv.number}`, branchId: inv.branch_id, costCenterId: row.cost_center_id ?? null, projectId: row.project_id ?? null });
+      lines.push({ accountId: requireAccount(row.inventory_account_id ?? s.inventory_account_id, 'inventory'), credit: cogsAmount, description: `COGS ${inv.number}`, branchId: inv.branch_id, costCenterId: row.cost_center_id ?? null, projectId: row.project_id ?? null });
     }
   }
 

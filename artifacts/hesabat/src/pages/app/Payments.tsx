@@ -177,6 +177,8 @@ const Payments = () => {
                 <SelectItem value="cash">نقدي</SelectItem>
                 <SelectItem value="bank">تحويل بنكي</SelectItem>
                 <SelectItem value="wallet">محفظة إلكترونية</SelectItem>
+                <SelectItem value="cheque">شيك</SelectItem>
+                <SelectItem value="card">بطاقة</SelectItem>
               </SelectContent>
             </Select>
             <Button onClick={() => setOpen(true)}><Plus className="h-4 w-4 me-1" /> تحصيل جديد</Button>
@@ -201,7 +203,7 @@ const Payments = () => {
               <div><Label>التاريخ</Label><Input className="mt-1.5" type="date" value={form.paid_at} onChange={(e) => setForm((p) => ({ ...p, paid_at: e.target.value }))} /></div>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div><Label>الطريقة</Label><Select value={form.method} onValueChange={(v) => setForm((p) => ({ ...p, method: v }))}><SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="cash">نقدي</SelectItem><SelectItem value="bank">تحويل بنكي</SelectItem><SelectItem value="wallet">محفظة إلكترونية</SelectItem></SelectContent></Select></div>
+              <div><Label>الطريقة</Label><Select value={form.method} onValueChange={(v) => setForm((p) => ({ ...p, method: v }))}><SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="cash">نقدي</SelectItem><SelectItem value="bank">تحويل بنكي</SelectItem><SelectItem value="wallet">محفظة إلكترونية</SelectItem><SelectItem value="cheque">شيك</SelectItem><SelectItem value="card">بطاقة</SelectItem></SelectContent></Select></div>
               <div><Label>المرجع</Label><Input className="mt-1.5" value={form.reference} onChange={(e) => setForm((p) => ({ ...p, reference: e.target.value }))} /></div>
             </div>
             <div><Label>ملاحظات</Label><Textarea className="mt-1.5" rows={2} value={form.notes} onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))} /></div>

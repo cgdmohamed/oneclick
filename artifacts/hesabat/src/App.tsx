@@ -36,6 +36,7 @@ import Payments from "./pages/app/Payments";
 import Accounts from "./pages/app/Accounts";
 import Branches from "./pages/app/Branches";
 import CostCenters from "./pages/app/CostCenters";
+import Projects from "./pages/app/Projects";
 import Products from "./pages/app/Products";
 import ProductDetails from "./pages/app/ProductDetails";
 import Reports from "./pages/app/Reports";
@@ -169,6 +170,7 @@ const App = () => {
               <Route path="accounts" element={<Accounts />} />
               <Route path="branches" element={<Branches />} />
               <Route path="cost-centers" element={<CostCenters />} />
+              <Route path="projects" element={<Projects />} />
               <Route path="products" element={<Products />} />
               <Route path="products/:id" element={<ProductDetails />} />
               <Route path="reports" element={<Reports />} />

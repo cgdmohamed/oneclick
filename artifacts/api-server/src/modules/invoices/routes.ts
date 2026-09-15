@@ -11,7 +11,7 @@ import { enforceInvoiceLimit } from '../../middleware/planLimits.js';
 import { parsePagination } from '../../utils/pagination.js';
 
 import { round2 } from '../../utils/money.js';
-import { assertBranch, assertCostCenter } from '../../utils/dimensions.js';
+import { assertBranch, assertCostCenter, assertProject } from '../../utils/dimensions.js';
 import { internalKindSchema } from '../notifications/kinds.js';
 import { assertPeriodOpen, postCustomerPayment, postSalesInvoice, reverseJournalEntry } from '../accounting/posting.js';
 
@@ -21,6 +21,7 @@ const EGP_CURRENCY_SYMBOL = 'ج.م';
 const itemSchema = z.object({
   product_id: z.string().uuid().optional().nullable(),
   cost_center_id: z.string().uuid().optional().nullable(),
+  project_id: z.string().uuid().optional().nullable(),
   description: z.string().min(1),
   quantity: z.coerce.number().positive(),
   unit_price: z.coerce.number().nonnegative(),
@@ -39,6 +40,8 @@ const createSchema = z.object({
   issue_date: z.string().datetime().optional(),
   due_date: z.string().datetime().optional().nullable(),
   branch_id: z.string().uuid().optional().nullable(),
+  cost_center_id: z.string().uuid().optional().nullable(),
+  project_id: z.string().uuid().optional().nullable(),
   notes: z.string().optional().nullable(),
   reference_number: z.string().trim().max(100).optional().nullable(),
   po_number: z.string().trim().max(100).optional().nullable(),
@@ -124,7 +127,12 @@ router.post('/', enforceInvoiceLimit(), async (req, res, next) => {
     const t = req.tenant!;
     const body = createSchema.parse(req.body);
     await assertBranch(t.db, t.companyId, body.branch_id);
-    for (const item of body.items) await assertCostCenter(t.db, t.companyId, item.cost_center_id);
+    await assertCostCenter(t.db, t.companyId, body.cost_center_id);
+    await assertProject(t.db, t.companyId, body.project_id);
+    for (const item of body.items) {
+      await assertCostCenter(t.db, t.companyId, item.cost_center_id);
+      await assertProject(t.db, t.companyId, item.project_id);
+    }
 
     await t.db.query('BEGIN');
     txStarted = true;
@@ -247,14 +255,14 @@ router.post('/', enforceInvoiceLimit(), async (req, res, next) => {
                             subtotal, vat_amount, discount, total, paid, remaining, notes,
                             reference_number, po_number,
                             internal_attachment_type, internal_attachment_text, internal_attachment_upload_id,
-                            branch_id, created_by)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,0,$10,$11,$12,$13,$14,$15,$16,$17,$18)
+                            branch_id, cost_center_id, project_id, created_by)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,0,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
       RETURNING *
     `, [t.companyId, number, body.client_id, issueDate, body.due_date ?? null,
         invoiceStatus, subtotal, vat, discount, total, body.notes ?? null,
         body.reference_number?.trim() || null, body.po_number?.trim() || null,
         internalAttachmentType, internalAttachmentText, internalAttachmentUploadId,
-        body.branch_id ?? null, req.auth!.userId]);
+        body.branch_id ?? null, body.cost_center_id ?? null, body.project_id ?? null, req.auth!.userId]);
     const invoice = invRes.rows[0];
 
     // Snapshot each line's SKU so the invoice keeps showing it even if the
@@ -273,9 +281,10 @@ router.post('/', enforceInvoiceLimit(), async (req, res, next) => {
       const taxAmount = lineTaxAmounts[index] ?? 0;
       const grossAmount = round2(netAmount + taxAmount);
       await t.db.query(`
-        INSERT INTO invoice_items (company_id, invoice_id, product_id, description, quantity, unit_price, discount, vat_rate, line_total, cost_center_id, sku, net_amount, tax_amount, gross_amount)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
-      `, [t.companyId, invoice.id, it.product_id ?? null, it.description, it.quantity, it.unit_price, itemDiscountForLine, it.vat_rate, line, it.cost_center_id ?? null,
+        INSERT INTO invoice_items (company_id, invoice_id, product_id, description, quantity, unit_price, discount, vat_rate, line_total, cost_center_id, project_id, sku, net_amount, tax_amount, gross_amount)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+      `, [t.companyId, invoice.id, it.product_id ?? null, it.description, it.quantity, it.unit_price, itemDiscountForLine, it.vat_rate, line,
+          it.cost_center_id ?? body.cost_center_id ?? null, it.project_id ?? body.project_id ?? null,
           it.product_id ? (skuByProductId.get(it.product_id) ?? null) : null, netAmount, taxAmount, grossAmount]);
 
       if (it.product_id) {

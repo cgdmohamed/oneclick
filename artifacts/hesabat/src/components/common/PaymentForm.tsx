@@ -57,19 +57,24 @@ export const PaymentForm = ({ remaining, onSubmit, onCancel }: PaymentFormProps)
                   <SelectItem value="cash">{paymentMethodLabel('cash')}</SelectItem>
                   <SelectItem value="bank">{paymentMethodLabel('bank')}</SelectItem>
                   <SelectItem value="wallet">{paymentMethodLabel('wallet')}</SelectItem>
+                  <SelectItem value="cheque">{paymentMethodLabel('cheque')}</SelectItem>
+                  <SelectItem value="card">{paymentMethodLabel('card')}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div className="col-span-12 md:col-span-5">
               <Label className="text-xs">الحساب المالي</Label>
+              {/* طريقة الدفع وصف فقط؛ الحساب الفعلي المستلَم فيه المبلغ يُختار
+                  بحرية من كل حسابات الشركة (يمكن إنشاء حساب بنكي مخصص
+                  للشيكات أو تسويات البطاقات من شاشة الحسابات). */}
               <Select value={s.accountId} onValueChange={(v) => update(i, { accountId: v })}>
                 <SelectTrigger><SelectValue placeholder="اختر حساباً" /></SelectTrigger>
                 <SelectContent>
-                  {accountsForCompany.filter(a => a.type === s.method).map(a => (
+                  {accountsForCompany.map(a => (
                     <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
                   ))}
-                  {accountsForCompany.filter(a => a.type === s.method).length === 0 && (
-                    <SelectItem value="none" disabled>لا توجد حسابات لهذا النوع</SelectItem>
+                  {accountsForCompany.length === 0 && (
+                    <SelectItem value="none" disabled>لا توجد حسابات نشطة</SelectItem>
                   )}
                 </SelectContent>
               </Select>

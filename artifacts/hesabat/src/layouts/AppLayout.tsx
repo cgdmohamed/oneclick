@@ -1,6 +1,6 @@
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarTrigger, useSidebar, SidebarHeader, SidebarFooter } from '@/components/ui/sidebar';
-import { LayoutDashboard, Users, FileText, CreditCard, Wallet, Package, BarChart3, Bell, BellRing, ShieldCheck, Settings, LogOut, Building2, Layers, ToggleRight, Megaphone, Cog, Crown, History, LayoutTemplate, LineChart, PieChart, ScrollText, UserPlus, UserCog, X, Info, Truck, ArrowUpFromLine, BookOpen, Scale, CalendarDays, Target, Lock, Landmark } from 'lucide-react';
+import { LayoutDashboard, Users, FileText, CreditCard, Wallet, Package, BarChart3, Bell, BellRing, ShieldCheck, Settings, LogOut, Building2, Layers, ToggleRight, Megaphone, Cog, Crown, History, LayoutTemplate, LineChart, PieChart, ScrollText, UserPlus, UserCog, X, Info, Truck, ArrowUpFromLine, BookOpen, Scale, CalendarDays, Target, Lock, Landmark, Briefcase } from 'lucide-react';
 import { BrandLogo } from '@/components/common/BrandLogo';
 import { Badge } from '@/components/ui/badge';
 import { usePendingSignupsCount } from '@/hooks/usePendingSignups';
@@ -75,6 +75,7 @@ const companyNavGroups: NavGroup[] = [
       { to: '/app/accounting/journals', label: 'قيود اليومية', icon: Scale, feature: 'accounting' },
       { to: '/app/branches', label: 'الفروع', icon: Building2, feature: 'accounting' },
       { to: '/app/cost-centers', label: 'مراكز التكلفة', icon: Target, feature: 'accounting' },
+      { to: '/app/projects', label: 'المشاريع', icon: Briefcase, feature: 'accounting' },
       { to: '/app/accounting/fiscal-years', label: 'الفترات المالية', icon: CalendarDays, feature: 'accounting' },
       { to: '/app/accounting/opening-balances', label: 'الأرصدة الافتتاحية', icon: FileText, feature: 'accounting' },
       { to: '/app/accounting/year-end-closing', label: 'إقفال السنة', icon: Lock, feature: 'accounting' },
@@ -182,6 +183,7 @@ const pageKey = (kind: 'company' | 'admin', pathname: string): string => {
   if (pathname.startsWith('/app/accounts')) return 'accounts';
   if (pathname.startsWith('/app/branches')) return 'branches';
   if (pathname.startsWith('/app/cost-centers')) return 'cost-centers';
+  if (pathname.startsWith('/app/projects')) return 'projects';
   if (pathname.startsWith('/app/products')) return 'products';
   if (pathname.startsWith('/app/inventory-write-offs')) return 'products';
   if (pathname.startsWith('/app/accounting')) return 'accounting';

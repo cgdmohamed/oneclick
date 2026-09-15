@@ -23,6 +23,7 @@ import { EGP_CURRENCY_CODE } from '@/lib/currency';
 
 interface Item { id: string; name: string; quantity: number; unitPrice: number; discount: number; productId?: string; vatRate?: number }
 interface Account { id: string; name: string; type: string; }
+interface DimensionRow { id: string; code: string | null; name: string; is_active: boolean; }
 
 /* ── Quick-create forms ─────────────────────────────────────────── */
 interface NewClientForm {
@@ -60,6 +61,20 @@ const NewInvoice = ({ asModal = false, defaultClientId, onCancel, onCreated }: N
   const [taxRate, setTaxRate]   = useState(15);
   const [discount, setDiscount] = useState(0);
   const [dueDate, setDueDate]   = useState(new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10));
+  const [referenceNumber, setReferenceNumber] = useState('');
+  const [poNumber, setPoNumber] = useState('');
+  const [costCenterId, setCostCenterId] = useState('');
+  const [projectId, setProjectId] = useState('');
+  const { data: costCenters = [] } = useQuery({
+    queryKey: ['cost-centers'],
+    queryFn: async () => (await api.get<{ data: DimensionRow[] }>('/api/cost-centers')).data ?? [],
+  });
+  const { data: projects = [] } = useQuery({
+    queryKey: ['projects'],
+    queryFn: async () => (await api.get<{ data: DimensionRow[] }>('/api/projects')).data ?? [],
+  });
+  const activeCostCenters = costCenters.filter((c) => c.is_active);
+  const activeProjects = projects.filter((p) => p.is_active);
   const [initialCollection, setInitialCollection] = useState({ amount: '0', account_id: '', method: 'cash', reference: '', notes: '' });
   const [internalAttachment, setInternalAttachment] = useState<{
     type: 'none' | 'text' | 'image';
@@ -284,6 +299,10 @@ const NewInvoice = ({ asModal = false, defaultClientId, onCancel, onCreated }: N
         const res = await api.post<{ data: { id: string } }>('/api/invoices', {
           client_id: clientId,
           due_date:  new Date(dueDate).toISOString(),
+          reference_number: referenceNumber.trim() || null,
+          po_number: poNumber.trim() || null,
+          cost_center_id: costCenterId || null,
+          project_id: projectId || null,
           discount: totals.headerDiscount,
           internal_attachment: internalAttachment.uploadId ? {
             type: 'image',
@@ -362,6 +381,42 @@ const NewInvoice = ({ asModal = false, defaultClientId, onCancel, onCreated }: N
             <div>
               <Label>تاريخ الاستحقاق</Label>
               <Input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} className="mt-1.5" />
+            </div>
+          </div>
+
+          {/* Reference / PO */}
+          <div className="grid sm:grid-cols-2 gap-4">
+            <div>
+              <Label>الرقم المرجعي</Label>
+              <Input value={referenceNumber} onChange={e => setReferenceNumber(e.target.value)} placeholder="اختياري" className="mt-1.5" />
+            </div>
+            <div>
+              <Label>رقم أمر الشراء (PO)</Label>
+              <Input value={poNumber} onChange={e => setPoNumber(e.target.value)} placeholder="اختياري" className="mt-1.5" />
+            </div>
+          </div>
+
+          {/* Cost center / Project */}
+          <div className="grid sm:grid-cols-2 gap-4">
+            <div>
+              <Label>مركز التكلفة</Label>
+              <Select value={costCenterId || '__none__'} onValueChange={(v) => setCostCenterId(v === '__none__' ? '' : v)}>
+                <SelectTrigger className="mt-1.5"><SelectValue placeholder="بدون" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">بدون</SelectItem>
+                  {activeCostCenters.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>المشروع</Label>
+              <Select value={projectId || '__none__'} onValueChange={(v) => setProjectId(v === '__none__' ? '' : v)}>
+                <SelectTrigger className="mt-1.5"><SelectValue placeholder="بدون" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">بدون</SelectItem>
+                  {activeProjects.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
@@ -547,7 +602,7 @@ const NewInvoice = ({ asModal = false, defaultClientId, onCancel, onCreated }: N
                 <Label>طريقة التحصيل</Label>
                 <Select value={initialCollection.method} onValueChange={(v) => setInitialCollection((p) => ({ ...p, method: v }))}>
                   <SelectTrigger className="mt-1.5 bg-background"><SelectValue /></SelectTrigger>
-                  <SelectContent><SelectItem value="cash">نقدي</SelectItem><SelectItem value="bank">تحويل بنكي</SelectItem><SelectItem value="wallet">محفظة إلكترونية</SelectItem></SelectContent>
+                  <SelectContent><SelectItem value="cash">نقدي</SelectItem><SelectItem value="bank">تحويل بنكي</SelectItem><SelectItem value="wallet">محفظة إلكترونية</SelectItem><SelectItem value="cheque">شيك</SelectItem><SelectItem value="card">بطاقة</SelectItem></SelectContent>
                 </Select>
               </div>
               <Input className="bg-background" placeholder="مرجع التحصيل - اختياري" value={initialCollection.reference} onChange={(e) => setInitialCollection((p) => ({ ...p, reference: e.target.value }))} />

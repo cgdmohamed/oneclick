@@ -15,3 +15,9 @@ export async function assertCostCenter(db: Queryable, companyId: string, costCen
   const rs = await db.query(`SELECT 1 FROM cost_centers WHERE id = $1 AND company_id = $2`, [costCenterId, companyId]);
   if (!rs.rowCount) throw badRequest('Invalid cost center');
 }
+
+export async function assertProject(db: Queryable, companyId: string, projectId?: string | null) {
+  if (!projectId) return;
+  const rs = await db.query(`SELECT 1 FROM projects WHERE id = $1 AND company_id = $2`, [projectId, companyId]);
+  if (!rs.rowCount) throw badRequest('Invalid project');
+}

@@ -34,6 +34,9 @@ export const paymentMethodLabel = (m: string): string => {
     case 'cash': return 'نقدي';
     case 'bank': return 'تحويل بنكي';
     case 'wallet': return 'محفظة إلكترونية';
+    case 'cheque': return 'شيك';
+    case 'card': return 'بطاقة';
+    case 'deferred': return 'آجل';
     default: return m;
   }
 };

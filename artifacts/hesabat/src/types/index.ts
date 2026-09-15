@@ -113,7 +113,7 @@ export interface Invoice {
   notes?: string;
 }
 
-export type PaymentMethod = 'cash' | 'bank' | 'wallet';
+export type PaymentMethod = 'cash' | 'bank' | 'wallet' | 'cheque' | 'card';
 
 export interface FinancialAccount {
   id: UUID;

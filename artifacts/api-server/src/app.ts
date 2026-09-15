@@ -47,6 +47,7 @@ import payrollRoutes from './modules/payroll/routes.js';
 import bankReconciliationsRoutes from './modules/bank-reconciliations/routes.js';
 import branchesRoutes from './modules/branches/routes.js';
 import costCentersRoutes from './modules/cost-centers/routes.js';
+import projectsRoutes from './modules/projects/routes.js';
 import inventoryWriteOffsRoutes from './modules/inventory-write-offs/routes.js';
 import dashboardRoutes from './modules/dashboard/routes.js';
 
@@ -153,6 +154,7 @@ app.use('/api/payroll', requireFeature('accounting'), payrollRoutes);
 app.use('/api/bank-reconciliations', requireFeature('accounting'), bankReconciliationsRoutes);
 app.use('/api/branches', requireFeature('accounting'), branchesRoutes);
 app.use('/api/cost-centers', requireFeature('accounting'), costCentersRoutes);
+app.use('/api/projects', requireFeature('accounting'), projectsRoutes);
 app.use('/api/inventory-write-offs', requireFeature('products'), inventoryWriteOffsRoutes);
 app.use('/api/audit-log', requireFeature('activity_log'), auditRoutes);
 app.use('/api/uploads', uploadsRoutes);
