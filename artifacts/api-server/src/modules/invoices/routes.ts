@@ -107,10 +107,13 @@ router.get('/:id', async (req, res, next) => {
               c.phone AS client_phone, c.whatsapp AS client_whatsapp,
               u.filename AS internal_attachment_filename,
               u.mime_type AS internal_attachment_mime_type,
-              u.url AS internal_attachment_url
+              u.url AS internal_attachment_url,
+              cc.name AS cost_center_name, pr.name AS project_name
        FROM invoices i
        JOIN clients c ON c.id = i.client_id
        LEFT JOIN uploads u ON u.id = i.internal_attachment_upload_id AND u.company_id = i.company_id
+       LEFT JOIN cost_centers cc ON cc.id = i.cost_center_id AND cc.company_id = i.company_id
+       LEFT JOIN projects pr ON pr.id = i.project_id AND pr.company_id = i.company_id
        WHERE i.id = $1 AND i.company_id = $2`,
       [req.params.id, t.companyId],
     );

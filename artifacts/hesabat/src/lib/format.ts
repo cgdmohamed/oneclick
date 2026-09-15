@@ -50,6 +50,15 @@ export const accountTypeLabel = (t: string): string => {
   }
 };
 
+export const noteStatusLabel = (s: string): string => {
+  switch (s) {
+    case 'draft': return 'مسودة';
+    case 'posted': return 'مرحل';
+    case 'cancelled': return 'ملغى';
+    default: return s;
+  }
+};
+
 export const invoiceStatusLabel = (s: string): string => {
   switch (s) {
     case 'paid': return 'مدفوعة';

@@ -7,7 +7,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { api, ApiError } from '@/lib/api';
-import { formatCurrency, formatDateShort } from '@/lib/format';
+import { formatCurrency, formatDateShort, noteStatusLabel } from '@/lib/format';
 import { ArrowRight, FileText, RotateCcw, Wallet } from 'lucide-react';
 import { toast } from 'sonner';
 import type { CreditNote, CreditNoteItem } from './types';
@@ -91,7 +91,7 @@ const CreditNoteDetails = () => {
         }
       />
       <div className="grid sm:grid-cols-4 gap-4">
-        <StatCard title="الحالة" value={note.status} icon={RotateCcw} accent="info" />
+        <StatCard title="الحالة" value={noteStatusLabel(note.status)} icon={RotateCcw} accent="info" />
         <StatCard title="التاريخ" value={formatDateShort(note.credit_note_date)} icon={FileText} accent="primary" />
         <StatCard title="ضريبة المخرجات المعكوسة" value={formatCurrency(Number(note.vat_amount))} icon={Wallet} accent="warning" />
         <StatCard title="الإجمالي" value={formatCurrency(Number(note.total))} icon={Wallet} accent="success" />

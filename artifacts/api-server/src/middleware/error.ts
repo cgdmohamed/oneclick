@@ -3,6 +3,21 @@ import { ZodError } from 'zod';
 import { HttpError } from '../utils/errors.js';
 import { logger } from '../utils/logger.js';
 
+/** Postgres error codes we translate into clean, user-facing 400s instead of a raw 500. */
+type PgError = { code?: string; constraint?: string };
+
+function friendlyDbMessage(err: PgError): string | null {
+  if (err.code === '23505') {
+    // unique_violation — most of our uq constraints are "<table>_company_<col>_uq"
+    return 'هذه القيمة مستخدمة بالفعل، يرجى اختيار قيمة أخرى';
+  }
+  if (err.code === '23503') {
+    // foreign_key_violation
+    return 'لا يمكن إتمام العملية لوجود بيانات مرتبطة بهذا العنصر';
+  }
+  return null;
+}
+
 export const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
   const reqId = req.id as string | undefined;
   if (err instanceof ZodError) {
@@ -15,6 +30,10 @@ export const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
       details: err.details,
       request_id: reqId,
     });
+  }
+  const dbMessage = friendlyDbMessage(err as PgError);
+  if (dbMessage) {
+    return res.status(400).json({ error: 'conflict', message: dbMessage, request_id: reqId });
   }
   (req.log ?? logger).error({ err, reqId }, 'unhandled error');
   return res.status(500).json({ error: 'internal_error', message: 'Something went wrong', request_id: reqId });

@@ -13,7 +13,7 @@ import { formatCurrency, formatDate, paymentMethodLabel, invoiceStatusLabel } fr
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { PaymentForm } from '@/components/common/PaymentForm';
-import { Plus, Share2, Mail, MessageCircle, Printer, Copy, Send, XCircle, RotateCcw, Paperclip, Image as ImageIcon, FileText } from 'lucide-react';
+import { Plus, Share2, Mail, MessageCircle, Printer, Copy, Send, XCircle, RotateCcw, ArrowDownToLine, Paperclip, Image as ImageIcon, FileText } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Payment, PaymentSplit, Invoice, InvoiceStatus } from '@/types';
 import { api, ApiError, isApiConfigured, resolveAssetUrl } from '@/lib/api';
@@ -29,6 +29,8 @@ interface ApiInvoice {
   subtotal: string | number; vat_amount: string | number; discount: string | number;
   total: string | number; paid: string | number; remaining: string | number;
   status: string; notes: string | null;
+  reference_number?: string | null; po_number?: string | null;
+  cost_center_name?: string | null; project_name?: string | null;
   qr_public_visible?: boolean | null;
   internal_attachment_type?: 'text' | 'image' | null;
   internal_attachment_text?: string | null;
@@ -254,6 +256,11 @@ const InvoiceDetails = () => {
                 <RotateCcw className="h-4 w-4 ml-1" /> إشعار دائن
               </Button>
             )}
+            {!isDraft && !isCancelled && (
+              <Button variant="outline" onClick={() => navigate(`/app/debit-notes/new?invoice=${invoice.id}`)}>
+                <ArrowDownToLine className="h-4 w-4 ml-1" /> إشعار مدين
+              </Button>
+            )}
             {!isDraft && !isCancelled && remaining > 0 && (
               <Button variant="outline" onClick={() => navigate(`/app/accounting/bad-debts?invoice=${invoice.id}`)}>
                 <XCircle className="h-4 w-4 ml-1" /> إعدام دين
@@ -316,6 +323,15 @@ const InvoiceDetails = () => {
               <div className="text-xs text-muted-foreground">تاريخ الاستحقاق: {formatDate(invoice.dueDate)}</div>
             </div>
           </div>
+
+          {(apiOn && apiInvoice && (apiInvoice.reference_number || apiInvoice.po_number || apiInvoice.cost_center_name || apiInvoice.project_name)) && (
+            <div className="flex flex-wrap gap-x-6 gap-y-1 py-3 border-b border-border text-sm no-print">
+              {apiInvoice.reference_number && <div><span className="text-muted-foreground">الرقم المرجعي:</span> {apiInvoice.reference_number}</div>}
+              {apiInvoice.po_number && <div><span className="text-muted-foreground">رقم أمر الشراء:</span> {apiInvoice.po_number}</div>}
+              {apiInvoice.cost_center_name && <div><span className="text-muted-foreground">مركز التكلفة:</span> {apiInvoice.cost_center_name}</div>}
+              {apiInvoice.project_name && <div><span className="text-muted-foreground">المشروع:</span> {apiInvoice.project_name}</div>}
+            </div>
+          )}
 
           <table className="w-full text-sm mt-4">
             <thead>

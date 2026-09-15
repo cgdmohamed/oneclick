@@ -6,7 +6,7 @@ import { StatCard } from '@/components/common/StatCard';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { api } from '@/lib/api';
-import { formatCurrency, formatDateShort } from '@/lib/format';
+import { formatCurrency, formatDateShort, noteStatusLabel } from '@/lib/format';
 import { Plus, RotateCcw, Wallet } from 'lucide-react';
 import type { CreditNote } from './types';
 
@@ -22,7 +22,7 @@ const CreditNotes = () => {
     { key: 'customer', header: 'العميل', cell: (r) => r.customer_name ?? '—' },
     { key: 'invoice', header: 'الفاتورة الأصلية', cell: (r) => r.original_invoice_number ?? '—' },
     { key: 'date', header: 'التاريخ', cell: (r) => formatDateShort(r.credit_note_date) },
-    { key: 'status', header: 'الحالة', cell: (r) => <Badge>{r.status}</Badge> },
+    { key: 'status', header: 'الحالة', cell: (r) => <Badge>{noteStatusLabel(r.status)}</Badge> },
     { key: 'total', header: 'الإجمالي', cell: (r) => formatCurrency(Number(r.total)), className: 'text-end' },
   ];
 
