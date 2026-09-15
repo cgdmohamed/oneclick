@@ -286,6 +286,7 @@ const Products = () => {
   const [movementOpen, setMovementOpen] = useState(false);
   const [newMovement, setNewMovement] = useState<NewMovement>(emptyMovement);
   const [movementSaving, setMovementSaving] = useState(false);
+  const selectedMovementProduct = list.find(p => p.id === newMovement.product_id);
 
   const movementsQuery = useQuery({
     enabled: isApiConfigured(),
@@ -789,6 +790,11 @@ const Products = () => {
                   {stockProducts.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
                 </SelectContent>
               </Select>
+              {selectedMovementProduct && !(selectedMovementProduct.averageCost || selectedMovementProduct.cost) && (
+                <p className="mt-1.5 text-xs text-amber-600">
+                  ⚠️ هذا الصنف بدون تكلفة محددة حاليًا، فلن ينتج عن هذه الحركة أي قيد محاسبي (تأثير مالي صفري). أدخل تكلفة للمنتج أولاً إذا كانت له قيمة فعلية.
+                </p>
+              )}
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
