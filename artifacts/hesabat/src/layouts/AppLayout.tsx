@@ -1,6 +1,6 @@
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarTrigger, useSidebar, SidebarHeader, SidebarFooter } from '@/components/ui/sidebar';
-import { LayoutDashboard, Users, FileText, CreditCard, Wallet, Package, BarChart3, Bell, BellRing, ShieldCheck, Settings, LogOut, Building2, Layers, ToggleRight, Megaphone, Cog, Crown, History, LayoutTemplate, LineChart, PieChart, ScrollText, UserPlus, UserCog, X, Info, Truck, ArrowUpFromLine, BookOpen, Scale, CalendarDays, Target, Lock, Landmark, Briefcase } from 'lucide-react';
+import { LayoutDashboard, Users, FileText, CreditCard, Wallet, Package, BarChart3, Bell, BellRing, ShieldCheck, Settings, LogOut, Building2, Layers, ToggleRight, Megaphone, Cog, Crown, History, LayoutTemplate, LineChart, PieChart, ScrollText, UserPlus, UserCog, X, Info, Truck, ArrowUpFromLine, ArrowDownToLine, BookOpen, Scale, CalendarDays, Target, Lock, Landmark, Briefcase } from 'lucide-react';
 import { BrandLogo } from '@/components/common/BrandLogo';
 import { Badge } from '@/components/ui/badge';
 import { usePendingSignupsCount } from '@/hooks/usePendingSignups';
@@ -46,6 +46,7 @@ const companyNavGroups: NavGroup[] = [
     items: [
       { to: '/app/invoices', label: 'الفواتير', icon: FileText, feature: 'invoices' },
       { to: '/app/credit-notes', label: 'الإشعارات الدائنة', icon: ArrowUpFromLine, feature: 'invoices' },
+      { to: '/app/debit-notes', label: 'الإشعارات المدينة', icon: ArrowDownToLine, feature: 'invoices' },
       { to: '/app/payments', label: 'التحصيلات', icon: CreditCard, feature: 'payments' },
       { to: '/app/clients', label: 'العملاء', icon: Users, feature: 'clients' },
     ],

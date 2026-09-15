@@ -155,6 +155,35 @@ export interface CreditNoteItem {
   original_invoice_item_id: string | null;
 }
 
+export interface DebitNote {
+  id: string;
+  customer_id: string;
+  customer_name?: string;
+  original_invoice_id: string | null;
+  original_invoice_number?: string | null;
+  debit_note_number: string;
+  debit_note_date: string;
+  status: 'draft' | 'posted' | 'cancelled';
+  subtotal: string | number;
+  vat_amount: string | number;
+  total: string | number;
+  journal_entry_id: string | null;
+  notes: string | null;
+  items?: DebitNoteItem[];
+}
+
+export interface DebitNoteItem {
+  id: string;
+  product_id: string | null;
+  product_name?: string | null;
+  description: string;
+  quantity: string | number;
+  unit_price: string | number;
+  vat_rate: string | number;
+  line_total: string | number;
+  original_invoice_item_id: string | null;
+}
+
 export interface AssetCategory {
   id: string;
   name: string;

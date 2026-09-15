@@ -41,6 +41,7 @@ import stockMovementsRoutes from './modules/stock-movements/routes.js';
 import accountingRoutes from './modules/accounting/routes.js';
 import purchasesRoutes from './modules/purchases/routes.js';
 import creditNotesRoutes from './modules/credit-notes/routes.js';
+import debitNotesRoutes from './modules/debit-notes/routes.js';
 import badDebtsRoutes from './modules/bad-debts/routes.js';
 import fixedAssetsRoutes from './modules/fixed-assets/routes.js';
 import payrollRoutes from './modules/payroll/routes.js';
@@ -148,6 +149,7 @@ app.use('/api/stock-movements', requireFeature('stock_movements', 'products'), s
 app.use('/api/accounting', requireFeature('accounting'), accountingRoutes);
 app.use('/api/purchases', requireFeature('purchases'), purchasesRoutes);
 app.use('/api/credit-notes', requireFeature('invoices'), creditNotesRoutes);
+app.use('/api/debit-notes', requireFeature('invoices'), debitNotesRoutes);
 app.use('/api/bad-debts', requireFeature('accounting'), badDebtsRoutes);
 app.use('/api/fixed-assets', requireFeature('accounting'), fixedAssetsRoutes);
 app.use('/api/payroll', requireFeature('accounting'), payrollRoutes);

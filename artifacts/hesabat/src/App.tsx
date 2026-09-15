@@ -76,6 +76,9 @@ import InventoryWriteOffDetails from "./pages/app/accounting/InventoryWriteOffDe
 import CreditNotes from "./pages/app/accounting/CreditNotes";
 import NewCreditNote from "./pages/app/accounting/NewCreditNote";
 import CreditNoteDetails from "./pages/app/accounting/CreditNoteDetails";
+import DebitNotes from "./pages/app/accounting/DebitNotes";
+import NewDebitNote from "./pages/app/accounting/NewDebitNote";
+import DebitNoteDetails from "./pages/app/accounting/DebitNoteDetails";
 import SupplierPayments from "./pages/app/accounting/SupplierPayments";
 import FinancialReports from "./pages/app/accounting/FinancialReports";
 import FinancialReportDetail from "./pages/app/accounting/FinancialReportDetail";
@@ -166,6 +169,9 @@ const App = () => {
               <Route path="credit-notes" element={<CreditNotes />} />
               <Route path="credit-notes/new" element={<NewCreditNote />} />
               <Route path="credit-notes/:id" element={<CreditNoteDetails />} />
+              <Route path="debit-notes" element={<DebitNotes />} />
+              <Route path="debit-notes/new" element={<NewDebitNote />} />
+              <Route path="debit-notes/:id" element={<DebitNoteDetails />} />
               <Route path="payments" element={<Payments />} />
               <Route path="accounts" element={<Accounts />} />
               <Route path="branches" element={<Branches />} />
