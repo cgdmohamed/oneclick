@@ -7,6 +7,18 @@ import { runMigrations } from './db/migrate.js';
 
 const port = env.PORT;
 
+// Last line of defense: a bug anywhere outside an Express request handler
+// (a background job, a queue worker callback) must never crash the whole
+// server for every user with no explanation — log it with full detail for
+// diagnosis and keep serving requests. Express route errors never reach
+// here; they go through errorHandler in middleware/error.ts.
+process.on('uncaughtException', (err) => {
+  logger.error({ err }, '[fatal] uncaught exception — server continues running');
+});
+process.on('unhandledRejection', (reason) => {
+  logger.error({ err: reason }, '[fatal] unhandled promise rejection — server continues running');
+});
+
 // Run any pending SQL migrations before accepting requests so that
 // deploying a new build automatically applies schema changes (including
 // the public_get_invoice function required by the public invoice page).
