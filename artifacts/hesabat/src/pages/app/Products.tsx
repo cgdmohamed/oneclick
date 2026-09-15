@@ -680,82 +680,98 @@ const Products = () => {
               value={editing.imageUrl}
               onChange={(url) => setEditing(s => ({ ...s, imageUrl: url }))}
             />
-            <div className="grid sm:grid-cols-2 gap-4">
-              <div><Label>اسم المنتج</Label><Input className="mt-1.5" value={editing.name} onChange={e => setEditing(s => ({ ...s, name: e.target.value }))} /></div>
-              <div><Label>الكود</Label><Input className="mt-1.5" value={editing.code} onChange={e => setEditing(s => ({ ...s, code: e.target.value }))} /></div>
-              <div><Label>الباركود</Label><Input className="mt-1.5" value={editing.barcode ?? ''} onChange={e => setEditing(s => ({ ...s, barcode: e.target.value }))} /></div>
-              <div>
-                <Label>نوع المنتج</Label>
-                <Select value={editing.productType ?? 'stock'} onValueChange={(v) => setEditing(s => ({ ...s, productType: v as Product['productType'] }))}>
-                  <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="stock">مخزني</SelectItem>
-                    <SelectItem value="service">خدمة</SelectItem>
-                    <SelectItem value="non_stock">غير مخزني</SelectItem>
-                    <SelectItem value="expense">مصروف</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label>التصنيف</Label>
-                <Select
-                  value={editingParentCategoryId}
-                  onValueChange={(v) => setEditing(s => ({ ...s, categoryId: v === '__none__' ? undefined : v, parentCategoryId: v === '__none__' ? undefined : v, subcategoryId: undefined }))}
-                >
-                  <SelectTrigger className="mt-1.5"><SelectValue placeholder="اختر تصنيفاً" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">بدون تصنيف</SelectItem>
-                    {mainCategories.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label>التصنيف الفرعي</Label>
-                <Select
-                  value={editingSubcategoryId}
-                  onValueChange={(v) => setEditing(s => ({ ...s, categoryId: v === '__none__' ? (editingParentCategoryId === '__none__' ? undefined : editingParentCategoryId) : v, subcategoryId: v === '__none__' ? undefined : v }))}
-                  disabled={editingParentCategoryId === '__none__' || subcategoriesFor(editingParentCategoryId).length === 0}
-                >
-                  <SelectTrigger className="mt-1.5"><SelectValue placeholder="اختر تصنيفاً فرعياً" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">بدون تصنيف فرعي</SelectItem>
-                    {subcategoriesFor(editingParentCategoryId).map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div><Label>السعر</Label><Input type="number" className="mt-1.5" value={editing.price} onChange={e => setEditing(s => ({ ...s, price: Number(e.target.value) }))} /></div>
-              <div><Label>التكلفة</Label><Input type="number" className="mt-1.5" value={editing.cost ?? 0} onChange={e => setEditing(s => ({ ...s, cost: Number(e.target.value) }))} /></div>
-              <div><Label>الكمية</Label><Input type="number" className="mt-1.5" value={editing.quantity} onChange={e => setEditing(s => ({ ...s, quantity: Number(e.target.value) }))} disabled={editing.productType !== 'stock'} /></div>
-              <div><Label>حد التنبيه</Label><Input type="number" className="mt-1.5" value={editing.alertLevel} onChange={e => setEditing(s => ({ ...s, alertLevel: Number(e.target.value) }))} /></div>
-              <div><Label>الوحدة</Label><Input className="mt-1.5" value={(editing as { unit?: string }).unit ?? ''} onChange={e => setEditing(s => ({ ...s, unit: e.target.value }))} placeholder="قطعة" /></div>
-              <div>
-                <Label>حالة الضريبة</Label>
-                <Select value={editing.vatStatus ?? 'taxable'} onValueChange={(v) => setEditing(s => ({ ...s, vatStatus: v as Product['vatStatus'], vatRate: v === 'taxable' ? s.vatRate : 0 }))}>
-                  <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="taxable">خاضع</SelectItem>
-                    <SelectItem value="exempt">معفى</SelectItem>
-                    <SelectItem value="zero_rated">صفرية</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div><Label>نسبة الضريبة</Label><Input type="number" className="mt-1.5" value={editing.vatRate ?? 0} onChange={e => setEditing(s => ({ ...s, vatRate: Number(e.target.value) }))} disabled={editing.vatStatus !== 'taxable'} /></div>
-              <div className="sm:col-span-2">
-                <Label>المورد</Label>
-                <Select
-                  value={(editing as unknown as { supplierId?: string }).supplierId ?? NO_SUPPLIER}
-                  onValueChange={(v) => setEditing(s => ({ ...s, supplierId: v === NO_SUPPLIER ? undefined : v } as unknown as Product))}
-                >
-                  <SelectTrigger className="mt-1.5"><SelectValue placeholder="اختر مورداً (اختياري)" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={NO_SUPPLIER}>بدون مورد</SelectItem>
-                    {suppliers.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="sm:col-span-2 border-t border-border pt-4">
-                <Label className="font-semibold">حسابات محاسبية اختيارية</Label>
-                <div className="grid sm:grid-cols-2 gap-3 mt-2">
+            <Tabs defaultValue="basic">
+              <TabsList className="grid grid-cols-4 w-full">
+                <TabsTrigger value="basic">بيانات أساسية</TabsTrigger>
+                <TabsTrigger value="stock">السعر والمخزون</TabsTrigger>
+                <TabsTrigger value="tax">الضريبة</TabsTrigger>
+                <TabsTrigger value="accounts">حسابات محاسبية</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="basic" className="mt-4 grid sm:grid-cols-2 gap-4">
+                <div><Label>اسم المنتج</Label><Input className="mt-1.5" value={editing.name} onChange={e => setEditing(s => ({ ...s, name: e.target.value }))} /></div>
+                <div><Label>الكود</Label><Input className="mt-1.5" value={editing.code} onChange={e => setEditing(s => ({ ...s, code: e.target.value }))} /></div>
+                <div><Label>الباركود</Label><Input className="mt-1.5" value={editing.barcode ?? ''} onChange={e => setEditing(s => ({ ...s, barcode: e.target.value }))} /></div>
+                <div>
+                  <Label>نوع المنتج</Label>
+                  <Select value={editing.productType ?? 'stock'} onValueChange={(v) => setEditing(s => ({ ...s, productType: v as Product['productType'] }))}>
+                    <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="stock">مخزني</SelectItem>
+                      <SelectItem value="service">خدمة</SelectItem>
+                      <SelectItem value="non_stock">غير مخزني</SelectItem>
+                      <SelectItem value="expense">مصروف</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>التصنيف</Label>
+                  <Select
+                    value={editingParentCategoryId}
+                    onValueChange={(v) => setEditing(s => ({ ...s, categoryId: v === '__none__' ? undefined : v, parentCategoryId: v === '__none__' ? undefined : v, subcategoryId: undefined }))}
+                  >
+                    <SelectTrigger className="mt-1.5"><SelectValue placeholder="اختر تصنيفاً" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">بدون تصنيف</SelectItem>
+                      {mainCategories.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>التصنيف الفرعي</Label>
+                  <Select
+                    value={editingSubcategoryId}
+                    onValueChange={(v) => setEditing(s => ({ ...s, categoryId: v === '__none__' ? (editingParentCategoryId === '__none__' ? undefined : editingParentCategoryId) : v, subcategoryId: v === '__none__' ? undefined : v }))}
+                    disabled={editingParentCategoryId === '__none__' || subcategoriesFor(editingParentCategoryId).length === 0}
+                  >
+                    <SelectTrigger className="mt-1.5"><SelectValue placeholder="اختر تصنيفاً فرعياً" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">بدون تصنيف فرعي</SelectItem>
+                      {subcategoriesFor(editingParentCategoryId).map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div><Label>الوحدة</Label><Input className="mt-1.5" value={(editing as { unit?: string }).unit ?? ''} onChange={e => setEditing(s => ({ ...s, unit: e.target.value }))} placeholder="قطعة" /></div>
+              </TabsContent>
+
+              <TabsContent value="stock" className="mt-4 grid sm:grid-cols-2 gap-4">
+                <div><Label>السعر</Label><Input type="number" className="mt-1.5" value={editing.price} onChange={e => setEditing(s => ({ ...s, price: Number(e.target.value) }))} /></div>
+                <div><Label>التكلفة</Label><Input type="number" className="mt-1.5" value={editing.cost ?? 0} onChange={e => setEditing(s => ({ ...s, cost: Number(e.target.value) }))} /></div>
+                <div><Label>الكمية</Label><Input type="number" className="mt-1.5" value={editing.quantity} onChange={e => setEditing(s => ({ ...s, quantity: Number(e.target.value) }))} disabled={editing.productType !== 'stock'} /></div>
+                <div><Label>حد التنبيه</Label><Input type="number" className="mt-1.5" value={editing.alertLevel} onChange={e => setEditing(s => ({ ...s, alertLevel: Number(e.target.value) }))} /></div>
+                <div className="sm:col-span-2">
+                  <Label>المورد</Label>
+                  <Select
+                    value={(editing as unknown as { supplierId?: string }).supplierId ?? NO_SUPPLIER}
+                    onValueChange={(v) => setEditing(s => ({ ...s, supplierId: v === NO_SUPPLIER ? undefined : v } as unknown as Product))}
+                  >
+                    <SelectTrigger className="mt-1.5"><SelectValue placeholder="اختر مورداً (اختياري)" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={NO_SUPPLIER}>بدون مورد</SelectItem>
+                      {suppliers.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="tax" className="mt-4 grid sm:grid-cols-2 gap-4">
+                <div>
+                  <Label>حالة الضريبة</Label>
+                  <Select value={editing.vatStatus ?? 'taxable'} onValueChange={(v) => setEditing(s => ({ ...s, vatStatus: v as Product['vatStatus'], vatRate: v === 'taxable' ? s.vatRate : 0 }))}>
+                    <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="taxable">خاضع</SelectItem>
+                      <SelectItem value="exempt">معفى</SelectItem>
+                      <SelectItem value="zero_rated">صفرية</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div><Label>نسبة الضريبة</Label><Input type="number" className="mt-1.5" value={editing.vatRate ?? 0} onChange={e => setEditing(s => ({ ...s, vatRate: Number(e.target.value) }))} disabled={editing.vatStatus !== 'taxable'} /></div>
+              </TabsContent>
+
+              <TabsContent value="accounts" className="mt-4">
+                <p className="text-xs text-muted-foreground mb-3">اختياري — تُستخدم افتراضيًا إعدادات الشركة إذا لم يتم تحديد حساب هنا.</p>
+                <div className="grid sm:grid-cols-2 gap-3">
                   <div><Label className="text-xs">المبيعات</Label>{accountSelect(editing.salesAccountId, (v) => setEditing(s => ({ ...s, salesAccountId: v })))}</div>
                   <div><Label className="text-xs">مرتجعات المبيعات</Label>{accountSelect(editing.salesReturnsAccountId, (v) => setEditing(s => ({ ...s, salesReturnsAccountId: v })))}</div>
                   <div><Label className="text-xs">المخزون</Label>{accountSelect(editing.inventoryAccountId, (v) => setEditing(s => ({ ...s, inventoryAccountId: v })))}</div>
@@ -763,8 +779,8 @@ const Products = () => {
                   <div><Label className="text-xs">مصروف مشتريات</Label>{accountSelect(editing.purchaseExpenseAccountId, (v) => setEditing(s => ({ ...s, purchaseExpenseAccountId: v })))}</div>
                   <div><Label className="text-xs">تسوية مخزون</Label>{accountSelect(editing.inventoryAdjustmentAccountId, (v) => setEditing(s => ({ ...s, inventoryAdjustmentAccountId: v })))}</div>
                 </div>
-              </div>
-            </div>
+              </TabsContent>
+            </Tabs>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>إلغاء</Button>
