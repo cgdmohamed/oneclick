@@ -273,7 +273,8 @@ async function productDetailPayload(db: import('pg').PoolClient, companyId: stri
      JOIN credit_notes cn ON cn.id = cni.credit_note_id AND cn.company_id = cni.company_id
      WHERE cni.company_id = $1 AND cni.product_id = $2
      UNION ALL
-     SELECT 'purchase_return' AS type, pr.id, pr.return_number AS number, pr.return_date AS date, pri.quantity, pri.unit_cost AS unit_amount, pri.line_total, pr.status
+     SELECT 'purchase_return' AS type, pr.id, pr.return_number AS number, pr.return_date AS date, pri.quantity, pri.unit_cost AS unit_amount, pri.line_total, pr.status,
+            NULL::credit_note_return_condition AS return_condition, NULL::boolean AS return_to_stock
      FROM purchase_return_items pri
      JOIN purchase_returns pr ON pr.id = pri.purchase_return_id AND pr.company_id = pri.company_id
      WHERE pri.company_id = $1 AND pri.product_id = $2
