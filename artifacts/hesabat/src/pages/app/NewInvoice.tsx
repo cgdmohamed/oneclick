@@ -538,7 +538,21 @@ const NewInvoice = ({ asModal = false, defaultClientId, onCancel, onCreated }: N
           <div className="grid sm:grid-cols-2 gap-4">
             <div>
               <Label>نسبة الضريبة (%)</Label>
-              <Input type="number" min={0} value={taxRate} onChange={e => setTaxRate(Number(e.target.value))} className="mt-1.5" />
+              <Input
+                type="number"
+                min={0}
+                value={taxRate}
+                onChange={e => {
+                  const rate = Number(e.target.value);
+                  setTaxRate(rate);
+                  // Applies to every line immediately — a single visible tax
+                  // rate for the invoice, with per-line override still
+                  // available below for the rare exception.
+                  setItems(prev => prev.map(it => ({ ...it, vatRate: rate })));
+                }}
+                className="mt-1.5"
+              />
+              <p className="mt-1 text-xs text-muted-foreground">تُطبَّق على كل بنود الفاتورة، ويمكن تعديل بند بعينه بعد ذلك عند الحاجة.</p>
             </div>
             <div>
               <Label>خصم إضافي على الفاتورة</Label>
