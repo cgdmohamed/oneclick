@@ -13,7 +13,7 @@ import { formatCurrency, formatDate, paymentMethodLabel, invoiceStatusLabel } fr
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { PaymentForm } from '@/components/common/PaymentForm';
-import { Plus, Share2, Mail, MessageCircle, Printer, Copy, Send, XCircle, RotateCcw, ArrowDownToLine, Paperclip, Image as ImageIcon, FileText } from 'lucide-react';
+import { Plus, Share2, Mail, MessageCircle, Printer, Copy, Send, XCircle, RotateCcw, ArrowDownToLine, Paperclip, Image as ImageIcon, FileText, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Payment, PaymentSplit, Invoice, InvoiceStatus } from '@/types';
 import { api, ApiError, isApiConfigured, resolveAssetUrl } from '@/lib/api';
@@ -121,8 +121,12 @@ const InvoiceDetails = () => {
     viewPayments = mockAllPayments.map(p => ({ id: p.id, date: p.date, amount: p.amount, splits: p.splits }));
   }
 
-  const paid = viewPayments.reduce((s, p) => s + p.amount, 0);
-  const remaining = Math.max(0, +(invoice.total - paid).toFixed(2));
+  // Trust the backend's paid/remaining when connected: they account for
+  // credit/debit notes too, not just this invoice's own payment records
+  // (a credit note posted against an already-paid invoice, for example,
+  // never shows up in viewPayments at all).
+  const paid = apiOn && apiInvoice ? invoice.paid : viewPayments.reduce((s, p) => s + p.amount, 0);
+  const remaining = apiOn && apiInvoice ? invoice.remaining : Math.max(0, +(invoice.total - paid).toFixed(2));
   const status: InvoiceStatus = remaining <= 0
     ? 'paid'
     : (paid > 0 ? 'partial' : (new Date(invoice.dueDate) < new Date() ? 'overdue' : 'unpaid'));
@@ -224,6 +228,20 @@ const InvoiceDetails = () => {
       toast.success('تم إلغاء الفاتورة');
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : 'تعذّر إلغاء الفاتورة');
+    }
+  };
+
+  const deletePayment = async (paymentId: string) => {
+    if (!apiOn) { toast.error('هذا الإجراء يتطلب الاتصال بالخادم'); return; }
+    try {
+      await api.delete(`/api/payments/${paymentId}`);
+      await qc.invalidateQueries({ queryKey: ['invoice', invoice.id] });
+      await qc.invalidateQueries({ queryKey: ['invoices'] });
+      await qc.invalidateQueries({ queryKey: ['payments'] });
+      await qc.invalidateQueries({ queryKey: ['reports-overview'] });
+      toast.success('تم حذف التحصيل وعكس القيد المحاسبي');
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : 'تعذّر حذف التحصيل');
     }
   };
 
@@ -426,9 +444,34 @@ const InvoiceDetails = () => {
               <div className="space-y-2">
                 {viewPayments.map(p => (
                   <div key={p.id} className="p-3 rounded-lg bg-muted/40 text-sm">
-                    <div className="flex justify-between">
+                    <div className="flex justify-between items-start gap-2">
                       <span className="font-semibold">{formatCurrency(p.amount)}</span>
-                      <span className="text-xs text-muted-foreground">{formatDate(p.date)}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground">{formatDate(p.date)}</span>
+                        {apiOn && !isCancelled && (
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-destructive">
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>تأكيد حذف التحصيل</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  سيتم عكس القيد المحاسبي لهذا التحصيل ({formatCurrency(p.amount)}) وتحديث رصيد الفاتورة. هذا الإجراء لا يمكن التراجع عنه.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>رجوع</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => deletePayment(p.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                                  تأكيد الحذف
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        )}
+                      </div>
                     </div>
                     <div className="text-xs text-muted-foreground mt-1">
                       {p.splits.map((s, i) => (

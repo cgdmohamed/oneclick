@@ -470,6 +470,29 @@ export async function postSalesInvoice(db: Queryable, companyId: string, invoice
   return je.id;
 }
 
+// Recomputes an invoice's paid/remaining/status from every source that affects
+// it (payments, posted credit notes, posted debit notes) instead of each
+// caller mutating `remaining` independently from only its own delta — that
+// pattern let a payment recompute silently overwrite a credit note's effect
+// (and vice versa) since each only knew about its own side of the balance.
+export async function recomputeInvoiceBalance(db: Queryable, companyId: string, invoiceId: string) {
+  const inv = await db.query(`SELECT total FROM invoices WHERE id = $1 AND company_id = $2 FOR UPDATE`, [invoiceId, companyId]);
+  if (!inv.rowCount) return;
+  const total = Number(inv.rows[0].total);
+  const paidRs = await db.query(`SELECT COALESCE(SUM(amount),0) AS s FROM payments WHERE invoice_id = $1 AND company_id = $2`, [invoiceId, companyId]);
+  const creditRs = await db.query(`SELECT COALESCE(SUM(total),0) AS s FROM credit_notes WHERE original_invoice_id = $1 AND company_id = $2 AND status = 'posted'`, [invoiceId, companyId]);
+  const debitRs = await db.query(`SELECT COALESCE(SUM(total),0) AS s FROM debit_notes WHERE original_invoice_id = $1 AND company_id = $2 AND status = 'posted'`, [invoiceId, companyId]);
+  const paid = round2(Number(paidRs.rows[0].s));
+  const creditTotal = round2(Number(creditRs.rows[0].s));
+  const debitTotal = round2(Number(debitRs.rows[0].s));
+  // Not floored at 0: a negative remaining means the company owes the
+  // customer a refund/credit (e.g. a credit note posted after the invoice
+  // was already fully paid) — that must stay visible, not vanish.
+  const remaining = round2(total - paid - creditTotal + debitTotal);
+  const status = remaining <= 0.005 ? 'paid' : paid > 0 ? 'partial' : 'sent';
+  await db.query(`UPDATE invoices SET paid = $1, remaining = $2, status = $3 WHERE id = $4 AND company_id = $5`, [paid, remaining, status, invoiceId, companyId]);
+}
+
 export async function postCustomerPayment(db: Queryable, companyId: string, paymentId: string, userId?: string | null) {
   const payment = await db.query(
     `SELECT p.*, i.number AS invoice_number FROM payments p LEFT JOIN invoices i ON i.id = p.invoice_id

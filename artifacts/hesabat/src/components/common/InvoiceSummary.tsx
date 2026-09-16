@@ -13,6 +13,7 @@ interface InvoiceSummaryProps {
 
 export const InvoiceSummary = ({ subtotal, tax, discount, total, paid, remaining, className }: InvoiceSummaryProps) => {
   const pct = total > 0 ? Math.min(100, Math.round((paid / total) * 100)) : 0;
+  const isCredit = remaining < -0.005;
   const isPaid = remaining <= 0 && total > 0;
   const isPartial = paid > 0 && remaining > 0;
   const remainingTone = isPaid ? 'text-success' : isPartial ? 'text-warning' : 'text-destructive';
@@ -33,8 +34,8 @@ export const InvoiceSummary = ({ subtotal, tax, discount, total, paid, remaining
         className="text-success"
       />
       <Row
-        label={<span className="inline-flex items-center gap-2"><Dot cls={remainingDot} /> المتبقي</span>}
-        value={formatCurrency(remaining)}
+        label={<span className="inline-flex items-center gap-2"><Dot cls={remainingDot} /> {isCredit ? 'رصيد دائن للعميل' : 'المتبقي'}</span>}
+        value={formatCurrency(Math.abs(remaining))}
         className={remainingTone}
         bold
       />

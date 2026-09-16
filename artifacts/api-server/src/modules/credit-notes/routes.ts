@@ -4,7 +4,7 @@ import { audit } from '../../utils/audit.js';
 import { badRequest, notFound } from '../../utils/errors.js';
 import { round2 } from '../../utils/money.js';
 import { parsePagination } from '../../utils/pagination.js';
-import { assertPeriodOpen, createJournalEntry, getSettings, reverseJournalEntry, type JournalLineInput } from '../accounting/posting.js';
+import { assertPeriodOpen, createJournalEntry, getSettings, recomputeInvoiceBalance, reverseJournalEntry, type JournalLineInput } from '../accounting/posting.js';
 
 const returnConditions = ['resellable', 'damaged', 'inspection', 'scrap'] as const;
 
@@ -22,12 +22,17 @@ const itemSchema = z.object({
 const createSchema = z.object({
   customer_id: z.string().uuid(),
   original_invoice_id: z.string().uuid().optional().nullable(),
-  credit_note_number: z.string().min(1),
   credit_note_date: z.string().datetime().optional(),
   status: z.enum(['draft', 'posted']).optional().default('draft'),
   notes: z.string().optional().nullable(),
   items: z.array(itemSchema).min(1),
 });
+
+// Damaged/scrapped returns must never be restocked as sellable inventory,
+// regardless of what the client sent for return_to_stock.
+function effectiveReturnToStock(returnCondition: string, returnToStock: boolean) {
+  return (returnCondition === 'damaged' || returnCondition === 'scrap') ? false : returnToStock;
+}
 
 type Queryable = {
   query: (sql: string, params?: unknown[]) => Promise<{ rows: any[]; rowCount: number | null }>;
@@ -129,7 +134,6 @@ async function postCreditNote(db: Queryable, companyId: string, creditNoteId: st
   await validateCreditNote(db, companyId, {
     customer_id: note.customer_id,
     original_invoice_id: note.original_invoice_id,
-    credit_note_number: note.credit_note_number,
     credit_note_date: new Date(note.credit_note_date).toISOString(),
     status: 'posted',
     notes: note.notes,
@@ -165,7 +169,7 @@ async function postCreditNote(db: Queryable, companyId: string, creditNoteId: st
   for (const item of items.rows) {
     if (!item.product_id) continue;
     if (item.product_type !== 'stock') continue;
-    if (!item.return_to_stock) continue;
+    if (!effectiveReturnToStock(item.return_condition, item.return_to_stock)) continue;
     const unitCost = await originalUnitCost(db, companyId, note.original_invoice_id, item.product_id);
     const value = round2(Number(item.quantity) * unitCost);
     const stock = await db.query(
@@ -205,22 +209,19 @@ async function postCreditNote(db: Queryable, companyId: string, creditNoteId: st
     lines,
   });
 
-  if (note.original_invoice_id) {
-    const inv = await db.query(`SELECT total, paid, remaining FROM invoices WHERE id = $1 AND company_id = $2 FOR UPDATE`, [note.original_invoice_id, companyId]);
-    if (inv.rowCount) {
-      const remaining = round2(Math.max(0, Number(inv.rows[0].remaining) - Number(note.total)));
-      const paid = Number(inv.rows[0].paid);
-      const status = remaining <= 0.005 ? 'paid' : paid > 0 ? 'partial' : 'sent';
-      await db.query(`UPDATE invoices SET remaining = $1, status = $2 WHERE id = $3 AND company_id = $4`, [remaining, status, note.original_invoice_id, companyId]);
-    }
-  }
-
   await db.query(
     `UPDATE credit_notes
      SET status = 'posted', posted_at = NOW(), posted_by = $3, journal_entry_id = $4, updated_at = NOW()
      WHERE id = $1 AND company_id = $2`,
     [creditNoteId, companyId, userId ?? null, je.id],
   );
+
+  // Recomputed from every source (payments, credit notes, debit notes) now
+  // that this note counts as posted — not floored at 0: a credit note that
+  // exceeds what's left owed on an already-paid invoice means the company
+  // now owes the customer a refund/credit, which must stay visible rather
+  // than silently disappearing.
+  if (note.original_invoice_id) await recomputeInvoiceBalance(db, companyId, note.original_invoice_id);
   return je.id as string;
 }
 
@@ -286,21 +287,27 @@ r.post('/', async (req, res, next) => {
 
     await t.db.query('BEGIN');
     try {
+      const seqRs = await t.db.query(
+        `UPDATE companies SET credit_note_sequence = credit_note_sequence + 1 WHERE id = $1 RETURNING credit_note_sequence`,
+        [t.companyId],
+      );
+      const creditNoteNumber = `CN-${noteDate.getFullYear()}-${String(seqRs.rows[0].credit_note_sequence).padStart(4, '0')}`;
       const note = await t.db.query(
         `INSERT INTO credit_notes
          (company_id, customer_id, original_invoice_id, credit_note_number, credit_note_date, status,
           subtotal, vat_amount, total, notes, created_by)
          VALUES ($1,$2,$3,$4,$5,'draft',$6,$7,$8,$9,$10)
          RETURNING *`,
-        [t.companyId, body.customer_id, body.original_invoice_id ?? null, body.credit_note_number, noteDate, subtotal, vat, total, body.notes ?? null, req.auth!.userId],
+        [t.companyId, body.customer_id, body.original_invoice_id ?? null, creditNoteNumber, noteDate, subtotal, vat, total, body.notes ?? null, req.auth!.userId],
       );
       for (const item of body.items) {
         const lineTotal = round2(item.quantity * item.unit_price * (1 + item.vat_rate / 100));
+        const returnToStock = effectiveReturnToStock(item.return_condition, item.return_to_stock);
         await t.db.query(
           `INSERT INTO credit_note_items
            (company_id, credit_note_id, product_id, description, quantity, unit_price, vat_rate, line_total, return_condition, return_to_stock, original_invoice_item_id)
            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
-          [t.companyId, note.rows[0].id, item.product_id ?? null, item.description, item.quantity, item.unit_price, item.vat_rate, lineTotal, item.return_condition, item.return_to_stock, item.original_invoice_item_id ?? null],
+          [t.companyId, note.rows[0].id, item.product_id ?? null, item.description, item.quantity, item.unit_price, item.vat_rate, lineTotal, item.return_condition, returnToStock, item.original_invoice_item_id ?? null],
         );
       }
       if (body.status === 'posted') await postCreditNote(t.db, t.companyId, note.rows[0].id, req.auth!.userId);
@@ -353,7 +360,7 @@ r.post('/:id/cancel', async (req, res, next) => {
         for (const item of items.rows) {
           if (!item.product_id) continue;
           if (item.product_type !== 'stock') continue;
-          if (!item.return_to_stock) continue;
+          if (!effectiveReturnToStock(item.return_condition, item.return_to_stock)) continue;
           const ledger = await t.db.query(
             `SELECT unit_cost FROM stock_ledger
              WHERE company_id = $1 AND source_type = 'credit_note' AND source_id = $2 AND product_id = $3
@@ -378,19 +385,11 @@ r.post('/:id/cancel', async (req, res, next) => {
             [t.companyId, item.product_id, req.params.id, item.quantity, unitCost, value, stock.rows[0].quantity, stock.rows[0].inventory_value],
           );
         }
-        if (note.original_invoice_id) {
-          const inv = await t.db.query(`SELECT total, paid, remaining FROM invoices WHERE id = $1 AND company_id = $2 FOR UPDATE`, [note.original_invoice_id, t.companyId]);
-          if (inv.rowCount) {
-            const maxRemaining = round2(Math.max(0, Number(inv.rows[0].total) - Number(inv.rows[0].paid)));
-            const remaining = round2(Math.min(maxRemaining, Number(inv.rows[0].remaining) + Number(note.total)));
-            const status = remaining <= 0.005 ? 'paid' : Number(inv.rows[0].paid) > 0 ? 'partial' : 'sent';
-            await t.db.query(`UPDATE invoices SET remaining = $1, status = $2 WHERE id = $3 AND company_id = $4`, [remaining, status, note.original_invoice_id, t.companyId]);
-          }
-        }
         if (note.journal_entry_id) await reverseJournalEntry(t.db, t.companyId, note.journal_entry_id, req.auth!.userId);
       }
 
       await t.db.query(`UPDATE credit_notes SET status = 'cancelled', updated_at = NOW() WHERE id = $1 AND company_id = $2`, [req.params.id, t.companyId]);
+      if (note.status === 'posted' && note.original_invoice_id) await recomputeInvoiceBalance(t.db, t.companyId, note.original_invoice_id);
       await audit(t.db, { companyId: t.companyId, userId: req.auth!.userId, action: 'credit_note.cancel', entity: 'credit_note', entityId: req.params.id });
       await t.db.query('COMMIT');
       res.json({ ok: true });

@@ -51,7 +51,6 @@ const NewCreditNote = () => {
   const invoiceParam = params.get('invoice');
   const [customerId, setCustomerId] = useState('');
   const [invoiceId, setInvoiceId] = useState(invoiceParam ?? '');
-  const [number, setNumber] = useState(`CN-${new Date().getFullYear()}-${String(Date.now()).slice(-5)}`);
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [status, setStatus] = useState<'draft' | 'posted'>('draft');
   const [notes, setNotes] = useState('');
@@ -111,7 +110,6 @@ const NewCreditNote = () => {
       const payload = {
         customer_id: customerId,
         original_invoice_id: invoiceId || null,
-        credit_note_number: number,
         credit_note_date: new Date(date).toISOString(),
         status,
         notes: notes || null,
@@ -148,7 +146,7 @@ const NewCreditNote = () => {
         <div className="grid md:grid-cols-4 gap-4">
           <div><Label>العميل</Label><Select value={customerId} onValueChange={(v) => { setCustomerId(v); setInvoiceId(''); }}><SelectTrigger className="mt-1.5"><SelectValue placeholder="اختر العميل" /></SelectTrigger><SelectContent>{(customers.data ?? []).map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent></Select></div>
           <div><Label>الفاتورة الأصلية</Label><Select value={invoiceId || 'none'} onValueChange={(v) => setInvoiceId(v === 'none' ? '' : v)}><SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="none">بدون ربط</SelectItem>{customerInvoices.map((invoice) => <SelectItem key={invoice.id} value={invoice.id}>{invoice.number}</SelectItem>)}</SelectContent></Select></div>
-          <div><Label>رقم الإشعار</Label><Input className="mt-1.5" value={number} onChange={(e) => setNumber(e.target.value)} /></div>
+          <div><Label>رقم الإشعار</Label><Input className="mt-1.5 text-muted-foreground" value="سيُحدَّد تلقائيًا بعد الحفظ" disabled /></div>
           <div><Label>التاريخ</Label><Input className="mt-1.5" type="date" value={date} onChange={(e) => setDate(e.target.value)} /></div>
           <div><Label>الحالة</Label><Select value={status} onValueChange={(v) => setStatus(v as 'draft' | 'posted')}><SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="draft">مسودة</SelectItem><SelectItem value="posted">مرحل مباشرة</SelectItem></SelectContent></Select></div>
           <div className="md:col-span-3"><Label>ملاحظات</Label><Textarea className="mt-1.5" value={notes} onChange={(e) => setNotes(e.target.value)} /></div>

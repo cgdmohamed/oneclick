@@ -4,7 +4,7 @@ import { badRequest, notFound } from '../../utils/errors.js';
 import { audit } from '../../utils/audit.js';
 import { parsePagination } from '../../utils/pagination.js';
 import { round2, lte2 } from '../../utils/money.js';
-import { assertPeriodOpen, postCustomerPayment } from '../accounting/posting.js';
+import { assertPeriodOpen, postCustomerPayment, recomputeInvoiceBalance, reverseJournalEntry } from '../accounting/posting.js';
 import { assertBranch } from '../../utils/dimensions.js';
 
 const router = Router();
@@ -108,16 +108,7 @@ router.post('/', async (req, res, next) => {
           paidAt, body.method, body.reference ?? null, body.notes ?? null, body.branch_id ?? null, req.auth!.userId]);
 
       if (body.collection_type === 'invoice_collection' && body.invoice_id) {
-        const sums = await t.db.query(`SELECT COALESCE(SUM(amount),0) AS paid FROM payments WHERE invoice_id = $1 AND company_id = $2`, [body.invoice_id, t.companyId]);
-        const inv = await t.db.query(`SELECT total FROM invoices WHERE id = $1 AND company_id = $2`, [body.invoice_id, t.companyId]);
-        const total = round2(Number(inv.rows[0].total));
-        const newPaid = round2(Number(sums.rows[0].paid));
-        const remaining = round2(Math.max(0, total - newPaid));
-        const status = remaining <= 0.005 ? 'paid' : 'partial';
-        await t.db.query(
-          `UPDATE invoices SET paid = $1, remaining = $2, status = $3 WHERE id = $4 AND company_id = $5`,
-          [newPaid, remaining, status, body.invoice_id, t.companyId],
-        );
+        await recomputeInvoiceBalance(t.db, t.companyId, body.invoice_id);
       }
 
       await t.db.query(
@@ -143,24 +134,36 @@ router.post('/', async (req, res, next) => {
 router.delete('/:id', async (req, res, next) => {
   try {
     const t = req.tenant!;
-    const p = await t.db.query(`SELECT * FROM payments WHERE id = $1 AND company_id = $2 FOR UPDATE`, [req.params.id, t.companyId]);
-    if (!p.rowCount) throw notFound();
-    const pay = p.rows[0];
-    if (pay.journal_entry_id) {
-      throw badRequest('Posted payments cannot be deleted. Reverse the journal entry or cancel the source document.');
+    await t.db.query('BEGIN');
+    try {
+      const p = await t.db.query(`SELECT * FROM payments WHERE id = $1 AND company_id = $2 FOR UPDATE`, [req.params.id, t.companyId]);
+      if (!p.rowCount) throw notFound();
+      const pay = p.rows[0];
+      await assertPeriodOpen(t.db, t.companyId, pay.paid_at);
+
+      // Every payment is posted synchronously on creation, so a payment
+      // almost always has a journal_entry_id — reverse it (a new offsetting
+      // entry, not a silent delete of the original) rather than refusing to
+      // let a mistaken payment ever be corrected.
+      if (pay.journal_entry_id) {
+        await reverseJournalEntry(t.db, t.companyId, pay.journal_entry_id, req.auth!.userId);
+      }
+
+      await t.db.query(`DELETE FROM payments WHERE id = $1 AND company_id = $2`, [req.params.id, t.companyId]);
+      await t.db.query(`UPDATE accounts SET balance = balance - $1 WHERE id = $2 AND company_id = $3`, [pay.amount, pay.account_id, t.companyId]);
+      if (pay.invoice_id) await recomputeInvoiceBalance(t.db, t.companyId, pay.invoice_id);
+
+      await audit(t.db, {
+        companyId: t.companyId, userId: req.auth!.userId,
+        action: 'payment.delete', entity: 'payment', entityId: req.params.id,
+        data: { invoice_id: pay.invoice_id ?? null, amount: pay.amount, account_id: pay.account_id },
+      });
+      await t.db.query('COMMIT');
+      res.json({ ok: true });
+    } catch (e) {
+      await t.db.query('ROLLBACK');
+      throw e;
     }
-    await t.db.query(`DELETE FROM payments WHERE id = $1 AND company_id = $2`, [req.params.id, t.companyId]);
-    await t.db.query(`UPDATE accounts SET balance = balance - $1 WHERE id = $2 AND company_id = $3`, [pay.amount, pay.account_id, t.companyId]);
-    if (pay.invoice_id) {
-      const sums = await t.db.query(`SELECT COALESCE(SUM(amount),0) AS s FROM payments WHERE invoice_id = $1 AND company_id = $2`, [pay.invoice_id, t.companyId]);
-      const inv = await t.db.query(`SELECT total FROM invoices WHERE id = $1 AND company_id = $2`, [pay.invoice_id, t.companyId]);
-      const total = Number(inv.rows[0].total);
-      const paid = Number(sums.rows[0].s);
-      const remaining = Math.max(0, total - paid);
-      const status = paid <= 0.0001 ? 'sent' : remaining <= 0.0001 ? 'paid' : 'partial';
-      await t.db.query(`UPDATE invoices SET paid=$1, remaining=$2, status=$3 WHERE id=$4 AND company_id=$5`, [paid, remaining, status, pay.invoice_id, t.companyId]);
-    }
-    res.json({ ok: true });
   } catch (e) { next(e); }
 });
 
