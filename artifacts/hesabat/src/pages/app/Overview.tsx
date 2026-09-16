@@ -249,7 +249,7 @@ const Overview = () => {
         </div>
       </Card>
 
-      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
         <StatCard title="إجمالي المبيعات" value={money(k?.totalSales)} icon={Wallet} accent="primary" trend={k ? { value: `${k.salesChangePct >= 0 ? '+' : ''}${k.salesChangePct}% عن الفترة السابقة`, positive: k.salesChangePct >= 0 } : undefined} />
         <StatCard title="صافي المبيعات" value={money(k?.netSales)} icon={TrendingUp} accent="success" />
         <StatCard title="إجمالي التحصيل" value={money(k?.totalCollections)} icon={CreditCard} accent="success" />
@@ -338,7 +338,7 @@ const Overview = () => {
 
         {canSeeAccounting && (
           <TabsContent value="accounting" className="mt-4">
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
               <StatCard title="قيود مسودة" value={data?.accountingHealth.draft_journals ?? 0} icon={FileText} accent="warning" />
               <StatCard title="قيود غير متوازنة" value={data?.accountingHealth.unbalanced_journals ?? 0} icon={AlertTriangle} accent={(data?.accountingHealth.unbalanced_journals ?? 0) === 0 ? 'success' : 'destructive'} />
               <StatCard title="فواتير غير مرحلة" value={data?.accountingHealth.unposted_invoices ?? 0} icon={Receipt} accent="warning" />
