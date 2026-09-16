@@ -628,6 +628,20 @@ router.post('/change-password', requireAuth, requireCsrf, async (req, res, next)
     if (!ok) throw badRequest('كلمة المرور الحالية غير صحيحة');
     const hash = await bcrypt.hash(newPassword, 12);
     await pool.query(`UPDATE users SET password_hash = $1, updated_at = now() WHERE id = $2`, [hash, userId]);
+    // Revoke every other active session — a stolen token/session must not
+    // survive a password change (same guarantee confirm-email-change gives).
+    // The session making this request stays logged in, matching the
+    // existing "log out everywhere else" semantics in DELETE /sessions.
+    const currentToken = readRefreshToken(req);
+    const currentHash = currentToken ? sha(currentToken) : null;
+    if (currentHash) {
+      await pool.query(
+        `UPDATE refresh_tokens SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL AND token_hash != $2`,
+        [userId, currentHash],
+      );
+    } else {
+      await pool.query(`UPDATE refresh_tokens SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL`, [userId]);
+    }
     await audit(pool, {
       companyId: null, userId,
       action: 'auth.password_changed', entity: 'user', entityId: userId,

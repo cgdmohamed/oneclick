@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { api, isApiConfigured, ApiError } from '@/lib/api';
+import { toast } from 'sonner';
 
 export type AlertsAudience = 'clients' | 'users' | 'both';
 export type ScheduleMode = 'immediate' | 'daily' | 'weekly';
@@ -36,7 +38,7 @@ export const defaultInvoiceAlerts: InvoiceAlertsSettings = {
   requireEmailConfigured: true,
 };
 
-const read = (): InvoiceAlertsSettings => {
+const readCache = (): InvoiceAlertsSettings => {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return defaultInvoiceAlerts;
@@ -46,12 +48,44 @@ const read = (): InvoiceAlertsSettings => {
   }
 };
 
+// Settings live in the backend (invoice_alert_settings table) so the
+// scheduled job (jobs/invoiceAlerts.ts) can actually read and act on them.
+// localStorage is kept only as an instant-paint cache while the initial
+// GET is in flight, and as a fallback if the API is unreachable.
 export const useInvoiceAlerts = () => {
-  const [settings, setSettings] = useState<InvoiceAlertsSettings>(() => read());
+  const [settings, setSettings] = useState<InvoiceAlertsSettings>(() => readCache());
+  const [loaded, setLoaded] = useState(false);
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (!isApiConfigured()) { setLoaded(true); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await api.get<{ data: InvoiceAlertsSettings | null }>('/api/companies/invoice-alert-settings');
+        if (!cancelled && res.data) setSettings({ ...defaultInvoiceAlerts, ...res.data });
+      } catch {
+        // keep the localStorage cache on failure
+      } finally {
+        if (!cancelled) setLoaded(true);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(settings)); } catch { /* ignore */ }
-  }, [settings]);
+    if (!loaded || !isApiConfigured()) return;
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(async () => {
+      try {
+        await api.put('/api/companies/invoice-alert-settings', settings);
+      } catch (e) {
+        toast.error(e instanceof ApiError ? e.message : 'تعذّر حفظ إعدادات تنبيهات الفواتير');
+      }
+    }, 600);
+    return () => { if (saveTimer.current) clearTimeout(saveTimer.current); };
+  }, [settings, loaded]);
 
   const update = useCallback(<K extends keyof InvoiceAlertsSettings>(key: K, value: InvoiceAlertsSettings[K]) => {
     setSettings(s => ({ ...s, [key]: value }));

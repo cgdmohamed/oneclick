@@ -197,7 +197,7 @@ const PasswordSection = () => {
         newPassword: form.new,
       });
       setForm({ current: '', new: '', confirm: '' });
-      toast.success('تم تغيير كلمة المرور بنجاح');
+      toast.success('تم تغيير كلمة المرور بنجاح، وتسجيل خروجك من كل الجلسات الأخرى');
     } catch (e: unknown) {
       const err = e as { message?: string };
       toast.error(err?.message ?? 'تعذّر تغيير كلمة المرور');
@@ -242,6 +242,9 @@ const PasswordSection = () => {
           placeholder="••••••••"
         />
       </div>
+      <p className="text-xs text-muted-foreground">
+        سيتم تسجيل خروجك تلقائياً من كل الجلسات الأخرى عند تغيير كلمة المرور، مع بقاء جلستك الحالية.
+      </p>
       <Button onClick={handleSubmit} disabled={saving}>
         {saving && <Loader2 className="h-4 w-4 ml-2 animate-spin" />}
         تغيير كلمة المرور

@@ -4,6 +4,7 @@ import { audit } from '../utils/audit.js';
 import { sendEmail } from '../utils/email.js';
 import { renderEmail } from '../utils/emailTemplate.js';
 import { getPlatformBranding } from '../utils/platformBranding.js';
+import { tickInvoiceAlerts } from './invoiceAlerts.js';
 
 let started = false;
 
@@ -119,12 +120,19 @@ async function tickSubscriptionExpiry() {
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS  = 24 * HOUR_MS;
 
+async function tickOverdueThenAlerts() {
+  await tickOverdue();
+  // Runs right after tickOverdue so invoices just marked 'overdue' this
+  // cycle are immediately eligible for the onOverdue alert, not a cycle late.
+  await tickInvoiceAlerts();
+}
+
 export function startJobs() {
   if (started) return;
   started = true;
-  // overdue invoices: first check after 30s, then hourly
-  setTimeout(tickOverdue, 30_000);
-  setInterval(tickOverdue, HOUR_MS);
+  // overdue invoices + invoice alerts: first check after 30s, then hourly
+  setTimeout(tickOverdueThenAlerts, 30_000);
+  setInterval(tickOverdueThenAlerts, HOUR_MS);
   // subscription expiry: first check after 60s, then daily
   setTimeout(tickSubscriptionExpiry, 60_000);
   setInterval(tickSubscriptionExpiry, DAY_MS);

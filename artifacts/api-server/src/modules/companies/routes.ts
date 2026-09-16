@@ -158,4 +158,44 @@ router.put('/smtp-settings', requireRole('company_admin'), async (req, res, next
   } catch (e) { next(e); }
 });
 
+const invoiceAlertSettingsSchema = z.object({
+  enabled: z.boolean(),
+  audience: z.enum(['clients', 'users', 'both']),
+  channels: z.object({ email: z.boolean(), inApp: z.boolean() }),
+  events: z.object({
+    onCreated: z.boolean(),
+    onDueSoon: z.object({ enabled: z.boolean(), daysBefore: z.coerce.number().int().min(1).max(60) }),
+    onOverdue: z.object({ enabled: z.boolean(), daysAfter: z.coerce.number().int().min(0).max(90), repeatEveryDays: z.coerce.number().int().min(1).max(30) }),
+    onPaid: z.boolean(),
+  }),
+  schedule: z.object({
+    mode: z.enum(['immediate', 'daily', 'weekly']),
+    dailyAt: z.string(),
+    weeklyDay: z.enum(['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']),
+  }),
+  quietHours: z.object({ enabled: z.boolean(), from: z.string(), to: z.string() }),
+  requireEmailConfigured: z.boolean(),
+});
+
+router.get('/invoice-alert-settings', async (req, res, next) => {
+  try {
+    const t = req.tenant!;
+    const rs = await t.db.query(`SELECT settings FROM invoice_alert_settings WHERE company_id = $1`, [t.companyId]);
+    res.json({ data: rs.rows[0]?.settings ?? null });
+  } catch (e) { next(e); }
+});
+
+router.put('/invoice-alert-settings', requireRole('company_admin'), async (req, res, next) => {
+  try {
+    const t = req.tenant!;
+    const body = invoiceAlertSettingsSchema.parse(req.body);
+    await t.db.query(
+      `INSERT INTO invoice_alert_settings (company_id, settings, updated_at) VALUES ($1, $2, NOW())
+       ON CONFLICT (company_id) DO UPDATE SET settings = $2, updated_at = NOW()`,
+      [t.companyId, JSON.stringify(body)],
+    );
+    res.json({ data: body });
+  } catch (e) { next(e); }
+});
+
 export default router;
