@@ -506,7 +506,7 @@ router.post('/:id/cancel', async (req, res, next) => {
         if (item.product_id && item.product_type === 'stock') {
           await t.db.query(
             `UPDATE products SET quantity = quantity + $1 WHERE id = $2 AND company_id = $3`,
-            [item.quantity, item.product_id, t.companyId],
+            [Number(item.quantity), item.product_id, t.companyId],
           );
         }
       }
@@ -603,7 +603,7 @@ router.delete('/:id', async (req, res, next) => {
       if (item.product_id && item.product_type === 'stock') {
         await t.db.query(
           `UPDATE products SET quantity = quantity + $1 WHERE id = $2 AND company_id = $3`,
-          [item.quantity, item.product_id, t.companyId],
+          [Number(item.quantity), item.product_id, t.companyId],
         );
       }
     }

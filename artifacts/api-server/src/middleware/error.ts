@@ -54,6 +54,7 @@ export const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
   }
   const dbMessage = friendlyDbMessage(err as PgError);
   if (dbMessage) {
+    (req.log ?? logger).warn({ err, reqId }, 'mapped db error');
     return res.status(400).json({ error: 'conflict', message: dbMessage, request_id: reqId });
   }
   (req.log ?? logger).error({ err, reqId }, 'unhandled error');

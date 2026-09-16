@@ -174,7 +174,7 @@ async function postCreditNote(db: Queryable, companyId: string, creditNoteId: st
            inventory_value = inventory_value + $4
        WHERE id = $2 AND company_id = $3
        RETURNING quantity, inventory_value`,
-      [item.quantity, item.product_id, companyId, value],
+      [Number(item.quantity), item.product_id, companyId, value],
     );
     await db.query(
       `INSERT INTO stock_ledger
@@ -368,7 +368,7 @@ r.post('/:id/cancel', async (req, res, next) => {
                  inventory_value = GREATEST(0, inventory_value - $4)
              WHERE id = $2 AND company_id = $3 AND quantity >= $1
              RETURNING quantity, inventory_value`,
-            [item.quantity, item.product_id, t.companyId, value],
+            [Number(item.quantity), item.product_id, t.companyId, value],
           );
           if (!stock.rowCount) throw badRequest(`Cancelling would create negative stock for "${item.description}"`);
           await t.db.query(
