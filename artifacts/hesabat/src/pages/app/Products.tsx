@@ -737,7 +737,13 @@ const Products = () => {
               <TabsContent value="stock" className="mt-4 grid sm:grid-cols-2 gap-4">
                 <div><Label>السعر</Label><Input type="number" className="mt-1.5" value={editing.price} onChange={e => setEditing(s => ({ ...s, price: Number(e.target.value) }))} /></div>
                 <div><Label>التكلفة</Label><Input type="number" className="mt-1.5" value={editing.cost ?? 0} onChange={e => setEditing(s => ({ ...s, cost: Number(e.target.value) }))} /></div>
-                <div><Label>الكمية</Label><Input type="number" className="mt-1.5" value={editing.quantity} onChange={e => setEditing(s => ({ ...s, quantity: Number(e.target.value) }))} disabled={editing.productType !== 'stock'} /></div>
+                <div>
+                  <Label>الكمية{editing.id ? ' (الرصيد الحالي)' : ''}</Label>
+                  <Input type="number" className="mt-1.5" value={editing.quantity} onChange={e => setEditing(s => ({ ...s, quantity: Number(e.target.value) }))} disabled={editing.productType !== 'stock' || !!editing.id} />
+                  {editing.id && editing.productType === 'stock' && (
+                    <p className="mt-1 text-xs text-muted-foreground">لتعديل الكمية استخدم "حركة مخزون" لضمان تسجيلها والقيد المحاسبي المرتبط بها.</p>
+                  )}
+                </div>
                 <div><Label>حد التنبيه</Label><Input type="number" className="mt-1.5" value={editing.alertLevel} onChange={e => setEditing(s => ({ ...s, alertLevel: Number(e.target.value) }))} /></div>
                 <div className="sm:col-span-2">
                   <Label>المورد</Label>

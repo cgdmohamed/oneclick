@@ -734,6 +734,12 @@ router.patch('/:id', async (req, res, next) => {
     const t = req.tenant!;
     const partialSchema = schema.partial();
     const parsed = partialSchema.parse(req.body);
+    // Quantity on hand is never directly editable after creation (matches
+    // Odoo/QuickBooks/Zoho) — it must always come from an audited stock
+    // movement or opening-stock entry so it stays reconciled with the
+    // stock ledger and its journal entries. Silently dropped rather than
+    // rejected so this endpoint stays usable for updating other fields.
+    delete parsed.quantity;
     if ('category_id' in parsed) {
       const catOk = await assertCategoryOwnership(t.db, t.companyId, parsed.category_id);
       if (!catOk) return res.status(422).json({ error: 'invalid_category', message: 'التصنيف غير صالح' });
