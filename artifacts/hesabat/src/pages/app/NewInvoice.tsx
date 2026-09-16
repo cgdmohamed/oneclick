@@ -58,7 +58,25 @@ const NewInvoice = ({ asModal = false, defaultClientId, onCancel, onCreated }: N
   /* Invoice state */
   const [clientId, setClientId] = useState('');
   const [items, setItems]       = useState<Item[]>([{ id: 'i1', name: '', quantity: 1, unitPrice: 0, discount: 0, vatRate: 15 }]);
+  // Default VAT rate for new lines — seeded from the company's own default
+  // (Settings → نسبة الضريبة) once it loads, not a second editable field on
+  // this screen. A picked product's own vat_rate still overrides it per line.
   const [taxRate, setTaxRate]   = useState(15);
+  const companySettings = useQuery({
+    queryKey: ['companies-me-vat-rate'],
+    queryFn: async () => (await api.get<{ data: { vat_rate?: string | number } }>('/api/companies/me')).data,
+    enabled: isApiConfigured(),
+    staleTime: 5 * 60_000,
+  });
+  useEffect(() => {
+    const rate = Number(companySettings.data?.vat_rate);
+    if (!Number.isFinite(rate) || rate === taxRate) return;
+    setTaxRate(rate);
+    // Only sync lines still at the old hardcoded fallback (15) or unset —
+    // never overwrite a rate the user (or a picked product) already set.
+    setItems(prev => prev.map(it => (it.vatRate === undefined || it.vatRate === 15) ? { ...it, vatRate: rate } : it));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [companySettings.data]);
   const [discount, setDiscount] = useState(0);
   const [dueDate, setDueDate]   = useState(new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10));
   const [referenceNumber, setReferenceNumber] = useState('');
@@ -534,35 +552,18 @@ const NewInvoice = ({ asModal = false, defaultClientId, onCancel, onCreated }: N
             </div>
           </div>
 
-          {/* Tax + discount */}
-          <div className="grid sm:grid-cols-2 gap-4">
-            <div>
-              <Label>نسبة الضريبة (%)</Label>
-              <Input
-                type="number"
-                min={0}
-                value={taxRate}
-                onChange={e => {
-                  const rate = Number(e.target.value);
-                  setTaxRate(rate);
-                  // Applies to every line immediately — a single visible tax
-                  // rate for the invoice, with per-line override still
-                  // available below for the rare exception.
-                  setItems(prev => prev.map(it => ({ ...it, vatRate: rate })));
-                }}
-                className="mt-1.5"
-              />
-              <p className="mt-1 text-xs text-muted-foreground">تُطبَّق على كل بنود الفاتورة، ويمكن تعديل بند بعينه بعد ذلك عند الحاجة.</p>
-            </div>
-            <div>
-              <Label>خصم إضافي على الفاتورة</Label>
-              <Input type="number" min={0} value={discount} onChange={e => setDiscount(Number(e.target.value))} className="mt-1.5" />
-              {totals.itemDiscount > 0 && (
-                <p className="mt-1 text-xs text-muted-foreground">
-                  خصومات البنود: {formatCurrency(totals.itemDiscount)}
-                </p>
-              )}
-            </div>
+          {/* Discount — VAT is set per line item above (see "الضريبة" field on
+              each row), pre-filled from the product's own rate or the
+              company default; no separate invoice-level VAT field here to
+              avoid two fields that both claim to set "the" tax rate. */}
+          <div>
+            <Label>خصم إضافي على الفاتورة</Label>
+            <Input type="number" min={0} value={discount} onChange={e => setDiscount(Number(e.target.value))} className="mt-1.5" />
+            {totals.itemDiscount > 0 && (
+              <p className="mt-1 text-xs text-muted-foreground">
+                خصومات البنود: {formatCurrency(totals.itemDiscount)}
+              </p>
+            )}
           </div>
         </Card>
 
