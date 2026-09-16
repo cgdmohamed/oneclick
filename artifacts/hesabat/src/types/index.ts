@@ -123,6 +123,9 @@ export interface FinancialAccount {
   type: 'cash' | 'bank' | 'wallet';
   balance: number;
   status: 'active' | 'inactive';
+  chartAccountId?: string | null;
+  chartAccountCode?: string | null;
+  chartAccountName?: string | null;
 }
 
 export interface PaymentSplit {

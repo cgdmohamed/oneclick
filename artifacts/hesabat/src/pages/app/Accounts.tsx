@@ -13,6 +13,8 @@ import { accountTypeLabel, formatCurrency } from '@/lib/format';
 import { toast } from 'sonner';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { useResource } from '@/hooks/useResource';
+import { useQuery } from '@tanstack/react-query';
+import { api } from '@/lib/api';
 
 interface AccountRow {
   id: string;
@@ -23,9 +25,15 @@ interface AccountRow {
   iban: string | null;
   balance: string | number;
   is_active: boolean;
+  chart_account_id: string | null;
+  chart_account_code: string | null;
+  chart_account_name: string | null;
 }
 
-const empty: FinancialAccount = { id: '', companyId: 'co-1', name: '', type: 'cash', balance: 0, status: 'active' };
+interface ChartAccountOption { id: string; code: string; name: string }
+
+const NONE = '__none__';
+const empty: FinancialAccount = { id: '', companyId: 'co-1', name: '', type: 'cash', balance: 0, status: 'active', chartAccountId: null };
 const iconFor = (t: string) => t === 'bank' ? Building2 : t === 'wallet' ? CreditCard : Wallet;
 
 const Accounts = () => {
@@ -40,13 +48,22 @@ const Accounts = () => {
       type: r.type,
       balance: Number(r.balance),
       status: r.is_active ? 'active' : 'inactive',
+      chartAccountId: r.chart_account_id,
+      chartAccountCode: r.chart_account_code,
+      chartAccountName: r.chart_account_name,
     }),
     toRow: (a) => ({
       name: a.name,
       type: a.type,
       balance: a.balance,
       is_active: a.status !== 'inactive',
+      chart_account_id: a.chartAccountId || null,
     }),
+  });
+
+  const chartAccounts = useQuery({
+    queryKey: ['chart-accounts'],
+    queryFn: async () => (await api.get<{ data: ChartAccountOption[] }>('/api/accounting/chart-accounts')).data ?? [],
   });
 
   const [open, setOpen] = useState(false);
@@ -73,7 +90,10 @@ const Accounts = () => {
                   <div className="h-11 w-11 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0"><Icon className="h-5 w-5" /></div>
                   <div className="min-w-0">
                     <div className="font-semibold truncate">{a.name}</div>
-                    <div className="text-xs text-muted-foreground">{accountTypeLabel(a.type)}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {accountTypeLabel(a.type)}
+                      {a.chartAccountCode && <span> · دليل الحسابات: {a.chartAccountCode}</span>}
+                    </div>
                   </div>
                 </div>
                 <Button variant="ghost" size="icon" onClick={() => { setEditing(a); setOpen(true); }}><Pencil className="h-4 w-4" /></Button>
@@ -106,6 +126,20 @@ const Accounts = () => {
               </Select>
             </div>
             <div><Label>الرصيد</Label><Input type="number" className="mt-1.5" value={editing.balance} onChange={e => setEditing(s => ({ ...s, balance: Number(e.target.value) }))} /></div>
+            <div>
+              <Label>الحساب في دليل الحسابات (اختياري)</Label>
+              <Select value={editing.chartAccountId ?? NONE} onValueChange={(v) => setEditing(s => ({ ...s, chartAccountId: v === NONE ? null : v }))}>
+                <SelectTrigger className="mt-1.5"><SelectValue placeholder="بدون ربط — استخدام حساب افتراضي مشترك" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NONE}>بدون ربط — استخدام حساب افتراضي مشترك</SelectItem>
+                  {(chartAccounts.data ?? []).map(ca => <SelectItem key={ca.id} value={ca.id}>{ca.code} - {ca.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-1.5">
+                اربط هذا الحساب بكود مستقل من دليل الحسابات (مثال: 1021) ليظهر بشكل منفصل في كشف الحساب،
+                بدل الاعتماد على حساب البنك/الخزنة الافتراضي المشترك بين كل الحسابات من نفس النوع.
+              </p>
+            </div>
             <div><Label>الحالة</Label>
               <Select value={editing.status} onValueChange={(v: 'active' | 'inactive') => setEditing(s => ({ ...s, status: v }))}>
                 <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
