@@ -1020,6 +1020,7 @@ const Products = () => {
               <div className="flex-1 text-sm text-muted-foreground">
                 <p className="mb-1">الأعمدة المطلوبة: <span className="font-mono text-foreground text-xs">name, sku, barcode, product_type, description, price, cost, quantity, alert_level, unit, category, supplier, vat_status, vat_rate, status</span></p>
                 <p>التصنيفات غير الموجودة ستُنشأ تلقائياً. يمكن تنزيل نموذج لمعرفة الشكل الصحيح.</p>
+                <p className="mt-1 text-amber-600">⚠️ الاستيراد يُنشئ منتجات جديدة فقط ولا يعدّل منتجًا موجودًا بالفعل؛ عمود "quantity" يُعتمد كرصيد افتتاحي للمنتج الجديد فقط، ولا يمكن استخدام الاستيراد لتعديل كمية منتج قائم — استخدم "حركة مخزون" لذلك.</p>
               </div>
               <Button variant="outline" size="sm" onClick={handleTemplateDownload} className="shrink-0">
                 <Download className="h-4 w-4 me-1" /> نموذج CSV

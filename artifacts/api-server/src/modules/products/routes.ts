@@ -523,16 +523,26 @@ router.post('/import', csvUploadMiddleware, async (req, res, next) => {
         created++;
       } else {
         // Commit — auto-create missing categories and insert valid products.
+        // The whole row (category/supplier resolution + insert) runs inside
+        // its own SAVEPOINT: the entire import shares one transaction
+        // (committed by the tenant middleware at the end of the request),
+        // and without this, a single failing row would poison that whole
+        // transaction — Postgres aborts it at the first error, so the final
+        // COMMIT silently rolls back every row that "succeeded" before it,
+        // while the response still reports them as created.
+        await t.db.query('SAVEPOINT row_import');
         let categoryId: string | null = null;
         let supplierId: string | null = null;
         try {
           categoryId = await getOrCreateCategoryId(get(iCategory));
           supplierId = await findSupplierId(get(iSupplier));
         } catch {
+          await t.db.query('ROLLBACK TO SAVEPOINT row_import');
           results.push({ row: csvRowNum, name, error: 'تعذّر إنشاء التصنيف' });
           continue;
         }
         if (get(iSupplier) && !supplierId) {
+          await t.db.query('ROLLBACK TO SAVEPOINT row_import');
           results.push({ row: csvRowNum, name, error: 'المورد غير موجود' });
           continue;
         }
@@ -558,10 +568,16 @@ router.post('/import', csvUploadMiddleware, async (req, res, next) => {
               vatRate,
             ],
           );
+          await t.db.query('RELEASE SAVEPOINT row_import');
           results.push({ row: csvRowNum, name, created: true });
           created++;
-        } catch {
-          results.push({ row: csvRowNum, name, error: 'تعذّر إدراج المنتج في قاعدة البيانات' });
+        } catch (e) {
+          await t.db.query('ROLLBACK TO SAVEPOINT row_import');
+          const dbErr = e as { code?: string; constraint?: string };
+          const dbError = dbErr.code === '23505' && dbErr.constraint === 'products_company_barcode_uq'
+            ? 'الباركود مستخدم بالفعل في منتج آخر'
+            : 'تعذّر إدراج المنتج في قاعدة البيانات';
+          results.push({ row: csvRowNum, name, error: dbError });
         }
       }
     }
