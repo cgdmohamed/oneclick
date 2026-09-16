@@ -2,6 +2,22 @@ import { Router } from 'express';
 
 const router = Router();
 
+// Expands each chart_accounts row into (ancestor_id, descendant_id) pairs,
+// including itself, so a parent/sub-account (e.g. code 1020 with a sub-code
+// 1021 under it) can roll up its children's postings in reports. Assumes
+// company_id is bound as $1 in the query it's spliced into.
+const ACCOUNT_TREE_CTE_BODY = `
+  account_tree AS (
+    SELECT id AS ancestor_id, id AS descendant_id FROM chart_accounts WHERE company_id = $1
+    UNION ALL
+    SELECT t.ancestor_id, ca.id
+    FROM chart_accounts ca
+    JOIN account_tree t ON ca.parent_id = t.descendant_id
+    WHERE ca.company_id = $1
+  )
+`;
+const ACCOUNT_ROLLUP_CTE = `WITH RECURSIVE ${ACCOUNT_TREE_CTE_BODY}`;
+
 const requiredAccountingSettings = [
   'accounts_receivable_account_id',
   'accounts_payable_account_id',
@@ -839,9 +855,10 @@ router.get('/account-statement/:accountId', async (req, res, next) => {
     const meta = await reportMeta(t.db, t.companyId, req.query);
     const f = dateFilters(req.query);
     const params: unknown[] = [t.companyId, req.params.accountId, ...f.params];
-    const where = [`je.company_id = $1`, `jel.account_id = $2`, `je.status IN ('posted','reversed')`, ...f.where.map((w) => w.replace(/\$(\d+)/g, (_, n) => `$${Number(n) + 2}`))];
+    const where = [`je.company_id = $1`, `jel.account_id IN (SELECT descendant_id FROM account_tree WHERE ancestor_id = $2)`, `je.status IN ('posted','reversed')`, ...f.where.map((w) => w.replace(/\$(\d+)/g, (_, n) => `$${Number(n) + 2}`))];
     const rs = await t.db.query(
-      `SELECT je.entry_date, je.number, je.memo, jel.description, jel.debit, jel.credit,
+      `${ACCOUNT_ROLLUP_CTE}
+       SELECT je.entry_date, je.number, je.memo, jel.description, jel.debit, jel.credit,
               SUM(jel.debit - jel.credit) OVER (ORDER BY je.entry_date, je.number, jel.line_no) AS running_balance
        FROM journal_entry_lines jel JOIN journal_entries je ON je.id = jel.journal_entry_id
        WHERE ${where.join(' AND ')}
@@ -862,10 +879,11 @@ router.get('/account-statement', async (req, res, next) => {
     const meta = await reportMeta(t.db, t.companyId, req.query);
     const f = dateFilters(req.query);
     const params: unknown[] = [t.companyId, accountId, ...f.params];
-    const where = [`je.company_id = $1`, `jel.account_id = $2`, `je.status IN ('posted','reversed')`, ...f.where.map((w) => w.replace(/\$(\d+)/g, (_, n) => `$${Number(n) + 2}`))];
+    const where = [`je.company_id = $1`, `jel.account_id IN (SELECT descendant_id FROM account_tree WHERE ancestor_id = $2)`, `je.status IN ('posted','reversed')`, ...f.where.map((w) => w.replace(/\$(\d+)/g, (_, n) => `$${Number(n) + 2}`))];
     dimensionFilters(req.query, params, where);
     const rs = await t.db.query(
-      `SELECT je.entry_date, je.number, je.memo, jel.id, jel.description, jel.debit, jel.credit,
+      `${ACCOUNT_ROLLUP_CTE}
+       SELECT je.entry_date, je.number, je.memo, jel.id, jel.description, jel.debit, jel.credit,
               SUM(jel.debit - jel.credit) OVER (ORDER BY je.entry_date, je.number, jel.line_no) AS running_balance
        FROM journal_entry_lines jel JOIN journal_entries je ON je.id = jel.journal_entry_id
        WHERE ${where.join(' AND ')}
@@ -887,20 +905,27 @@ router.get('/trial-balance', async (req, res, next) => {
     const where = [`ca.company_id = $1`, `(je.id IS NULL OR je.status IN ('posted','reversed'))`, ...f.where.map((w) => w.replace(/\$(\d+)/g, (_, n) => `$${Number(n) + 1}`))];
     dimensionFilters(req.query, params, where);
     const rs = await t.db.query(
-      `SELECT ca.id, ca.code, ca.name, ca.type, ca.normal_balance,
+      `${ACCOUNT_ROLLUP_CTE}
+       SELECT ca.id, ca.code, ca.name, ca.type, ca.normal_balance, ca.parent_id,
               COALESCE(SUM(jel.debit),0) AS debit,
               COALESCE(SUM(jel.credit),0) AS credit,
               COALESCE(SUM(jel.debit - jel.credit),0) AS balance
        FROM chart_accounts ca
-       LEFT JOIN journal_entry_lines jel ON jel.account_id = ca.id
+       JOIN account_tree at ON at.ancestor_id = ca.id
+       LEFT JOIN journal_entry_lines jel ON jel.account_id = at.descendant_id
        LEFT JOIN journal_entries je ON je.id = jel.journal_entry_id
        WHERE ${where.join(' AND ')}
-       GROUP BY ca.id, ca.code, ca.name, ca.type, ca.normal_balance
+       GROUP BY ca.id, ca.code, ca.name, ca.type, ca.normal_balance, ca.parent_id
        ORDER BY ca.code`,
       params,
     );
-    const debit = rs.rows.reduce((sum: number, row: { debit: string }) => sum + Number(row.debit), 0);
-    const credit = rs.rows.reduce((sum: number, row: { credit: string }) => sum + Number(row.credit), 0);
+    // Sum only root accounts (parent_id IS NULL) for the footer — each root's
+    // rolled-up balance already includes every descendant exactly once, so
+    // this avoids double-counting an amount that's shown in both a
+    // sub-account's own row and its parent's rolled-up row.
+    const roots = rs.rows.filter((row: { parent_id: string | null }) => !row.parent_id);
+    const debit = roots.reduce((sum: number, row: { debit: string }) => sum + Number(row.debit), 0);
+    const credit = roots.reduce((sum: number, row: { credit: string }) => sum + Number(row.credit), 0);
     res.json({ data: rs.rows, summary: { debit: debit.toFixed(2), credit: credit.toFixed(2), difference: (debit - credit).toFixed(2), is_balanced: Math.abs(debit - credit) <= 0.005 }, warnings: meta.warnings });
   } catch (e) { next(e); }
 });
@@ -914,19 +939,23 @@ router.get('/income-statement', async (req, res, next) => {
     const where = [`ca.company_id = $1`, `(je.id IS NULL OR je.status IN ('posted','reversed'))`, `COALESCE(je.source_type, '') != 'year_end_closing'`, `ca.type IN ('revenue','expense')`, ...f.where.map((w) => w.replace(/\$(\d+)/g, (_, n) => `$${Number(n) + 1}`))];
     dimensionFilters(req.query, params, where);
     const rs = await t.db.query(
-      `SELECT ca.code, ca.name, ca.type,
+      `${ACCOUNT_ROLLUP_CTE}
+       SELECT ca.code, ca.name, ca.type, ca.parent_id,
               COALESCE(SUM(jel.credit - jel.debit),0) AS amount
        FROM chart_accounts ca
-       LEFT JOIN journal_entry_lines jel ON jel.account_id = ca.id
+       JOIN account_tree at ON at.ancestor_id = ca.id
+       LEFT JOIN journal_entry_lines jel ON jel.account_id = at.descendant_id
        LEFT JOIN journal_entries je ON je.id = jel.journal_entry_id
        WHERE ${where.join(' AND ')}
-       GROUP BY ca.code, ca.name, ca.type ORDER BY ca.code`,
+       GROUP BY ca.code, ca.name, ca.type, ca.parent_id ORDER BY ca.code`,
       params,
     );
-    const revenue = rs.rows
+    // Headline totals sum only root accounts (see trial-balance for why).
+    const roots = rs.rows.filter((r: { parent_id: string | null }) => !r.parent_id);
+    const revenue = roots
       .filter((r: { type: string }) => r.type === 'revenue')
       .reduce((s: number, r: { amount: string }) => s + Number(r.amount), 0);
-    const expenses = rs.rows
+    const expenses = roots
       .filter((r: { type: string }) => r.type === 'expense')
       .reduce((s: number, r: { amount: string }) => s - Number(r.amount), 0);
     res.json({ data: rs.rows, summary: { revenue: revenue.toFixed(2), expenses: expenses.toFixed(2), net_income: (revenue - expenses).toFixed(2), formula_check: (revenue - expenses).toFixed(2) }, warnings: meta.warnings });
@@ -950,7 +979,8 @@ router.get('/balance-sheet', async (req, res, next) => {
     const currentYearStart = fiscalYear.rows[0]?.starts_on ?? `${to.slice(0, 4)}-01-01`;
     const params: unknown[] = branchId ? [t.companyId, to, branchId] : [t.companyId, to];
     const rs = await t.db.query(
-      `WITH posted_lines AS (
+      `WITH RECURSIVE ${ACCOUNT_TREE_CTE_BODY},
+       posted_lines AS (
          SELECT jel.account_id, jel.debit, jel.credit
          FROM journal_entry_lines jel
          JOIN journal_entries je ON je.id = jel.journal_entry_id
@@ -960,14 +990,15 @@ router.get('/balance-sheet', async (req, res, next) => {
            AND je.entry_date <= $2::date
            ${branchId ? 'AND COALESCE(jel.branch_id, je.branch_id) = $3' : ''}
        )
-       SELECT ca.code, ca.name, ca.type,
+       SELECT ca.code, ca.name, ca.type, ca.parent_id,
               COALESCE(SUM(pl.debit - pl.credit),0) AS debit_balance,
               COALESCE(SUM(pl.credit - pl.debit),0) AS credit_balance,
               FALSE AS is_virtual
        FROM chart_accounts ca
-       LEFT JOIN posted_lines pl ON pl.account_id = ca.id
+       JOIN account_tree at ON at.ancestor_id = ca.id
+       LEFT JOIN posted_lines pl ON pl.account_id = at.descendant_id
        WHERE ca.company_id = $1 AND ca.type IN ('asset','liability','equity')
-       GROUP BY ca.code, ca.name, ca.type ORDER BY ca.code`,
+       GROUP BY ca.code, ca.name, ca.type, ca.parent_id ORDER BY ca.code`,
       params,
     );
     const plParams: unknown[] = branchId ? [t.companyId, to, currentYearStart, branchId] : [t.companyId, to, currentYearStart];
@@ -1016,13 +1047,15 @@ router.get('/balance-sheet', async (req, res, next) => {
       is_virtual: true,
     };
     const rows = [...rs.rows, virtualRow];
-    const assets = rs.rows
+    // Headline totals sum only root accounts (see trial-balance for why).
+    const roots = rs.rows.filter((r: { parent_id: string | null }) => !r.parent_id);
+    const assets = roots
       .filter((r: { type: string }) => r.type === 'asset')
       .reduce((s: number, r: { debit_balance: string }) => s + Number(r.debit_balance), 0);
-    const liabilities = rs.rows
+    const liabilities = roots
       .filter((r: { type: string }) => r.type === 'liability')
       .reduce((s: number, r: { credit_balance: string }) => s + Number(r.credit_balance), 0);
-    const equity = rs.rows
+    const equity = roots
       .filter((r: { type: string }) => r.type === 'equity')
       .reduce((s: number, r: { credit_balance: string }) => s + Number(r.credit_balance), 0);
     const equityTotal = equity + currentYearProfitLoss;
