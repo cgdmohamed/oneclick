@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback, useEffect } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,7 +10,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Plus, Trash2, PackagePlus, UserPlus, AlertTriangle, Paperclip, Image as ImageIcon, X, Check, ChevronsUpDown, WalletCards } from 'lucide-react';
+import { Plus, Trash2, UserPlus, AlertTriangle, Paperclip, Image as ImageIcon, X, Check, ChevronsUpDown, WalletCards } from 'lucide-react';
 import { formatCurrency } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -29,13 +29,7 @@ interface DimensionRow { id: string; code: string | null; name: string; is_activ
 interface NewClientForm {
   name: string; phone: string; whatsapp: string; email: string; address: string; tax_number: string; currency: string;
 }
-interface NewProductForm {
-  name: string; sku: string; price: string; quantity: string; unit: string; category_id: string; alertLevel: string;
-}
-
 const emptyClient: NewClientForm = { name: '', phone: '', whatsapp: '', email: '', address: '', tax_number: '', currency: EGP_CURRENCY_CODE };
-const NO_CATEGORY = '__none__';
-const emptyProduct: NewProductForm = { name: '', sku: '', price: '', quantity: '0', unit: 'قطعة', category_id: NO_CATEGORY, alertLevel: '5' };
 
 /* ── Helpers ────────────────────────────────────────────────────── */
 const normalize = (s: string) => s.trim().toLowerCase();
@@ -166,84 +160,6 @@ const NewInvoice = ({ asModal = false, defaultClientId, onCancel, onCreated }: N
     }
   };
 
-  /* ── Quick product creation ─────────────────────────────────── */
-  const [productOpen, setProductOpen]     = useState(false);
-  const [addProductRow, setAddProductRow] = useState<number | null>(null);
-  const [newProduct, setNewProduct]       = useState<NewProductForm>(emptyProduct);
-  const [productSaving, setProductSaving] = useState(false);
-  const [dupProduct, setDupProduct]       = useState<{ id: string; name: string } | null>(null);
-  const [categories, setCategories]       = useState<{ id: string; name: string; parent_id?: string | null; parent_name?: string | null }[]>([]);
-
-  const loadCategories = useCallback(async () => {
-    if (!isApiConfigured()) return;
-    try {
-      const res = await api.get<{ data: { id: string; name: string; parent_id?: string | null; parent_name?: string | null }[] }>('/api/categories');
-      setCategories(res.data ?? []);
-    } catch { /* silent */ }
-  }, []);
-
-  useEffect(() => { loadCategories(); }, [loadCategories]);
-
-  const openQuickProduct = (rowIndex: number) => {
-    setAddProductRow(rowIndex);
-    setNewProduct(emptyProduct);
-    setDupProduct(null);
-    setProductOpen(true);
-  };
-
-  const saveQuickProduct = async (forceDuplicate = false) => {
-    const name = newProduct.name.trim();
-    if (!name) return toast.error('اسم المنتج مطلوب');
-    const price = parseFloat(newProduct.price);
-    if (isNaN(price) || price < 0) return toast.error('السعر غير صحيح');
-
-    /* Duplicate check — by name or SKU */
-    if (!forceDuplicate) {
-      const existing = products.find(p =>
-        normalize(p.name) === normalize(name) ||
-        (newProduct.sku.trim() && p.code && normalize(p.code) === normalize(newProduct.sku.trim())),
-      );
-      if (existing) {
-        setDupProduct({ id: existing.id, name: existing.name });
-        return;
-      }
-    }
-
-    setProductSaving(true);
-    try {
-      const res = await api.post<{ data: { id: string; name: string; price: string | number } }>('/api/products', {
-        name,
-        sku:         newProduct.sku || null,
-        price,
-        quantity:    parseInt(newProduct.quantity, 10) || 0,
-        unit:        newProduct.unit || 'قطعة',
-        alert_level: parseInt(newProduct.alertLevel, 10) || 5,
-        category_id: (newProduct.category_id && newProduct.category_id !== NO_CATEGORY) ? newProduct.category_id : null,
-        is_active:   true,
-      });
-      const created = res.data;
-      await qc.invalidateQueries({ queryKey: ['products'] });
-      if (addProductRow !== null) {
-        update(addProductRow, { productId: created.id, name: created.name, unitPrice: Number(created.price), vatRate: taxRate });
-      }
-      toast.success(`تم إضافة المنتج «${created.name}»`);
-      setProductOpen(false);
-      setDupProduct(null);
-    } catch {
-      toast.error('تعذّر إضافة المنتج');
-    } finally {
-      setProductSaving(false);
-    }
-  };
-
-  /* Pick existing product → auto-fill description + price */
-  const pickExistingProduct = (rowIndex: number, pid: string) => {
-    setDupProduct(null);
-    setProductOpen(false);
-    const ex = products.find(p => p.id === pid);
-    if (ex) update(rowIndex, { productId: ex.id, name: ex.name, unitPrice: ex.price, vatRate: ex.vatRate ?? taxRate });
-  };
-
   /* ── Invoice line helpers ───────────────────────────────────── */
   const lineGross = (it: Item) => it.quantity * it.unitPrice;
   const lineDiscount = (it: Item) => Math.min(Math.max(Number(it.discount || 0), 0), lineGross(it));
@@ -270,7 +186,20 @@ const NewInvoice = ({ asModal = false, defaultClientId, onCancel, onCreated }: N
   const remove     = (i: number) => setItems(p => p.filter((_, idx) => idx !== i));
   const pickProduct = (i: number, pid: string) => {
     const p = products.find(x => x.id === pid);
-    if (p) update(i, { productId: pid, name: p.name, unitPrice: p.price, vatRate: p.vatRate ?? taxRate });
+    if (p) {
+      // Same product already on another line — merge into it instead of
+      // carrying the same product across two separate rows.
+      const existingIndex = items.findIndex((it, idx) => idx !== i && it.productId === pid);
+      if (existingIndex !== -1) {
+        const addQty = items[i].quantity > 0 ? items[i].quantity : 1;
+        setItems(prev => prev
+          .map((it, idx) => idx === existingIndex ? { ...it, quantity: it.quantity + addQty } : it)
+          .filter((_, idx) => idx !== i));
+        toast.success(`تم تحديث الكمية في بند «${p.name}» الموجود بدل تكراره`);
+      } else {
+        update(i, { productId: pid, name: p.name, unitPrice: p.price, vatRate: p.vatRate ?? taxRate });
+      }
+    }
     setProductPickerOpen(null);
   };
 
@@ -462,7 +391,7 @@ const NewInvoice = ({ asModal = false, defaultClientId, onCancel, onCreated }: N
                   <div className="grid grid-cols-1 xl:grid-cols-[minmax(240px,1.1fr)_minmax(260px,1.3fr)] gap-3">
                     <div>
                     <Label className="text-xs">المنتج</Label>
-                    <div className="flex gap-1 mt-0.5">
+                    <div className="flex mt-0.5">
                       <Popover open={productPickerOpen === it.id} onOpenChange={(open) => setProductPickerOpen(open ? it.id : null)}>
                         <PopoverTrigger asChild>
                           <Button
@@ -507,16 +436,6 @@ const NewInvoice = ({ asModal = false, defaultClientId, onCancel, onCreated }: N
                           </Command>
                         </PopoverContent>
                       </Popover>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="icon"
-                        className="shrink-0 h-9 w-9"
-                        title="إضافة منتج جديد"
-                        onClick={() => openQuickProduct(i)}
-                      >
-                        <PackagePlus className="h-4 w-4" />
-                      </Button>
                     </div>
                   </div>
                     <div>
@@ -801,102 +720,6 @@ const NewInvoice = ({ asModal = false, defaultClientId, onCancel, onCreated }: N
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* ════════════════════════════════════════════════════════
-          QUICK PRODUCT CREATION MODAL
-      ════════════════════════════════════════════════════════ */}
-      <Dialog open={productOpen} onOpenChange={setProductOpen}>
-        <DialogContent className="max-w-md" dir="rtl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <PackagePlus className="h-5 w-5" /> إضافة منتج جديد
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div>
-              <Label>اسم المنتج *</Label>
-              <Input
-                className="mt-1.5"
-                value={newProduct.name}
-                onChange={e => setNewProduct(p => ({ ...p, name: e.target.value }))}
-                placeholder="اسم المنتج أو الخدمة"
-                autoFocus
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label>SKU</Label>
-                <Input className="mt-1.5" value={newProduct.sku} onChange={e => setNewProduct(p => ({ ...p, sku: e.target.value }))} placeholder="اختياري" />
-              </div>
-              <div>
-                <Label>الوحدة</Label>
-                <Input className="mt-1.5" value={newProduct.unit} onChange={e => setNewProduct(p => ({ ...p, unit: e.target.value }))} placeholder="قطعة" />
-              </div>
-              <div>
-                <Label>السعر *</Label>
-                <Input className="mt-1.5" type="number" min="0" step="0.01" value={newProduct.price} onChange={e => setNewProduct(p => ({ ...p, price: e.target.value }))} placeholder="0.00" />
-              </div>
-              <div>
-                <Label>الكمية الأولية</Label>
-                <Input className="mt-1.5" type="number" min="0" value={newProduct.quantity} onChange={e => setNewProduct(p => ({ ...p, quantity: e.target.value }))} />
-              </div>
-              <div>
-                <Label>حد التنبيه</Label>
-                <Input className="mt-1.5" type="number" min="0" value={newProduct.alertLevel} onChange={e => setNewProduct(p => ({ ...p, alertLevel: e.target.value }))} />
-              </div>
-            </div>
-            {categories.length > 0 && (
-              <div>
-                <Label>التصنيف</Label>
-                <Select value={newProduct.category_id} onValueChange={v => setNewProduct(p => ({ ...p, category_id: v }))}>
-                  <SelectTrigger className="mt-1.5"><SelectValue placeholder="اختياري" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={NO_CATEGORY}>بدون تصنيف</SelectItem>
-                    {categories.map(c => <SelectItem key={c.id} value={c.id}>{c.parent_name ? `${c.parent_name} / ${c.name}` : c.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setProductOpen(false)}>إلغاء</Button>
-            <Button onClick={() => saveQuickProduct(false)} disabled={productSaving}>
-              {productSaving ? 'جارٍ الإضافة...' : 'إضافة المنتج'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Duplicate product warning */}
-      <AlertDialog open={Boolean(dupProduct)} onOpenChange={v => !v && setDupProduct(null)}>
-        <AlertDialogContent dir="rtl">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-warning" /> منتج مشابه موجود
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              يوجد منتج باسم «{dupProduct?.name}» مسبقاً. هل تريد اختياره بدلاً من إنشاء منتج جديد؟
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter className="flex-col gap-2 sm:flex-row">
-            <AlertDialogCancel onClick={() => setDupProduct(null)}>إلغاء</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-secondary text-secondary-foreground hover:bg-secondary/80"
-              onClick={() => {
-                if (dupProduct && addProductRow !== null) {
-                  pickExistingProduct(addProductRow, dupProduct.id);
-                }
-                setDupProduct(null);
-                toast.success('تم اختيار المنتج الموجود');
-              }}
-            >
-              استخدام الموجود
-            </AlertDialogAction>
-            <AlertDialogAction onClick={() => saveQuickProduct(true)}>
-              إنشاء جديد على أي حال
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 };
