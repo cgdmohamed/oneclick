@@ -502,6 +502,24 @@ r.patch('/journal-entries/:id', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+r.delete('/journal-entries/:id', async (req, res, next) => {
+  try {
+    const t = req.tenant!;
+    const existing = await t.db.query(`SELECT status FROM journal_entries WHERE id = $1 AND company_id = $2`, [req.params.id, t.companyId]);
+    if (!existing.rowCount) throw notFound('Journal entry not found');
+    // A draft has no financial effect yet, so it's safe to hard-delete —
+    // unlike a posted entry, which must be reversed (never edited/deleted)
+    // to preserve the audit trail. Without this, a draft entered with a
+    // mistake in its lines could never be fixed (PATCH only touches
+    // memo/entry_date) or removed, and would sit in the list forever.
+    if (existing.rows[0].status !== 'draft') throw conflict('Only draft journal entries can be deleted — reverse a posted entry instead');
+    await t.db.query(`DELETE FROM journal_entry_lines WHERE journal_entry_id = $1 AND company_id = $2`, [req.params.id, t.companyId]);
+    await t.db.query(`DELETE FROM journal_entries WHERE id = $1 AND company_id = $2`, [req.params.id, t.companyId]);
+    await audit(t.db, { companyId: t.companyId, userId: req.auth!.userId, action: 'journal.delete', entity: 'journal_entry', entityId: req.params.id });
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
 r.post('/journal-entries/:id/post', async (req, res, next) => {
   try {
     const t = req.tenant!;

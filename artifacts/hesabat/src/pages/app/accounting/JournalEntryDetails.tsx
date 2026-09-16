@@ -5,9 +5,10 @@ import { DataTable, type Column } from '@/components/common/DataTable';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { api } from '@/lib/api';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { api, ApiError } from '@/lib/api';
 import { formatCurrency, formatDateShort } from '@/lib/format';
-import { ArrowRight, RotateCcw, Send } from 'lucide-react';
+import { ArrowRight, RotateCcw, Send, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { journalStatusLabel, sourceLabel, type JournalEntry, type JournalLine } from './types';
 
@@ -39,6 +40,17 @@ const JournalEntryDetails = () => {
     toast.success('تم إنشاء قيد عكسي');
     navigate(`/app/accounting/journals/${res.data.id}`);
   };
+  const remove = async () => {
+    if (!id) return;
+    try {
+      await api.delete(`/api/accounting/journal-entries/${id}`);
+      await qc.invalidateQueries({ queryKey: ['journal-entries'] });
+      toast.success('تم حذف القيد');
+      navigate('/app/accounting/journals');
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : 'تعذّر حذف القيد');
+    }
+  };
   const columns: Column<JournalLine>[] = [
     { key: 'account', header: 'الحساب', cell: (r) => <div><div className="font-medium">{r.account_code} - {r.account_name}</div><div className="text-xs text-muted-foreground">{r.description ?? ''}</div></div> },
     { key: 'debit', header: 'مدين', cell: (r) => formatCurrency(Number(r.debit)), className: 'text-end' },
@@ -51,7 +63,27 @@ const JournalEntryDetails = () => {
       <PageHeader
         title={`قيد ${data.number}`}
         description={`${formatDateShort(data.entry_date)} · ${sourceLabel(data.source_type)}`}
-        actions={<div className="flex gap-2">{data.status === 'draft' && <Button onClick={post}><Send className="h-4 w-4 ml-1" /> ترحيل</Button>}{data.status === 'posted' && <Button variant="outline" onClick={reverse}><RotateCcw className="h-4 w-4 ml-1" /> عكس القيد</Button>}</div>}
+        actions={<div className="flex gap-2">
+          {data.status === 'draft' && <Button onClick={post}><Send className="h-4 w-4 ml-1" /> ترحيل</Button>}
+          {data.status === 'posted' && <Button variant="outline" onClick={reverse}><RotateCcw className="h-4 w-4 ml-1" /> عكس القيد</Button>}
+          {data.status === 'draft' && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive"><Trash2 className="h-4 w-4 ml-1" /> حذف</Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>تأكيد حذف القيد</AlertDialogTitle>
+                  <AlertDialogDescription>سيتم حذف القيد نهائيًا بما أنه مسودة ولم يُرحّل بعد. هذا الإجراء لا يمكن التراجع عنه.</AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>رجوع</AlertDialogCancel>
+                  <AlertDialogAction onClick={remove} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">تأكيد الحذف</AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
+        </div>}
       />
       <div className="grid sm:grid-cols-4 gap-4">
         <Card className="p-4"><div className="text-sm text-muted-foreground">الحالة</div><Badge className="mt-2">{journalStatusLabel(data.status)}</Badge></Card>

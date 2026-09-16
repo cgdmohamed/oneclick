@@ -38,7 +38,6 @@ const fields = [
   ['bad_debt_expense_account_id', 'Bad Debt Expense', 'مصروف الديون المعدومة'],
   ['doubtful_debts_allowance_account_id', 'Allowance for Doubtful Debts', 'مخصص الديون المشكوك في تحصيلها'],
   ['retained_earnings_account_id', 'Retained Earnings / Opening Balance Equity', 'الأرباح المبقاة / حقوق افتتاحية'],
-  ['income_summary_account_id', 'Current Year Profit/Loss', 'ملخص الدخل / أرباح وخسائر السنة الحالية'],
   ['inventory_adjustment_account_id', 'Inventory Adjustment', 'تسويات المخزون'],
 ] as const;
 
