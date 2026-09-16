@@ -258,9 +258,8 @@ const FinancialReportDetail = () => {
     <div className="space-y-5">
       <Link to="/app/accounting/reports" className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1"><ArrowRight className="h-4 w-4" /> العودة للتقارير المالية</Link>
       <PageHeader title={titleMap[type] ?? 'تقرير مالي'} actions={<Button variant="outline" onClick={() => window.print()}><Printer className="h-4 w-4 me-1" /> طباعة</Button>} />
-      {(type === 'inventory' || !['inventory'].includes(type)) && (
-        <Card className="p-4 border-border/60">
-          <div className="grid sm:grid-cols-3 lg:grid-cols-6 gap-3 items-end">
+      <Card className="p-4 border-border/60">
+        <div className="grid sm:grid-cols-3 lg:grid-cols-6 gap-3 items-end">
             <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
             <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
             <select className="h-10 rounded-md border bg-background px-3 text-sm" value={branchId} onChange={(e) => setBranchId(e.target.value)}>
@@ -301,9 +300,8 @@ const FinancialReportDetail = () => {
             )}
             <Button onClick={() => setApplied({ from, to, branchId, costCenterId, customerId, supplierId, accountId, categoryId, subcategoryId })}>تطبيق</Button>
             <Button variant="ghost" onClick={() => { setFrom(''); setTo(''); setBranchId(''); setCostCenterId(''); setCustomerId(''); setSupplierId(''); setAccountId(''); setCategoryId(''); setSubcategoryId(''); setApplied({ from: '', to: '', branchId: '', costCenterId: '', customerId: '', supplierId: '', accountId: '', categoryId: '', subcategoryId: '' }); }}>مسح</Button>
-          </div>
-        </Card>
-      )}
+        </div>
+      </Card>
       {warnings.length > 0 && (
         <Alert className="border-warning/40 bg-warning/10">
           <AlertTriangle className="h-4 w-4" />
