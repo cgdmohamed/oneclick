@@ -210,6 +210,82 @@ function csvDate(value: unknown) {
   return value ? new Date(value as string).toISOString().slice(0, 10) : '';
 }
 
+type Queryable = { query: (sql: string, params?: unknown[]) => Promise<{ rows: any[]; rowCount: number | null }> };
+
+// Records an opening stock balance for a product with a full audit trail:
+// a stock_movement row, a stock_ledger entry, and a balancing journal entry
+// (Dr Inventory / Cr Opening Balance Equity) — shared by the dedicated
+// opening-stock endpoint and CSV import, so a product entering the system
+// with a starting quantity always carries a value and a GL entry instead of
+// silently having quantity > 0 with inventory_value stuck at 0.
+async function applyOpeningStock(
+  db: Queryable,
+  companyId: string,
+  productId: string,
+  args: { quantity: number; unitCost: number; date: Date; notes?: string | null; userId?: string | null },
+) {
+  if (args.quantity <= 0) return null;
+  const value = round2(args.quantity * args.unitCost);
+
+  const product = await db.query(
+    `SELECT p.*,
+            COALESCE(p.inventory_account_id, pc.inventory_account_id, parent_pc.inventory_account_id, aset.inventory_account_id) AS resolved_inventory_account_id,
+            aset.retained_earnings_account_id
+     FROM products p
+     LEFT JOIN product_categories pc ON pc.id = p.category_id AND pc.company_id = p.company_id
+     LEFT JOIN product_categories parent_pc ON parent_pc.id = pc.parent_id AND parent_pc.company_id = pc.company_id
+     LEFT JOIN accounting_settings aset ON aset.company_id = p.company_id
+     WHERE p.id = $1 AND p.company_id = $2 FOR UPDATE OF p`,
+    [productId, companyId],
+  );
+  if (!product.rowCount) throw notFound('Product not found');
+  const p = product.rows[0];
+
+  const movement = await db.query(
+    `INSERT INTO stock_movements
+     (company_id, product_id, type, quantity, reason, created_by, unit_cost, total_value, adjustment_direction)
+     VALUES ($1,$2,'in',$3,$4,$5,$6,$7,'increase')
+     RETURNING *`,
+    [companyId, productId, args.quantity, args.notes ?? 'Opening stock', args.userId ?? null, args.unitCost, value],
+  );
+
+  await db.query(
+    `UPDATE products SET quantity = $1, average_cost = $2, inventory_value = $3, cost = $2 WHERE id = $4 AND company_id = $5`,
+    [args.quantity, args.unitCost, value, productId, companyId],
+  );
+  await db.query(
+    `INSERT INTO stock_ledger
+     (company_id, product_id, source_type, source_id, movement_date, quantity_in, unit_cost, total_value, balance_quantity, balance_value)
+     VALUES ($1,$2,'opening_stock',$3,$4,$5,$6,$7,$5,$7)`,
+    [companyId, productId, movement.rows[0].id, args.date, args.quantity, args.unitCost, value],
+  );
+
+  // Matches the zero-cost stock-movement policy already established
+  // elsewhere: quantity/value always update, but a movement with no cost
+  // basis produces no journal entry rather than a debit=0/credit=0 line.
+  if (value <= 0) return { movementId: movement.rows[0].id as string, journalEntryId: null as string | null };
+
+  const settings = await getSettings(db, companyId);
+  const inventoryAccountId = p.resolved_inventory_account_id ?? settings.inventory_account_id;
+  const equityAccountId = p.retained_earnings_account_id ?? settings.retained_earnings_account_id;
+  if (!inventoryAccountId || !equityAccountId) throw badRequest('Missing inventory or opening balance equity account');
+
+  const lines: JournalLineInput[] = [
+    { accountId: inventoryAccountId, debit: value, description: args.notes ?? 'Opening stock' },
+    { accountId: equityAccountId, credit: value, description: args.notes ?? 'Opening stock' },
+  ];
+  const je = await createJournalEntry(db, {
+    companyId,
+    entryDate: args.date,
+    memo: `Opening stock ${p.name}`,
+    source: { type: 'opening_stock', id: movement.rows[0].id },
+    userId: args.userId ?? null,
+    lines,
+  });
+  await db.query(`UPDATE stock_movements SET journal_entry_id = $1 WHERE id = $2 AND company_id = $3`, [je.id, movement.rows[0].id, companyId]);
+  return { movementId: movement.rows[0].id as string, journalEntryId: je.id as string };
+}
+
 async function productDetailPayload(db: import('pg').PoolClient, companyId: string, productId: string) {
   const product = await db.query(
     `SELECT p.*,
@@ -548,10 +624,15 @@ router.post('/import', csvUploadMiddleware, async (req, res, next) => {
         }
 
         try {
-          await t.db.query(
+          // Insert with quantity = 0: an opening quantity from the CSV is
+          // applied right after via applyOpeningStock so it always carries
+          // a value and a balancing journal entry, instead of landing in
+          // products.quantity with average_cost/inventory_value left at 0.
+          const inserted = await t.db.query(
             `INSERT INTO products
                (company_id, name, sku, barcode, product_type, description, price, cost, quantity, alert_level, unit, is_active, category_id, supplier_id, vat_status, vat_rate)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,0,$9,$10,$11,$12,$13,$14,$15)
+             RETURNING id`,
             [
               t.companyId,
               name,
@@ -559,7 +640,7 @@ router.post('/import', csvUploadMiddleware, async (req, res, next) => {
               barcode,
               productType,
               get(iDescription) || null,
-              price, cost, quantity, alertLvl,
+              price, cost, alertLvl,
               get(iUnit) || 'قطعة',
               isActive,
               categoryId,
@@ -568,6 +649,15 @@ router.post('/import', csvUploadMiddleware, async (req, res, next) => {
               vatRate,
             ],
           );
+          if (productType === 'stock' && quantity > 0) {
+            await applyOpeningStock(t.db, t.companyId, inserted.rows[0].id, {
+              quantity,
+              unitCost: cost,
+              date: new Date(),
+              notes: 'Opening stock (CSV import)',
+              userId: req.auth!.userId,
+            });
+          }
           await t.db.query('RELEASE SAVEPOINT row_import');
           results.push({ row: csvRowNum, name, created: true });
           created++;
@@ -636,25 +726,13 @@ router.post('/:id/opening-stock', async (req, res, next) => {
     const t = req.tenant!;
     const body = openingStockSchema.parse(req.body);
     const openingDate = body.opening_date ? new Date(body.opening_date) : new Date();
-    const value = round2(body.opening_quantity * body.opening_unit_cost);
-    if (value <= 0) throw badRequest('Opening stock value must be greater than zero');
+    if (round2(body.opening_quantity * body.opening_unit_cost) <= 0) throw badRequest('Opening stock value must be greater than zero');
 
     await t.db.query('BEGIN');
     try {
-      const product = await t.db.query(
-        `SELECT p.*,
-                COALESCE(p.inventory_account_id, pc.inventory_account_id, parent_pc.inventory_account_id, aset.inventory_account_id) AS resolved_inventory_account_id,
-                aset.retained_earnings_account_id
-         FROM products p
-         LEFT JOIN product_categories pc ON pc.id = p.category_id AND pc.company_id = p.company_id
-         LEFT JOIN product_categories parent_pc ON parent_pc.id = pc.parent_id AND parent_pc.company_id = pc.company_id
-         LEFT JOIN accounting_settings aset ON aset.company_id = p.company_id
-         WHERE p.id = $1 AND p.company_id = $2 FOR UPDATE`,
-        [req.params.id, t.companyId],
-      );
+      const product = await t.db.query(`SELECT product_type FROM products WHERE id = $1 AND company_id = $2 FOR UPDATE`, [req.params.id, t.companyId]);
       if (!product.rowCount) throw notFound('Product not found');
-      const p = product.rows[0];
-      if (p.product_type !== 'stock') throw badRequest('Opening stock is allowed only for stock products');
+      if (product.rows[0].product_type !== 'stock') throw badRequest('Opening stock is allowed only for stock products');
 
       const existingLedger = await t.db.query(
         `SELECT 1 FROM stock_ledger WHERE company_id = $1 AND product_id = $2 LIMIT 1`,
@@ -667,62 +745,25 @@ router.post('/:id/opening-stock', async (req, res, next) => {
       );
       if (existingOpening.rowCount) throw badRequest('Opening stock already exists for this product');
 
-      const settings = await getSettings(t.db, t.companyId);
-      const inventoryAccountId = p.resolved_inventory_account_id ?? settings.inventory_account_id;
-      const equityAccountId = p.retained_earnings_account_id ?? settings.retained_earnings_account_id;
-      if (!inventoryAccountId || !equityAccountId) throw badRequest('Missing inventory or opening balance equity account');
-
-      const movement = await t.db.query(
-        `INSERT INTO stock_movements
-         (company_id, product_id, type, quantity, reason, created_by, unit_cost, total_value, adjustment_direction)
-         VALUES ($1,$2,'in',$3,$4,$5,$6,$7,'increase')
-         RETURNING *`,
-        [
-          t.companyId,
-          req.params.id,
-          body.opening_quantity,
-          body.notes ?? 'Opening stock',
-          req.auth!.userId,
-          body.opening_unit_cost,
-          value,
-        ],
-      );
-
-      await t.db.query(
-        `UPDATE products
-         SET quantity = $1, average_cost = $2, inventory_value = $3, cost = $2
-         WHERE id = $4 AND company_id = $5`,
-        [body.opening_quantity, body.opening_unit_cost, value, req.params.id, t.companyId],
-      );
-      await t.db.query(
-        `INSERT INTO stock_ledger
-         (company_id, product_id, source_type, source_id, movement_date, quantity_in, unit_cost, total_value, balance_quantity, balance_value)
-         VALUES ($1,$2,'opening_stock',$3,$4,$5,$6,$7,$5,$7)`,
-        [t.companyId, req.params.id, movement.rows[0].id, openingDate, body.opening_quantity, body.opening_unit_cost, value],
-      );
-      const lines: JournalLineInput[] = [
-        { accountId: inventoryAccountId, debit: value, description: body.notes ?? 'Opening stock' },
-        { accountId: equityAccountId, credit: value, description: body.notes ?? 'Opening stock' },
-      ];
-      const je = await createJournalEntry(t.db, {
-        companyId: t.companyId,
-        entryDate: openingDate,
-        memo: `Opening stock ${p.name}`,
-        source: { type: 'opening_stock', id: movement.rows[0].id },
+      const result = await applyOpeningStock(t.db, t.companyId, req.params.id, {
+        quantity: body.opening_quantity,
+        unitCost: body.opening_unit_cost,
+        date: openingDate,
+        notes: body.notes,
         userId: req.auth!.userId,
-        lines,
       });
-      await t.db.query(`UPDATE stock_movements SET journal_entry_id = $1 WHERE id = $2 AND company_id = $3`, [je.id, movement.rows[0].id, t.companyId]);
+      if (!result) throw badRequest('Opening stock value must be greater than zero');
+
       await audit(t.db, {
         companyId: t.companyId,
         userId: req.auth!.userId,
         action: 'product.opening_stock',
         entity: 'product',
         entityId: req.params.id,
-        data: { quantity: body.opening_quantity, unit_cost: body.opening_unit_cost, value, journal_entry_id: je.id },
+        data: { quantity: body.opening_quantity, unit_cost: body.opening_unit_cost, journal_entry_id: result.journalEntryId },
       });
       await t.db.query('COMMIT');
-      res.status(201).json({ data: { movement: movement.rows[0], journal_entry_id: je.id } });
+      res.status(201).json({ data: { movement_id: result.movementId, journal_entry_id: result.journalEntryId } });
     } catch (e) {
       await t.db.query('ROLLBACK');
       throw e;

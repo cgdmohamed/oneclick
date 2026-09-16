@@ -9,9 +9,16 @@ const schema = z.object({
   product_id:  z.string().uuid(),
   supplier_id: z.string().uuid().optional().nullable(),
   type:        z.enum(['in', 'out', 'adjustment']),
+  // Only meaningful (and required) for type='adjustment': 'in'/'out' already
+  // imply their own direction. Without this, every adjustment silently
+  // increased stock regardless of what the user intended.
+  direction:   z.enum(['increase', 'decrease']).optional(),
   quantity:    z.coerce.number().positive(),
   reason:      z.string().optional().nullable(),
   unit_cost:   z.coerce.number().nonnegative().optional(),
+}).refine((v) => v.type !== 'adjustment' || !!v.direction, {
+  message: 'Direction is required for adjustment movements',
+  path: ['direction'],
 });
 
 const r = Router();
@@ -136,19 +143,38 @@ r.post('/', async (req, res, next) => {
           req.auth!.userId,
           body.unit_cost ?? Number(prodRs.rows[0].average_cost ?? prodRs.rows[0].cost ?? 0),
           round2(body.quantity * Number(body.unit_cost ?? prodRs.rows[0].average_cost ?? prodRs.rows[0].cost ?? 0)),
-          body.type === 'adjustment' || body.type === 'in' ? 'increase' : 'decrease',
+          body.type === 'out' ? 'decrease' : body.type === 'adjustment' ? body.direction : 'increase',
         ],
       );
 
-      const delta = body.type === 'out' ? -body.quantity : body.quantity;
-      await t.db.query(
-        `UPDATE products
-         SET quantity = GREATEST(0, quantity + $1),
-             inventory_value = GREATEST(0, inventory_value + $3)
-         WHERE id = $2`,
-        [delta, body.product_id, round2(delta * Number(ins.rows[0].unit_cost ?? 0))],
-      );
-      const updatedProduct = await t.db.query(`SELECT quantity, inventory_value FROM products WHERE id = $1 AND company_id = $2`, [body.product_id, t.companyId]);
+      const isDecrease = body.type === 'out' || (body.type === 'adjustment' && body.direction === 'decrease');
+      const delta = isDecrease ? -body.quantity : body.quantity;
+      const valueDelta = round2(delta * Number(ins.rows[0].unit_cost ?? 0));
+      // Matches the same "insufficient stock" guard used for invoices,
+      // purchase returns and write-offs — a decreasing movement used to
+      // silently clamp at 0 instead of being rejected, which both let stock
+      // go missing without a trace and left the stock_ledger row's
+      // quantity_out (the full requested amount) inconsistent with the
+      // actual (clamped) balance change.
+      const updateResult = isDecrease
+        ? await t.db.query(
+            `UPDATE products
+             SET quantity = quantity + $1,
+                 inventory_value = GREATEST(0, inventory_value + $3)
+             WHERE id = $2 AND company_id = $4 AND quantity >= $5
+             RETURNING quantity, inventory_value`,
+            [delta, body.product_id, valueDelta, t.companyId, body.quantity],
+          )
+        : await t.db.query(
+            `UPDATE products
+             SET quantity = quantity + $1,
+                 inventory_value = inventory_value + $3
+             WHERE id = $2 AND company_id = $4
+             RETURNING quantity, inventory_value`,
+            [delta, body.product_id, valueDelta, t.companyId],
+          );
+      if (!updateResult.rowCount) throw badRequest('الكمية المطلوبة أكبر من الرصيد المتاح لهذا الصنف');
+      const updatedProduct = updateResult;
       await t.db.query(
         `INSERT INTO stock_ledger
          (company_id, product_id, source_type, source_id, quantity_in, quantity_out, unit_cost, total_value, balance_quantity, balance_value)

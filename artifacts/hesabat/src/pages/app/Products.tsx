@@ -19,7 +19,7 @@ import { Card } from '@/components/ui/card';
 import { useResource } from '@/hooks/useResource';
 import { useInvoices } from '@/hooks/entities';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, isApiConfigured, resolveAssetUrl, API_URL, getAuthHeaders } from '@/lib/api';
+import { api, ApiError, isApiConfigured, resolveAssetUrl, API_URL, getAuthHeaders } from '@/lib/api';
 
 interface ProductRow {
   id: string;
@@ -97,12 +97,13 @@ interface NewMovement {
   product_id: string;
   supplier_id: string;
   type: 'in' | 'out' | 'adjustment';
+  direction: 'increase' | 'decrease';
   quantity: string;
   reason: string;
 }
 
 const emptyMovement: NewMovement = {
-  product_id: '', supplier_id: '', type: 'in', quantity: '1', reason: '',
+  product_id: '', supplier_id: '', type: 'in', direction: 'increase', quantity: '1', reason: '',
 };
 
 const NO_SUPPLIER = '__none__';
@@ -320,6 +321,7 @@ const Products = () => {
         product_id:  newMovement.product_id,
         supplier_id: (newMovement.supplier_id && newMovement.supplier_id !== NO_SUPPLIER) ? newMovement.supplier_id : null,
         type:        newMovement.type,
+        direction:   newMovement.type === 'adjustment' ? newMovement.direction : undefined,
         quantity:    qty,
         reason:      newMovement.reason || null,
       });
@@ -330,8 +332,8 @@ const Products = () => {
       toast.success('تم تسجيل حركة المخزون');
       setMovementOpen(false);
       setNewMovement(emptyMovement);
-    } catch {
-      toast.error('تعذّر تسجيل الحركة');
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : 'تعذّر تسجيل الحركة');
     } finally {
       setMovementSaving(false);
     }
@@ -835,6 +837,18 @@ const Products = () => {
                 <Input className="mt-1.5" type="number" min="0" step="0.001" value={newMovement.quantity} onChange={e => setNewMovement(p => ({ ...p, quantity: e.target.value }))} />
               </div>
             </div>
+            {newMovement.type === 'adjustment' && (
+              <div>
+                <Label>اتجاه التعديل *</Label>
+                <Select value={newMovement.direction} onValueChange={v => setNewMovement(p => ({ ...p, direction: v as 'increase' | 'decrease' }))}>
+                  <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="increase">زيادة</SelectItem>
+                    <SelectItem value="decrease">نقصان</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             {suppliers.length > 0 && (
               <div>
                 <Label>المورد</Label>
