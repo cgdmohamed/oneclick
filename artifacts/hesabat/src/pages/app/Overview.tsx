@@ -13,6 +13,7 @@ import {
   Scale,
   ShieldCheck,
   ShoppingCart,
+  SlidersHorizontal,
   TrendingDown,
   TrendingUp,
   Wallet,
@@ -23,6 +24,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { api, isApiConfigured } from '@/lib/api';
 import { formatCurrency, formatDateShort } from '@/lib/format';
@@ -154,6 +156,9 @@ const Overview = () => {
   const [costCenterId, setCostCenterId] = useState('');
   const [categoryId, setCategoryId] = useState('');
   const [subcategoryId, setSubcategoryId] = useState('');
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const activeFilterCount = [branchId, costCenterId, categoryId, subcategoryId].filter(Boolean).length
+    + (preset === 'custom' ? 1 : 0);
 
   const range = preset === 'custom' ? { from: customFrom, to: customTo } : presetDates;
   const query = useMemo(() => {
@@ -200,69 +205,114 @@ const Overview = () => {
     );
   }
 
+  const periodLabel = { today: 'اليوم', week: 'هذا الأسبوع', month: 'هذا الشهر', year: 'هذه السنة', custom: 'مخصص' }[preset];
+
   return (
     <div className="space-y-6">
-      <PageHeader title="نظرة عامة" description="مبيعات، مخزون، تحصيلات، موردون وصحة محاسبية" />
-
-      <Card className="p-4 border-border/60">
-        <div className="grid sm:grid-cols-2 lg:grid-cols-7 gap-3 items-end">
-          <div>
-            <Label>الفترة</Label>
-            <select className="mt-1.5 h-10 w-full rounded-md border bg-background px-3 text-sm" value={preset} onChange={(e) => setPreset(e.target.value as DatePreset)}>
-              <option value="today">اليوم</option>
-              <option value="week">هذا الأسبوع</option>
-              <option value="month">هذا الشهر</option>
-              <option value="year">هذه السنة</option>
-              <option value="custom">مخصص</option>
-            </select>
-          </div>
-          <div><Label>من</Label><Input className="mt-1.5" type="date" value={range.from} disabled={preset !== 'custom'} onChange={(e) => setCustomFrom(e.target.value)} /></div>
-          <div><Label>إلى</Label><Input className="mt-1.5" type="date" value={range.to} disabled={preset !== 'custom'} onChange={(e) => setCustomTo(e.target.value)} /></div>
-          <div>
-            <Label>الفرع</Label>
-            <select className="mt-1.5 h-10 w-full rounded-md border bg-background px-3 text-sm" value={branchId} onChange={(e) => setBranchId(e.target.value)}>
-              <option value="">كل الفروع</option>
-              {(branches.data ?? []).filter((b) => b.is_active).map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-            </select>
-          </div>
-          <div>
-            <Label>مركز التكلفة</Label>
-            <select className="mt-1.5 h-10 w-full rounded-md border bg-background px-3 text-sm" value={costCenterId} onChange={(e) => setCostCenterId(e.target.value)}>
-              <option value="">كل مراكز التكلفة</option>
-              {(costCenters.data ?? []).filter((c) => c.is_active).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-          </div>
-          <div>
-            <Label>التصنيف</Label>
-            <select className="mt-1.5 h-10 w-full rounded-md border bg-background px-3 text-sm" value={categoryId} onChange={(e) => { setCategoryId(e.target.value); setSubcategoryId(''); }}>
-              <option value="">كل التصنيفات</option>
-              {mainCategories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-          </div>
-          <div>
-            <Label>التصنيف الفرعي</Label>
-            <select className="mt-1.5 h-10 w-full rounded-md border bg-background px-3 text-sm" value={subcategoryId} onChange={(e) => setSubcategoryId(e.target.value)} disabled={!categoryId || subcategoriesFor(categoryId).length === 0}>
-              <option value="">كل التصنيفات الفرعية</option>
-              {subcategoriesFor(categoryId).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-          </div>
-        </div>
-      </Card>
-
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-        <StatCard title="إجمالي المبيعات" value={money(k?.totalSales)} icon={Wallet} accent="primary" trend={k ? { value: `${k.salesChangePct >= 0 ? '+' : ''}${k.salesChangePct}% عن الفترة السابقة`, positive: k.salesChangePct >= 0 } : undefined} />
-        <StatCard title="صافي المبيعات" value={money(k?.netSales)} icon={TrendingUp} accent="success" />
-        <StatCard title="إجمالي التحصيل" value={money(k?.totalCollections)} icon={CreditCard} accent="success" />
-        <StatCard title="الذمم المدينة" value={money(k?.outstandingReceivables)} icon={Receipt} accent="warning" />
-        <StatCard title="إجمالي المشتريات" value={money(k?.totalPurchases)} icon={ShoppingCart} accent="info" />
-        <StatCard title="إجمالي المصروفات" value={money(k?.totalExpenses)} icon={TrendingDown} accent="destructive" />
-        <StatCard title="صافي الربح" value={money(k?.netProfit)} icon={Scale} accent={Number(k?.netProfit ?? 0) >= 0 ? 'success' : 'destructive'} />
-        <StatCard title="قيمة المخزون" value={money(k?.inventoryValue)} icon={Boxes} accent="primary" />
-        <StatCard title="ضريبة مستحقة" value={money(k?.vatPayable)} icon={FileText} accent="warning" />
-        <StatCard title="فواتير متأخرة" value={k?.overdueInvoices ?? 0} icon={AlertTriangle} accent="destructive" />
-        <StatCard title="مخزون منخفض" value={k?.lowStockItems ?? 0} icon={Package} accent="destructive" hint={`نفد: ${k?.outOfStockItems ?? 0}`} />
-        <StatCard title="رصيد النقد والبنوك" value={money(k?.cashBankBalance)} icon={Landmark} accent="info" />
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <PageHeader title="نظرة عامة" description="مبيعات، مخزون، تحصيلات، موردون وصحة محاسبية" />
+        <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
+          <SheetTrigger asChild>
+            <Button variant="outline" className="gap-2 relative">
+              <SlidersHorizontal className="h-4 w-4" />
+              الفلاتر
+              <span className="text-xs text-muted-foreground">({periodLabel})</span>
+              {activeFilterCount > 0 && (
+                <span className="absolute -top-2 -end-2 h-5 min-w-5 px-1 rounded-full bg-primary text-primary-foreground text-[11px] font-semibold flex items-center justify-center">
+                  {activeFilterCount}
+                </span>
+              )}
+            </Button>
+          </SheetTrigger>
+          <SheetContent side="left" className="w-full sm:max-w-md overflow-y-auto">
+            <SheetHeader><SheetTitle>فلاتر لوحة المتابعة</SheetTitle></SheetHeader>
+            <div className="mt-5 space-y-4">
+              <div>
+                <Label>الفترة</Label>
+                <select className="mt-1.5 h-10 w-full rounded-md border bg-background px-3 text-sm" value={preset} onChange={(e) => setPreset(e.target.value as DatePreset)}>
+                  <option value="today">اليوم</option>
+                  <option value="week">هذا الأسبوع</option>
+                  <option value="month">هذا الشهر</option>
+                  <option value="year">هذه السنة</option>
+                  <option value="custom">مخصص</option>
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><Label>من</Label><Input className="mt-1.5" type="date" value={range.from} disabled={preset !== 'custom'} onChange={(e) => setCustomFrom(e.target.value)} /></div>
+                <div><Label>إلى</Label><Input className="mt-1.5" type="date" value={range.to} disabled={preset !== 'custom'} onChange={(e) => setCustomTo(e.target.value)} /></div>
+              </div>
+              <div>
+                <Label>الفرع</Label>
+                <select className="mt-1.5 h-10 w-full rounded-md border bg-background px-3 text-sm" value={branchId} onChange={(e) => setBranchId(e.target.value)}>
+                  <option value="">كل الفروع</option>
+                  {(branches.data ?? []).filter((b) => b.is_active).map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <Label>مركز التكلفة</Label>
+                <select className="mt-1.5 h-10 w-full rounded-md border bg-background px-3 text-sm" value={costCenterId} onChange={(e) => setCostCenterId(e.target.value)}>
+                  <option value="">كل مراكز التكلفة</option>
+                  {(costCenters.data ?? []).filter((c) => c.is_active).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <Label>التصنيف</Label>
+                <select className="mt-1.5 h-10 w-full rounded-md border bg-background px-3 text-sm" value={categoryId} onChange={(e) => { setCategoryId(e.target.value); setSubcategoryId(''); }}>
+                  <option value="">كل التصنيفات</option>
+                  {mainCategories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <Label>التصنيف الفرعي</Label>
+                <select className="mt-1.5 h-10 w-full rounded-md border bg-background px-3 text-sm" value={subcategoryId} onChange={(e) => setSubcategoryId(e.target.value)} disabled={!categoryId || subcategoriesFor(categoryId).length === 0}>
+                  <option value="">كل التصنيفات الفرعية</option>
+                  {subcategoriesFor(categoryId).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+              <Button className="w-full" onClick={() => setFiltersOpen(false)}>تطبيق</Button>
+            </div>
+          </SheetContent>
+        </Sheet>
       </div>
+
+      <div>
+        <h3 className="text-sm font-semibold text-muted-foreground mb-3">أهم المؤشرات</h3>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <StatCard title="إجمالي المبيعات" value={money(k?.totalSales)} icon={Wallet} accent="primary" trend={k ? { value: `${k.salesChangePct >= 0 ? '+' : ''}${k.salesChangePct}% عن الفترة السابقة`, positive: k.salesChangePct >= 0 } : undefined} />
+          <StatCard title="صافي الربح" value={money(k?.netProfit)} icon={Scale} accent={Number(k?.netProfit ?? 0) >= 0 ? 'success' : 'destructive'} />
+          <StatCard title="إجمالي التحصيل" value={money(k?.totalCollections)} icon={CreditCard} accent="success" />
+          <StatCard title="رصيد النقد والبنوك" value={money(k?.cashBankBalance)} icon={Landmark} accent="info" />
+        </div>
+      </div>
+
+      <div>
+        <h3 className="text-sm font-semibold text-muted-foreground mb-3">مؤشرات إضافية</h3>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+          <StatCard title="صافي المبيعات" value={money(k?.netSales)} icon={TrendingUp} accent="success" />
+          <StatCard title="الذمم المدينة" value={money(k?.outstandingReceivables)} icon={Receipt} accent="warning" />
+          <StatCard title="إجمالي المشتريات" value={money(k?.totalPurchases)} icon={ShoppingCart} accent="info" />
+          <StatCard title="إجمالي المصروفات" value={money(k?.totalExpenses)} icon={TrendingDown} accent="destructive" />
+          <StatCard title="قيمة المخزون" value={money(k?.inventoryValue)} icon={Boxes} accent="primary" />
+          <StatCard title="ضريبة مستحقة" value={money(k?.vatPayable)} icon={FileText} accent="warning" />
+        </div>
+      </div>
+
+      {(Number(k?.overdueInvoices ?? 0) > 0 || Number(k?.lowStockItems ?? 0) > 0) && (
+        <div className="flex flex-wrap gap-3">
+          {Number(k?.overdueInvoices ?? 0) > 0 && (
+            <div className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-2.5 text-sm">
+              <AlertTriangle className="h-4 w-4 text-destructive shrink-0" />
+              <span><span className="font-semibold text-destructive">{k?.overdueInvoices}</span> فواتير متأخرة السداد</span>
+            </div>
+          )}
+          {Number(k?.lowStockItems ?? 0) > 0 && (
+            <div className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-2.5 text-sm">
+              <Package className="h-4 w-4 text-destructive shrink-0" />
+              <span><span className="font-semibold text-destructive">{k?.lowStockItems}</span> صنف منخفض المخزون{Number(k?.outOfStockItems ?? 0) > 0 ? ` (${k?.outOfStockItems} نفد تمامًا)` : ''}</span>
+            </div>
+          )}
+        </div>
+      )}
 
       <Tabs defaultValue="overview">
         <TabsList>
