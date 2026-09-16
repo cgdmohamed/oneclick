@@ -18,6 +18,7 @@ import { OnboardingWizard } from '@/components/common/OnboardingWizard';
 import { Sparkles } from 'lucide-react';
 import PendingApproval from '@/pages/app/PendingApproval';
 import { isApiConfigured } from '@/lib/api';
+import { GlobalSearch } from '@/components/common/GlobalSearch';
 
 type NavItem = {
   to: string;
@@ -309,6 +310,7 @@ const AppShellInner = ({ kind }: { kind: 'company' | 'admin' }) => {
         <header className="shell-header relative h-14 bg-card/60 backdrop-blur sticky top-0 z-30 flex items-center px-4 gap-3 shadow-sm">
           <SidebarTrigger />
           <div className="flex-1" />
+          {kind === 'company' && <GlobalSearch />}
           <Button
             variant="ghost"
             size="icon"

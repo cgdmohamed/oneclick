@@ -51,6 +51,7 @@ import costCentersRoutes from './modules/cost-centers/routes.js';
 import projectsRoutes from './modules/projects/routes.js';
 import inventoryWriteOffsRoutes from './modules/inventory-write-offs/routes.js';
 import dashboardRoutes from './modules/dashboard/routes.js';
+import searchRoutes from './modules/search/routes.js';
 
 const UPLOAD_PUBLIC = path.resolve(process.cwd(), 'uploads/public');
 fs.mkdirSync(UPLOAD_PUBLIC, { recursive: true });
@@ -141,6 +142,7 @@ app.use('/api/payments', requireFeature('payments'), paymentsRoutes);
 app.use('/api/notifications', requireFeature('notifications'), notificationsRoutes);
 app.use('/api/reports', requireFeature('reports_basic', 'reports_advanced', 'accounting'), reportsRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/search', searchRoutes);
 app.use('/api/subscriptions', subscriptionsRoutes);
 app.use('/api/suppliers', requireFeature('suppliers'), suppliersRoutes);
 app.use('/api/expense-categories', requireFeature('payouts'), expenseCategoriesRoutes);
