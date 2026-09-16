@@ -109,6 +109,63 @@ export function useUnreadNotificationsCount(): number {
   return data ?? 0;
 }
 
+export interface NotificationPreviewItem {
+  id: string;
+  title: string;
+  body: string | null;
+  read: boolean;
+  createdAt: string;
+}
+
+// Small, quick-loading slice of the notification list for the header bell
+// popover — separate from useNotifications()/useAdminNotifications() (which
+// page the full list for the dedicated /notifications screens) so opening
+// the popover stays light regardless of how many notifications exist.
+export function useNotificationsPreview(isAdmin: boolean) {
+  const apiOn = isApiConfigured();
+  const qc = useQueryClient();
+
+  const query = useQuery({
+    enabled: apiOn,
+    queryKey: ['notifications', 'preview', isAdmin],
+    queryFn: async () => {
+      if (isAdmin) {
+        const rs = await api.get<{ data: { id: string; title: string; body: string; read_at: string | null; created_at: string }[] }>(
+          '/api/platform/system-notifications',
+        );
+        return rs.data.slice(0, 6).map((r) => ({ id: r.id, title: r.title, body: r.body, read: !!r.read_at, createdAt: r.created_at }));
+      }
+      const rs = await api.get<NotificationsResponse>('/api/notifications?exclude_kind=invoice_email&page_size=6');
+      return rs.data.map((r) => ({ id: r.id, title: r.title, body: r.body, read: !!r.read_at, createdAt: r.created_at }));
+    },
+    staleTime: 15_000,
+  });
+
+  const invalidateAll = () => {
+    qc.invalidateQueries({ queryKey: ['notifications', 'preview', isAdmin] });
+    qc.invalidateQueries({ queryKey: ['notifications', 'unread-count'] });
+    qc.invalidateQueries({ queryKey: ['notifications'] });
+    qc.invalidateQueries({ queryKey: ['system-notifications'] });
+  };
+
+  const markRead = useMutation({
+    mutationFn: (id: string) => api.post(isAdmin ? `/api/platform/system-notifications/${id}/read` : `/api/notifications/${id}/read`, {}),
+    onSuccess: invalidateAll,
+  });
+
+  const markAllRead = useMutation({
+    mutationFn: () => api.post(isAdmin ? '/api/platform/system-notifications/read-all' : '/api/notifications/read-all', {}),
+    onSuccess: invalidateAll,
+  });
+
+  return {
+    items: (query.data ?? []) as NotificationPreviewItem[],
+    isLoading: query.isLoading,
+    markRead: (id: string) => markRead.mutate(id),
+    markAllRead: () => markAllRead.mutate(),
+  };
+}
+
 export function useAdminNotifications() {
   const apiOn = isApiConfigured();
   const qc = useQueryClient();

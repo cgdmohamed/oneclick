@@ -11,7 +11,9 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { roleLabel } from '@/lib/format';
 import { useEffect, useState } from 'react';
-import { useUnreadNotificationsCount } from '@/hooks/useNotificationsAlerts';
+import { useUnreadNotificationsCount, useNotificationsPreview } from '@/hooks/useNotificationsAlerts';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { formatDate } from '@/lib/format';
 
 import { useCurrentFeatureSet } from '@/hooks/usePlanAccess';
 import { OnboardingWizard } from '@/components/common/OnboardingWizard';
@@ -219,6 +221,8 @@ const AppShellInner = ({ kind }: { kind: 'company' | 'admin' }) => {
   const { pathname } = useLocation();
   const { features: featureSet } = useCurrentFeatureSet();
   const unreadCount = useUnreadNotificationsCount();
+  const { items: notifItems, markRead: markNotifRead, markAllRead: markAllNotifsRead } = useNotificationsPreview(kind === 'admin');
+  const [notifOpen, setNotifOpen] = useState(false);
   const [onboardingOpen, setOnboardingOpen] = useState(false);
   const [noPlanBannerDismissed, setNoPlanBannerDismissed] = useState(false);
 
@@ -311,23 +315,69 @@ const AppShellInner = ({ kind }: { kind: 'company' | 'admin' }) => {
           <SidebarTrigger />
           <div className="flex-1" />
           {kind === 'company' && <GlobalSearch />}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="relative"
-            aria-label={`التنبيهات${unreadCount > 0 ? ` (${unreadCount} غير مقروءة)` : ''}`}
-            onClick={() => navigate(kind === 'admin' ? '/admin/notifications' : '/app/notifications')}
-          >
-            {unreadCount > 0 ? <BellRing className="h-5 w-5" /> : <Bell className="h-5 w-5" />}
-            {unreadCount > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-semibold flex items-center justify-center ring-2 ring-background tabular-nums">
-                {unreadCount > 99 ? '99+' : unreadCount}
-              </span>
-            )}
-            {unreadCount > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] rounded-full bg-destructive/40 animate-ping" aria-hidden />
-            )}
-          </Button>
+          <Popover open={notifOpen} onOpenChange={setNotifOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="relative"
+                aria-label={`التنبيهات${unreadCount > 0 ? ` (${unreadCount} غير مقروءة)` : ''}`}
+              >
+                {unreadCount > 0 ? <BellRing className="h-5 w-5" /> : <Bell className="h-5 w-5" />}
+                {unreadCount > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-semibold flex items-center justify-center ring-2 ring-background tabular-nums">
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </span>
+                )}
+                {unreadCount > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] rounded-full bg-destructive/40 animate-ping" aria-hidden />
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent
+              align="end"
+              dir="rtl"
+              className="w-[calc(100vw-2rem)] sm:w-96 max-h-[70vh] overflow-y-auto p-0"
+            >
+              <div className="flex items-center justify-between px-4 py-3 border-b border-border sticky top-0 bg-popover">
+                <h3 className="font-semibold text-sm">التنبيهات</h3>
+                {unreadCount > 0 && (
+                  <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => markAllNotifsRead()}>
+                    تعليم الكل كمقروء
+                  </Button>
+                )}
+              </div>
+              {notifItems.length === 0 ? (
+                <div className="px-4 py-8 text-center text-sm text-muted-foreground">لا توجد تنبيهات</div>
+              ) : (
+                <div className="divide-y divide-border">
+                  {notifItems.map((n) => (
+                    <div key={n.id} className={cn('flex items-start gap-2 px-4 py-3 text-start', !n.read && 'bg-primary/5')}>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{n.title}</p>
+                        {n.body && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{n.body}</p>}
+                        <p className="text-[11px] text-muted-foreground mt-1">{formatDate(n.createdAt)}</p>
+                      </div>
+                      {!n.read && (
+                        <Button variant="ghost" size="sm" className="h-7 text-xs shrink-0" onClick={() => markNotifRead(n.id)}>
+                          تم القراءة
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="border-t border-border p-2 sticky bottom-0 bg-popover">
+                <Button
+                  variant="ghost"
+                  className="w-full"
+                  onClick={() => { setNotifOpen(false); navigate(kind === 'admin' ? '/admin/notifications' : '/app/notifications'); }}
+                >
+                  عرض كل التنبيهات
+                </Button>
+              </div>
+            </PopoverContent>
+          </Popover>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="gap-2 px-2">
