@@ -32,6 +32,7 @@ interface ApiInvoice {
   reference_number?: string | null; po_number?: string | null;
   cost_center_name?: string | null; project_name?: string | null;
   qr_public_visible?: boolean | null;
+  has_bad_debt_writeoff?: boolean;
   internal_attachment_type?: 'text' | 'image' | null;
   internal_attachment_text?: string | null;
   internal_attachment_upload_id?: string | null;
@@ -336,7 +337,14 @@ const InvoiceDetails = () => {
               {clientPhone && <div className="text-sm text-muted-foreground">{clientPhone}</div>}
             </div>
             <div className="text-end">
-              <StatusBadge status={apiOn && apiInvoice ? rawStatus : status} label={invoiceStatusLabel(apiOn && apiInvoice ? rawStatus : status)} size="md" />
+              {/* A bad-debt write-off doesn't change invoice.status (still 'paid' at the DB
+                  level, matching how remaining is tracked) — this only overrides the badge
+                  shown here so a written-off invoice isn't mistaken for one actually collected. */}
+              {apiOn && apiInvoice?.has_bad_debt_writeoff ? (
+                <StatusBadge status="written_off" label="معدومة" size="md" />
+              ) : (
+                <StatusBadge status={apiOn && apiInvoice ? rawStatus : status} label={invoiceStatusLabel(apiOn && apiInvoice ? rawStatus : status)} size="md" />
+              )}
               <div className="text-xs text-muted-foreground mt-2">تاريخ الإصدار: {formatDate(invoice.issueDate)}</div>
               <div className="text-xs text-muted-foreground">تاريخ الاستحقاق: {formatDate(invoice.dueDate)}</div>
             </div>

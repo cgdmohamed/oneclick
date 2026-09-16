@@ -61,7 +61,9 @@ const Invoices = () => {
     { key: 'total', header: 'الإجمالي', cell: r => formatCurrency(r.total) },
     { key: 'paid', header: 'المدفوع', cell: r => <span className="text-success">{formatCurrency(r.paid)}</span> },
     { key: 'rem', header: 'المتبقي', cell: r => <span className="text-destructive">{formatCurrency(r.remaining)}</span> },
-    { key: 'status', header: 'الحالة', cell: r => <StatusBadge status={r.status} label={invoiceStatusLabel(r.status)} /> },
+    { key: 'status', header: 'الحالة', cell: r => r.hasBadDebtWriteoff
+      ? <StatusBadge status="written_off" label="معدومة" />
+      : <StatusBadge status={r.status} label={invoiceStatusLabel(r.status)} /> },
   ];
 
   return (

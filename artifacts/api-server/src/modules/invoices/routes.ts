@@ -88,7 +88,8 @@ router.get('/', async (req, res, next) => {
       params,
     );
     const a = p.applyTo(
-      `SELECT i.*, c.name AS client_name
+      `SELECT i.*, c.name AS client_name,
+              EXISTS(SELECT 1 FROM bad_debt_write_offs bdwo WHERE bdwo.invoice_id = i.id AND bdwo.company_id = i.company_id AND bdwo.status != 'cancelled') AS has_bad_debt_writeoff
          FROM invoices i JOIN clients c ON c.id = i.client_id
          ${whereSql}
          ORDER BY i.created_at DESC`,
@@ -108,7 +109,8 @@ router.get('/:id', async (req, res, next) => {
               u.filename AS internal_attachment_filename,
               u.mime_type AS internal_attachment_mime_type,
               u.url AS internal_attachment_url,
-              cc.name AS cost_center_name, pr.name AS project_name
+              cc.name AS cost_center_name, pr.name AS project_name,
+              EXISTS(SELECT 1 FROM bad_debt_write_offs bdwo WHERE bdwo.invoice_id = i.id AND bdwo.company_id = i.company_id AND bdwo.status != 'cancelled') AS has_bad_debt_writeoff
        FROM invoices i
        JOIN clients c ON c.id = i.client_id
        LEFT JOIN uploads u ON u.id = i.internal_attachment_upload_id AND u.company_id = i.company_id

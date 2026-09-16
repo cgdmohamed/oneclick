@@ -127,7 +127,10 @@ const FinancialReportDetail = () => {
     queryFn: async () => api.get<{ data: any[] | Record<string, unknown>; summary?: Record<string, string | number | boolean>; warnings?: string[] }>(`${endpointFor(type)}${query ? `?${query}` : ''}`),
   });
   const rows = Array.isArray(data?.data) ? data.data : data?.data ? [data.data] : [];
-  const summary = data?.summary ?? (type === 'vat' && !Array.isArray(data?.data) ? data?.data as Record<string, string | number> : {});
+  // While the query is still loading (data undefined) this must fall back to
+  // {}, not to data?.data — that was undefined too, and Object.keys(undefined)
+  // below throws, crashing every report page during its own loading state.
+  const summary = data?.summary ?? {};
   const warnings = data?.warnings ?? [];
   const cols = useMemo<Column<any>[]>(() => {
     if (type === 'general-ledger') return [
@@ -250,7 +253,7 @@ const FinancialReportDetail = () => {
       { key: 'value', header: 'القيمة', cell: (r) => JSON.stringify(r) },
     ];
   }, [type]);
-  const tableRows = type === 'vat' ? [] : rows.map((row, idx) => ({ id: row.id ?? `${type}-${idx}`, ...row }));
+  const tableRows = rows.map((row, idx) => ({ id: row.id ?? `${type}-${idx}`, ...row }));
   return (
     <div className="space-y-5">
       <Link to="/app/accounting/reports" className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1"><ArrowRight className="h-4 w-4" /> العودة للتقارير المالية</Link>

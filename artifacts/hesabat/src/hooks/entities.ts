@@ -125,6 +125,7 @@ interface InvoiceRow {
   paid: string | number; remaining: string | number;
   status: string; notes: string | null;
   client_name?: string;
+  has_bad_debt_writeoff?: boolean;
 }
 const mapStatus = (s: string): InvoiceStatus => {
   if (s === 'paid' || s === 'partial' || s === 'overdue' || s === 'draft' || s === 'cancelled' || s === 'sent') return s;
@@ -146,6 +147,7 @@ export const invoicesCfg: ResourceConfig<Invoice & { clientName?: string }, Invo
     status: mapStatus(r.status),
     notes: r.notes ?? undefined,
     clientName: r.client_name,
+    hasBadDebtWriteoff: r.has_bad_debt_writeoff ?? false,
   }),
   toRow: () => ({}), // create handled separately (POST /api/invoices)
 };

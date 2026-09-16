@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { audit } from '../../utils/audit.js';
 import { badRequest, notFound } from '../../utils/errors.js';
 import { round2 } from '../../utils/money.js';
-import { assertPeriodOpen, createJournalEntry, getSettings, reverseJournalEntry } from '../accounting/posting.js';
+import { assertPeriodOpen, createJournalEntry, getSettings, recomputeInvoiceBalance, reverseJournalEntry } from '../accounting/posting.js';
 
 const allowanceSchema = z.object({
   allowance_date: z.string().datetime().optional(),
@@ -161,12 +161,6 @@ r.post('/write-offs', async (req, res, next) => {
          VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
         [t.companyId, body.customer_id, body.invoice_id ?? null, date, amount, body.reason ?? null, req.auth!.userId],
       );
-      if (body.invoice_id) {
-        const inv = await t.db.query(`SELECT total, paid, remaining FROM invoices WHERE id = $1 AND company_id = $2 FOR UPDATE`, [body.invoice_id, t.companyId]);
-        const remaining = round2(Math.max(0, Number(inv.rows[0].remaining) - amount));
-        const status = remaining <= 0.005 ? 'paid' : Number(inv.rows[0].paid) > 0 ? 'partial' : 'sent';
-        await t.db.query(`UPDATE invoices SET remaining = $1, status = $2 WHERE id = $3 AND company_id = $4`, [remaining, status, body.invoice_id, t.companyId]);
-      }
       const je = await createJournalEntry(t.db, {
         companyId: t.companyId,
         entryDate: date,
@@ -179,6 +173,7 @@ r.post('/write-offs', async (req, res, next) => {
         ],
       });
       await t.db.query(`UPDATE bad_debt_write_offs SET journal_entry_id = $1 WHERE id = $2 AND company_id = $3`, [je.id, ins.rows[0].id, t.companyId]);
+      if (body.invoice_id) await recomputeInvoiceBalance(t.db, t.companyId, body.invoice_id);
       await audit(t.db, { companyId: t.companyId, userId: req.auth!.userId, action: 'bad_debt.write_off.create', entity: 'bad_debt_write_off', entityId: ins.rows[0].id });
       await t.db.query('COMMIT');
       res.status(201).json({ data: { ...ins.rows[0], journal_entry_id: je.id } });
@@ -199,17 +194,9 @@ r.post('/write-offs/:id/cancel', async (req, res, next) => {
       const row = rs.rows[0];
       if (row.status === 'cancelled') throw badRequest('Write-off is already cancelled');
       await assertPeriodOpen(t.db, t.companyId, row.write_off_date);
-      if (row.invoice_id) {
-        const inv = await t.db.query(`SELECT total, paid, remaining FROM invoices WHERE id = $1 AND company_id = $2 FOR UPDATE`, [row.invoice_id, t.companyId]);
-        if (inv.rowCount) {
-          const maxRemaining = round2(Math.max(0, Number(inv.rows[0].total) - Number(inv.rows[0].paid)));
-          const remaining = round2(Math.min(maxRemaining, Number(inv.rows[0].remaining) + Number(row.amount)));
-          const status = remaining <= 0.005 ? 'paid' : Number(inv.rows[0].paid) > 0 ? 'partial' : 'sent';
-          await t.db.query(`UPDATE invoices SET remaining = $1, status = $2 WHERE id = $3 AND company_id = $4`, [remaining, status, row.invoice_id, t.companyId]);
-        }
-      }
       if (row.journal_entry_id) await reverseJournalEntry(t.db, t.companyId, row.journal_entry_id, req.auth!.userId);
       await t.db.query(`UPDATE bad_debt_write_offs SET status = 'cancelled', cancelled_at = NOW(), cancelled_by = $3, updated_at = NOW() WHERE id = $1 AND company_id = $2`, [req.params.id, t.companyId, req.auth!.userId]);
+      if (row.invoice_id) await recomputeInvoiceBalance(t.db, t.companyId, row.invoice_id);
       await audit(t.db, { companyId: t.companyId, userId: req.auth!.userId, action: 'bad_debt.write_off.cancel', entity: 'bad_debt_write_off', entityId: req.params.id });
       await t.db.query('COMMIT');
       res.json({ ok: true });

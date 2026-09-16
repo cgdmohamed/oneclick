@@ -111,6 +111,7 @@ export interface Invoice {
   remaining: number;
   status: InvoiceStatus;
   notes?: string;
+  hasBadDebtWriteoff?: boolean;
 }
 
 export type PaymentMethod = 'cash' | 'bank' | 'wallet' | 'cheque' | 'card';

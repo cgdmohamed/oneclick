@@ -2,11 +2,12 @@ import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 
 type StatusKind =
-  | 'paid' | 'partial' | 'unpaid' | 'overdue'
+  | 'paid' | 'partial' | 'unpaid' | 'overdue' | 'written_off'
   | 'active' | 'suspended' | 'expired' | 'inactive';
 
 const map: Record<string, { label: string; cls: string; dot: string }> = {
   paid:      { label: 'مدفوعة',        cls: 'bg-success/15 text-success border-success/30',           dot: 'bg-success' },
+  written_off: { label: 'معدومة',      cls: 'bg-destructive/10 text-destructive border-destructive/30', dot: 'bg-destructive' },
   partial:   { label: 'مدفوعة جزئياً', cls: 'bg-warning/15 text-warning border-warning/30',           dot: 'bg-warning' },
   unpaid:    { label: 'غير مدفوعة',    cls: 'bg-muted text-muted-foreground border-border',           dot: 'bg-muted-foreground' },
   sent:      { label: 'مرسلة',         cls: 'bg-primary/10 text-primary border-primary/30',           dot: 'bg-primary' },

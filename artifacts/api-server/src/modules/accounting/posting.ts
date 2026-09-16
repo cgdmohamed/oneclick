@@ -482,13 +482,19 @@ export async function recomputeInvoiceBalance(db: Queryable, companyId: string, 
   const paidRs = await db.query(`SELECT COALESCE(SUM(amount),0) AS s FROM payments WHERE invoice_id = $1 AND company_id = $2`, [invoiceId, companyId]);
   const creditRs = await db.query(`SELECT COALESCE(SUM(total),0) AS s FROM credit_notes WHERE original_invoice_id = $1 AND company_id = $2 AND status = 'posted'`, [invoiceId, companyId]);
   const debitRs = await db.query(`SELECT COALESCE(SUM(total),0) AS s FROM debit_notes WHERE original_invoice_id = $1 AND company_id = $2 AND status = 'posted'`, [invoiceId, companyId]);
+  // Bad-debt write-offs also reduce what's left owed on an invoice (see
+  // modules/bad-debts/routes.ts) — without this, recomputing the balance
+  // after any later payment/credit-note/debit-note event on the same
+  // invoice would silently undo the write-off's effect on remaining/status.
+  const writeOffRs = await db.query(`SELECT COALESCE(SUM(amount),0) AS s FROM bad_debt_write_offs WHERE invoice_id = $1 AND company_id = $2 AND status != 'cancelled'`, [invoiceId, companyId]);
   const paid = round2(Number(paidRs.rows[0].s));
   const creditTotal = round2(Number(creditRs.rows[0].s));
   const debitTotal = round2(Number(debitRs.rows[0].s));
+  const writeOffTotal = round2(Number(writeOffRs.rows[0].s));
   // Not floored at 0: a negative remaining means the company owes the
   // customer a refund/credit (e.g. a credit note posted after the invoice
   // was already fully paid) — that must stay visible, not vanish.
-  const remaining = round2(total - paid - creditTotal + debitTotal);
+  const remaining = round2(total - paid - creditTotal + debitTotal - writeOffTotal);
   const status = remaining <= 0.005 ? 'paid' : paid > 0 ? 'partial' : 'sent';
   await db.query(`UPDATE invoices SET paid = $1, remaining = $2, status = $3 WHERE id = $4 AND company_id = $5`, [paid, remaining, status, invoiceId, companyId]);
 }
