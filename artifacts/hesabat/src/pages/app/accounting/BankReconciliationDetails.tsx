@@ -29,17 +29,24 @@ const BankReconciliationDetails = () => {
   const [adjustOpen, setAdjustOpen] = useState(false);
   const [lineForm, setLineForm] = useState(emptyLine);
   const [csv, setCsv] = useState('');
+  const [csvFileName, setCsvFileName] = useState('');
   const [adjustment, setAdjustment] = useState(emptyAdjustment);
   const { data: rec } = useQuery({
     enabled: !!id,
     queryKey: ['bank-reconciliation', id],
     queryFn: async () => (await api.get<{ data: BankReconciliation }>(`/api/bank-reconciliations/${id}`)).data,
   });
+  const { data: suggestions } = useQuery({
+    enabled: !!id && !!selectedLineId,
+    queryKey: ['bank-reconciliation-suggestions', id, selectedLineId],
+    queryFn: async () => (await api.get<{ data: BankJournalLine[] }>(`/api/bank-reconciliations/${id}/lines/${selectedLineId}/suggestions`)).data,
+  });
 
   const refresh = async () => {
     await Promise.all([
       qc.invalidateQueries({ queryKey: ['bank-reconciliation', id] }),
       qc.invalidateQueries({ queryKey: ['bank-reconciliations'] }),
+      qc.invalidateQueries({ queryKey: ['bank-reconciliation-suggestions', id] }),
     ]);
   };
 
@@ -60,8 +67,16 @@ const BankReconciliationDetails = () => {
   const importCsv = async () => {
     try {
       const res = await api.post<{ imported: number }>(`/api/bank-reconciliations/${id}/import-csv`, { csv });
-      setCsv(''); setCsvOpen(false); await refresh(); toast.success(`تم استيراد ${res.imported ?? 0} بند`);
+      setCsv(''); setCsvFileName(''); setCsvOpen(false); await refresh(); toast.success(`تم استيراد ${res.imported ?? 0} بند`);
     } catch (e) { toast.error(e instanceof ApiError ? e.message : 'تعذر استيراد CSV'); }
+  };
+
+  const pickCsvFile = (file: File | undefined) => {
+    if (!file) return;
+    setCsvFileName(file.name);
+    const reader = new FileReader();
+    reader.onload = () => setCsv(String(reader.result ?? ''));
+    reader.readAsText(file, 'utf-8');
   };
 
   const match = async (journalLineId: string) => {
@@ -144,6 +159,16 @@ const BankReconciliationDetails = () => {
         <h2 className="font-semibold">بنود كشف البنك</h2>
         <DataTable data={rec.lines ?? []} columns={statementColumns} pageSize={25} emptyTitle="لا توجد بنود كشف بنك" />
       </section>
+      {selectedLine && (
+        <section className="space-y-3">
+          <h2 className="font-semibold">اقتراحات المطابقة</h2>
+          {(suggestions ?? []).length === 0 ? (
+            <Card className="p-4 text-sm text-muted-foreground">لا توجد قيود بنفس المبلغ لاقتراح مطابقتها تلقائيًا — اختر من الجدول أدناه يدويًا.</Card>
+          ) : (
+            <DataTable data={suggestions ?? []} columns={journalColumns} pageSize={10} emptyTitle="لا توجد اقتراحات" />
+          )}
+        </section>
+      )}
       <section className="space-y-3">
         <h2 className="font-semibold">قيود البنك غير المطابقة</h2>
         <DataTable data={rec.unmatched_journal_lines ?? []} columns={journalColumns} pageSize={25} emptyTitle="لا توجد قيود غير مطابقة" />
@@ -159,9 +184,22 @@ const BankReconciliationDetails = () => {
         <DialogFooter><Button variant="outline" onClick={() => setLineOpen(false)}>إلغاء</Button><Button onClick={addLine}>إضافة</Button></DialogFooter>
       </DialogContent></Dialog>
 
-      <Dialog open={csvOpen} onOpenChange={setCsvOpen}><DialogContent dir="rtl"><DialogHeader><DialogTitle>استيراد CSV</DialogTitle></DialogHeader>
-        <Textarea className="min-h-44 font-mono text-xs" value={csv} onChange={(e) => setCsv(e.target.value)} placeholder={'transaction_date,description,debit_amount,credit_amount,reference\n2026-07-01,Bank fee,25,0,FEE-1'} />
-        <DialogFooter><Button variant="outline" onClick={() => setCsvOpen(false)}>إلغاء</Button><Button onClick={importCsv}>استيراد</Button></DialogFooter>
+      <Dialog open={csvOpen} onOpenChange={(open) => { setCsvOpen(open); if (!open) { setCsv(''); setCsvFileName(''); } }}><DialogContent dir="rtl"><DialogHeader><DialogTitle>استيراد كشف بنك (CSV)</DialogTitle></DialogHeader>
+        <div className="space-y-3">
+          <div>
+            <Label>ملف الكشف</Label>
+            <Input className="mt-1.5" type="file" accept=".csv,text/csv" onChange={(e) => pickCsvFile(e.target.files?.[0])} />
+            {csvFileName && <p className="text-xs text-muted-foreground mt-1">تم اختيار: {csvFileName}</p>}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            الأعمدة المتوقعة (بأي ترتيب للعناوين، يتم اكتشافها تلقائيًا إن وُجد صف عناوين): التاريخ، الوصف، مدين، دائن، المرجع.
+          </p>
+          <details className="text-xs">
+            <summary className="cursor-pointer text-muted-foreground">أو الصق نص CSV مباشرة</summary>
+            <Textarea className="mt-2 min-h-32 font-mono text-xs" value={csv} onChange={(e) => { setCsv(e.target.value); setCsvFileName(''); }} placeholder={'transaction_date,description,debit_amount,credit_amount,reference\n2026-07-01,Bank fee,25,0,FEE-1'} />
+          </details>
+        </div>
+        <DialogFooter><Button variant="outline" onClick={() => setCsvOpen(false)}>إلغاء</Button><Button onClick={importCsv} disabled={!csv}>استيراد</Button></DialogFooter>
       </DialogContent></Dialog>
 
       <Dialog open={adjustOpen} onOpenChange={setAdjustOpen}><DialogContent dir="rtl"><DialogHeader><DialogTitle>قيد تسوية بنكية</DialogTitle></DialogHeader>

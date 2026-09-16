@@ -11,8 +11,10 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { api, ApiError } from '@/lib/api';
 import { formatCurrency, formatDateShort } from '@/lib/format';
+import { useAccounts } from '@/hooks/entities';
 import { FileText, RotateCcw, ShieldAlert, Wallet } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -29,11 +31,14 @@ const BadDebts = () => {
   const invoiceParam = params.get('invoice') ?? '';
   const [allowance, setAllowance] = useState({ customer_id: NONE, allowance_date: new Date().toISOString().slice(0, 10), amount: '', notes: '' });
   const [writeOff, setWriteOff] = useState({ customer_id: '', invoice_id: invoiceParam || NONE, write_off_date: new Date().toISOString().slice(0, 10), amount: '', reason: '' });
+  const [recoveryTarget, setRecoveryTarget] = useState<WriteOff | null>(null);
+  const [recovery, setRecovery] = useState({ amount: '', account_id: '', method: 'cash' });
 
   const customers = useQuery({ queryKey: ['clients'], queryFn: async () => (await api.get<{ data: Customer[] }>('/api/clients?page_size=300')).data ?? [] });
   const invoices = useQuery({ queryKey: ['invoices'], queryFn: async () => (await api.get<{ data: Invoice[] }>('/api/invoices?page_size=300')).data ?? [] });
   const allowances = useQuery({ queryKey: ['bad-debt-allowances'], queryFn: async () => (await api.get<{ data: Allowance[] }>('/api/bad-debts/allowances')).data ?? [] });
   const writeOffs = useQuery({ queryKey: ['bad-debt-write-offs'], queryFn: async () => (await api.get<{ data: WriteOff[] }>('/api/bad-debts/write-offs')).data ?? [] });
+  const { list: accounts } = useAccounts();
 
   useEffect(() => {
     if (!invoiceParam || !invoices.data?.length) return;
@@ -110,6 +115,38 @@ const BadDebts = () => {
     }
   };
 
+  const openRecovery = (row: WriteOff) => {
+    setRecoveryTarget(row);
+    setRecovery({ amount: String(row.amount), account_id: '', method: 'cash' });
+  };
+
+  // A customer thought to be a bad debt paying after all: reverse the
+  // write-off (restores the invoice's remaining via recomputeInvoiceBalance)
+  // then record the actual cash received against it as a normal collection —
+  // this is the correct allowance-method treatment, just chained into one
+  // action instead of requiring the user to know to do both steps.
+  const submitRecovery = async () => {
+    if (!recoveryTarget?.invoice_id) return;
+    if (!recovery.account_id) return toast.error('اختر الحساب المستلم فيه المبلغ');
+    const amount = Number(recovery.amount);
+    if (!amount || amount <= 0) return toast.error('المبلغ يجب أن يكون أكبر من صفر');
+    try {
+      await api.post(`/api/bad-debts/write-offs/${recoveryTarget.id}/cancel`, {});
+      await api.post('/api/payments', {
+        invoice_id: recoveryTarget.invoice_id,
+        account_id: recovery.account_id,
+        amount,
+        method: recovery.method,
+        notes: 'استرداد دين سبق إعدامه',
+      });
+      setRecoveryTarget(null);
+      await Promise.all([refresh(), qc.invalidateQueries({ queryKey: ['payments'] })]);
+      toast.success('تم تسجيل الاسترداد');
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : 'تعذر تسجيل الاسترداد');
+    }
+  };
+
   const allowanceColumns: Column<Allowance>[] = [
     { key: 'date', header: 'التاريخ', cell: (r) => formatDateShort(r.allowance_date) },
     { key: 'customer', header: 'العميل', cell: (r) => r.customer_name ?? 'عام' },
@@ -125,7 +162,12 @@ const BadDebts = () => {
     { key: 'amount', header: 'المبلغ', cell: (r) => formatCurrency(Number(r.amount)), className: 'text-end' },
     { key: 'status', header: 'الحالة', cell: (r) => r.status },
     { key: 'journal', header: 'القيد', cell: (r) => r.journal_entry_id ? <Link className="text-primary" to={`/app/accounting/journals/${r.journal_entry_id}`}>عرض</Link> : '—' },
-    { key: 'actions', header: '', cell: (r) => r.status === 'posted' ? <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); cancelWriteOff(r.id); }}>عكس</Button> : null },
+    { key: 'actions', header: '', cell: (r) => r.status === 'posted' ? (
+      <div className="flex gap-1 justify-end">
+        {r.invoice_id && <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); openRecovery(r); }}>استرداد</Button>}
+        <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); cancelWriteOff(r.id); }}>عكس</Button>
+      </div>
+    ) : null },
   ];
 
   return (
@@ -167,6 +209,43 @@ const BadDebts = () => {
           <DataTable data={writeOffs.data ?? []} columns={writeOffColumns} searchKeys={['customer_name', 'invoice_number', 'reason']} emptyTitle="لا توجد ديون معدومة" />
         </TabsContent>
       </Tabs>
+
+      <Dialog open={!!recoveryTarget} onOpenChange={(open) => !open && setRecoveryTarget(null)}>
+        <DialogContent dir="rtl">
+          <DialogHeader><DialogTitle>تسجيل استرداد دين معدوم</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            سيتم عكس إعدام الدين لفاتورة {recoveryTarget?.invoice_number} بالكامل ({formatCurrency(Number(recoveryTarget?.amount ?? 0))})
+            ثم تسجيل المبلغ المُدخل كتحصيل فعلي على الفاتورة. أي جزء غير مُسترد سيعود مستحقًا على العميل من جديد بدل إعدامه.
+          </p>
+          <div className="grid gap-3">
+            <div><Label>المبلغ المسترد</Label><Input className="mt-1.5" type="number" value={recovery.amount} onChange={(e) => setRecovery((p) => ({ ...p, amount: e.target.value }))} /></div>
+            <div>
+              <Label>الحساب المستلم فيه المبلغ</Label>
+              <Select value={recovery.account_id} onValueChange={(v) => setRecovery((p) => ({ ...p, account_id: v }))}>
+                <SelectTrigger className="mt-1.5"><SelectValue placeholder="اختر الحساب" /></SelectTrigger>
+                <SelectContent>{accounts.map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>طريقة التحصيل</Label>
+              <Select value={recovery.method} onValueChange={(v) => setRecovery((p) => ({ ...p, method: v }))}>
+                <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="cash">نقدي</SelectItem>
+                  <SelectItem value="bank">تحويل بنكي</SelectItem>
+                  <SelectItem value="wallet">محفظة إلكترونية</SelectItem>
+                  <SelectItem value="cheque">شيك</SelectItem>
+                  <SelectItem value="card">بطاقة</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRecoveryTarget(null)}>إلغاء</Button>
+            <Button onClick={submitRecovery}>تأكيد الاسترداد</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

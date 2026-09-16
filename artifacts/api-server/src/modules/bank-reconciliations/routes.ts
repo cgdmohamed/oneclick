@@ -242,7 +242,7 @@ r.post('/:id/import-csv', async (req, res, next) => {
     await assertDraftReconciliation(t.db, t.companyId, req.params.id);
     const body = z.object({ csv: z.string().min(1) }).parse(req.body);
     const parsed = parseCsv(body.csv);
-    const hasHeader = parsed[0]?.some((cell) => /date|description|debit|credit|reference/i.test(cell));
+    const hasHeader = parsed[0]?.some((cell) => /date|description|debit|credit|reference|تاريخ|وصف|مدين|دائن|مرجع/i.test(cell));
     const rows = hasHeader ? parsed.slice(1) : parsed;
     let imported = 0;
     for (const row of rows) {

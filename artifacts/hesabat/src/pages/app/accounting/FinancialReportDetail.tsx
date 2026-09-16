@@ -1,5 +1,5 @@
 import { Link, useParams } from 'react-router-dom';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { PageHeader } from '@/components/common/PageHeader';
 import { DataTable, type Column } from '@/components/common/DataTable';
@@ -10,6 +10,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { api } from '@/lib/api';
 import { formatCurrency, formatDateShort } from '@/lib/format';
 import { AlertTriangle, ArrowRight, Printer } from 'lucide-react';
+import { recordRecentReport } from './recentReports';
 
 const titleMap: Record<string, string> = {
   'general-ledger': 'دفتر الأستاذ العام',
@@ -72,6 +73,9 @@ interface CategoryRow { id: string; name: string; parent_id?: string | null; par
 
 const FinancialReportDetail = () => {
   const { type = 'trial-balance' } = useParams();
+  useEffect(() => {
+    recordRecentReport(type, titleMap[type] ?? 'تقرير مالي');
+  }, [type]);
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [branchId, setBranchId] = useState('');
