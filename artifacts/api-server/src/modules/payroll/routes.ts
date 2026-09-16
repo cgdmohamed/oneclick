@@ -4,7 +4,7 @@ import { audit } from '../../utils/audit.js';
 import { badRequest, conflict, notFound } from '../../utils/errors.js';
 import { round2 } from '../../utils/money.js';
 import { assertBranch, assertCostCenter } from '../../utils/dimensions.js';
-import { assertPeriodOpen, createJournalEntry, getSettings } from '../accounting/posting.js';
+import { assertPeriodOpen, createJournalEntry, getSettings, reverseJournalEntry } from '../accounting/posting.js';
 
 const r = Router();
 
@@ -356,6 +356,29 @@ r.post('/runs/:id/pay', async (req, res, next) => {
       await audit(t.db, { companyId: t.companyId, userId: req.auth!.userId, action: 'payroll.pay', entity: 'payroll_run', entityId: req.params.id, data: { account_id: b.account_id, amount } });
       await t.db.query('COMMIT');
       res.json({ data: { journal_entry_id: je.id } });
+    } catch (e) { await t.db.query('ROLLBACK'); throw e; }
+  } catch (e) { next(e); }
+});
+
+r.post('/runs/:id/cancel', async (req, res, next) => {
+  try {
+    const t = req.tenant!;
+    await t.db.query('BEGIN');
+    try {
+      const run = await t.db.query(`SELECT * FROM payroll_runs WHERE id=$1 AND company_id=$2 FOR UPDATE`, [req.params.id, t.companyId]);
+      if (!run.rowCount) throw notFound('Payroll run not found');
+      if (run.rows[0].status === 'cancelled') throw badRequest('Run already cancelled');
+      if (run.rows[0].payment_journal_entry_id) await reverseJournalEntry(t.db, t.companyId, run.rows[0].payment_journal_entry_id, req.auth!.userId);
+      if (run.rows[0].journal_entry_id) await reverseJournalEntry(t.db, t.companyId, run.rows[0].journal_entry_id, req.auth!.userId);
+      if (run.rows[0].payment_account_id) {
+        const total = await t.db.query(`SELECT COALESCE(SUM(net_salary),0) AS amount FROM payroll_run_lines WHERE payroll_run_id=$1 AND company_id=$2`, [req.params.id, t.companyId]);
+        const amount = round2(Number(total.rows[0].amount));
+        await t.db.query(`UPDATE accounts SET balance = balance + $1 WHERE id=$2 AND company_id=$3`, [amount, run.rows[0].payment_account_id, t.companyId]);
+      }
+      await t.db.query(`UPDATE payroll_runs SET status='cancelled', updated_at=NOW() WHERE id=$1 AND company_id=$2`, [req.params.id, t.companyId]);
+      await audit(t.db, { companyId: t.companyId, userId: req.auth!.userId, action: 'payroll.cancel', entity: 'payroll_run', entityId: req.params.id });
+      await t.db.query('COMMIT');
+      res.json({ ok: true });
     } catch (e) { await t.db.query('ROLLBACK'); throw e; }
   } catch (e) { next(e); }
 });

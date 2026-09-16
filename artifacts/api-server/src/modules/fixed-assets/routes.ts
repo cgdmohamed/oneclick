@@ -193,6 +193,9 @@ r.patch('/assets/:id', async (req, res, next) => {
     const t = req.tenant!;
     const used = await t.db.query(`SELECT 1 FROM depreciation_run_lines WHERE asset_id = $1 AND company_id = $2 LIMIT 1`, [req.params.id, t.companyId]);
     const body = assetSchema.partial().parse(req.body);
+    if ('status' in body) {
+      throw conflict('Asset status cannot be changed directly; it is set automatically by depreciation runs');
+    }
     if (used.rowCount && ('acquisition_cost' in body || 'salvage_value' in body || 'useful_life_months' in body || 'depreciation_start_date' in body)) {
       throw conflict('Depreciated assets can only update descriptive fields or dimensions');
     }
