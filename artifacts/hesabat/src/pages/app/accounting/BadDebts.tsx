@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { SearchableSelect } from '@/components/common/SearchableSelect';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { api, ApiError } from '@/lib/api';
@@ -187,7 +188,7 @@ const BadDebts = () => {
           <Card className="p-4 border-border/60">
             <div className="grid md:grid-cols-4 gap-4 items-end">
               <div><Label>التاريخ</Label><Input className="mt-1.5" type="date" value={allowance.allowance_date} onChange={(e) => setAllowance((p) => ({ ...p, allowance_date: e.target.value }))} /></div>
-              <div><Label>العميل</Label><Select value={allowance.customer_id} onValueChange={(v) => setAllowance((p) => ({ ...p, customer_id: v }))}><SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger><SelectContent><SelectItem value={NONE}>عام بدون عميل</SelectItem>{(customers.data ?? []).map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent></Select></div>
+              <div><Label>العميل</Label><div className="mt-1.5"><SearchableSelect value={allowance.customer_id} onValueChange={(v) => setAllowance((p) => ({ ...p, customer_id: v }))} options={[{ value: NONE, label: 'عام بدون عميل' }, ...(customers.data ?? []).map((c) => ({ value: c.id, label: c.name }))]} searchPlaceholder="ابحث عن عميل..." /></div></div>
               <div><Label>المبلغ</Label><Input className="mt-1.5" type="number" value={allowance.amount} onChange={(e) => setAllowance((p) => ({ ...p, amount: e.target.value }))} /></div>
               <Button onClick={createAllowance}>ترحيل المخصص</Button>
               <div className="md:col-span-4"><Label>ملاحظات</Label><Textarea className="mt-1.5" value={allowance.notes} onChange={(e) => setAllowance((p) => ({ ...p, notes: e.target.value }))} /></div>
@@ -199,7 +200,7 @@ const BadDebts = () => {
           <Card className="p-4 border-border/60">
             <div className="grid md:grid-cols-5 gap-4 items-end">
               <div><Label>التاريخ</Label><Input className="mt-1.5" type="date" value={writeOff.write_off_date} onChange={(e) => setWriteOff((p) => ({ ...p, write_off_date: e.target.value }))} /></div>
-              <div><Label>العميل</Label><Select value={writeOff.customer_id} onValueChange={(v) => setWriteOff((p) => ({ ...p, customer_id: v, invoice_id: NONE }))}><SelectTrigger className="mt-1.5"><SelectValue placeholder="اختر العميل" /></SelectTrigger><SelectContent>{(customers.data ?? []).map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent></Select></div>
+              <div><Label>العميل</Label><div className="mt-1.5"><SearchableSelect value={writeOff.customer_id} onValueChange={(v) => setWriteOff((p) => ({ ...p, customer_id: v, invoice_id: NONE }))} options={(customers.data ?? []).map((c) => ({ value: c.id, label: c.name }))} placeholder="اختر العميل" searchPlaceholder="ابحث عن عميل..." /></div></div>
               <div><Label>الفاتورة</Label><Select value={writeOff.invoice_id} onValueChange={(v) => { const inv = customerInvoices.find((i) => i.id === v); setWriteOff((p) => ({ ...p, invoice_id: v, amount: inv ? String(inv.remaining) : p.amount })); }}><SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger><SelectContent><SelectItem value={NONE}>رصيد العميل</SelectItem>{customerInvoices.map((i) => <SelectItem key={i.id} value={i.id}>{i.number} - {formatCurrency(Number(i.remaining))}</SelectItem>)}</SelectContent></Select></div>
               <div><Label>المبلغ</Label><Input className="mt-1.5" type="number" value={writeOff.amount} onChange={(e) => setWriteOff((p) => ({ ...p, amount: e.target.value }))} /></div>
               <Button onClick={createWriteOff}>ترحيل الإعدام</Button>

@@ -16,6 +16,7 @@ import { cn } from '@/lib/utils';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { InvoiceSummary } from '@/components/common/InvoiceSummary';
+import { SearchableSelect } from '@/components/common/SearchableSelect';
 import { useClients, useProducts } from '@/hooks/entities';
 import { api, ApiError, isApiConfigured } from '@/lib/api';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -307,12 +308,16 @@ const NewInvoice = ({ asModal = false, defaultClientId, onCancel, onCreated }: N
             <div>
               <Label>العميل</Label>
               <div className="flex gap-1 mt-1.5">
-                <Select value={clientId} onValueChange={setClientId}>
-                  <SelectTrigger className="flex-1"><SelectValue placeholder="اختر عميلاً" /></SelectTrigger>
-                  <SelectContent>
-                    {clients.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+                <div className="flex-1">
+                  <SearchableSelect
+                    value={clientId}
+                    onValueChange={setClientId}
+                    options={clients.map(c => ({ value: c.id, label: c.name }))}
+                    placeholder="اختر عميلاً"
+                    searchPlaceholder="ابحث عن عميل..."
+                    emptyText="لا يوجد عملاء مطابقون"
+                  />
+                </div>
                 <Button
                   type="button"
                   variant="outline"

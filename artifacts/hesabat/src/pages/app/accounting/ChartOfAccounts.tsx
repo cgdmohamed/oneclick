@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { SearchableSelect } from '@/components/common/SearchableSelect';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { api } from '@/lib/api';
@@ -98,13 +99,15 @@ const ChartOfAccounts = () => {
             </div>
             <div>
               <Label>الحساب الأب</Label>
-              <Select value={form.parent_id ?? '__none__'} onValueChange={(v) => setForm((p) => ({ ...p, parent_id: v === '__none__' ? null : v }))}>
-                <SelectTrigger className="mt-1.5"><SelectValue placeholder="بدون حساب أب" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">بدون حساب أب</SelectItem>
-                  {data.filter((a) => a.id !== form.id).map((a) => <SelectItem key={a.id} value={a.id}>{a.code} - {a.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <div className="mt-1.5">
+                <SearchableSelect
+                  value={form.parent_id ?? '__none__'}
+                  onValueChange={(v) => setForm((p) => ({ ...p, parent_id: v === '__none__' ? null : v }))}
+                  options={[{ value: '__none__', label: 'بدون حساب أب' }, ...data.filter((a) => a.id !== form.id).map((a) => ({ value: a.id, label: `${a.code} - ${a.name}` }))]}
+                  placeholder="بدون حساب أب"
+                  searchPlaceholder="ابحث بالكود أو الاسم..."
+                />
+              </div>
             </div>
             <div>
               <Label>طبيعة الرصيد</Label>

@@ -5,6 +5,7 @@ import { DataTable, Column } from '@/components/common/DataTable';
 import { payments as mockPayments, accounts as mockAccounts, invoices as mockInvoices } from '@/data/mock';
 import { formatCurrency, formatDateShort, paymentMethodLabel } from '@/lib/format';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { SearchableSelect } from '@/components/common/SearchableSelect';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -196,7 +197,7 @@ const Payments = () => {
             {form.collection_type === 'invoice_collection' ? (
               <div><Label>الفاتورة</Label><Select value={form.invoice_id} onValueChange={(v) => setForm((p) => ({ ...p, invoice_id: v, amount: String((invoices.data ?? []).find((i) => i.id === v)?.remaining ?? p.amount) }))}><SelectTrigger className="mt-1.5"><SelectValue placeholder="اختر الفاتورة" /></SelectTrigger><SelectContent>{(invoices.data ?? []).filter((i) => i.status !== 'draft' && i.status !== 'cancelled' && Number(i.remaining) > 0).map((i) => <SelectItem key={i.id} value={i.id}>{i.number} - {i.client_name ?? '—'} - متبقي {formatCurrency(Number(i.remaining))}</SelectItem>)}</SelectContent></Select></div>
             ) : (
-              <div><Label>حساب الدائن</Label><Select value={form.credit_account_id} onValueChange={(v) => setForm((p) => ({ ...p, credit_account_id: v }))}><SelectTrigger className="mt-1.5"><SelectValue placeholder="اختر حساب الدائن" /></SelectTrigger><SelectContent>{creditAccounts.map((a) => <SelectItem key={a.id} value={a.id}>{a.code} - {a.name}</SelectItem>)}</SelectContent></Select></div>
+              <div><Label>حساب الدائن</Label><div className="mt-1.5"><SearchableSelect value={form.credit_account_id} onValueChange={(v) => setForm((p) => ({ ...p, credit_account_id: v }))} options={creditAccounts.map((a) => ({ value: a.id, label: `${a.code} - ${a.name}` }))} placeholder="اختر حساب الدائن" searchPlaceholder="ابحث بالكود أو الاسم..." /></div></div>
             )}
             <div className="grid grid-cols-2 gap-3">
               <div><Label>المبلغ</Label><Input className="mt-1.5" type="number" min="0" step="0.01" value={form.amount} onChange={(e) => setForm((p) => ({ ...p, amount: e.target.value }))} /></div>

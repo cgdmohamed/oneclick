@@ -15,6 +15,7 @@ import type { Product } from '@/types';
 import { formatCurrency, formatDateShort } from '@/lib/format';
 import { toast } from 'sonner';
 import { StatusBadge } from '@/components/common/StatusBadge';
+import { SearchableSelect } from '@/components/common/SearchableSelect';
 import { Card } from '@/components/ui/card';
 import { useResource } from '@/hooks/useResource';
 import { useInvoices } from '@/hooks/entities';
@@ -573,13 +574,15 @@ const Products = () => {
     onChange: (value: string | undefined) => void,
     placeholder = 'إعدادات الشركة',
   ) => (
-    <Select value={value ?? NO_ACCOUNT} onValueChange={(v) => onChange(v === NO_ACCOUNT ? undefined : v)}>
-      <SelectTrigger className="mt-1.5"><SelectValue placeholder={placeholder} /></SelectTrigger>
-      <SelectContent>
-        <SelectItem value={NO_ACCOUNT}>{placeholder}</SelectItem>
-        {chartAccounts.map(a => <SelectItem key={a.id} value={a.id}>{a.code} - {a.name}</SelectItem>)}
-      </SelectContent>
-    </Select>
+    <div className="mt-1.5">
+      <SearchableSelect
+        value={value ?? NO_ACCOUNT}
+        onValueChange={(v) => onChange(v === NO_ACCOUNT ? undefined : v)}
+        options={[{ value: NO_ACCOUNT, label: placeholder }, ...chartAccounts.map(a => ({ value: a.id, label: `${a.code} - ${a.name}` }))]}
+        placeholder={placeholder}
+        searchPlaceholder="ابحث بالكود أو الاسم..."
+      />
+    </div>
   );
 
   return (
@@ -749,16 +752,15 @@ const Products = () => {
                 <div><Label>حد التنبيه</Label><Input type="number" className="mt-1.5" value={editing.alertLevel} onChange={e => setEditing(s => ({ ...s, alertLevel: Number(e.target.value) }))} /></div>
                 <div className="sm:col-span-2">
                   <Label>المورد</Label>
-                  <Select
-                    value={(editing as unknown as { supplierId?: string }).supplierId ?? NO_SUPPLIER}
-                    onValueChange={(v) => setEditing(s => ({ ...s, supplierId: v === NO_SUPPLIER ? undefined : v } as unknown as Product))}
-                  >
-                    <SelectTrigger className="mt-1.5"><SelectValue placeholder="اختر مورداً (اختياري)" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={NO_SUPPLIER}>بدون مورد</SelectItem>
-                      {suppliers.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                  <div className="mt-1.5">
+                    <SearchableSelect
+                      value={(editing as unknown as { supplierId?: string }).supplierId ?? NO_SUPPLIER}
+                      onValueChange={(v) => setEditing(s => ({ ...s, supplierId: v === NO_SUPPLIER ? undefined : v } as unknown as Product))}
+                      options={[{ value: NO_SUPPLIER, label: 'بدون مورد' }, ...suppliers.map(s => ({ value: s.id, label: s.name }))]}
+                      placeholder="اختر مورداً (اختياري)"
+                      searchPlaceholder="ابحث عن مورد..."
+                    />
+                  </div>
                 </div>
               </TabsContent>
 
@@ -808,12 +810,15 @@ const Products = () => {
           <div className="space-y-4 py-2">
             <div>
               <Label>المنتج *</Label>
-              <Select value={newMovement.product_id} onValueChange={v => setNewMovement(p => ({ ...p, product_id: v }))}>
-                <SelectTrigger className="mt-1.5"><SelectValue placeholder="اختر منتجاً" /></SelectTrigger>
-                <SelectContent>
-                  {stockProducts.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <div className="mt-1.5">
+                <SearchableSelect
+                  value={newMovement.product_id}
+                  onValueChange={v => setNewMovement(p => ({ ...p, product_id: v }))}
+                  options={stockProducts.map(p => ({ value: p.id, label: p.name }))}
+                  placeholder="اختر منتجاً"
+                  searchPlaceholder="ابحث عن منتج..."
+                />
+              </div>
               {selectedMovementProduct && !(selectedMovementProduct.averageCost || selectedMovementProduct.cost) && (
                 <p className="mt-1.5 text-xs text-amber-600">
                   ⚠️ هذا الصنف بدون تكلفة محددة حاليًا، فلن ينتج عن هذه الحركة أي قيد محاسبي (تأثير مالي صفري). أدخل تكلفة للمنتج أولاً إذا كانت له قيمة فعلية.
@@ -852,13 +857,15 @@ const Products = () => {
             {suppliers.length > 0 && (
               <div>
                 <Label>المورد</Label>
-                <Select value={newMovement.supplier_id || NO_SUPPLIER} onValueChange={v => setNewMovement(p => ({ ...p, supplier_id: v === NO_SUPPLIER ? '' : v }))}>
-                  <SelectTrigger className="mt-1.5"><SelectValue placeholder="اختياري" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={NO_SUPPLIER}>بدون مورد</SelectItem>
-                    {suppliers.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+                <div className="mt-1.5">
+                  <SearchableSelect
+                    value={newMovement.supplier_id || NO_SUPPLIER}
+                    onValueChange={v => setNewMovement(p => ({ ...p, supplier_id: v === NO_SUPPLIER ? '' : v }))}
+                    options={[{ value: NO_SUPPLIER, label: 'بدون مورد' }, ...suppliers.map(s => ({ value: s.id, label: s.name }))]}
+                    placeholder="اختياري"
+                    searchPlaceholder="ابحث عن مورد..."
+                  />
+                </div>
               </div>
             )}
             <div>

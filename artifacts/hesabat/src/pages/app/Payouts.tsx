@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { SearchableSelect } from '@/components/common/SearchableSelect';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Textarea } from '@/components/ui/textarea';
@@ -212,24 +213,26 @@ const Payouts = () => {
             </div>
             <div>
               <Label>حساب المصروف/المدين (اختياري)</Label>
-              <Select value={form.debit_account_id || '__none__'} onValueChange={(v) => setForm(p => ({ ...p, debit_account_id: v === '__none__' ? '' : v }))}>
-                <SelectTrigger className="mt-1.5"><SelectValue placeholder="استخدام المصروفات العامة" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">استخدام المصروفات العامة</SelectItem>
-                  {chartAccounts.filter((a) => a.is_active).map(a => <SelectItem key={a.id} value={a.id}>{a.code} - {a.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <div className="mt-1.5">
+                <SearchableSelect
+                  value={form.debit_account_id || '__none__'}
+                  onValueChange={(v) => setForm(p => ({ ...p, debit_account_id: v === '__none__' ? '' : v }))}
+                  options={[{ value: '__none__', label: 'استخدام المصروفات العامة' }, ...chartAccounts.filter((a) => a.is_active).map(a => ({ value: a.id, label: `${a.code} - ${a.name}` }))]}
+                  searchPlaceholder="ابحث بالكود أو الاسم..."
+                />
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>المورد (اختياري)</Label>
-                <Select value={form.supplier_id || '__none__'} onValueChange={(v) => setForm(p => ({ ...p, supplier_id: v === '__none__' ? '' : v }))}>
-                  <SelectTrigger className="mt-1.5"><SelectValue placeholder="بدون مورد" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">بدون مورد</SelectItem>
-                    {suppliers.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+                <div className="mt-1.5">
+                  <SearchableSelect
+                    value={form.supplier_id || '__none__'}
+                    onValueChange={(v) => setForm(p => ({ ...p, supplier_id: v === '__none__' ? '' : v }))}
+                    options={[{ value: '__none__', label: 'بدون مورد' }, ...suppliers.map(s => ({ value: s.id, label: s.name }))]}
+                    searchPlaceholder="ابحث عن مورد..."
+                  />
+                </div>
               </div>
               <div>
                 <Label>التصنيف (اختياري)</Label>

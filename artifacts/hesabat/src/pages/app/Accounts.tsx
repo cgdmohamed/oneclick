@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { accountTypeLabel, formatCurrency } from '@/lib/format';
 import { toast } from 'sonner';
 import { StatusBadge } from '@/components/common/StatusBadge';
+import { SearchableSelect } from '@/components/common/SearchableSelect';
 import { useResource } from '@/hooks/useResource';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
@@ -128,13 +129,15 @@ const Accounts = () => {
             <div><Label>الرصيد</Label><Input type="number" className="mt-1.5" value={editing.balance} onChange={e => setEditing(s => ({ ...s, balance: Number(e.target.value) }))} /></div>
             <div>
               <Label>الحساب في دليل الحسابات (اختياري)</Label>
-              <Select value={editing.chartAccountId ?? NONE} onValueChange={(v) => setEditing(s => ({ ...s, chartAccountId: v === NONE ? null : v }))}>
-                <SelectTrigger className="mt-1.5"><SelectValue placeholder="بدون ربط — استخدام حساب افتراضي مشترك" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={NONE}>بدون ربط — استخدام حساب افتراضي مشترك</SelectItem>
-                  {(chartAccounts.data ?? []).map(ca => <SelectItem key={ca.id} value={ca.id}>{ca.code} - {ca.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <div className="mt-1.5">
+                <SearchableSelect
+                  value={editing.chartAccountId ?? NONE}
+                  onValueChange={(v) => setEditing(s => ({ ...s, chartAccountId: v === NONE ? null : v }))}
+                  options={[{ value: NONE, label: 'بدون ربط — استخدام حساب افتراضي مشترك' }, ...(chartAccounts.data ?? []).map(ca => ({ value: ca.id, label: `${ca.code} - ${ca.name}` }))]}
+                  placeholder="بدون ربط — استخدام حساب افتراضي مشترك"
+                  searchPlaceholder="ابحث بالكود أو الاسم..."
+                />
+              </div>
               <p className="text-xs text-muted-foreground mt-1.5">
                 اربط هذا الحساب بكود مستقل من دليل الحسابات (مثال: 1021) ليظهر بشكل منفصل في كشف الحساب،
                 بدل الاعتماد على حساب البنك/الخزنة الافتراضي المشترك بين كل الحسابات من نفس النوع.

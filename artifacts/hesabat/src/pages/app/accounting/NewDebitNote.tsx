@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { SearchableSelect } from '@/components/common/SearchableSelect';
 import { api, ApiError } from '@/lib/api';
 import { formatCurrency } from '@/lib/format';
 import { ArrowRight, Plus, Trash2 } from 'lucide-react';
@@ -118,7 +119,7 @@ const NewDebitNote = () => {
       <PageHeader title="إشعار مدين جديد" description="زيادة قيمة فاتورة سابقة ورفع رصيد العميل المستحق" actions={<Button onClick={submit}>حفظ</Button>} />
       <Card className="p-4 border-border/60 space-y-4">
         <div className="grid md:grid-cols-4 gap-4">
-          <div><Label>العميل</Label><Select value={customerId} onValueChange={(v) => { setCustomerId(v); setInvoiceId(''); }}><SelectTrigger className="mt-1.5"><SelectValue placeholder="اختر العميل" /></SelectTrigger><SelectContent>{(customers.data ?? []).map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent></Select></div>
+          <div><Label>العميل</Label><div className="mt-1.5"><SearchableSelect value={customerId} onValueChange={(v) => { setCustomerId(v); setInvoiceId(''); }} options={(customers.data ?? []).map((c) => ({ value: c.id, label: c.name }))} placeholder="اختر العميل" searchPlaceholder="ابحث عن عميل..." /></div></div>
           <div><Label>الفاتورة الأصلية</Label><Select value={invoiceId || 'none'} onValueChange={(v) => setInvoiceId(v === 'none' ? '' : v)}><SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="none">بدون ربط</SelectItem>{customerInvoices.map((invoice) => <SelectItem key={invoice.id} value={invoice.id}>{invoice.number}</SelectItem>)}</SelectContent></Select></div>
           <div><Label>رقم الإشعار</Label><Input className="mt-1.5 text-muted-foreground" value="سيُحدَّد تلقائيًا بعد الحفظ" disabled /></div>
           <div><Label>التاريخ</Label><Input className="mt-1.5" type="date" value={date} onChange={(e) => setDate(e.target.value)} /></div>
@@ -129,7 +130,7 @@ const NewDebitNote = () => {
       <Card className="p-4 border-border/60 space-y-3">
         {items.map((item, idx) => (
           <div key={idx} className="grid md:grid-cols-6 gap-3 items-end">
-            <div><Label>المنتج</Label><Select value={item.product_id || 'none'} onValueChange={(v) => pickProduct(idx, v)}><SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="none">بدون منتج</SelectItem>{(products.data ?? []).map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select></div>
+            <div><Label>المنتج</Label><div className="mt-1.5"><SearchableSelect value={item.product_id || 'none'} onValueChange={(v) => pickProduct(idx, v)} options={[{ value: 'none', label: 'بدون منتج' }, ...(products.data ?? []).map((p) => ({ value: p.id, label: p.name }))]} searchPlaceholder="ابحث عن منتج..." /></div></div>
             <div className="md:col-span-2"><Label>الوصف</Label><Input className="mt-1.5" value={item.description} onChange={(e) => updateItem(idx, { description: e.target.value })} /></div>
             <div><Label>الكمية</Label><Input className="mt-1.5" type="number" value={item.quantity} onChange={(e) => updateItem(idx, { quantity: e.target.value })} /></div>
             <div><Label>سعر الوحدة</Label><Input className="mt-1.5" type="number" value={item.unit_price} onChange={(e) => updateItem(idx, { unit_price: e.target.value })} /></div>
