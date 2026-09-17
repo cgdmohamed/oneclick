@@ -150,6 +150,23 @@ export async function ensureAccountingSetup(db: Queryable, companyId: string) {
       ids.inventory_loss_expense_account_id,
     ],
   );
+
+  // A brand-new company had a full chart of accounts but no actual
+  // "financial account" row (the `accounts` table behind "الحسابات
+  // المالية" / Accounts.tsx, which payments/collections and payouts pick
+  // from) — nothing blocked account creation, but nothing prompted it
+  // either, so the first payment collection had no account to select.
+  // Seed one obvious default (a cash drawer linked to the default cash
+  // chart-of-accounts code) the same way the chart of accounts itself is
+  // seeded here, idempotently and without touching any existing accounts.
+  const hasAnyAccount = await db.query(`SELECT 1 FROM accounts WHERE company_id = $1 LIMIT 1`, [companyId]);
+  if (!hasAnyAccount.rowCount) {
+    await db.query(
+      `INSERT INTO accounts (company_id, name, type, chart_account_id, balance, is_active)
+       VALUES ($1, $2, 'cash', $3, 0, true)`,
+      [companyId, 'الخزينة الرئيسية', ids.cash_account_id],
+    );
+  }
 }
 
 export async function ensureFiscalYear(db: Queryable, companyId: string, entryDate: string | Date) {

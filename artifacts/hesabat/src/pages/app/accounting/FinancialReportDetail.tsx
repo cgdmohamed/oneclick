@@ -11,6 +11,7 @@ import { api } from '@/lib/api';
 import { formatCurrency, formatDateShort } from '@/lib/format';
 import { AlertTriangle, ArrowRight, Printer } from 'lucide-react';
 import { recordRecentReport } from './recentReports';
+import { accountTypeLabel } from './types';
 
 const titleMap: Record<string, string> = {
   'general-ledger': 'دفتر الأستاذ العام',
@@ -52,6 +53,16 @@ const summaryLabel = (key: string) => ({
   ap_ledger_balance: 'رصيد الموردين في الأستاذ',
   outstanding_total: 'إجمالي الرصيد المستحق',
   difference: 'الفرق',
+  // ar-aging summary keys — same buckets as the row-level columns above.
+  current: 'حالي',
+  days_1_30: '1-30 يوم',
+  days_31_60: '31-60 يوم',
+  days_61_90: '61-90 يوم',
+  over_90: 'أكثر من 90 يوم',
+  total: 'الإجمالي',
+  // balance-sheet summary keys.
+  current_year_start: 'بداية السنة المالية الحالية',
+  is_balanced: 'متوازنة',
 }[key] ?? key.replaceAll('_', ' '));
 
 const endpointFor = (type: string) => {
@@ -165,13 +176,13 @@ const FinancialReportDetail = () => {
     if (type === 'income-statement') return [
       { key: 'code', header: 'الكود', cell: (r) => r.code },
       { key: 'name', header: 'الحساب', cell: (r) => r.name },
-      { key: 'type', header: 'النوع', cell: (r) => r.type },
+      { key: 'type', header: 'النوع', cell: (r) => accountTypeLabel(r.type) },
       { key: 'amount', header: 'المبلغ', cell: (r) => formatCurrency(Math.abs(Number(r.amount))), className: 'text-end' },
     ];
     if (type === 'balance-sheet') return [
       { key: 'code', header: 'الكود', cell: (r) => r.code },
       { key: 'name', header: 'الحساب', cell: (r) => r.name },
-      { key: 'type', header: 'النوع', cell: (r) => r.type },
+      { key: 'type', header: 'النوع', cell: (r) => accountTypeLabel(r.type) },
       { key: 'balance', header: 'الرصيد', cell: (r) => formatCurrency(Number(r.type === 'asset' ? r.debit_balance : r.credit_balance)), className: 'text-end' },
     ];
     if (type === 'customer-ledger' || type === 'supplier-ledger') return [
@@ -315,7 +326,14 @@ const FinancialReportDetail = () => {
       )}
       {Object.keys(summary).length > 0 && (
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {Object.entries(summary).map(([key, value]) => <Card key={key} className="p-4"><div className="text-xs text-muted-foreground">{summaryLabel(key)}</div><div className="text-xl font-bold mt-1">{typeof value === 'boolean' ? (value ? 'نعم' : 'لا') : typeof value === 'number' || !Number.isNaN(Number(value)) ? formatCurrency(Number(value)) : String(value)}</div></Card>)}
+          {Object.entries(summary).map(([key, value]) => {
+            const display = key === 'current_year_start'
+              ? formatDateShort(String(value))
+              : typeof value === 'boolean' ? (value ? 'نعم' : 'لا')
+              : typeof value === 'number' || !Number.isNaN(Number(value)) ? formatCurrency(Number(value))
+              : String(value);
+            return <Card key={key} className="p-4"><div className="text-xs text-muted-foreground">{summaryLabel(key)}</div><div className="text-xl font-bold mt-1">{display}</div></Card>;
+          })}
         </div>
       )}
       <DataTable data={tableRows} columns={cols} pageSize={25} emptyTitle="لا توجد بيانات" />

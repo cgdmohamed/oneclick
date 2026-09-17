@@ -156,23 +156,42 @@ r.post('/', async (req, res, next) => {
       // go missing without a trace and left the stock_ledger row's
       // quantity_out (the full requested amount) inconsistent with the
       // actual (clamped) balance change.
+      // An incoming ('in') or increasing adjustment movement brings its own
+      // unit cost, so — same as a purchase invoice receiving stock — it must
+      // roll into the weighted-average cost (newAvgCost = (oldQty*oldCost +
+      // newQty*newCost) / (oldQty+newQty)) instead of leaving average_cost/
+      // cost untouched while quantity/inventory_value move on without it.
+      // An outgoing/decreasing movement never changes the average cost.
       const updateResult = isDecrease
         ? await t.db.query(
             `UPDATE products
              SET quantity = quantity + $1,
                  inventory_value = GREATEST(0, inventory_value + $3)
              WHERE id = $2 AND company_id = $4 AND quantity >= $5
-             RETURNING quantity, inventory_value`,
+             RETURNING quantity, inventory_value, average_cost`,
             [delta, body.product_id, valueDelta, t.companyId, body.quantity],
           )
-        : await t.db.query(
-            `UPDATE products
-             SET quantity = quantity + $1,
-                 inventory_value = inventory_value + $3
-             WHERE id = $2 AND company_id = $4
-             RETURNING quantity, inventory_value`,
-            [delta, body.product_id, valueDelta, t.companyId],
-          );
+        : await (async () => {
+            const locked = await t.db.query(
+              `SELECT quantity, inventory_value FROM products WHERE id = $1 AND company_id = $2 FOR UPDATE`,
+              [body.product_id, t.companyId],
+            );
+            const oldQty = Number(locked.rows[0]?.quantity ?? 0);
+            const oldValue = Number(locked.rows[0]?.inventory_value ?? 0);
+            const newQty = oldQty + delta;
+            const newValue = round2(oldValue + valueDelta);
+            const averageCost = newQty > 0 ? round2(newValue / newQty) : 0;
+            return t.db.query(
+              `UPDATE products
+               SET quantity = $1,
+                   inventory_value = $2,
+                   average_cost = $3,
+                   cost = $3
+               WHERE id = $4 AND company_id = $5
+               RETURNING quantity, inventory_value, average_cost`,
+              [newQty, newValue, averageCost, body.product_id, t.companyId],
+            );
+          })();
       if (!updateResult.rowCount) throw badRequest('الكمية المطلوبة أكبر من الرصيد المتاح لهذا الصنف');
       const updatedProduct = updateResult;
       await t.db.query(

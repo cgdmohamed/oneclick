@@ -261,6 +261,19 @@ const Products = () => {
     queryFn: async () => (await api.get<{ data: ChartAccount[] }>('/api/accounting/chart-accounts?limit=500')).data ?? [],
   });
   const chartAccounts = chartAccountsQuery.data ?? [];
+  // Default VAT rate for a new product — seeded from the company's own
+  // default (Settings → نسبة الضريبة) instead of a hardcoded fallback, same
+  // pattern used for invoice lines in NewInvoice.tsx.
+  const companyVatQuery = useQuery({
+    queryKey: ['companies-me-vat-rate'],
+    queryFn: async () => (await api.get<{ data: { vat_rate?: string | number } }>('/api/companies/me')).data,
+    enabled: isApiConfigured(),
+    staleTime: 5 * 60_000,
+  });
+  const defaultVatRate = () => {
+    const rate = Number(companyVatQuery.data?.vat_rate);
+    return Number.isFinite(rate) ? rate : empty.vatRate;
+  };
 
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Product>(empty);
@@ -597,7 +610,7 @@ const Products = () => {
             <Upload className="h-4 w-4 me-1" /> استيراد CSV
           </Button>
           <Button variant="outline" onClick={() => { reloadCats(); setCatsOpen(true); }}><Tags className="h-4 w-4 me-1" /> التصنيفات</Button>
-          <Button onClick={() => { setEditing({ ...empty, id: '' }); setOpen(true); }}><Plus className="h-4 w-4 me-1" /> منتج جديد</Button>
+          <Button onClick={() => { setEditing({ ...empty, id: '', vatRate: defaultVatRate() }); setOpen(true); }}><Plus className="h-4 w-4 me-1" /> منتج جديد</Button>
         </>} />
 
       {lowStock.length > 0 && (
@@ -694,9 +707,9 @@ const Products = () => {
               </TabsList>
 
               <TabsContent value="basic" className="mt-4 grid sm:grid-cols-2 gap-4">
-                <div><Label>اسم المنتج</Label><Input className="mt-1.5" value={editing.name} onChange={e => setEditing(s => ({ ...s, name: e.target.value }))} /></div>
-                <div><Label>الكود</Label><Input className="mt-1.5" value={editing.code} onChange={e => setEditing(s => ({ ...s, code: e.target.value }))} /></div>
-                <div><Label>الباركود</Label><Input className="mt-1.5" value={editing.barcode ?? ''} onChange={e => setEditing(s => ({ ...s, barcode: e.target.value }))} /></div>
+                <div><Label htmlFor="product-name">اسم المنتج</Label><Input id="product-name" className="mt-1.5" value={editing.name} onChange={e => setEditing(s => ({ ...s, name: e.target.value }))} /></div>
+                <div><Label htmlFor="product-code">الكود</Label><Input id="product-code" className="mt-1.5" value={editing.code} onChange={e => setEditing(s => ({ ...s, code: e.target.value }))} /></div>
+                <div><Label htmlFor="product-barcode">الباركود</Label><Input id="product-barcode" className="mt-1.5" value={editing.barcode ?? ''} onChange={e => setEditing(s => ({ ...s, barcode: e.target.value }))} /></div>
                 <div>
                   <Label>نوع المنتج</Label>
                   <Select value={editing.productType ?? 'stock'} onValueChange={(v) => setEditing(s => ({ ...s, productType: v as Product['productType'] }))}>
@@ -736,20 +749,24 @@ const Products = () => {
                     </SelectContent>
                   </Select>
                 </div>
-                <div><Label>الوحدة</Label><Input className="mt-1.5" value={(editing as { unit?: string }).unit ?? ''} onChange={e => setEditing(s => ({ ...s, unit: e.target.value }))} placeholder="قطعة" /></div>
+                <div><Label htmlFor="product-unit">الوحدة</Label><Input id="product-unit" className="mt-1.5" value={(editing as { unit?: string }).unit ?? ''} onChange={e => setEditing(s => ({ ...s, unit: e.target.value }))} placeholder="قطعة" /></div>
               </TabsContent>
 
               <TabsContent value="stock" className="mt-4 grid sm:grid-cols-2 gap-4">
-                <div><Label>السعر</Label><Input type="number" className="mt-1.5" value={editing.price} onChange={e => setEditing(s => ({ ...s, price: Number(e.target.value) }))} /></div>
-                <div><Label>التكلفة</Label><Input type="number" className="mt-1.5" value={editing.cost ?? 0} onChange={e => setEditing(s => ({ ...s, cost: Number(e.target.value) }))} /></div>
-                <div>
-                  <Label>الكمية{editing.id ? ' (الرصيد الحالي)' : ''}</Label>
-                  <Input type="number" className="mt-1.5" value={editing.quantity} onChange={e => setEditing(s => ({ ...s, quantity: Number(e.target.value) }))} disabled={editing.productType !== 'stock' || !!editing.id} />
-                  {editing.id && editing.productType === 'stock' && (
-                    <p className="mt-1 text-xs text-muted-foreground">لتعديل الكمية استخدم "حركة مخزون" لضمان تسجيلها والقيد المحاسبي المرتبط بها.</p>
-                  )}
-                </div>
-                <div><Label>حد التنبيه</Label><Input type="number" className="mt-1.5" value={editing.alertLevel} onChange={e => setEditing(s => ({ ...s, alertLevel: Number(e.target.value) }))} /></div>
+                <div><Label htmlFor="product-price">السعر</Label><Input id="product-price" type="number" className="mt-1.5" value={editing.price} onChange={e => setEditing(s => ({ ...s, price: Number(e.target.value) }))} /></div>
+                <div><Label htmlFor="product-cost">التكلفة</Label><Input id="product-cost" type="number" className="mt-1.5" value={editing.cost ?? 0} onChange={e => setEditing(s => ({ ...s, cost: Number(e.target.value) }))} /></div>
+                {editing.productType === 'stock' && (
+                  <>
+                    <div>
+                      <Label htmlFor="product-quantity">الكمية{editing.id ? ' (الرصيد الحالي)' : ''}</Label>
+                      <Input id="product-quantity" type="number" className="mt-1.5" value={editing.quantity} onChange={e => setEditing(s => ({ ...s, quantity: Number(e.target.value) }))} disabled={!!editing.id} />
+                      {editing.id && (
+                        <p className="mt-1 text-xs text-muted-foreground">لتعديل الكمية استخدم "حركة مخزون" لضمان تسجيلها والقيد المحاسبي المرتبط بها.</p>
+                      )}
+                    </div>
+                    <div><Label htmlFor="product-alert-level">حد التنبيه</Label><Input id="product-alert-level" type="number" className="mt-1.5" value={editing.alertLevel} onChange={e => setEditing(s => ({ ...s, alertLevel: Number(e.target.value) }))} /></div>
+                  </>
+                )}
                 <div className="sm:col-span-2">
                   <Label>المورد</Label>
                   <div className="mt-1.5">
@@ -776,7 +793,7 @@ const Products = () => {
                     </SelectContent>
                   </Select>
                 </div>
-                <div><Label>نسبة الضريبة</Label><Input type="number" className="mt-1.5" value={editing.vatRate ?? 0} onChange={e => setEditing(s => ({ ...s, vatRate: Number(e.target.value) }))} disabled={editing.vatStatus !== 'taxable'} /></div>
+                <div><Label htmlFor="product-vat-rate">نسبة الضريبة</Label><Input id="product-vat-rate" type="number" className="mt-1.5" value={editing.vatRate ?? 0} onChange={e => setEditing(s => ({ ...s, vatRate: Number(e.target.value) }))} disabled={editing.vatStatus !== 'taxable'} /></div>
               </TabsContent>
 
               <TabsContent value="accounts" className="mt-4">
@@ -784,10 +801,14 @@ const Products = () => {
                 <div className="grid sm:grid-cols-2 gap-3">
                   <div><Label className="text-xs">المبيعات</Label>{accountSelect(editing.salesAccountId, (v) => setEditing(s => ({ ...s, salesAccountId: v })))}</div>
                   <div><Label className="text-xs">مرتجعات المبيعات</Label>{accountSelect(editing.salesReturnsAccountId, (v) => setEditing(s => ({ ...s, salesReturnsAccountId: v })))}</div>
-                  <div><Label className="text-xs">المخزون</Label>{accountSelect(editing.inventoryAccountId, (v) => setEditing(s => ({ ...s, inventoryAccountId: v })))}</div>
-                  <div><Label className="text-xs">تكلفة البضاعة</Label>{accountSelect(editing.cogsAccountId, (v) => setEditing(s => ({ ...s, cogsAccountId: v })))}</div>
+                  {editing.productType === 'stock' && (
+                    <>
+                      <div><Label className="text-xs">المخزون</Label>{accountSelect(editing.inventoryAccountId, (v) => setEditing(s => ({ ...s, inventoryAccountId: v })))}</div>
+                      <div><Label className="text-xs">تكلفة البضاعة</Label>{accountSelect(editing.cogsAccountId, (v) => setEditing(s => ({ ...s, cogsAccountId: v })))}</div>
+                      <div><Label className="text-xs">تسوية مخزون</Label>{accountSelect(editing.inventoryAdjustmentAccountId, (v) => setEditing(s => ({ ...s, inventoryAdjustmentAccountId: v })))}</div>
+                    </>
+                  )}
                   <div><Label className="text-xs">مصروف مشتريات</Label>{accountSelect(editing.purchaseExpenseAccountId, (v) => setEditing(s => ({ ...s, purchaseExpenseAccountId: v })))}</div>
-                  <div><Label className="text-xs">تسوية مخزون</Label>{accountSelect(editing.inventoryAdjustmentAccountId, (v) => setEditing(s => ({ ...s, inventoryAdjustmentAccountId: v })))}</div>
                 </div>
               </TabsContent>
             </Tabs>

@@ -6,7 +6,7 @@ import { DataTable, type Column } from '@/components/common/DataTable';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { api } from '@/lib/api';
-import { formatCurrency, formatDateShort } from '@/lib/format';
+import { formatCurrency, formatDateShort, noteStatusLabel } from '@/lib/format';
 import { toast } from 'sonner';
 
 interface ItemRow {
@@ -105,7 +105,7 @@ const InventoryWriteOffDetails = () => {
 
       {data && (
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Card className="p-4"><div className="text-xs text-muted-foreground">الحالة</div><div className="text-xl font-bold mt-1">{data.status}</div></Card>
+          <Card className="p-4"><div className="text-xs text-muted-foreground">الحالة</div><div className="text-xl font-bold mt-1">{noteStatusLabel(data.status)}</div></Card>
           <Card className="p-4"><div className="text-xs text-muted-foreground">إجمالي التكلفة</div><div className="text-xl font-bold mt-1">{formatCurrency(Number(data.total_cost))}</div></Card>
           <Card className="p-4"><div className="text-xs text-muted-foreground">الفرع</div><div className="text-xl font-bold mt-1">{data.branch_name ?? '—'}</div></Card>
           <Card className="p-4"><div className="text-xs text-muted-foreground">مركز التكلفة</div><div className="text-xl font-bold mt-1">{data.cost_center_name ?? '—'}</div></Card>

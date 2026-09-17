@@ -11,6 +11,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { api } from '@/lib/api';
 import { formatCurrency } from '@/lib/format';
 import { toast } from 'sonner';
+import { SearchableSelect } from '@/components/common/SearchableSelect';
 
 interface Product { id: string; name: string; sku?: string | null; product_type?: string; average_cost?: string | number; cost?: string | number; quantity: string | number }
 interface Dimension { id: string; code?: string | null; name: string; is_active: boolean }
@@ -103,10 +104,21 @@ const NewInventoryWriteOff = () => {
       <Card className="p-4 border-border/60 space-y-3">
         {items.map((item, idx) => (
           <div key={idx} className="grid xl:grid-cols-[1.5fr_0.7fr_0.8fr_0.8fr_1fr_auto] gap-2 items-end">
-            <div><Label>المنتج</Label><select className="mt-1.5 h-10 w-full rounded-md border bg-background px-3 text-sm" value={item.product_id} onChange={(e) => {
-              const p = stockProducts.find((prod) => prod.id === e.target.value);
-              updateItem(idx, { product_id: e.target.value, unit_cost: String(p?.average_cost ?? p?.cost ?? 0) });
-            }}><option value="">اختر منتجاً</option>{stockProducts.map(p => <option key={p.id} value={p.id}>{p.name} ({Number(p.quantity)} متاح)</option>)}</select></div>
+            <div>
+              <Label>المنتج</Label>
+              <div className="mt-1.5">
+                <SearchableSelect
+                  value={item.product_id}
+                  onValueChange={(v) => {
+                    const p = stockProducts.find((prod) => prod.id === v);
+                    updateItem(idx, { product_id: v, unit_cost: String(p?.average_cost ?? p?.cost ?? 0) });
+                  }}
+                  options={stockProducts.map(p => ({ value: p.id, label: `${p.name} (${Number(p.quantity)} متاح)` }))}
+                  placeholder="اختر منتجاً"
+                  searchPlaceholder="ابحث عن منتج..."
+                />
+              </div>
+            </div>
             <div><Label>الكمية</Label><Input className="mt-1.5" type="number" min={0} value={item.quantity} onChange={(e) => updateItem(idx, { quantity: e.target.value })} /></div>
             <div><Label>تكلفة الوحدة</Label><Input className="mt-1.5" type="number" min={0} step="0.01" value={item.unit_cost} onChange={(e) => updateItem(idx, { unit_cost: e.target.value })} /></div>
             <div><Label>الإجمالي</Label><div className="h-10 flex items-center text-sm font-medium">{formatCurrency(Number(item.quantity || 0) * Number(item.unit_cost || 0))}</div></div>

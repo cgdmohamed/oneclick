@@ -76,7 +76,7 @@ router.get('/overview', async (req, res, next) => {
     const payoutTotals = await t.db.query(`
       SELECT COALESCE(SUM(amount),0) AS total_payouts FROM payouts WHERE company_id = $1
     `, [t.companyId]);
-    const lowStock = await t.db.query(`SELECT COUNT(*)::int AS n FROM products WHERE company_id = $1 AND quantity <= alert_level`, [t.companyId]);
+    const lowStock = await t.db.query(`SELECT COUNT(*)::int AS n FROM products WHERE company_id = $1 AND product_type = 'stock' AND quantity <= alert_level`, [t.companyId]);
     const clients  = await t.db.query(`SELECT COUNT(*)::int AS n FROM clients WHERE company_id = $1`, [t.companyId]);
     const monthly = await t.db.query(`
       SELECT to_char(date_trunc('month', issue_date), 'YYYY-MM') AS month,

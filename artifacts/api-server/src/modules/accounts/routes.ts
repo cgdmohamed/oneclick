@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { parsePagination } from '../../utils/pagination.js';
 import { badRequest, notFound } from '../../utils/errors.js';
+import { ensureAccountingSetup } from '../accounting/posting.js';
 
 const r = Router();
 
@@ -32,6 +33,12 @@ const FIELDS = ['name', 'type', 'bank_name', 'iban', 'balance', 'is_active', 'ch
 r.get('/', async (req, res, next) => {
   try {
     const t = req.tenant!;
+    // Lazily seeds the chart of accounts/accounting settings AND (see
+    // ensureAccountingSetup) a default cash "financial account" row the
+    // first time a company touches accounting — same lazy-init pattern as
+    // GET /accounting/chart-accounts. Without this, a brand-new company had
+    // no account to pick from on its very first payment collection.
+    await ensureAccountingSetup(t.db, t.companyId);
     const p = parsePagination(req);
     const q = (req.query.q as string | undefined)?.trim();
     const params: unknown[] = [t.companyId];

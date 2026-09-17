@@ -3,8 +3,9 @@ import { useQuery } from '@tanstack/react-query';
 import { PageHeader } from '@/components/common/PageHeader';
 import { DataTable, type Column } from '@/components/common/DataTable';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { api } from '@/lib/api';
-import { formatCurrency, formatDateShort } from '@/lib/format';
+import { formatCurrency, formatDateShort, noteStatusLabel } from '@/lib/format';
 import { Plus } from 'lucide-react';
 
 interface WriteOffRow {
@@ -43,7 +44,7 @@ const InventoryWriteOffs = () => {
     { key: 'branch', header: 'الفرع', cell: (r) => r.branch_name ?? '—' },
     { key: 'cost_center', header: 'مركز التكلفة', cell: (r) => r.cost_center_name ?? '—' },
     { key: 'total', header: 'التكلفة', cell: (r) => formatCurrency(Number(r.total_cost)), className: 'text-end' },
-    { key: 'status', header: 'الحالة', cell: (r) => r.status },
+    { key: 'status', header: 'الحالة', cell: (r) => <Badge>{noteStatusLabel(r.status)}</Badge> },
     { key: 'created_by', header: 'أنشأه', cell: (r) => r.created_by_name ?? '—' },
   ];
 
