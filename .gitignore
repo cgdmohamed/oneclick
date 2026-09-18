@@ -53,4 +53,5 @@ attached_assets
 env.production
 
 # Local-only dev overrides
+.env
 .env.local
