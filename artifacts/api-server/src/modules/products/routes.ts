@@ -781,7 +781,47 @@ router.post('/', async (req, res, next) => {
     if (!supOk) return res.status(422).json({ error: 'invalid_supplier', message: 'المورد غير صالح' });
     const accountOk = await assertAccountOwnership(t.db, t.companyId, parsed);
     if (!accountOk) return res.status(422).json({ error: 'invalid_account', message: 'الحساب المحاسبي غير صالح' });
-    req.body = parsed;
+
+    // A stock product created with an opening quantity right here (the
+    // everyday "منتج جديد" form) must carry the same ledger/journal-entry
+    // trail as CSV import and the dedicated "رصيد افتتاحي" endpoint — both
+    // insert with quantity 0 and apply the opening balance via
+    // applyOpeningStock() afterwards. This plain-CRUD create previously
+    // inserted `quantity` straight from the form, leaving average_cost and
+    // inventory_value stuck at 0 with no balancing journal entry: the same
+    // bug already fixed for CSV import, just in the far more common path.
+    const openingQuantity = parsed.product_type === 'stock' ? Number(parsed.quantity ?? 0) : 0;
+    const openingCost = Number(parsed.cost ?? 0);
+    req.body = { ...parsed, quantity: 0 };
+
+    if (openingQuantity > 0) {
+      const originalJson = res.json.bind(res);
+      res.json = ((payload: { data?: { id?: string } }) => {
+        res.json = originalJson;
+        const createdId = payload?.data?.id;
+        if (!createdId) return originalJson(payload);
+        applyOpeningStock(t.db, t.companyId, createdId, {
+          quantity: openingQuantity,
+          unitCost: openingCost,
+          date: new Date(),
+          notes: 'Opening stock',
+          userId: req.auth!.userId,
+        })
+          .then((result) => originalJson({
+            data: {
+              ...payload.data,
+              quantity: openingQuantity,
+              cost: openingCost,
+              average_cost: openingCost,
+              inventory_value: round2(openingQuantity * openingCost),
+            },
+            opening_stock: result,
+          }))
+          .catch(next);
+        return res;
+      }) as typeof res.json;
+    }
+
     next();
   } catch (e) { next(e); }
 }, base);
