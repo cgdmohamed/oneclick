@@ -13,6 +13,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { api, ApiError } from '@/lib/api';
 import { formatCurrency, formatDateShort } from '@/lib/format';
+import { printElementOnly } from '@/lib/print';
 import { ArrowRight, CheckCircle2, FileText, Landmark, Plus, Printer, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import type { BankJournalLine, BankReconciliation, BankStatementLine } from './types';
@@ -139,8 +140,13 @@ const BankReconciliationDetails = () => {
       <PageHeader
         title={`تسوية بنك - ${rec.account_name ?? ''}`}
         description={`${formatDateShort(rec.statement_date)} · ${rec.status}`}
-        actions={<div className="flex flex-wrap gap-2">{draft && <><Button variant="outline" onClick={() => setLineOpen(true)}><Plus className="h-4 w-4 ml-1" /> بند كشف</Button><Button variant="outline" onClick={() => setCsvOpen(true)}><Upload className="h-4 w-4 ml-1" /> CSV</Button><Button variant="outline" onClick={() => setAdjustOpen(true)}>قيد تسوية</Button><Button onClick={() => complete(false)}><CheckCircle2 className="h-4 w-4 ml-1" /> إكمال</Button>{Math.abs(difference) > 0.005 && <Button variant="secondary" onClick={() => complete(true)}>إكمال مع فرق</Button>}</>}<Button variant="outline" onClick={() => window.print()}><Printer className="h-4 w-4 ml-1" /> طباعة</Button></div>}
+        actions={<div className="flex flex-wrap gap-2">{draft && <><Button variant="outline" onClick={() => setLineOpen(true)}><Plus className="h-4 w-4 ml-1" /> بند كشف</Button><Button variant="outline" onClick={() => setCsvOpen(true)}><Upload className="h-4 w-4 ml-1" /> CSV</Button><Button variant="outline" onClick={() => setAdjustOpen(true)}>قيد تسوية</Button><Button onClick={() => complete(false)}><CheckCircle2 className="h-4 w-4 ml-1" /> إكمال</Button>{Math.abs(difference) > 0.005 && <Button variant="secondary" onClick={() => complete(true)}>إكمال مع فرق</Button>}</>}<Button variant="outline" onClick={printElementOnly}><Printer className="h-4 w-4 ml-1" /> طباعة</Button></div>}
       />
+      <div data-print-area className="print-area space-y-5">
+      <div className="hidden print:block">
+        <h1 className="text-xl font-bold">تسوية بنك - {rec.account_name ?? ''}</h1>
+        <p className="text-sm text-muted-foreground">{formatDateShort(rec.statement_date)} · {rec.status}</p>
+      </div>
       <div className="grid md:grid-cols-3 gap-4">
         <StatCard title="رصيد كشف البنك" value={formatCurrency(Number(rec.closing_balance))} icon={Landmark} accent="info" />
         <StatCard title="رصيد النظام البنكي" value={formatCurrency(Number(summary?.system_bank_balance ?? 0))} icon={FileText} accent="success" />
@@ -160,7 +166,7 @@ const BankReconciliationDetails = () => {
         <DataTable data={rec.lines ?? []} columns={statementColumns} pageSize={25} emptyTitle="لا توجد بنود كشف بنك" />
       </section>
       {selectedLine && (
-        <section className="space-y-3">
+        <section className="space-y-3 no-print">
           <h2 className="font-semibold">اقتراحات المطابقة</h2>
           {(suggestions ?? []).length === 0 ? (
             <Card className="p-4 text-sm text-muted-foreground">لا توجد قيود بنفس المبلغ لاقتراح مطابقتها تلقائيًا — اختر من الجدول أدناه يدويًا.</Card>
@@ -173,6 +179,7 @@ const BankReconciliationDetails = () => {
         <h2 className="font-semibold">قيود البنك غير المطابقة</h2>
         <DataTable data={rec.unmatched_journal_lines ?? []} columns={journalColumns} pageSize={25} emptyTitle="لا توجد قيود غير مطابقة" />
       </section>
+      </div>
 
       <Dialog open={lineOpen} onOpenChange={setLineOpen}><DialogContent dir="rtl"><DialogHeader><DialogTitle>إضافة بند كشف بنك</DialogTitle></DialogHeader>
         <div className="grid gap-3">

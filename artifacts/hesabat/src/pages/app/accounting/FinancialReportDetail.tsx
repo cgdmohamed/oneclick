@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { api } from '@/lib/api';
 import { formatCurrency, formatDateShort } from '@/lib/format';
+import { printElementOnly } from '@/lib/print';
 import { AlertTriangle, ArrowRight, Printer } from 'lucide-react';
 import { recordRecentReport } from './recentReports';
 import { accountTypeLabel } from './types';
@@ -272,7 +273,7 @@ const FinancialReportDetail = () => {
   return (
     <div className="space-y-5">
       <Link to="/app/accounting/reports" className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1"><ArrowRight className="h-4 w-4" /> العودة للتقارير المالية</Link>
-      <PageHeader title={titleMap[type] ?? 'تقرير مالي'} actions={<Button variant="outline" onClick={() => window.print()}><Printer className="h-4 w-4 me-1" /> طباعة</Button>} />
+      <PageHeader title={titleMap[type] ?? 'تقرير مالي'} actions={<Button variant="outline" onClick={printElementOnly}><Printer className="h-4 w-4 me-1" /> طباعة</Button>} />
       <Card className="p-4 border-border/60">
         <div className="grid sm:grid-cols-3 lg:grid-cols-6 gap-3 items-end">
             <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
@@ -317,26 +318,36 @@ const FinancialReportDetail = () => {
             <Button variant="ghost" onClick={() => { setFrom(''); setTo(''); setBranchId(''); setCostCenterId(''); setCustomerId(''); setSupplierId(''); setAccountId(''); setCategoryId(''); setSubcategoryId(''); setApplied({ from: '', to: '', branchId: '', costCenterId: '', customerId: '', supplierId: '', accountId: '', categoryId: '', subcategoryId: '' }); }}>مسح</Button>
         </div>
       </Card>
-      {warnings.length > 0 && (
-        <Alert className="border-warning/40 bg-warning/10">
-          <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>تنبيهات التقرير</AlertTitle>
-          <AlertDescription>{warnings.join(' · ')}</AlertDescription>
-        </Alert>
-      )}
-      {Object.keys(summary).length > 0 && (
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {Object.entries(summary).map(([key, value]) => {
-            const display = key === 'current_year_start'
-              ? formatDateShort(String(value))
-              : typeof value === 'boolean' ? (value ? 'نعم' : 'لا')
-              : typeof value === 'number' || !Number.isNaN(Number(value)) ? formatCurrency(Number(value))
-              : String(value);
-            return <Card key={key} className="p-4"><div className="text-xs text-muted-foreground">{summaryLabel(key)}</div><div className="text-xl font-bold mt-1">{display}</div></Card>;
-          })}
+      <div data-print-area className="print-area space-y-5">
+        <div className="hidden print:block">
+          <h1 className="text-xl font-bold">{titleMap[type] ?? 'تقرير مالي'}</h1>
+          {(applied.from || applied.to) && (
+            <p className="text-sm text-muted-foreground">
+              {applied.from || '—'} إلى {applied.to || '—'}
+            </p>
+          )}
         </div>
-      )}
-      <DataTable data={tableRows} columns={cols} pageSize={25} emptyTitle="لا توجد بيانات" />
+        {warnings.length > 0 && (
+          <Alert className="border-warning/40 bg-warning/10">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>تنبيهات التقرير</AlertTitle>
+            <AlertDescription>{warnings.join(' · ')}</AlertDescription>
+          </Alert>
+        )}
+        {Object.keys(summary).length > 0 && (
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {Object.entries(summary).map(([key, value]) => {
+              const display = key === 'current_year_start'
+                ? formatDateShort(String(value))
+                : typeof value === 'boolean' ? (value ? 'نعم' : 'لا')
+                : typeof value === 'number' || !Number.isNaN(Number(value)) ? formatCurrency(Number(value))
+                : String(value);
+              return <Card key={key} className="p-4"><div className="text-xs text-muted-foreground">{summaryLabel(key)}</div><div className="text-xl font-bold mt-1">{display}</div></Card>;
+            })}
+          </div>
+        )}
+        <DataTable data={tableRows} columns={cols} pageSize={25} emptyTitle="لا توجد بيانات" />
+      </div>
     </div>
   );
 };

@@ -20,6 +20,7 @@ import { useClients, useInvoices } from '@/hooks/entities';
 import { payments as mockPayments, accounts as mockAccounts } from '@/data/mock';
 import { api, isApiConfigured } from '@/lib/api';
 import { formatCurrency, formatDateShort, invoiceStatusLabel, paymentMethodLabel } from '@/lib/format';
+import { printElementOnly } from '@/lib/print';
 import type { Invoice, PaymentMethod } from '@/types';
 
 interface PaymentRecord {
@@ -261,6 +262,7 @@ const ClientDetail = () => {
         <span className="text-foreground">{client.name}</span>
       </div>
 
+      <div data-print-area className="print-area">
       {/* Hero card */}
       <Card className="p-6 mb-6 border-border/60 relative overflow-hidden">
         <div className="absolute inset-0 gradient-subtle opacity-50 pointer-events-none" />
@@ -310,8 +312,8 @@ const ClientDetail = () => {
             </div>
           </div>
 
-          <div className="flex gap-2 flex-wrap">
-            <Button variant="outline" onClick={() => window.print()}>
+          <div className="flex gap-2 flex-wrap no-print">
+            <Button variant="outline" onClick={printElementOnly}>
               <Printer className="h-4 w-4 ml-1" /> طباعة
             </Button>
             <Button variant="outline" onClick={() => navigate('/app/clients')}>
@@ -510,6 +512,7 @@ const ClientDetail = () => {
           </Card>
         </TabsContent>
       </Tabs>
+      </div>
     </div>
   );
 };

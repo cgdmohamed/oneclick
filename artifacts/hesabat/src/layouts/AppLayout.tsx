@@ -219,7 +219,7 @@ const AppShellInner = ({ kind }: { kind: 'company' | 'admin' }) => {
   const { user, logout, companyName, onboardingDone, hasActivePlan } = useAuth();
   const navigate = useNavigate();
   const { pathname } = useLocation();
-  const { features: featureSet } = useCurrentFeatureSet();
+  const { features: featureSet, featuresLoaded } = useCurrentFeatureSet();
   const unreadCount = useUnreadNotificationsCount();
   const { items: notifItems, markRead: markNotifRead, markAllRead: markAllNotifsRead } = useNotificationsPreview(kind === 'admin');
   const [notifOpen, setNotifOpen] = useState(false);
@@ -242,7 +242,7 @@ const AppShellInner = ({ kind }: { kind: 'company' | 'admin' }) => {
   const navGroups = (kind === 'admin' ? adminNavGroups : companyNavGroups)
     .map((group) => ({
       ...group,
-      items: kind === 'admin'
+      items: kind === 'admin' || !featuresLoaded
         ? group.items
         : group.items.filter((item) => !item.feature || featureSet.has(item.feature)),
     }))
@@ -429,7 +429,16 @@ const AppShellInner = ({ kind }: { kind: 'company' | 'admin' }) => {
             </div>
           )}
           {kind === 'company' && (() => {
-            const blocking = companyNav.find(n => n.feature && n.to !== '/app' && pathname.startsWith(n.to) && !featureSet.has(n.feature));
+            // Until the tenant's feature list has actually loaded (e.g. a
+            // fresh page load / direct deep link, before the async
+            // /api/subscriptions/features fetch in useCurrentFeatureSet
+            // resolves), featureSet starts empty — checking it right away
+            // flashed a false "غير مفعّلة في باقتك" block on every page for
+            // a moment. The API itself still enforces the real gate on every
+            // request, so rendering the page while this resolves is safe.
+            const blocking = featuresLoaded
+              ? companyNav.find(n => n.feature && n.to !== '/app' && pathname.startsWith(n.to) && !featureSet.has(n.feature))
+              : undefined;
             if (!blocking) return <Outlet />;
             return (
               <div className="max-w-xl mx-auto mt-12 rounded-2xl border border-border/60 bg-card p-8 text-center shadow-soft">

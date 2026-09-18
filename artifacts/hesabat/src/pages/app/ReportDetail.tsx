@@ -10,6 +10,7 @@ import { ArrowRight, Download, Printer } from 'lucide-react';
 import { payments as mockPayments } from '@/data/mock';
 import { useClients, useAccounts, useInvoices, useProducts } from '@/hooks/entities';
 import { api, isApiConfigured } from '@/lib/api';
+import { printElementOnly } from '@/lib/print';
 import { DataTable, Column } from '@/components/common/DataTable';
 import { formatCurrency, formatDateShort, paymentMethodLabel, invoiceStatusLabel } from '@/lib/format';
 import { StatusBadge } from '@/components/common/StatusBadge';
@@ -373,7 +374,10 @@ const ReportDetail = () => {
     }
     if (type === 'product-sales') {
       return (
-        <div className="space-y-5">
+        <div data-print-area className="print-area space-y-5">
+          <div className="hidden print:block">
+            <h1 className="text-xl font-bold">{titleMap[type] ?? 'تقرير'}</h1>
+          </div>
           <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-4">
             <Card className="p-4"><div className="text-xs text-muted-foreground">صافي المبيعات</div><div className="text-xl font-bold mt-1">{formatCurrency(Number(productSalesSummary?.net_sales ?? 0))}</div></Card>
             <Card className="p-4"><div className="text-xs text-muted-foreground">مجمل الربح</div><div className="text-xl font-bold mt-1">{formatCurrency(Number(productSalesSummary?.gross_profit ?? 0))}</div></Card>
@@ -384,8 +388,8 @@ const ReportDetail = () => {
           <Card className="p-5 border-border/60">
             <div className="flex items-center justify-between gap-3 mb-3">
               <h3 className="font-semibold">أفضل 10 منتجات</h3>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={() => window.print()}><Printer className="h-4 w-4 me-1" /> طباعة</Button>
+              <div className="flex gap-2 no-print">
+                <Button variant="outline" size="sm" onClick={printElementOnly}><Printer className="h-4 w-4 me-1" /> طباعة</Button>
                 <Button variant="outline" size="sm" onClick={exportProductSales}><Download className="h-4 w-4 me-1" /> CSV</Button>
               </div>
             </div>

@@ -17,6 +17,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { api, API_URL, getAuthHeaders, resolveAssetUrl } from '@/lib/api';
 import { formatCurrency, formatDateShort } from '@/lib/format';
+import { printElementOnly } from '@/lib/print';
 import { toast } from 'sonner';
 
 interface ProductDetailRow {
@@ -275,18 +276,23 @@ const ProductDetails = () => {
             </TabsContent>
 
             <TabsContent value="stock" className="mt-4 space-y-4">
-              <Card className="p-4 border-border/60">
+              <Card className="p-4 border-border/60 no-print">
                 <div className="grid sm:grid-cols-4 gap-3 items-end">
                   <div><Label>من</Label><Input className="mt-1.5" type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></div>
                   <div><Label>إلى</Label><Input className="mt-1.5" type="date" value={to} onChange={(e) => setTo(e.target.value)} /></div>
                   <Button onClick={() => setApplied({ from, to })}>تطبيق</Button>
                   <div className="flex gap-2">
-                    <Button variant="outline" onClick={() => window.print()}><Printer className="h-4 w-4 me-1" /> طباعة</Button>
+                    <Button variant="outline" onClick={printElementOnly}><Printer className="h-4 w-4 me-1" /> طباعة</Button>
                     <Button variant="outline" onClick={exportStockCard}><Download className="h-4 w-4 me-1" /> CSV</Button>
                   </div>
                 </div>
               </Card>
-              <DataTable data={stockCard.data ?? []} columns={stockColumns} pageSize={25} emptyTitle="لا توجد حركات مخزون لهذا المنتج" />
+              <div data-print-area className="print-area">
+                <div className="hidden print:block mb-3">
+                  <h1 className="text-xl font-bold">كارت الصنف — {product?.name}</h1>
+                </div>
+                <DataTable data={stockCard.data ?? []} columns={stockColumns} pageSize={25} emptyTitle="لا توجد حركات مخزون لهذا المنتج" />
+              </div>
             </TabsContent>
 
             <TabsContent value="sales" className="mt-4">
