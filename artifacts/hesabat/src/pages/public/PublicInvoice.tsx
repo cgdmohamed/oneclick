@@ -1,15 +1,14 @@
 import { useParams, Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
 import { Printer, ArrowRight } from 'lucide-react';
-import { BrandLogo } from '@/components/common/BrandLogo';
-import { formatCurrency, formatDate, invoiceStatusLabel } from '@/lib/format';
+import { formatDate, invoiceStatusLabel } from '@/lib/format';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { PrintableQr } from '@/components/common/PrintableQr';
 import { EmptyState } from '@/components/common/EmptyState';
 import { API_URL } from '@/lib/api';
 import { printElementOnly } from '@/lib/print';
+import { InvoiceDocument, type InvoiceDocumentConfig } from '@/components/common/InvoiceDocument';
 import type { InvoiceStatus } from '@/types';
 
 
@@ -30,12 +29,17 @@ interface PublicInvoiceData {
   client_tax: string | null;
   company_name: string;
   company_tax: string | null;
+  company_phone: string | null;
   company_address: string | null;
   company_logo: string | null;
   company_stamp: string | null;
   currency: string | null;
   currency_symbol: string | null;
   qr_public_visible?: boolean | null;
+  invoice_template: InvoiceDocumentConfig['template'] | null;
+  invoice_accent_color: string | null;
+  invoice_terms: string | null;
+  invoice_footer: string | null;
   items: Array<{ id: string; name: string; quantity: number; unit_price: number | string; discount?: number | string; line_total?: number | string }>;
 }
 
@@ -83,8 +87,6 @@ const PublicInvoice = () => {
   if (notFound || !data) return <EmptyState title="الفاتورة غير موجودة" />;
 
   const num = (v: number | string) => Number(v ?? 0);
-  const sym = data.currency_symbol ?? undefined;
-  const fc = (n: number) => formatCurrency(n, sym);
 
   return (
     <div className="min-h-screen bg-muted/30 py-8 print:bg-white print:p-0">
@@ -100,74 +102,39 @@ const PublicInvoice = () => {
           </div>
         </div>
 
-        <Card data-print-area className="p-8 md:p-10 shadow-soft border-border/60 print:shadow-none print:border-0 print-area">
-          <div className="flex items-start justify-between gap-4 pb-6 border-b border-border">
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                {data.company_logo ? (
-                  <img src={data.company_logo} alt={data.company_name} className="h-10 w-10 rounded-xl object-contain" />
-                ) : (
-                  <BrandLogo size="md" textOnly />
-                )}
-                <span className="font-bold text-lg">{data.company_name}</span>
-              </div>
-              {data.company_address && <p className="text-sm text-muted-foreground">{data.company_address}</p>}
-              {data.company_tax && <p className="text-sm text-muted-foreground">الرقم الضريبي: {data.company_tax}</p>}
-            </div>
-            <div className="text-end">
-              <div className="text-xs text-muted-foreground">فاتورة ضريبية</div>
-              <div className="font-bold text-lg">{data.number}</div>
-              <div className="mt-2"><StatusBadge status={mapStatus(data.status)} label={invoiceStatusLabel(mapStatus(data.status))} /></div>
-            </div>
-          </div>
-
-          <div className="grid sm:grid-cols-2 gap-6 py-6 border-b border-border text-sm">
-            <div>
-              <div className="text-xs text-muted-foreground mb-1">فاتورة إلى</div>
-              <div className="font-semibold">{data.client_name}</div>
-              {data.client_email && <div className="text-muted-foreground">{data.client_email}</div>}
-              {data.client_tax && <div className="text-muted-foreground">الرقم الضريبي: {data.client_tax}</div>}
-            </div>
-            <div className="sm:text-end">
-              <div className="grid grid-cols-2 gap-2">
-                <div><div className="text-xs text-muted-foreground">تاريخ الإصدار</div><div>{formatDate(data.issue_date)}</div></div>
-                <div><div className="text-xs text-muted-foreground">تاريخ الاستحقاق</div><div>{formatDate(data.due_date ?? data.issue_date)}</div></div>
-              </div>
-            </div>
-          </div>
-
-          <div className="py-6">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-start text-xs text-muted-foreground border-b border-border">
-                  <th className="py-2 font-semibold">الوصف</th>
-                  <th className="py-2 font-semibold w-20">الكمية</th>
-                  <th className="py-2 font-semibold w-28">سعر الوحدة</th>
-                  <th className="py-2 font-semibold w-28 text-end">الإجمالي</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.items.map((it) => (
-                  <tr key={it.id} className="border-b border-border/60">
-                    <td className="py-3">{it.name}</td>
-                    <td className="py-3">{it.quantity}</td>
-                    <td className="py-3">{fc(num(it.unit_price))}</td>
-                    <td className="py-3 text-end">{fc(Math.max(0, it.quantity * num(it.unit_price) - num(it.discount ?? 0)))}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="flex justify-end">
-            <div className="w-full max-w-xs space-y-2 text-sm">
-              <Row label="المجموع الفرعي" value={fc(num(data.subtotal))} />
-              <Row label="الضريبة" value={fc(num(data.vat_amount))} />
-              <div className="border-t border-border pt-2"><Row label="الإجمالي" value={fc(num(data.total))} bold /></div>
-              <Row label="المدفوع" value={fc(num(data.paid))} cls="text-success" />
-              <Row label="المتبقي" value={fc(num(data.remaining))} cls="text-destructive" bold />
-            </div>
-          </div>
+        <div data-print-area className="print-area space-y-4">
+          <InvoiceDocument
+            company={{
+              name: data.company_name,
+              phone: data.company_phone ?? undefined,
+              taxNumber: data.company_tax,
+              address: data.company_address,
+            }}
+            cfg={{
+              template: data.invoice_template ?? 'modern',
+              accentColor: data.invoice_accent_color ?? '#4F46E5',
+              showLogo: true,
+              showTaxNumber: true,
+              terms: data.invoice_terms,
+              footer: data.invoice_footer,
+              logoUrl: data.company_logo,
+              stampUrl: data.company_stamp,
+            }}
+            client={{ name: data.client_name, email: data.client_email, taxNumber: data.client_tax }}
+            invoiceNumber={data.number}
+            issueDate={formatDate(data.issue_date)}
+            dueDate={formatDate(data.due_date ?? data.issue_date)}
+            statusBadge={<StatusBadge status={mapStatus(data.status)} label={invoiceStatusLabel(mapStatus(data.status))} />}
+            items={data.items.map((it) => ({
+              id: it.id,
+              name: it.name,
+              quantity: it.quantity,
+              unitPrice: num(it.unit_price),
+              discount: num(it.discount ?? 0),
+              total: Math.max(0, it.quantity * num(it.unit_price) - num(it.discount ?? 0)),
+            }))}
+            totals={{ subtotal: num(data.subtotal), tax: num(data.vat_amount), total: num(data.total), paid: num(data.paid), remaining: num(data.remaining) }}
+          />
 
           <PrintableQr
             invoiceId={data.id}
@@ -175,27 +142,10 @@ const PublicInvoice = () => {
             invoiceNumber={data.number}
             visible={data.qr_public_visible !== false}
           />
-
-          {data.company_stamp && (
-            <div className="mt-8 flex justify-end">
-              <img src={data.company_stamp} alt="ختم الشركة" className="h-24 opacity-80" />
-            </div>
-          )}
-
-          <div className="mt-8 pt-6 border-t border-border text-center text-xs text-muted-foreground">
-            شكراً لتعاملكم معنا — تم إنشاء هذه الفاتورة عبر منصة ون كليك
-          </div>
-        </Card>
+        </div>
       </div>
     </div>
   );
 };
-
-const Row = ({ label, value, bold, cls }: { label: string; value: string; bold?: boolean; cls?: string }) => (
-  <div className={`flex justify-between ${bold ? 'font-bold text-base' : ''} ${cls ?? ''}`}>
-    <span className="text-muted-foreground font-normal">{label}</span>
-    <span>{value}</span>
-  </div>
-);
 
 export default PublicInvoice;

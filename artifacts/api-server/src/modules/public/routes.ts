@@ -30,6 +30,10 @@ interface PublicInvoicePayload {
     company_stamp: string | null;
     currency: string | null;
     qr_public_visible?: boolean | null;
+    invoice_template: string | null;
+    invoice_accent_color: string | null;
+    invoice_terms: string | null;
+    invoice_footer: string | null;
   };
   items: Array<{
     description: string;
@@ -98,6 +102,10 @@ router.get('/invoices/:publicId', async (req, res, next) => {
         currency:        EGP_CURRENCY_CODE,
         currency_symbol: EGP_CURRENCY_SYMBOL,
         qr_public_visible: qrPublicVisible,
+        invoice_template:     invoice.invoice_template,
+        invoice_accent_color: invoice.invoice_accent_color,
+        invoice_terms:        invoice.invoice_terms,
+        invoice_footer:       invoice.invoice_footer,
         items: items.map((r, i) => ({
           id: String(i),
           name: r.description,

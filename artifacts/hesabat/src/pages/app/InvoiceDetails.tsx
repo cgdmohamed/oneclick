@@ -19,6 +19,16 @@ import type { Payment, PaymentSplit, Invoice, InvoiceStatus } from '@/types';
 import { api, ApiError, isApiConfigured, resolveAssetUrl } from '@/lib/api';
 import { useAccounts } from '@/hooks/entities';
 import { printElementOnly } from '@/lib/print';
+import { InvoiceDocument, type InvoiceDocumentConfig } from '@/components/common/InvoiceDocument';
+
+interface ApiCompanyProfile {
+  name: string; email: string | null; phone: string | null; tax_number: string | null; address: string | null;
+  logo_url: string | null; stamp_url: string | null;
+  invoice_template: InvoiceDocumentConfig['template'] | null;
+  invoice_accent_color: string | null;
+  invoice_terms: string | null;
+  invoice_footer: string | null;
+}
 
 interface ApiItem { id: string; description: string; quantity: number; unit_price: string | number; discount?: string | number | null; line_total?: string | number | null; product_id: string | null }
 interface ApiPayment { id: string; amount: string | number; paid_at: string; method: string; account_id: string; reference: string | null; notes: string | null }
@@ -58,6 +68,14 @@ const InvoiceDetails = () => {
     enabled: apiOn && !!id,
     queryKey: ['invoice', id],
     queryFn: async () => (await api.get<{ data: ApiInvoice }>(`/api/invoices/${id}`)).data,
+  });
+
+  // Same appearance settings used by the Settings-tab preview and the public shared
+  // link, so the invoice looks identical everywhere instead of drifting per-surface.
+  const { data: companyProfile } = useQuery({
+    enabled: apiOn,
+    queryKey: ['company-profile'],
+    queryFn: async () => (await api.get<{ data: ApiCompanyProfile }>('/api/companies/me')).data,
   });
 
   /* --- Mock fallback derived state --- */
@@ -329,29 +347,9 @@ const InvoiceDetails = () => {
       />
 
       <div className="grid lg:grid-cols-3 gap-5">
-        <Card data-print-area className="lg:col-span-2 p-6 border-border/60 shadow-soft print-area">
-          <div className="flex items-start justify-between gap-4 pb-4 border-b border-border">
-            <div>
-              <div className="text-xs text-muted-foreground">العميل</div>
-              <div className="font-semibold text-lg">{clientName}</div>
-              {clientPhone && <div className="text-sm text-muted-foreground">{clientPhone}</div>}
-            </div>
-            <div className="text-end">
-              {/* A bad-debt write-off doesn't change invoice.status (still 'paid' at the DB
-                  level, matching how remaining is tracked) — this only overrides the badge
-                  shown here so a written-off invoice isn't mistaken for one actually collected. */}
-              {apiOn && apiInvoice?.has_bad_debt_writeoff ? (
-                <StatusBadge status="written_off" label="معدومة" size="md" />
-              ) : (
-                <StatusBadge status={apiOn && apiInvoice ? rawStatus : status} label={invoiceStatusLabel(apiOn && apiInvoice ? rawStatus : status)} size="md" />
-              )}
-              <div className="text-xs text-muted-foreground mt-2">تاريخ الإصدار: {formatDate(invoice.issueDate)}</div>
-              <div className="text-xs text-muted-foreground">تاريخ الاستحقاق: {formatDate(invoice.dueDate)}</div>
-            </div>
-          </div>
-
+        <div data-print-area className="lg:col-span-2 print-area space-y-4">
           {(apiOn && apiInvoice && (apiInvoice.reference_number || apiInvoice.po_number || apiInvoice.cost_center_name || apiInvoice.project_name)) && (
-            <div className="flex flex-wrap gap-x-6 gap-y-1 py-3 border-b border-border text-sm no-print">
+            <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm no-print">
               {apiInvoice.reference_number && <div><span className="text-muted-foreground">الرقم المرجعي:</span> {apiInvoice.reference_number}</div>}
               {apiInvoice.po_number && <div><span className="text-muted-foreground">رقم أمر الشراء:</span> {apiInvoice.po_number}</div>}
               {apiInvoice.cost_center_name && <div><span className="text-muted-foreground">مركز التكلفة:</span> {apiInvoice.cost_center_name}</div>}
@@ -359,36 +357,42 @@ const InvoiceDetails = () => {
             </div>
           )}
 
-          <table className="w-full text-sm mt-4">
-            <thead>
-              <tr className="text-start text-xs text-muted-foreground border-b border-border">
-                <th className="py-2 font-semibold">الوصف</th>
-                <th className="py-2 font-semibold w-20">الكمية</th>
-                <th className="py-2 font-semibold w-28">سعر الوحدة</th>
-                <th className="py-2 font-semibold w-28">الخصم</th>
-                <th className="py-2 font-semibold w-28 text-end">الإجمالي</th>
-              </tr>
-            </thead>
-            <tbody>
-              {viewItems.map(it => (
-                <tr key={it.id} className="border-b border-border/60">
-                  <td className="py-3">{it.name}</td>
-                  <td className="py-3">{it.quantity}</td>
-                  <td className="py-3">{formatCurrency(it.unitPrice)}</td>
-                  <td className="py-3">{it.discount > 0 ? formatCurrency(it.discount) : '—'}</td>
-                  <td className="py-3 text-end">{formatCurrency(it.netTotal)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-
-          <div className="hidden print:block mt-6">
-            <InvoiceSummary subtotal={invoice.subtotal} tax={invoice.tax} discount={invoice.discount} total={invoice.total} paid={paid} remaining={remaining} />
-          </div>
+          <InvoiceDocument
+            company={{
+              name: companyProfile?.name ?? '',
+              email: companyProfile?.email,
+              phone: companyProfile?.phone,
+              taxNumber: companyProfile?.tax_number,
+              address: companyProfile?.address,
+            }}
+            cfg={{
+              template: companyProfile?.invoice_template ?? 'modern',
+              accentColor: companyProfile?.invoice_accent_color ?? '#4F46E5',
+              showLogo: true,
+              showTaxNumber: true,
+              terms: companyProfile?.invoice_terms,
+              footer: companyProfile?.invoice_footer,
+              logoUrl: companyProfile?.logo_url,
+              stampUrl: companyProfile?.stamp_url,
+            }}
+            client={{ name: clientName, email: clientEmail, taxNumber: apiOn && apiInvoice ? apiInvoice.client_tax : null }}
+            invoiceNumber={invoice.number}
+            issueDate={formatDate(invoice.issueDate)}
+            dueDate={formatDate(invoice.dueDate)}
+            statusBadge={
+              apiOn && apiInvoice?.has_bad_debt_writeoff ? (
+                <StatusBadge status="written_off" label="معدومة" size="md" />
+              ) : (
+                <StatusBadge status={apiOn && apiInvoice ? rawStatus : status} label={invoiceStatusLabel(apiOn && apiInvoice ? rawStatus : status)} size="md" />
+              )
+            }
+            items={viewItems.map((it) => ({ id: it.id, name: it.name, quantity: it.quantity, unitPrice: it.unitPrice, discount: it.discount, total: it.netTotal }))}
+            totals={{ subtotal: invoice.subtotal, tax: invoice.tax, discount: invoice.discount, total: invoice.total, paid, remaining }}
+          />
 
           <PrintableQr invoiceId={invoice.id} value={publicUrl} invoiceNumber={invoice.number} visible={qrPublicVisible} />
 
-          <div className="flex flex-wrap gap-2 mt-5 no-print">
+          <div className="flex flex-wrap gap-2 no-print">
             <Button variant="outline" size="sm" onClick={sendEmail}><Mail className="h-4 w-4 ml-1" /> إرسال عبر البريد الإلكتروني</Button>
             <Button
               size="sm"
@@ -399,7 +403,7 @@ const InvoiceDetails = () => {
               <MessageCircle className="h-4 w-4 ml-1" /> واتساب
             </Button>
           </div>
-        </Card>
+        </div>
 
         <div className="space-y-5">
           <InvoiceSummary subtotal={invoice.subtotal} tax={invoice.tax} discount={invoice.discount} total={invoice.total} paid={paid} remaining={remaining} />

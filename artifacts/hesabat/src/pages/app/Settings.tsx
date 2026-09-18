@@ -15,6 +15,7 @@ import { toast } from 'sonner';
 import { api, isApiConfigured, resolveAssetUrl, ApiError } from '@/lib/api';
 import { EGP_CURRENCY_CODE, EGP_CURRENCY_SYMBOL, setCurrencySymbol, setCompanyCurrencyCode } from '@/lib/currency';
 import { InvoiceAlertsSettingsPanel } from '@/components/common/InvoiceAlertsSettings';
+import { InvoiceDocument } from '@/components/common/InvoiceDocument';
 
 interface CompanyProfile {
   name: string;
@@ -581,117 +582,18 @@ const InvoicePreview = ({ profile, cfg, address, client }: { profile: CompanyPro
   const subtotal = sampleItems.reduce((s, i) => s + i.qty * i.price, 0);
   const tax = +(subtotal * (cfg.taxRate / 100)).toFixed(2);
   const total = subtotal + tax;
-  const fmt = (n: number) => `${new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(n)} ${EGP_CURRENCY_SYMBOL}`;
-
-  const isMinimal = cfg.template === 'minimal';
-  const isClassic = cfg.template === 'classic';
 
   return (
-    <div className="rounded-xl border border-border/60 bg-white text-slate-900 shadow-soft overflow-hidden" dir="rtl">
-      <div
-        className="p-6 flex items-start justify-between gap-4"
-        style={
-          isMinimal
-            ? { background: '#fff', borderBottom: `1px solid ${cfg.accentColor}22` }
-            : isClassic
-            ? { background: '#f8fafc', borderBottom: `4px solid ${cfg.accentColor}` }
-            : { background: cfg.accentColor, color: '#fff' }
-        }
-      >
-        <div className="flex items-center gap-3">
-          {cfg.showLogo && (
-            cfg.logoUrl ? (
-              <img src={resolveAssetUrl(cfg.logoUrl)} alt="شعار" className="h-12 w-12 rounded-xl object-contain bg-white/90 p-1" />
-            ) : (
-              <div
-                className="h-12 w-12 rounded-xl flex items-center justify-center"
-                style={{
-                  background: cfg.template === 'modern' ? 'rgba(255,255,255,0.2)' : cfg.accentColor + '22',
-                  color: cfg.template === 'modern' ? '#fff' : cfg.accentColor,
-                }}
-              >
-                <Building2 className="h-6 w-6" />
-              </div>
-            )
-          )}
-          <div>
-            <div className="font-bold text-lg">{profile.name}</div>
-            <div className="text-xs opacity-80">{profile.email} · {profile.phone}</div>
-          </div>
-        </div>
-        <div className="text-end">
-          <div className="font-bold text-xl">فاتورة ضريبية</div>
-          <div className="text-sm opacity-80">رقم: {buildInvoiceNumber(cfg)}</div>
-        </div>
-      </div>
-
-      <div className="p-6 grid grid-cols-2 gap-4 text-sm border-b border-slate-200">
-        <div>
-          <div className="text-slate-500 text-xs mb-1">فاتورة إلى</div>
-          <div className="font-semibold">{client.name || '—'}</div>
-          {client.address && <div className="text-slate-600 text-xs">{client.address}</div>}
-          {client.email && <div className="text-slate-600 text-xs">{client.email}</div>}
-          {client.taxNumber && <div className="text-slate-600 text-xs">الرقم الضريبي: {client.taxNumber}</div>}
-        </div>
-        <div className="text-end">
-          <div className="text-slate-500 text-xs">تاريخ الإصدار: <span className="text-slate-900">06/05/2026</span></div>
-          <div className="text-slate-500 text-xs">تاريخ الاستحقاق: <span className="text-slate-900">05/06/2026</span></div>
-          {cfg.showTaxNumber && profile.taxNumber && (
-            <div className="text-slate-500 text-xs">الرقم الضريبي: <span className="text-slate-900">{profile.taxNumber}</span></div>
-          )}
-        </div>
-      </div>
-
-      <div className="p-6">
-        <table className="w-full text-sm">
-          <thead>
-            <tr style={{ color: cfg.accentColor }} className="text-start border-b-2" >
-              <th className="py-2 font-semibold">الوصف</th>
-              <th className="py-2 font-semibold w-16 text-center">الكمية</th>
-              <th className="py-2 font-semibold w-28 text-end">السعر</th>
-              <th className="py-2 font-semibold w-28 text-end">الإجمالي</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sampleItems.map((it, i) => (
-              <tr key={i} className="border-b border-slate-100">
-                <td className="py-2.5">{it.name}</td>
-                <td className="py-2.5 text-center">{it.qty}</td>
-                <td className="py-2.5 text-end">{fmt(it.price)}</td>
-                <td className="py-2.5 text-end font-medium">{fmt(it.qty * it.price)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-
-        <div className="flex justify-end mt-4">
-          <div className="w-64 space-y-1.5 text-sm">
-            <div className="flex justify-between text-slate-600"><span>المجموع الفرعي</span><span>{fmt(subtotal)}</span></div>
-            <div className="flex justify-between text-slate-600"><span>الضريبة ({cfg.taxRate}%)</span><span>{fmt(tax)}</span></div>
-            <div
-              className="flex justify-between font-bold text-base pt-2 border-t"
-              style={{ color: cfg.accentColor, borderColor: cfg.accentColor + '40' }}
-            >
-              <span>الإجمالي</span><span>{fmt(total)}</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-6 text-xs text-slate-500 border-t border-slate-100 pt-4 space-y-1">
-          {cfg.terms && <div>{cfg.terms}</div>}
-          {address && <div>{address}</div>}
-          {cfg.footer && <div className="text-center font-medium pt-2" style={{ color: cfg.accentColor }}>{cfg.footer}</div>}
-        </div>
-        {cfg.stampUrl && (
-          <div className="mt-6 flex justify-end">
-            <div className="text-center">
-              <img src={resolveAssetUrl(cfg.stampUrl)} alt="ختم/توقيع" className="h-24 w-auto object-contain opacity-90" />
-              <div className="text-[10px] text-slate-500 mt-1">الختم والتوقيع</div>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
+    <InvoiceDocument
+      company={{ name: profile.name, email: profile.email, phone: profile.phone, taxNumber: profile.taxNumber, address }}
+      cfg={cfg}
+      client={client}
+      invoiceNumber={buildInvoiceNumber(cfg)}
+      issueDate="06/05/2026"
+      dueDate="05/06/2026"
+      items={sampleItems.map((it, i) => ({ id: i, name: it.name, quantity: it.qty, unitPrice: it.price, total: it.qty * it.price }))}
+      totals={{ subtotal, tax, total }}
+    />
   );
 };
 
