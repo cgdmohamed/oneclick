@@ -42,7 +42,16 @@ const NewPayrollRun = () => {
   };
   const cols: Column<PayrollRunLine>[] = [
     { key: 'employee', header: 'الموظف', cell: (r) => `${r.employee_code ?? ''} ${r.employee_name ?? ''}`.trim() },
-    { key: 'basic', header: 'الأساسي', cell: (r) => formatCurrency(Number(r.basic_salary)), className: 'text-end' },
+    { key: 'basic', header: 'الأساسي', cell: (r) => (
+      <div>
+        {formatCurrency(Number(r.basic_salary))}
+        {r.proration_days != null && r.proration_total_days != null && (
+          <div className="text-xs text-muted-foreground">
+            محسوب بالتناسب: {r.proration_days} من {r.proration_total_days} يوم (تعيين خلال الشهر)
+          </div>
+        )}
+      </div>
+    ), className: 'text-end' },
     { key: 'earn', header: 'إجمالي الاستحقاقات', cell: (r) => formatCurrency(Number(r.total_earnings)), className: 'text-end' },
     { key: 'ded', header: 'الاستقطاعات', cell: (r) => formatCurrency(Number(r.total_deductions)), className: 'text-end' },
     { key: 'net', header: 'الصافي', cell: (r) => formatCurrency(Number(r.net_salary)), className: 'text-end' },

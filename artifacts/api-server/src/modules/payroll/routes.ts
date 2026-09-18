@@ -52,6 +52,8 @@ type PreviewLine = {
   branch_id: string | null;
   cost_center_id: string | null;
   components: PreviewComponent[];
+  proration_days: number | null;
+  proration_total_days: number | null;
 };
 
 const runSchema = z.object({
@@ -68,6 +70,21 @@ const paySchema = z.object({
 
 function monthEnd(year: number, month: number) {
   return new Date(Date.UTC(year, month, 0)).toISOString().slice(0, 10);
+}
+
+// Works on plain "YYYY-MM-DD" strings (lexicographic comparison already
+// works for those) instead of Date objects, to sidestep timezone drift
+// between how pg returns a DATE column and how it's compared here.
+function dateStr(value: unknown): string {
+  return value instanceof Date ? value.toISOString().slice(0, 10) : String(value).slice(0, 10);
+}
+
+function daysBetweenInclusive(fromISO: string, toISO: string): number {
+  const [fy, fm, fd] = fromISO.split('-').map(Number);
+  const [ty, tm, td] = toISO.split('-').map(Number);
+  const from = Date.UTC(fy, fm - 1, fd);
+  const to = Date.UTC(ty, tm - 1, td);
+  return Math.floor((to - from) / 86400000) + 1;
 }
 
 async function moneyAccountChartAccount(db: any, companyId: string, accountId: string) {
@@ -89,7 +106,22 @@ async function payrollPreview(db: any, companyId: string, body: z.infer<typeof r
   const components = await db.query(`SELECT * FROM salary_components WHERE company_id = $1 AND is_active = TRUE`, [companyId]);
   const componentMap = new Map(components.rows.map((c: any) => [c.id, c]));
   const inputMap = new Map(body.lines.map((l) => [l.employee_id, l.components]));
-  const mappedLines: PreviewLine[] = employees.rows.map((emp: any) => {
+
+  // Basic salary is prorated by actual calendar days when an employee's
+  // hire date falls inside the run's period — before this, the full
+  // monthly basic_salary was always used regardless of hire_date, so an
+  // employee hired mid-month (or even after the period being run) was paid
+  // a full month's salary.
+  const periodStart = `${body.period_year}-${String(body.period_month).padStart(2, '0')}-01`;
+  const periodEnd = monthEnd(body.period_year, body.period_month);
+  const daysInPeriod = Number(periodEnd.slice(8, 10));
+
+  const mappedLines: (PreviewLine | null)[] = employees.rows.map((emp: any) => {
+    const hireDate = dateStr(emp.hire_date);
+    // Not yet hired as of this payroll period — exclude entirely rather
+    // than paying a full salary for a month before they joined.
+    if (hireDate > periodEnd) return null;
+
     const componentRows = (inputMap.get(emp.id) ?? []).map((item) => {
       const comp: any = componentMap.get(item.salary_component_id);
       if (!comp) throw badRequest('Invalid salary component');
@@ -97,7 +129,14 @@ async function payrollPreview(db: any, companyId: string, body: z.infer<typeof r
     }).filter((item): item is PreviewComponent => item.amount > 0);
     const earnings = componentRows.filter((c) => c.type === 'earning').reduce((s, c) => s + c.amount, 0);
     const deductions = componentRows.filter((c) => c.type === 'deduction').reduce((s, c) => s + c.amount, 0);
-    const basic = round2(Number(emp.basic_salary));
+
+    let basic = round2(Number(emp.basic_salary));
+    let prorationDays: number | null = null;
+    if (hireDate > periodStart) {
+      prorationDays = daysBetweenInclusive(hireDate, periodEnd);
+      basic = round2(basic * (prorationDays / daysInPeriod));
+    }
+
     const totalEarnings = round2(basic + earnings);
     const totalDeductions = round2(deductions);
     return {
@@ -111,9 +150,13 @@ async function payrollPreview(db: any, companyId: string, body: z.infer<typeof r
       branch_id: emp.branch_id,
       cost_center_id: emp.cost_center_id,
       components: componentRows,
+      proration_days: prorationDays,
+      proration_total_days: prorationDays !== null ? daysInPeriod : null,
     };
   });
-  const lines = mappedLines.filter((line) => line.basic_salary > 0 || line.components.length > 0);
+  const lines = mappedLines
+    .filter((line): line is PreviewLine => line !== null)
+    .filter((line) => line.basic_salary > 0 || line.components.length > 0);
   const totals = lines.reduce((sum, line) => {
     sum.basic_salary += line.basic_salary;
     sum.total_earnings += line.total_earnings;

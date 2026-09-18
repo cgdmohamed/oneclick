@@ -290,6 +290,8 @@ export interface PayrollRunLine {
   branch_id?: string | null;
   cost_center_id?: string | null;
   components?: Array<{ name: string; type: string; amount: string | number }>;
+  proration_days?: number | null;
+  proration_total_days?: number | null;
 }
 
 export interface BankReconciliation {
