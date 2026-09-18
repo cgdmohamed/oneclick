@@ -549,7 +549,7 @@ const Products = () => {
     { key: 'name', header: 'المنتج', cell: r => (
       <div className="flex items-center gap-2">
         <Link to={`/app/products/${r.id}`} className="font-medium text-primary hover:underline">{r.name}</Link>
-        {r.quantity <= r.alertLevel && <AlertTriangle className="h-4 w-4 text-warning" />}
+        {r.productType === 'stock' && r.quantity <= r.alertLevel && <AlertTriangle className="h-4 w-4 text-warning" />}
       </div>
     )},
     { key: 'code', header: 'الكود', cell: r => <span className="text-muted-foreground text-sm">{r.code}</span> },
