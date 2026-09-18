@@ -7,8 +7,10 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
 import { useState } from 'react';
 import { useAuth } from '@/lib/auth';
-import { isApiConfigured, loginRequest, ApiError } from '@/lib/api';
+import { api, isApiConfigured, loginRequest, ApiError } from '@/lib/api';
 import { toast } from 'sonner';
+
+const UNVERIFIED_EMAIL_MESSAGE = 'يجب تأكيد بريدك الإلكتروني أولاً. تحقق من صندوق الوارد، أو اطلب رابط تأكيد جديد.';
 
 /**
  * Validate a post-login redirect target to prevent open-redirect attacks.
@@ -24,14 +26,29 @@ const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [needsVerification, setNeedsVerification] = useState(false);
+  const [resending, setResending] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const redirectTo = sanitizeRedirect(searchParams.get('redirect'));
 
+  const resendVerification = async () => {
+    setResending(true);
+    try {
+      await api.post('/api/auth/resend-verification-public', { email });
+      toast.success('تم إرسال رابط تأكيد جديد إلى بريدك الإلكتروني');
+    } catch {
+      toast.error('تعذّر إرسال الرابط، حاول مرة أخرى لاحقاً');
+    } finally {
+      setResending(false);
+    }
+  };
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setNeedsVerification(false);
     try {
       if (isApiConfigured()) {
         const res = await loginRequest(email, password);
@@ -58,6 +75,7 @@ const Login = () => {
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : 'تعذّر تسجيل الدخول';
       toast.error(msg);
+      if (msg === UNVERIFIED_EMAIL_MESSAGE) setNeedsVerification(true);
     } finally {
       setLoading(false);
     }
@@ -91,6 +109,14 @@ const Login = () => {
             <Button type="submit" size="lg" className="w-full" disabled={loading}>
               {loading ? 'جارٍ الدخول…' : 'تسجيل الدخول'}
             </Button>
+            {needsVerification && (
+              <Button
+                type="button" variant="outline" size="lg" className="w-full"
+                onClick={resendVerification} disabled={resending}
+              >
+                {resending ? 'جارٍ الإرسال…' : 'إعادة إرسال رابط تأكيد البريد'}
+              </Button>
+            )}
           </form>
           <p className="text-sm text-muted-foreground text-center mt-6">
             ليس لديك حساب؟ <Link to="/register" className="text-primary font-semibold">سجّل شركتك</Link>

@@ -317,6 +317,13 @@ router.post('/login', async (req, res, next) => {
     if (!ok) { noteFailure(body.email); throw unauthorized('Invalid credentials'); }
     noteSuccess(body.email);
     if (u.rows[0].disabled) throw forbidden('تم تعطيل حسابك. يرجى التواصل مع مدير الشركة.');
+    // SEC-09: block login until the email is confirmed — before this check, login only
+    // reported `emailVerified` in its response without acting on it, so an unconfirmed
+    // (or mistyped) email never blocked anything. Super admins are platform-created
+    // accounts, not public signups, so they're exempt.
+    if (!u.rows[0].is_super_admin && !u.rows[0].email_verified_at) {
+      throw forbidden('يجب تأكيد بريدك الإلكتروني أولاً. تحقق من صندوق الوارد، أو اطلب رابط تأكيد جديد.');
+    }
 
     const userId = u.rows[0].id;
 
@@ -379,6 +386,24 @@ router.post('/verify-email', async (req, res, next) => {
       companyId: null, userId: payload.sub,
       action: 'auth.email_verified', entity: 'user', entityId: payload.sub,
     });
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
+/**
+ * SEC-09: re-issue a verification email by address, without requiring a session — a user
+ * blocked at login for an unverified email has no token yet, so the authenticated
+ * /resend-verification route below is unreachable for them. Mirrors /forgot-password:
+ * always responds { ok: true } regardless of whether the email exists or is already
+ * verified, so this can't be used to enumerate registered addresses.
+ */
+router.post('/resend-verification-public', async (req, res, next) => {
+  try {
+    const { email } = z.object({ email: z.string().email() }).parse(req.body);
+    const u = await pool.query(`SELECT id, email_verified_at FROM users WHERE email = $1`, [email]);
+    if (u.rowCount && !u.rows[0].email_verified_at) {
+      await sendVerificationEmail(u.rows[0].id, email);
+    }
     res.json({ ok: true });
   } catch (e) { next(e); }
 });
