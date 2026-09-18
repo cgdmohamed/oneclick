@@ -102,6 +102,20 @@ router.patch('/:id/status', requireRole('company_admin'), async (req, res, next)
     );
     if (!membership.rowCount) throw badRequest('User not found in this company');
 
+    if (body.disabled) {
+      // `users.disabled` is a single account-wide flag, not per-company. If this user also
+      // belongs to another company, disabling them here would silently lock them out of
+      // that other company too — something this admin has no authority over. Removing the
+      // user from just this company (DELETE /:id below) is the correctly-scoped action.
+      const otherCompanies = await pool.query(
+        `SELECT 1 FROM user_companies WHERE user_id = $1 AND company_id <> $2 LIMIT 1`,
+        [id, t.companyId],
+      );
+      if (otherCompanies.rowCount) {
+        throw badRequest('This user also belongs to another company — disabling would lock them out there too. Remove them from this company instead.');
+      }
+    }
+
     const updated = await pool.query(
       `UPDATE users SET disabled = $1, updated_at = now() WHERE id = $2
        RETURNING id, email, name, disabled`,

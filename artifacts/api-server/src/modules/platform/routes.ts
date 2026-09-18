@@ -21,6 +21,35 @@ import { env } from '../../config/env.js';
 const router = Router();
 router.use(requireSuperAdmin);
 
+// Tables that are administrative/plumbing rather than real business data — a row here
+// doesn't mean the company has been "used", so they're excluded from the delete-signup
+// data check below (otherwise every approved-then-reset company would be unremovable).
+const NON_OPERATIONAL_TABLES = new Set([
+  'companies', 'subscriptions', 'user_companies', 'accounting_settings',
+  'invoice_alert_settings', 'notifications', 'audit_log', 'invitations',
+]);
+
+// Checks every table that has a company_id column (discovered dynamically, so a future
+// migration adding a new company-scoped table is covered automatically) for any row
+// belonging to this company. Used to decide whether a "pending" signup can be hard-deleted
+// or must go through decline instead — every table cascades on companies.id, so a single
+// table check (as this endpoint used to do) misses real data sitting in any other table.
+async function companyHasOperationalData(companyId: string): Promise<boolean> {
+  const tablesRes = await pool.query<{ table_name: string }>(
+    `SELECT DISTINCT table_name FROM information_schema.columns
+     WHERE table_schema = 'public' AND column_name = 'company_id'`,
+  );
+  for (const { table_name } of tablesRes.rows) {
+    if (NON_OPERATIONAL_TABLES.has(table_name)) continue;
+    const r = await pool.query(
+      `SELECT EXISTS(SELECT 1 FROM "${table_name}" WHERE company_id = $1) AS found`,
+      [companyId],
+    );
+    if (r.rows[0].found) return true;
+  }
+  return false;
+}
+
 /* ---- Platform settings (branding / landing_content / tracking) ---- */
 router.use('/settings', adminSettingsRouter);
 
@@ -1065,13 +1094,11 @@ router.delete('/signups/:id', async (req, res, next) => {
       throw badRequest('Only pending signups can be removed. Decline the company first.');
     }
 
-    // Block deletion if the company has any operational data.
-    const hasData = await pool.query(
-      `SELECT EXISTS(SELECT 1 FROM invoices WHERE company_id = $1) AS has_invoices`,
-      [req.params.id],
-    );
-    if (hasData.rows[0].has_invoices) {
-      throw badRequest('This company has existing invoices and cannot be deleted. Decline it instead.');
+    // Block deletion if the company has any operational data in ANY company-scoped table
+    // (not just invoices) — every such table cascades on companies.id, so this is the last
+    // line of defense against irreversibly wiping a company that already has real records.
+    if (await companyHasOperationalData(req.params.id)) {
+      throw badRequest('This company has existing data and cannot be deleted. Decline it instead.');
     }
 
     await pool.query(`DELETE FROM companies WHERE id = $1`, [req.params.id]);
