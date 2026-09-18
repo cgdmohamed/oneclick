@@ -100,11 +100,12 @@ interface NewMovement {
   type: 'in' | 'out' | 'adjustment';
   direction: 'increase' | 'decrease';
   quantity: string;
+  unit_cost: string;
   reason: string;
 }
 
 const emptyMovement: NewMovement = {
-  product_id: '', supplier_id: '', type: 'in', direction: 'increase', quantity: '1', reason: '',
+  product_id: '', supplier_id: '', type: 'in', direction: 'increase', quantity: '1', unit_cost: '', reason: '',
 };
 
 const NO_SUPPLIER = '__none__';
@@ -331,12 +332,15 @@ const Products = () => {
     if (!qty || qty <= 0) return toast.error('الكمية يجب أن تكون أكبر من صفر');
     setMovementSaving(true);
     try {
+      const isIncrease = newMovement.type === 'in' || (newMovement.type === 'adjustment' && newMovement.direction === 'increase');
+      const unitCost = isIncrease && newMovement.unit_cost ? parseFloat(newMovement.unit_cost) : undefined;
       await api.post('/api/stock-movements', {
         product_id:  newMovement.product_id,
         supplier_id: (newMovement.supplier_id && newMovement.supplier_id !== NO_SUPPLIER) ? newMovement.supplier_id : null,
         type:        newMovement.type,
         direction:   newMovement.type === 'adjustment' ? newMovement.direction : undefined,
         quantity:    qty,
+        unit_cost:   unitCost,
         reason:      newMovement.reason || null,
       });
       await Promise.all([
@@ -873,6 +877,23 @@ const Products = () => {
                     <SelectItem value="decrease">نقصان</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+            )}
+            {(newMovement.type === 'in' || (newMovement.type === 'adjustment' && newMovement.direction === 'increase')) && (
+              <div>
+                <Label>تكلفة الوحدة (اختياري)</Label>
+                <Input
+                  className="mt-1.5"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={newMovement.unit_cost}
+                  onChange={e => setNewMovement(p => ({ ...p, unit_cost: e.target.value }))}
+                  placeholder={selectedMovementProduct ? String(selectedMovementProduct.cost ?? 0) : '0'}
+                />
+                <p className="mt-1 text-xs text-muted-foreground">
+                  اتركه فارغًا لاستخدام متوسط تكلفة الصنف الحالي. أدخل تكلفة مختلفة ليعاد احتساب المتوسط المرجّح لكل الكمية.
+                </p>
               </div>
             )}
             {suppliers.length > 0 && (
