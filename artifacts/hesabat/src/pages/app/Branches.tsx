@@ -76,8 +76,10 @@ const Branches = () => {
         <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle className="flex items-center gap-2"><Building2 className="h-5 w-5" /> {editing.id ? 'تعديل فرع' : 'فرع جديد'}</DialogTitle></DialogHeader>
           <div className="grid sm:grid-cols-2 gap-4">
-            <div><Label>الكود</Label><Input className="mt-1.5" value={editing.code} onChange={(e) => setEditing(v => ({ ...v, code: e.target.value }))} /></div>
-            <div><Label>اسم الفرع *</Label><Input className="mt-1.5" value={editing.name} onChange={(e) => setEditing(v => ({ ...v, name: e.target.value }))} /></div>
+            {editing.id && (
+              <div><Label>الكود</Label><Input className="mt-1.5" value={editing.code} disabled readOnly /></div>
+            )}
+            <div className={editing.id ? '' : 'sm:col-span-2'}><Label>اسم الفرع *</Label><Input className="mt-1.5" value={editing.name} onChange={(e) => setEditing(v => ({ ...v, name: e.target.value }))} /></div>
             <div><Label>الهاتف</Label><Input className="mt-1.5" value={editing.phone} onChange={(e) => setEditing(v => ({ ...v, phone: e.target.value }))} /></div>
             <div className="flex items-center gap-3 pt-7"><Switch checked={editing.isActive} onCheckedChange={(v) => setEditing(s => ({ ...s, isActive: v }))} /><Label>نشط</Label></div>
             <div className="sm:col-span-2"><Label>العنوان</Label><Input className="mt-1.5" value={editing.address} onChange={(e) => setEditing(v => ({ ...v, address: e.target.value }))} /></div>

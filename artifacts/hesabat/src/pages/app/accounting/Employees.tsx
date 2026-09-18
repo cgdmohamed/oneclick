@@ -14,7 +14,7 @@ import { toast } from 'sonner';
 import type { Employee } from './types';
 
 interface Dimension { id: string; name: string; code?: string | null; is_active: boolean }
-const empty = { employee_code: '', name: '', phone: '', email: '', national_id: '', hire_date: new Date().toISOString().slice(0, 10), branch_id: '', cost_center_id: '', basic_salary: '', notes: '' };
+const empty = { name: '', phone: '', email: '', national_id: '', hire_date: new Date().toISOString().slice(0, 10), branch_id: '', cost_center_id: '', basic_salary: '', notes: '' };
 
 const Employees = () => {
   const qc = useQueryClient();
@@ -44,7 +44,6 @@ const Employees = () => {
       <DataTable data={data} columns={columns} searchKeys={['employee_code', 'name']} emptyTitle="لا يوجد موظفون" />
       <Dialog open={open} onOpenChange={setOpen}><DialogContent dir="rtl" className="max-w-2xl"><DialogHeader><DialogTitle>موظف جديد</DialogTitle></DialogHeader>
         <div className="grid md:grid-cols-3 gap-3">
-          <div><Label>الكود</Label><Input className="mt-1.5" value={form.employee_code} onChange={(e) => setForm((p) => ({ ...p, employee_code: e.target.value }))} /></div>
           <div><Label>الاسم</Label><Input className="mt-1.5" value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} /></div>
           <div><Label>تاريخ التعيين</Label><Input className="mt-1.5" type="date" value={form.hire_date} onChange={(e) => setForm((p) => ({ ...p, hire_date: e.target.value }))} /></div>
           <div><Label>الهاتف</Label><Input className="mt-1.5" value={form.phone} onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value }))} /></div>

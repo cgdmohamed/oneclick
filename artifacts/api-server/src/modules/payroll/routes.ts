@@ -9,7 +9,6 @@ import { assertPeriodOpen, createJournalEntry, getSettings, reverseJournalEntry 
 const r = Router();
 
 const employeeSchema = z.object({
-  employee_code: z.string().min(1),
   name: z.string().min(1),
   phone: z.string().optional().nullable(),
   email: z.string().optional().nullable(),
@@ -134,16 +133,28 @@ r.get('/employees', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// Employee code is generated here, never accepted from the client — same
+// sequential "PREFIX-00001" convention used for branch codes and inventory
+// write-off numbers.
+async function nextEmployeeCode(db: any, companyId: string) {
+  const row = await db.query(
+    `SELECT COUNT(*)::int + 1 AS seq FROM employees WHERE company_id = $1`,
+    [companyId],
+  );
+  return `EM-${String(row.rows[0].seq).padStart(5, '0')}`;
+}
+
 r.post('/employees', async (req, res, next) => {
   try {
     const t = req.tenant!;
     const b = employeeSchema.parse(req.body);
     await assertBranch(t.db, t.companyId, b.branch_id);
     await assertCostCenter(t.db, t.companyId, b.cost_center_id);
+    const employeeCode = await nextEmployeeCode(t.db, t.companyId);
     const rs = await t.db.query(
       `INSERT INTO employees (company_id, employee_code, name, phone, email, national_id, hire_date, status, branch_id, cost_center_id, basic_salary, notes)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
-      [t.companyId, b.employee_code, b.name, b.phone ?? null, b.email ?? null, b.national_id ?? null, b.hire_date, b.status, b.branch_id ?? null, b.cost_center_id ?? null, b.basic_salary, b.notes ?? null],
+      [t.companyId, employeeCode, b.name, b.phone ?? null, b.email ?? null, b.national_id ?? null, b.hire_date, b.status, b.branch_id ?? null, b.cost_center_id ?? null, b.basic_salary, b.notes ?? null],
     );
     await audit(t.db, { companyId: t.companyId, userId: req.auth!.userId, action: 'employee.create', entity: 'employee', entityId: rs.rows[0].id });
     res.status(201).json({ data: rs.rows[0] });
