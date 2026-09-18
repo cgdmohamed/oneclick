@@ -172,10 +172,24 @@ app.use('/api/invitations', requireFeature('rbac'), invitationsAdminRouter);
 if (env.NODE_ENV === 'production') {
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
   const FRONTEND_DIST = path.resolve(__dirname, '../../hesabat/dist/public');
-  app.use(express.static(FRONTEND_DIST, { maxAge: '1d', index: 'index.html' }));
+  // index.html references Vite's content-hashed bundle filenames (e.g. /assets/index-BGjjjfXk.js),
+  // so it must never be cached by the browser or a CDN — otherwise a stale index.html keeps
+  // pointing at a deploy's old bundles and new releases silently never reach users. Vite's
+  // hashed /assets/* files are safe to cache aggressively since a content change always
+  // produces a new filename.
+  app.use(express.static(FRONTEND_DIST, {
+    index: false,
+    setHeaders: (res, filePath) => {
+      res.setHeader(
+        'Cache-Control',
+        filePath.includes(`${path.sep}assets${path.sep}`) ? 'public, max-age=31536000, immutable' : 'no-cache',
+      );
+    },
+  }));
   // Catch-all for React Router: only handle paths that are NOT under /api or /uploads
   // so unmatched API/upload requests still fall through to the error handler as 404 JSON.
   app.get(/^(?!\/(api|uploads))(\/.*)?$/, (_req, res) => {
+    res.setHeader('Cache-Control', 'no-cache');
     res.sendFile(path.join(FRONTEND_DIST, 'index.html'));
   });
 }
