@@ -67,6 +67,19 @@ const NewPurchaseInvoice = () => {
     if (!number.trim()) return toast.error('أدخل رقم فاتورة الشراء');
     const validItems = items.filter((i) => i.description && Number(i.quantity) > 0 && Number(i.unit_cost) >= 0);
     if (!validItems.length) return toast.error('أضف بنداً واحداً على الأقل');
+    // Not blocked (a genuinely free item is a valid case), but a zero unit
+    // cost means postPurchaseInvoice() skips this line entirely when
+    // building the expense/inventory journal groups — it silently never
+    // shows up in the income statement or inventory value, which is easy to
+    // mistake for a bug rather than a data-entry gap.
+    const zeroCostItems = validItems.filter((i) => Number(i.unit_cost) === 0);
+    if (zeroCostItems.length) {
+      toast.warning(
+        zeroCostItems.length === 1
+          ? `تكلفة الوحدة صفر لبند «${zeroCostItems[0].description}» — لن يظهر أي أثر محاسبي لهذا البند في التقارير المالية`
+          : `تكلفة الوحدة صفر لـ${zeroCostItems.length} بنود — لن يظهر أي أثر محاسبي لها في التقارير المالية`,
+      );
+    }
     const paymentAmount = Number(initialPayment.amount || 0);
     if (!draft && enableInitialPayment && paymentAmount > totals.total + 0.005) return toast.error('مبلغ الدفع أكبر من إجمالي الفاتورة');
     if (!draft && enableInitialPayment && paymentAmount > 0 && !initialPayment.account_id) return toast.error('اختر حساب الدفع');

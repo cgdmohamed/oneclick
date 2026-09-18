@@ -322,6 +322,15 @@ const Products = () => {
 
   const submit = async () => {
     if (!editing.name) return toast.error('أكمل بيانات المنتج');
+    // Not blocked (a genuinely free/no-cost item is a valid case), but a
+    // zero cost here becomes the default unit cost on any purchase invoice
+    // line for this product — and postPurchaseInvoice() skips a zero-value
+    // line entirely, so it never posts to inventory/expense or shows up in
+    // the income statement. Warn instead of silently letting it through.
+    const costBearingType = editing.productType !== 'service';
+    if (costBearingType && !editing.cost) {
+      toast.warning('تكلفة المنتج صفر — أي فاتورة شراء له لن تُسجَّل كمصروف/مخزون في التقارير المالية إلا إذا عدّلت التكلفة');
+    }
     await save(editing);
     setOpen(false);
   };
