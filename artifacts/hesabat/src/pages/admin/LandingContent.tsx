@@ -50,6 +50,10 @@ const LandingContentAdmin = () => {
   };
 
   const onSave = async () => {
+    if (draft.hero.enabled && !draft.hero.title.trim()) {
+      toast.error('العنوان الأساسي مطلوب طالما قسم الواجهة الرئيسية مفعّل — هذا القسم يظهر مباشرة للزوّار عند الحفظ');
+      return;
+    }
     try { await save(draft); toast.success('تم حفظ محتوى الصفحة العامة'); }
     catch { toast.error('تعذّر حفظ المحتوى'); }
   };
