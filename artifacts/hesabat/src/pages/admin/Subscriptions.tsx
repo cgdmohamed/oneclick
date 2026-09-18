@@ -104,6 +104,7 @@ const Subscriptions = () => {
   const [walletId, setWalletId] = useState<string>('');
   const [amount, setAmount] = useState<number>(0);
   const [method, setMethod] = useState<'cash' | 'bank' | 'wallet'>('cash');
+  const [paymentCycle, setPaymentCycle] = useState<'monthly' | 'yearly'>('monthly');
   const [reference, setReference] = useState('');
 
   useEffect(() => {
@@ -111,6 +112,7 @@ const Subscriptions = () => {
       setAmount(target.amount);
       setReference('');
       setMethod('cash');
+      setPaymentCycle('monthly');
       const wallets = walletsQuery.data ?? [];
       setWalletId(wallets[0]?.id ?? '');
     }
@@ -129,9 +131,10 @@ const Subscriptions = () => {
           wallet_id: walletId,
           amount,
           method,
+          cycle: paymentCycle,
           reference: reference || null,
         });
-        toast.success('تم تسجيل الدفعة');
+        toast.success(`تم تسجيل الدفعة وتمديد الاشتراك ${paymentCycle === 'yearly' ? 'سنة' : 'شهراً'}`);
         qc.invalidateQueries({ queryKey: ['admin-subscriptions'] });
         qc.invalidateQueries({ queryKey: ['admin-subscription-payments'] });
         qc.invalidateQueries({ queryKey: ['platform-wallets'] });
@@ -200,8 +203,8 @@ const Subscriptions = () => {
     {
       key: 'actions', header: '', cell: (r) => (
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" disabled={r.paid} onClick={() => startRecord(r)}>
-            {r.paid ? 'مدفوع' : 'تسجيل دفعة'}
+          <Button variant="outline" size="sm" onClick={() => startRecord(r)}>
+            تسجيل دفعة
           </Button>
           <Button variant="outline" size="sm" onClick={() => openChangePlan(r)}>
             تغيير الباقة
@@ -257,6 +260,20 @@ const Subscriptions = () => {
                   <Input type="number" className="mt-1.5" value={amount}
                     onChange={(e) => setAmount(Number(e.target.value))} />
                 </div>
+              </div>
+              <div>
+                <Label>مدة التمديد</Label>
+                <Select value={paymentCycle} onValueChange={(v: 'monthly' | 'yearly') => setPaymentCycle(v)}>
+                  <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="monthly">شهر واحد (30 يوم)</SelectItem>
+                    <SelectItem value="yearly">سنة كاملة (365 يوم)</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  سيتم تمديد تاريخ انتهاء الاشتراك تلقائيًا بهذه المدة من تاريخ الانتهاء الحالي
+                  (أو من اليوم لو الاشتراك منتهي بالفعل).
+                </p>
               </div>
               <div>
                 <Label>مرجع / ملاحظة</Label>

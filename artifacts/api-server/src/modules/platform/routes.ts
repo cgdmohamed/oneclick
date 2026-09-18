@@ -151,11 +151,14 @@ router.get('/wallets/:id/ledger', async (req, res, next) => {
 });
 
 /* ---------------- Subscription payments ---------------- */
+const PAYMENT_CYCLE_DAYS: Record<'monthly' | 'yearly', number> = { monthly: 30, yearly: 365 };
+
 const paymentSchema = z.object({
   subscription_id: z.string().uuid(),
   wallet_id:       z.string().uuid(),
   amount:          z.coerce.number().positive(),
   method:          z.enum(['cash', 'bank', 'wallet']).default('cash'),
+  cycle:           z.enum(['monthly', 'yearly']).default('monthly'),
   paid_at:         z.string().datetime().optional(),
   reference:       z.string().optional().nullable(),
   notes:           z.string().optional().nullable(),
@@ -184,7 +187,7 @@ router.post('/subscription-payments', async (req, res, next) => {
     await client.query('BEGIN');
 
     const sub = await client.query(
-      `SELECT id, status FROM subscriptions WHERE id = $1 FOR UPDATE`,
+      `SELECT id, status, expires_at FROM subscriptions WHERE id = $1 FOR UPDATE`,
       [body.subscription_id],
     );
     if (!sub.rowCount) throw notFound('Subscription not found');
@@ -211,13 +214,20 @@ router.post('/subscription-payments', async (req, res, next) => {
       [body.amount, body.wallet_id],
     );
 
-    // Activate subscription on first qualifying payment
-    if (sub.rows[0].status !== 'active') {
-      await client.query(
-        `UPDATE subscriptions SET status = 'active', updated_at = now() WHERE id = $1`,
-        [body.subscription_id],
-      );
-    }
+    // Extend the subscription by the paid cycle's length, stacking onto whatever time is
+    // already left (a renewal paid before expiry pushes expires_at forward from its current
+    // value, not from today) — and always reactivate, since a payment is what un-freezes a
+    // lapsed subscription. Never touches any individual user's account.
+    const cycleDays = PAYMENT_CYCLE_DAYS[body.cycle];
+    const extended = await client.query(
+      `UPDATE subscriptions
+         SET status = 'active',
+             expires_at = GREATEST(COALESCE(expires_at, now()), now()) + ($1 * interval '1 day'),
+             updated_at = now()
+       WHERE id = $2
+       RETURNING expires_at`,
+      [cycleDays, body.subscription_id],
+    );
 
     await client.query('COMMIT');
 
@@ -225,10 +235,13 @@ router.post('/subscription-payments', async (req, res, next) => {
       companyId: null, userId: req.auth!.userId,
       action: 'subscription_payment.create', entity: 'subscription_payment',
       entityId: rs.rows[0].id,
-      data: { subscription_id: body.subscription_id, wallet_id: body.wallet_id, amount: body.amount },
+      data: {
+        subscription_id: body.subscription_id, wallet_id: body.wallet_id, amount: body.amount,
+        cycle: body.cycle, new_expires_at: extended.rows[0].expires_at,
+      },
     });
 
-    res.status(201).json({ data: rs.rows[0] });
+    res.status(201).json({ data: { ...rs.rows[0], expires_at: extended.rows[0].expires_at } });
   } catch (e) {
     await client.query('ROLLBACK').catch(() => {});
     next(e);
