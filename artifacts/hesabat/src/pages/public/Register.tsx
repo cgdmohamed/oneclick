@@ -45,6 +45,7 @@ const Register = () => {
         await registerRequest({
           email: form.email, password: form.password,
           name: form.owner, companyName: form.company,
+          phone: form.phone.trim() || undefined,
           website: '',
         });
       }
@@ -126,7 +127,7 @@ const Register = () => {
               tabIndex={-1}
               autoComplete="off"
               aria-hidden="true"
-              style={{ position: 'absolute', left: '-9999px', width: '1px', height: '1px', overflow: 'hidden' }}
+              style={{ position: 'absolute', width: '1px', height: '1px', overflow: 'hidden', clip: 'rect(0,0,0,0)' }}
             />
             <Field label="اسم الشركة" name="company" form={form} setForm={setForm} error={errors.company} setErrors={setErrors} />
             <Field label="اسم المسؤول" name="owner" form={form} setForm={setForm} error={errors.owner} setErrors={setErrors} />

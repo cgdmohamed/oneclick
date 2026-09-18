@@ -204,7 +204,7 @@ export async function logoutRequest() {
   setActiveCompanyId(null);
 }
 
-export async function registerRequest(input: { email: string; password: string; name: string; companyName: string; website?: string }) {
+export async function registerRequest(input: { email: string; password: string; name: string; companyName: string; phone?: string; website?: string }) {
   const res = await api.post<{ ok: boolean; pendingReview?: boolean }>('/api/auth/register', input);
   return res;
 }

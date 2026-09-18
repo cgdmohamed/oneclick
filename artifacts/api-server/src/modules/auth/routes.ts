@@ -24,6 +24,7 @@ const registerSchema = z.object({
   password: z.string().min(8),
   name: z.string().min(2),
   companyName: z.string().min(2),
+  phone: z.string().max(30).optional(),
   website: z.string().optional(),
 });
 
@@ -275,9 +276,9 @@ router.post('/register', async (req, res, next) => {
         typeof platformPrefix === 'string' && platformPrefix.trim() ? platformPrefix.trim() : 'INV';
 
       const compRes = await c.query(
-        `INSERT INTO companies (name, email, owner_name, is_active, review_status, invoice_prefix)
-         VALUES ($1,$2,$3,false,'pending',$4) RETURNING id`,
-        [body.companyName, body.email, body.name, invoicePrefix],
+        `INSERT INTO companies (name, email, owner_name, phone, is_active, review_status, invoice_prefix)
+         VALUES ($1,$2,$3,$4,false,'pending',$5) RETURNING id`,
+        [body.companyName, body.email, body.name, body.phone || null, invoicePrefix],
       );
       const companyId = compRes.rows[0].id;
 
