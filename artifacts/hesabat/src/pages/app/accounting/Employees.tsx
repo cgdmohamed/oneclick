@@ -24,6 +24,8 @@ const Employees = () => {
   const branches = useQuery({ queryKey: ['branches'], queryFn: async () => (await api.get<{ data: Dimension[] }>('/api/branches')).data ?? [] });
   const costCenters = useQuery({ queryKey: ['cost-centers'], queryFn: async () => (await api.get<{ data: Dimension[] }>('/api/cost-centers')).data ?? [] });
   const submit = async () => {
+    if (!form.name.trim()) return toast.error('اسم الموظف مطلوب');
+    if (!form.basic_salary || Number(form.basic_salary) <= 0) return toast.error('الراتب الأساسي مطلوب ويجب أن يكون أكبر من صفر');
     try {
       await api.post('/api/payroll/employees', { ...form, basic_salary: Number(form.basic_salary), branch_id: form.branch_id || null, cost_center_id: form.cost_center_id || null, phone: form.phone || null, email: form.email || null, national_id: form.national_id || null, notes: form.notes || null });
       await qc.invalidateQueries({ queryKey: ['employees'] });
@@ -49,7 +51,7 @@ const Employees = () => {
           <div><Label>الهاتف</Label><Input className="mt-1.5" value={form.phone} onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value }))} /></div>
           <div><Label>البريد</Label><Input className="mt-1.5" value={form.email} onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))} /></div>
           <div><Label>الرقم القومي</Label><Input className="mt-1.5" value={form.national_id} onChange={(e) => setForm((p) => ({ ...p, national_id: e.target.value }))} /></div>
-          <div><Label>الراتب الأساسي</Label><Input className="mt-1.5" type="number" value={form.basic_salary} onChange={(e) => setForm((p) => ({ ...p, basic_salary: e.target.value }))} /></div>
+          <div><Label>الراتب الأساسي *</Label><Input className="mt-1.5" type="number" min="0.01" step="0.01" value={form.basic_salary} onChange={(e) => setForm((p) => ({ ...p, basic_salary: e.target.value }))} /></div>
           <div><Label>الفرع</Label><select className="mt-1.5 h-10 w-full rounded-md border bg-background px-3 text-sm" value={form.branch_id} onChange={(e) => setForm((p) => ({ ...p, branch_id: e.target.value }))}><option value="">بدون</option>{(branches.data ?? []).map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select></div>
           <div><Label>مركز التكلفة</Label><select className="mt-1.5 h-10 w-full rounded-md border bg-background px-3 text-sm" value={form.cost_center_id} onChange={(e) => setForm((p) => ({ ...p, cost_center_id: e.target.value }))}><option value="">بدون</option>{(costCenters.data ?? []).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
           <div className="md:col-span-3"><Label>ملاحظات</Label><Textarea className="mt-1.5" value={form.notes} onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))} /></div>

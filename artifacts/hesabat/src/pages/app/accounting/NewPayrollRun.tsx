@@ -7,6 +7,7 @@ import { StatCard } from '@/components/common/StatCard';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { api, ApiError } from '@/lib/api';
 import { formatCurrency } from '@/lib/format';
 import { ArrowRight, Calculator, Wallet } from 'lucide-react';
@@ -63,8 +64,8 @@ const NewPayrollRun = () => {
       <PageHeader title="تشغيل رواتب جديد" description="أدخل مكونات الرواتب يدوياً ثم راجع المعاينة قبل الترحيل" />
       <Card className="p-4 border-border/60 space-y-4">
         <div className="grid sm:grid-cols-4 gap-3 items-end">
-          <Input type="number" min="1" max="12" value={periodMonth} onChange={(e) => setPeriodMonth(e.target.value)} />
-          <Input type="number" value={periodYear} onChange={(e) => setPeriodYear(e.target.value)} />
+          <div><Label htmlFor="payroll-period-month">الشهر</Label><Input id="payroll-period-month" className="mt-1.5" type="number" min="1" max="12" value={periodMonth} onChange={(e) => setPeriodMonth(e.target.value)} /></div>
+          <div><Label htmlFor="payroll-period-year">السنة</Label><Input id="payroll-period-year" className="mt-1.5" type="number" value={periodYear} onChange={(e) => setPeriodYear(e.target.value)} /></div>
           <Button variant="outline" onClick={() => preview.refetch()}><Calculator className="h-4 w-4 ml-1" /> معاينة</Button>
         </div>
         <div className="overflow-x-auto">

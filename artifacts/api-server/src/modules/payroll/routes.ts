@@ -17,7 +17,7 @@ const employeeSchema = z.object({
   status: z.enum(['active','inactive']).default('active'),
   branch_id: z.string().uuid().optional().nullable(),
   cost_center_id: z.string().uuid().optional().nullable(),
-  basic_salary: z.coerce.number().nonnegative(),
+  basic_salary: z.coerce.number().positive(),
   notes: z.string().optional().nullable(),
 });
 
@@ -79,6 +79,13 @@ function dateStr(value: unknown): string {
   return value instanceof Date ? value.toISOString().slice(0, 10) : String(value).slice(0, 10);
 }
 
+// Payroll amounts are rounded to whole currency units (no piasters/fils) —
+// the accountant requested round payroll figures rather than the exact
+// fractional result of a days-based proration (e.g. 1645.161290...).
+function roundWhole(n: number): number {
+  return Math.round(n);
+}
+
 function daysBetweenInclusive(fromISO: string, toISO: string): number {
   const [fy, fm, fd] = fromISO.split('-').map(Number);
   const [ty, tm, td] = toISO.split('-').map(Number);
@@ -130,15 +137,15 @@ async function payrollPreview(db: any, companyId: string, body: z.infer<typeof r
     const earnings = componentRows.filter((c) => c.type === 'earning').reduce((s, c) => s + c.amount, 0);
     const deductions = componentRows.filter((c) => c.type === 'deduction').reduce((s, c) => s + c.amount, 0);
 
-    let basic = round2(Number(emp.basic_salary));
+    let basic = roundWhole(Number(emp.basic_salary));
     let prorationDays: number | null = null;
     if (hireDate > periodStart) {
       prorationDays = daysBetweenInclusive(hireDate, periodEnd);
-      basic = round2(basic * (prorationDays / daysInPeriod));
+      basic = roundWhole(basic * (prorationDays / daysInPeriod));
     }
 
-    const totalEarnings = round2(basic + earnings);
-    const totalDeductions = round2(deductions);
+    const totalEarnings = roundWhole(basic + earnings);
+    const totalDeductions = roundWhole(deductions);
     return {
       employee_id: emp.id,
       employee_code: emp.employee_code,
@@ -146,7 +153,7 @@ async function payrollPreview(db: any, companyId: string, body: z.infer<typeof r
       basic_salary: basic,
       total_earnings: totalEarnings,
       total_deductions: totalDeductions,
-      net_salary: round2(totalEarnings - totalDeductions),
+      net_salary: roundWhole(totalEarnings - totalDeductions),
       branch_id: emp.branch_id,
       cost_center_id: emp.cost_center_id,
       components: componentRows,
