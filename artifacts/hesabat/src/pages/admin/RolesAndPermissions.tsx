@@ -12,6 +12,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Check, Minus, ShieldCheck, Plus, Pencil, Trash2, Copy, Sparkles, Search, Loader2 } from 'lucide-react';
 import { permissionRows, matrixRoles, rolePermissionMap } from '@/data/permissions';
 import { roleLabel } from '@/lib/format';
@@ -66,6 +67,8 @@ const PermissionMatrix = ({ customRoles }: { customRoles: CustomRole[] }) => {
     return customRoles.find(r => r.id === colId)?.permissions.includes(key) ?? false;
   };
 
+  const hasCustom = customRoles.some(r => r.enabled);
+
   return (
     <Card className="border-border/60 overflow-hidden shadow-soft">
       <div className="flex items-center gap-2 px-5 py-4 border-b border-border/60">
@@ -75,6 +78,12 @@ const PermissionMatrix = ({ customRoles }: { customRoles: CustomRole[] }) => {
           {allCols.length} دور × {permissionRows.length} صلاحية
         </div>
       </div>
+      {hasCustom && (
+        <div className="px-5 py-2.5 bg-warning/10 text-warning text-xs border-b border-border/60">
+          أعمدة "مخصص" هنا للمرجعية والمقارنة فقط — الأدوار المخصصة لا تُطبَّق فعليًا على أي مستخدم،
+          راجع تبويب "منشئ الأدوار" للتفاصيل.
+        </div>
+      )}
       <div className="overflow-x-auto">
         <table className="w-full text-sm" dir="rtl">
           <thead className="bg-muted/40">
@@ -143,11 +152,12 @@ const emptyRole = (): CustomRole => ({
 });
 
 const RoleEditorDialog = ({
-  open, onOpenChange, initial, onSave,
+  open, onOpenChange, initial, existingRoles, onSave,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   initial?: CustomRole;
+  existingRoles: CustomRole[];
   onSave: (r: CustomRole) => void;
 }) => {
   const [draft, setDraft] = useState<CustomRole>(() => initial ?? emptyRole());
@@ -182,9 +192,12 @@ const RoleEditorDialog = ({
   };
 
   const submit = () => {
-    if (!draft.name.trim()) { toast.error('أدخل اسم الدور'); return; }
+    const name = draft.name.trim();
+    if (!name) { toast.error('أدخل اسم الدور'); return; }
+    const isDuplicate = existingRoles.some(r => r.id !== draft.id && r.name.trim().toLowerCase() === name.toLowerCase());
+    if (isDuplicate) { toast.error('يوجد دور آخر بنفس الاسم بالفعل — اختر اسماً مختلفاً'); return; }
     if (draft.permissions.length === 0) { toast.error('اختر صلاحية واحدة على الأقل'); return; }
-    onSave(draft);
+    onSave({ ...draft, name });
     onOpenChange(false);
   };
 
@@ -193,7 +206,9 @@ const RoleEditorDialog = ({
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{initial ? 'تعديل الدور' : 'منشئ الأدوار'}</DialogTitle>
-          <DialogDescription>عرّف دوراً مخصصاً بصلاحيات دقيقة لتطبيقه على مستخدمي المنصة.</DialogDescription>
+          <DialogDescription>
+            عرّف دوراً مخصصاً بصلاحيات دقيقة للمرجعية والمقارنة في مصفوفة الصلاحيات — هذا الدور لا يُسنَد مباشرةً لأي مستخدم.
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
@@ -269,7 +284,7 @@ const RoleEditorDialog = ({
           <div className="flex items-center justify-between rounded-lg border border-border/60 p-3">
             <div>
               <div className="text-sm font-medium">حالة الدور</div>
-              <div className="text-xs text-muted-foreground">إيقاف الدور يمنع تعيينه لمستخدمين جدد</div>
+              <div className="text-xs text-muted-foreground">إيقاف الدور يخفيه من مصفوفة الصلاحيات للمقارنة</div>
             </div>
             <Switch checked={draft.enabled} onCheckedChange={v => setDraft(d => ({ ...d, enabled: v }))} />
           </div>
@@ -356,9 +371,27 @@ const RoleGenerator = () => {
                 <Button size="sm" variant="outline" className="flex-1" onClick={() => { setEditing(r); setOpen(true); }}>
                   <Pencil className="h-3 w-3 ml-1" /> تعديل
                 </Button>
-                <Button size="sm" variant="outline" onClick={() => handleDelete(r)} className="text-destructive hover:text-destructive">
-                  <Trash2 className="h-3 w-3" />
-                </Button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button size="sm" variant="outline" className="text-destructive hover:text-destructive">
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>تأكيد حذف الدور</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        سيتم حذف الدور «{r.name}» نهائياً ولا يمكن التراجع عن هذا الإجراء.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>إلغاء</AlertDialogCancel>
+                      <AlertDialogAction onClick={() => handleDelete(r)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                        تأكيد الحذف
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               </div>
             </Card>
           ))}
@@ -370,6 +403,7 @@ const RoleGenerator = () => {
           open={open}
           onOpenChange={setOpen}
           initial={editing ?? undefined}
+          existingRoles={roles}
           onSave={handleSave}
         />
       )}
