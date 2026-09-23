@@ -23,6 +23,27 @@ import { formatCurrency, formatDateShort, invoiceStatusLabel, paymentMethodLabel
 import { printElementOnly } from '@/lib/print';
 import type { Invoice, PaymentMethod } from '@/types';
 
+interface UnifiedStatementLine {
+  date: string;
+  type: 'sales_invoice' | 'collection' | 'purchase_invoice' | 'payout';
+  reference: string;
+  amount: number;
+  delta: number;
+  running_balance: number;
+}
+interface UnifiedStatement {
+  client: { id: string; name: string };
+  linked_supplier: { id: string; name: string | null } | null;
+  net_balance: number;
+  lines: UnifiedStatementLine[];
+}
+const unifiedLineLabel: Record<UnifiedStatementLine['type'], string> = {
+  sales_invoice: 'فاتورة بيع',
+  collection: 'تحصيل',
+  purchase_invoice: 'فاتورة شراء',
+  payout: 'دفعة لمورد',
+};
+
 interface PaymentRecord {
   id: string;
   invoiceId: string;
@@ -107,6 +128,15 @@ const ClientDetail = () => {
     }
     return mockClientPayments;
   }, [apiOn, paymentsQuery.data, mockClientPayments]);
+
+  const unifiedStatementQuery = useQuery({
+    enabled: apiOn && Boolean(id) && Boolean(client?.linkedSupplierId),
+    queryKey: ['client-unified-statement', id],
+    queryFn: async () => {
+      const res = await api.get<{ data: UnifiedStatement }>(`/api/clients/${id}/unified-statement`);
+      return res.data;
+    },
+  });
 
   /* ----- Aggregates (cancelled invoices excluded from financial totals) ----- */
   const totals = useMemo(() => {
@@ -345,6 +375,7 @@ const ClientDetail = () => {
           <TabsTrigger value="overview">نظرة عامة</TabsTrigger>
           <TabsTrigger value="invoices">الفواتير ({clientInvoices.length})</TabsTrigger>
           <TabsTrigger value="payments">المدفوعات ({clientPayments.length})</TabsTrigger>
+          {client?.linkedSupplierId && <TabsTrigger value="unified">كشف حساب موحد</TabsTrigger>}
           <TabsTrigger value="alerts">التنبيهات</TabsTrigger>
           <TabsTrigger value="activity">سجل النشاط</TabsTrigger>
         </TabsList>
@@ -472,6 +503,63 @@ const ClientDetail = () => {
             <DataTable data={filteredPayments} columns={paymentCols} searchKeys={['invoiceNumber']} />
           )}
         </TabsContent>
+
+        {/* Unified statement (client linked to a supplier record — same party) */}
+        {client.linkedSupplierId && (
+          <TabsContent value="unified" className="mt-4 space-y-3">
+            <Card className="p-4 border-border/60 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-sm text-muted-foreground">
+                  كشف موحد يجمع معاملات العميل «{client.name}» مع حركاته كمورد
+                  {unifiedStatementQuery.data?.linked_supplier?.name ? ` («${unifiedStatementQuery.data.linked_supplier.name}»)` : ''}.
+                </p>
+              </div>
+              {unifiedStatementQuery.data && (
+                <div className="text-end">
+                  <p className="text-xs text-muted-foreground mb-0.5">صافي الرصيد</p>
+                  <p className={`text-lg font-bold ${unifiedStatementQuery.data.net_balance >= 0 ? 'text-success' : 'text-destructive'}`}>
+                    {fc(Math.abs(unifiedStatementQuery.data.net_balance))}
+                    <span className="text-xs font-normal text-muted-foreground ms-1">
+                      {unifiedStatementQuery.data.net_balance >= 0 ? '(له علينا)' : '(علينا له)'}
+                    </span>
+                  </p>
+                </div>
+              )}
+            </Card>
+            {unifiedStatementQuery.isLoading ? (
+              <Card className="p-10 text-center text-muted-foreground border-dashed">جارٍ التحميل…</Card>
+            ) : !unifiedStatementQuery.data?.lines.length ? (
+              <Card className="p-10 text-center text-muted-foreground border-dashed">لا توجد معاملات بعد.</Card>
+            ) : (
+              <Card className="border-border/60 overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/50 text-muted-foreground">
+                    <tr>
+                      <th className="text-start p-3 font-medium">التاريخ</th>
+                      <th className="text-start p-3 font-medium">النوع</th>
+                      <th className="text-start p-3 font-medium">المرجع</th>
+                      <th className="text-end p-3 font-medium">القيمة</th>
+                      <th className="text-end p-3 font-medium">الرصيد التراكمي</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {unifiedStatementQuery.data.lines.map((l, i) => (
+                      <tr key={i} className="border-t border-border/40">
+                        <td className="p-3">{formatDateShort(l.date)}</td>
+                        <td className="p-3">
+                          <Badge variant="outline">{unifiedLineLabel[l.type]}</Badge>
+                        </td>
+                        <td className="p-3 text-muted-foreground">{l.reference || '—'}</td>
+                        <td className={`p-3 text-end ${l.delta >= 0 ? 'text-foreground' : 'text-muted-foreground'}`}>{fc(l.amount)}</td>
+                        <td className={`p-3 text-end font-medium ${l.running_balance >= 0 ? 'text-success' : 'text-destructive'}`}>{fc(l.running_balance)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </Card>
+            )}
+          </TabsContent>
+        )}
 
         {/* Sent alerts */}
         <TabsContent value="alerts" className="mt-4">

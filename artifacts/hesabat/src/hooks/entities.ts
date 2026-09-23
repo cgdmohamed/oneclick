@@ -16,6 +16,7 @@ interface ClientRow {
   id: string; company_id: string; name: string;
   phone: string | null; email: string | null; address: string | null;
   tax_number: string | null; currency: string | null; created_at: string;
+  linked_supplier_id: string | null;
 }
 export const clientsCfg: ResourceConfig<Client, ClientRow> = {
   path: '/api/clients',
@@ -28,12 +29,13 @@ export const clientsCfg: ResourceConfig<Client, ClientRow> = {
       taxNumber: r.tax_number ?? '', currency: EGP_CURRENCY_CODE,
       currencySymbol: EGP_CURRENCY_SYMBOL,
       createdAt: r.created_at,
+      linkedSupplierId: r.linked_supplier_id,
     };
   },
   toRow: (c) => ({
     name: c.name, phone: c.phone || null, email: c.email || null,
     address: c.address || null, tax_number: c.taxNumber || null,
-    currency: EGP_CURRENCY_CODE,
+    currency: EGP_CURRENCY_CODE, linked_supplier_id: c.linkedSupplierId || null,
   }),
 };
 export const useClients = () => useResource(clientsCfg);

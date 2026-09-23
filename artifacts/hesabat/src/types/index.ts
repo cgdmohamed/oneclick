@@ -38,6 +38,8 @@ export interface Client {
   currency?: string;
   currencySymbol?: string;
   createdAt: string;
+  /** Supplier record representing the same real-world party, if linked (see Clients unified statement). */
+  linkedSupplierId?: string | null;
 }
 
 export interface Product {
