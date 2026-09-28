@@ -127,11 +127,15 @@ r.get('/:id/unified-statement', async (req, res, next) => {
 r.post('/', async (req, res, next) => {
   try {
     const t = req.tenant!;
-    const body = schema.parse(req.body);
-    await assertLinkedSupplier(t.db, t.companyId, body.linked_supplier_id);
-    const values = FIELDS.map((f) => (body as Record<string, unknown>)[f] ?? null);
+    const parsed = schema.parse(req.body) as Record<string, unknown>;
+    await assertLinkedSupplier(t.db, t.companyId, parsed.linked_supplier_id as string | null | undefined);
+    // Only insert fields the caller actually sent — passing an explicit NULL
+    // for an omitted field (e.g. currency) would bypass its DB DEFAULT and
+    // violate its NOT NULL constraint, unlike simply leaving it out.
+    const keys = FIELDS.filter((f) => f in parsed);
+    const values = keys.map((f) => parsed[f]);
     const rs = await t.db.query(
-      `INSERT INTO clients (company_id, ${FIELDS.join(',')}) VALUES ($1, ${FIELDS.map((_, i) => `$${i + 2}`).join(',')}) RETURNING *`,
+      `INSERT INTO clients (company_id, ${keys.join(',')}) VALUES ($1, ${keys.map((_, i) => `$${i + 2}`).join(',')}) RETURNING *`,
       [t.companyId, ...values],
     );
     res.status(201).json({ data: rs.rows[0] });
