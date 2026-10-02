@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { notFound } from '../../utils/errors.js';
 import { requireRole } from '../../middleware/rbac.js';
 import { encryptSmtpPassword, isSmtpPasswordEncrypted } from '../../utils/crypto.js';
+import { audit } from '../../utils/audit.js';
 
 const router = Router();
 const EGP_CURRENCY_CODE = 'EGP';
@@ -71,6 +72,7 @@ router.patch('/me', requireRole('company_admin'), async (req, res, next) => {
       values,
     );
     if (!rs.rowCount) throw notFound();
+    await audit(t.db, { companyId: t.companyId, userId: req.auth!.userId, action: 'company.update', entity: 'company', entityId: t.companyId, data: { fields } });
     res.json({ data: rs.rows[0] });
   } catch (e) { next(e); }
 });
@@ -154,6 +156,8 @@ router.put('/smtp-settings', requireRole('company_admin'), async (req, res, next
     );
 
     const { password: _pw, ...safe } = settings;
+    // Never log the password itself — just that it changed, plus the non-secret fields.
+    await audit(t.db, { companyId: t.companyId, userId: req.auth!.userId, action: 'company.smtp_settings.update', entity: 'company', entityId: t.companyId, data: { ...safe, passwordChanged: 'password' in settings } });
     res.json({ data: { ...safe, hasPassword: !!settings.password } });
   } catch (e) { next(e); }
 });

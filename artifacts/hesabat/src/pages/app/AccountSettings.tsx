@@ -12,7 +12,7 @@ import {
   AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
   AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { User, Lock, Monitor, Loader2, Trash2, LogOut } from 'lucide-react';
+import { User, Lock, Monitor, Loader2, Trash2, LogOut, ShieldCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import { api, isApiConfigured } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -253,6 +253,146 @@ const PasswordSection = () => {
   );
 };
 
+const TwoFactorSection = () => {
+  const { user } = useAuth();
+  const [enabled, setEnabled] = useState<boolean | null>(null);
+  const [setup, setSetup] = useState<{ secret: string; qrDataUrl: string } | null>(null);
+  const [code, setCode] = useState('');
+  const [backupCodes, setBackupCodes] = useState<string[] | null>(null);
+  const [disablePassword, setDisablePassword] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!isApiConfigured()) { setEnabled(false); return; }
+    api.get<{ totp_enabled: boolean }>('/api/auth/2fa/status')
+      .then(r => setEnabled(r.totp_enabled))
+      .catch(() => setEnabled(false));
+  }, [user]);
+
+  const startSetup = async () => {
+    setBusy(true);
+    try {
+      const res = await api.post<{ secret: string; qrDataUrl: string }>('/api/auth/2fa/setup');
+      setSetup(res);
+    } catch (e: unknown) {
+      toast.error((e as { message?: string })?.message ?? 'تعذّر بدء الإعداد');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const confirmEnable = async () => {
+    if (code.trim().length < 6) { toast.error('أدخل رمز التحقق المكوّن من 6 أرقام'); return; }
+    setBusy(true);
+    try {
+      const res = await api.post<{ ok: boolean; backupCodes: string[] }>('/api/auth/2fa/enable', { code: code.trim() });
+      setBackupCodes(res.backupCodes);
+      setSetup(null);
+      setCode('');
+      setEnabled(true);
+      toast.success('تم تفعيل المصادقة الثنائية');
+    } catch (e: unknown) {
+      toast.error((e as { message?: string })?.message ?? 'رمز التحقق غير صحيح');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const disable = async () => {
+    if (!disablePassword) { toast.error('أدخل كلمة المرور الحالية'); return; }
+    setBusy(true);
+    try {
+      await api.post('/api/auth/2fa/disable', { password: disablePassword });
+      setEnabled(false);
+      setDisablePassword('');
+      toast.success('تم إلغاء تفعيل المصادقة الثنائية');
+    } catch (e: unknown) {
+      toast.error((e as { message?: string })?.message ?? 'تعذّر إلغاء التفعيل');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!isApiConfigured()) {
+    return (
+      <Card className="p-6 border-border/60 text-center text-sm text-muted-foreground max-w-xl">
+        المصادقة الثنائية تتطلب الاتصال بالخادم
+      </Card>
+    );
+  }
+
+  if (backupCodes) {
+    return (
+      <Card className="p-6 border-border/60 space-y-4 max-w-xl">
+        <h3 className="font-semibold text-base">احفظ رموز الاسترداد الآن</h3>
+        <p className="text-sm text-muted-foreground">
+          استخدم أحد هذه الرموز إذا فقدت الوصول لتطبيق المصادقة. كل رمز يُستخدم مرة واحدة فقط، ولن تُعرض لك مرة أخرى.
+        </p>
+        <div className="grid grid-cols-2 gap-2 font-mono text-sm bg-muted/40 rounded-lg p-4" dir="ltr">
+          {backupCodes.map(c => <div key={c}>{c}</div>)}
+        </div>
+        <Button onClick={() => setBackupCodes(null)}>تم الحفظ، إغلاق</Button>
+      </Card>
+    );
+  }
+
+  if (setup) {
+    return (
+      <Card className="p-6 border-border/60 space-y-4 max-w-xl">
+        <h3 className="font-semibold text-base">امسح رمز QR</h3>
+        <p className="text-sm text-muted-foreground">
+          افتح تطبيق مصادقة (Google Authenticator أو ما شابه) وامسح الرمز، أو أدخل المفتاح يدويًا، ثم اكتب الرمز الظاهر للتأكيد.
+        </p>
+        <div className="flex justify-center">
+          <img src={setup.qrDataUrl} alt="QR" className="rounded-lg border border-border/60" />
+        </div>
+        <div className="text-center">
+          <Label className="text-xs text-muted-foreground">المفتاح (إدخال يدوي)</Label>
+          <p className="font-mono text-sm mt-1" dir="ltr">{setup.secret}</p>
+        </div>
+        <div>
+          <Label>رمز التحقق</Label>
+          <Input className="mt-1.5 text-center tracking-[0.3em]" inputMode="numeric" maxLength={6} value={code} onChange={e => setCode(e.target.value)} />
+        </div>
+        <div className="flex gap-2">
+          <Button onClick={confirmEnable} disabled={busy}>
+            {busy && <Loader2 className="h-4 w-4 ml-2 animate-spin" />}
+            تفعيل
+          </Button>
+          <Button variant="ghost" onClick={() => setSetup(null)}>إلغاء</Button>
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="p-6 border-border/60 space-y-4 max-w-xl">
+      <div className="flex items-center justify-between">
+        <h3 className="font-semibold text-base">المصادقة الثنائية (2FA)</h3>
+        <Badge variant={enabled ? 'default' : 'outline'}>{enabled ? 'مفعّلة' : 'غير مفعّلة'}</Badge>
+      </div>
+      <p className="text-sm text-muted-foreground">
+        طبقة حماية إضافية: بعد إدخال كلمة المرور، سيُطلب منك رمز من تطبيق مصادقة على جوالك.
+      </p>
+      {enabled ? (
+        <div className="space-y-3">
+          <Label>كلمة المرور الحالية (للتأكيد قبل الإلغاء)</Label>
+          <Input type="password" dir="ltr" value={disablePassword} onChange={e => setDisablePassword(e.target.value)} />
+          <Button variant="destructive" onClick={disable} disabled={busy}>
+            {busy && <Loader2 className="h-4 w-4 ml-2 animate-spin" />}
+            إلغاء تفعيل المصادقة الثنائية
+          </Button>
+        </div>
+      ) : (
+        <Button onClick={startSetup} disabled={busy || enabled === null}>
+          {busy && <Loader2 className="h-4 w-4 ml-2 animate-spin" />}
+          تفعيل المصادقة الثنائية
+        </Button>
+      )}
+    </Card>
+  );
+};
+
 const SessionsSection = () => {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
@@ -420,6 +560,10 @@ const AccountSettings = () => {
             <Lock className="h-4 w-4 ml-2" />
             كلمة المرور
           </TabsTrigger>
+          <TabsTrigger value="2fa">
+            <ShieldCheck className="h-4 w-4 ml-2" />
+            المصادقة الثنائية
+          </TabsTrigger>
           <TabsTrigger value="sessions">
             <Monitor className="h-4 w-4 ml-2" />
             الجلسات النشطة
@@ -430,6 +574,9 @@ const AccountSettings = () => {
         </TabsContent>
         <TabsContent value="password" className="mt-4">
           <PasswordSection />
+        </TabsContent>
+        <TabsContent value="2fa" className="mt-4">
+          <TwoFactorSection />
         </TabsContent>
         <TabsContent value="sessions" className="mt-4">
           <SessionsSection />

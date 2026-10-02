@@ -37,6 +37,12 @@ const schema = z.object({
     .transform((v) => v === 'true')
     .optional(),
   COOKIE_DOMAIN: z.string().optional(),
+
+  // Google "Sign in with Google" (OAuth 2.0 / OpenID Connect). Both unset means the
+  // feature is simply disabled — the frontend hides the button and the backend
+  // endpoint returns a clear 503 instead of a confusing OAuth error.
+  GOOGLE_CLIENT_ID: z.string().optional(),
+  GOOGLE_CLIENT_SECRET: z.string().optional(),
 });
 
 const parsed = schema.parse(process.env);

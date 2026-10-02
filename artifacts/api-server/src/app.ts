@@ -64,6 +64,21 @@ const authLimiter = rateLimit({
   message: { message: 'Too many auth attempts, try again later.' },
 });
 
+// SCL-01 follow-up: /me, /refresh, /logout, /sessions*, /change-password etc.
+// used to share the 30-requests-per-15-minutes budget above with actual login
+// attempts. A single office/NAT with a few people on the same IP, or just a
+// SPA refreshing its token a few times, could exhaust that budget and lock
+// everyone out — not a brute-force attempt. These endpoints either require a
+// valid access/refresh token already (so they aren't brute-forceable the way
+// password guessing is) or are naturally self-limiting, so they get a much
+// more generous per-minute cap instead of sharing the strict login window.
+const authSessionLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 const registerLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   max: 10,
@@ -90,7 +105,23 @@ const app = express();
 
 app.set('trust proxy', 1);
 app.use(requestContext);
-app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
+// Google Identity Services (the "تسجيل الدخول بجوجل" button) loads a script
+// from accounts.google.com and renders its button/One Tap UI in an iframe
+// from the same origin — both need explicit CSP allowances. Only added when
+// Google login is actually configured, so an unconfigured deployment keeps
+// the tighter default (script/frame restricted to 'self').
+const googleCsp = env.GOOGLE_CLIENT_ID ? ['https://accounts.google.com'] : [];
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+  contentSecurityPolicy: {
+    useDefaults: true,
+    directives: {
+      'script-src': ["'self'", ...googleCsp],
+      'frame-src': ["'self'", ...googleCsp],
+      'connect-src': ["'self'", ...googleCsp],
+    },
+  },
+}));
 
 // Never reflect all origins with credentials — that creates a wide CSRF surface.
 // "same-origin" sentinel means the frontend is proxied, so no explicit CORS needed.
@@ -124,7 +155,15 @@ app.use('/uploads/public', express.static(UPLOAD_PUBLIC, { maxAge: '7d', immutab
 app.use('/api/public', publicRoutes);
 app.use('/api/public/invitations', invitationsPublicRouter);
 app.post('/api/auth/register', registerLimiter);
-app.use('/api/auth', authLimiter, authRoutes);
+// Strict brute-force budget only on endpoints an attacker could actually use
+// to guess credentials/tokens without already holding a valid session.
+// Everything else under /api/auth (me, refresh, logout, sessions, profile,
+// change-password, ...) shares the far more generous authSessionLimiter below
+// instead, since it already requires a valid access/refresh token.
+for (const p of ['/api/auth/login', '/api/auth/forgot-password', '/api/auth/reset-password', '/api/auth/verify-email', '/api/auth/resend-verification-public']) {
+  app.post(p, authLimiter);
+}
+app.use('/api/auth', authSessionLimiter, authRoutes);
 app.use('/api/plans', publicPlansRouter);
 app.use('/api/platform/settings', publicSettingsRouter);
 

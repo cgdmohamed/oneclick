@@ -7,6 +7,7 @@
  */
 import { Router } from 'express';
 import { z } from 'zod';
+import jwt from 'jsonwebtoken';
 import { pool } from '../../db/client.js';
 import { requireSuperAdmin } from '../../middleware/rbac.js';
 import { badRequest, notFound } from '../../utils/errors.js';
@@ -865,6 +866,11 @@ router.patch('/custom-roles/:id', async (req, res, next) => {
       [...values, req.params.id],
     );
     if (!rs.rowCount) throw notFound();
+    await audit(pool, {
+      companyId: null, userId: req.auth!.userId,
+      action: 'custom_role.update', entity: 'platform_custom_role', entityId: req.params.id,
+      data: { fields },
+    });
     res.json({ data: rs.rows[0] });
   } catch (e) { next(e); }
 });
@@ -1268,6 +1274,50 @@ router.get('/users/:id', async (req, res, next) => {
       recent_invoices: recentInvoices.rows,
       recent_payments: recentPayments.rows,
       activity: activity.rows,
+    });
+  } catch (e) { next(e); }
+});
+
+/**
+ * POST /api/platform/users/:id/impersonate — issues a short-lived access
+ * token for the target user so support can see exactly what they see,
+ * without needing their password. No refresh token is created: this is a
+ * temporary, access-token-only session the frontend discards when the admin
+ * exits impersonation or the token's 15 minutes run out — never a persisted
+ * login. The token carries an `act` (actor) claim naming the admin for
+ * defense in depth, and every impersonation start is audit-logged.
+ */
+router.post('/users/:id/impersonate', async (req, res, next) => {
+  try {
+    const target = await pool.query<{ id: string; email: string; name: string; is_super_admin: boolean; disabled: boolean }>(
+      `SELECT id, email, name, is_super_admin, disabled FROM users WHERE id = $1`,
+      [req.params.id],
+    );
+    if (!target.rowCount) throw notFound('User not found');
+    const row = target.rows[0];
+    if (row.is_super_admin) throw badRequest('لا يمكن انتحال شخصية حساب سوبر أدمن آخر');
+    if (row.disabled) throw badRequest('هذا الحساب معطّل');
+
+    const comp = await pool.query(
+      `SELECT c.id, c.name, c.is_active, c.review_status
+         FROM user_companies uc JOIN companies c ON c.id = uc.company_id
+        WHERE uc.user_id = $1 ORDER BY uc.is_default DESC LIMIT 1`,
+      [row.id],
+    );
+
+    const adminId = req.auth!.userId;
+    const accessToken = jwt.sign({ sub: row.id, act: adminId }, env.JWT_SECRET, { expiresIn: '15m' });
+
+    await audit(pool, {
+      companyId: comp.rows[0]?.id ?? null, userId: adminId,
+      action: 'platform.impersonate_start', entity: 'user', entityId: row.id,
+      data: { target_email: row.email },
+    });
+
+    res.json({
+      access_token: accessToken,
+      user: { id: row.id, email: row.email, name: row.name, isSuperAdmin: false, emailVerified: true },
+      company: comp.rows[0] ?? null,
     });
   } catch (e) { next(e); }
 });

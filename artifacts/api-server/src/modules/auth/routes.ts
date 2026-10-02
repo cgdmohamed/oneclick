@@ -16,8 +16,12 @@ import { REFRESH_COOKIE, setRefreshCookie, clearRefreshCookie } from '../../util
 import { setCsrfCookie, clearCsrfCookie, requireCsrf } from '../../middleware/csrf.js';
 import { logger } from '../../utils/logger.js';
 import { DISPOSABLE_EMAIL_DOMAINS } from '../../config/disposableEmailDomains.js';
+import { authenticator } from 'otplib';
+import QRCode from 'qrcode';
+import { OAuth2Client } from 'google-auth-library';
 
 const router = Router();
+const googleClient = env.GOOGLE_CLIENT_ID ? new OAuth2Client(env.GOOGLE_CLIENT_ID) : null;
 
 const registerSchema = z.object({
   email: z.string().email(),
@@ -92,6 +96,14 @@ function signRefresh(userId: string) {
 }
 function signVerify(userId: string) {
   return jwt.sign({ sub: userId, t: 'v' }, env.JWT_SECRET, { expiresIn: '24h' });
+}
+/** Short-lived challenge issued after password/Google verification when 2FA is on — not a real session. */
+function signMfaChallenge(userId: string) {
+  return jwt.sign({ sub: userId, t: 'mfa' }, env.JWT_SECRET, { expiresIn: '5m' });
+}
+/** Short-lived token carrying a Google-verified identity while the user picks a company name. */
+function signGoogleSignup(googleId: string, email: string, name: string) {
+  return jwt.sign({ sub: googleId, t: 'gsignup', email, name }, env.JWT_SECRET, { expiresIn: '15m' });
 }
 const sha = (s: string) => crypto.createHash('sha256').update(s).digest('hex');
 
@@ -189,6 +201,69 @@ function readRefreshToken(req: Request): string | null {
   return typeof body?.refresh_token === 'string' ? body.refresh_token : null;
 }
 
+
+/**
+ * Issues real tokens for an already-verified user (password or Google) whose
+ * company is active and who either has no 2FA or has just passed it. Shared
+ * by /login, /2fa/verify, and /google so the refresh-token/roles/audit/cookie
+ * logic lives in exactly one place.
+ */
+async function issueSession(
+  userId: string, email: string, name: string, isSuperAdmin: boolean,
+  companyRow: { id: string; name: string; is_active: boolean; review_status: string } | undefined,
+  req: Request, res: Response,
+) {
+  const access = signAccess(userId);
+  const refresh = await issueRefreshToken(pool, userId, req);
+  const roles = await pool.query(`SELECT role, company_id FROM user_roles WHERE user_id = $1`, [userId]);
+  await audit(pool, {
+    companyId: companyRow?.id ?? null, userId,
+    action: 'auth.login', entity: 'user', entityId: userId,
+    data: { email, ip: req.ip },
+  });
+  setRefreshCookie(res, refresh);
+  setCsrfCookie(res);
+  res.json({
+    access_token: access,
+    user: { id: userId, email, name, isSuperAdmin, emailVerified: true },
+    company: companyRow ?? null,
+    roles: roles.rows,
+  });
+}
+
+/**
+ * Runs the account-level gates every login path (password, Google, post-2FA)
+ * must pass before a session is issued: disabled check, email verification,
+ * company approval/suspension, then either a 2FA challenge or a real session.
+ */
+async function completeLogin(
+  user: { id: string; email: string; name: string; is_super_admin: boolean; email_verified_at: Date | string | null; disabled: boolean },
+  req: Request, res: Response,
+) {
+  if (user.disabled) throw forbidden('تم تعطيل حسابك. يرجى التواصل مع مدير الشركة.');
+  if (!user.is_super_admin && !user.email_verified_at) {
+    throw forbidden('يجب تأكيد بريدك الإلكتروني أولاً. تحقق من صندوق الوارد، أو اطلب رابط تأكيد جديد.');
+  }
+
+  const comp = await pool.query(
+    `SELECT c.id, c.name, c.is_active, c.review_status
+       FROM user_companies uc JOIN companies c ON c.id = uc.company_id
+      WHERE uc.user_id = $1 ORDER BY uc.is_default DESC LIMIT 1`,
+    [user.id],
+  );
+  if (comp.rows[0] && !comp.rows[0].is_active) {
+    const reviewStatus: string = comp.rows[0].review_status ?? 'pending';
+    if (reviewStatus === 'pending') throw forbidden('حسابك قيد المراجعة. سنُبلغك فور اعتماده من فريق ون كليك.');
+    throw forbidden('تم تعليق حسابك. يرجى التواصل مع الدعم الفني.');
+  }
+
+  const totp = await pool.query<{ totp_enabled: boolean }>(`SELECT totp_enabled FROM users WHERE id = $1`, [user.id]);
+  if (totp.rows[0]?.totp_enabled) {
+    return res.json({ mfaRequired: true, mfaToken: signMfaChallenge(user.id) });
+  }
+
+  await issueSession(user.id, user.email, user.name, user.is_super_admin, comp.rows[0], req, res);
+}
 
 router.post('/register', async (req, res, next) => {
   try {
@@ -316,57 +391,66 @@ router.post('/login', async (req, res, next) => {
     const ok = await bcrypt.compare(body.password, u.rows[0].password_hash);
     if (!ok) { noteFailure(body.email); throw unauthorized('Invalid credentials'); }
     noteSuccess(body.email);
-    if (u.rows[0].disabled) throw forbidden('تم تعطيل حسابك. يرجى التواصل مع مدير الشركة.');
-    // SEC-09: block login until the email is confirmed — before this check, login only
-    // reported `emailVerified` in its response without acting on it, so an unconfirmed
-    // (or mistyped) email never blocked anything. Super admins are platform-created
-    // accounts, not public signups, so they're exempt.
-    if (!u.rows[0].is_super_admin && !u.rows[0].email_verified_at) {
-      throw forbidden('يجب تأكيد بريدك الإلكتروني أولاً. تحقق من صندوق الوارد، أو اطلب رابط تأكيد جديد.');
-    }
+    // SEC-09: block login until the email is confirmed (checked inside completeLogin) —
+    // before this existed, login only reported `emailVerified` without acting on it, so
+    // an unconfirmed (or mistyped) email never blocked anything. Super admins are
+    // platform-created accounts, not public signups, so they're exempt there too.
+    await completeLogin(
+      { id: u.rows[0].id, email: body.email, name: u.rows[0].name, is_super_admin: u.rows[0].is_super_admin, email_verified_at: u.rows[0].email_verified_at, disabled: u.rows[0].disabled },
+      req, res,
+    );
+  } catch (e) { next(e); }
+});
 
-    const userId = u.rows[0].id;
+/**
+ * POST /api/auth/2fa/verify — second step of login when the account has TOTP
+ * enabled. Accepts either a live 6-digit TOTP code or a one-time backup code.
+ */
+router.post('/2fa/verify', async (req, res, next) => {
+  try {
+    const { mfaToken, code } = z.object({ mfaToken: z.string().min(10), code: z.string().min(6).max(12) }).parse(req.body);
+    let payload: { sub: string; t?: string };
+    try { payload = jwt.verify(mfaToken, env.JWT_SECRET) as { sub: string; t?: string }; }
+    catch { throw unauthorized('انتهت صلاحية جلسة التحقق، سجّل الدخول من جديد'); }
+    if (payload.t !== 'mfa') throw unauthorized('Invalid challenge token');
+
+    const u = await pool.query(
+      `SELECT id, email, name, is_super_admin, disabled, totp_secret, totp_backup_codes FROM users WHERE id = $1`,
+      [payload.sub],
+    );
+    if (!u.rowCount) throw unauthorized();
+    const row = u.rows[0];
+    if (row.disabled) throw forbidden('تم تعطيل حسابك. يرجى التواصل مع مدير الشركة.');
+
+    const normalized = code.replace(/\s|-/g, '');
+    let valid = row.totp_secret ? authenticator.check(normalized, row.totp_secret) : false;
+    let usedBackupCode: string | null = null;
+    if (!valid) {
+      const hashedInput = sha(normalized.toUpperCase());
+      const backupCodes: string[] = row.totp_backup_codes ?? [];
+      if (backupCodes.includes(hashedInput)) {
+        valid = true;
+        usedBackupCode = hashedInput;
+      }
+    }
+    if (!valid) throw unauthorized('رمز التحقق غير صحيح');
+
+    if (usedBackupCode) {
+      // One-time use — remove it so it can't be replayed.
+      await pool.query(
+        `UPDATE users SET totp_backup_codes = array_remove(totp_backup_codes, $2) WHERE id = $1`,
+        [row.id, usedBackupCode],
+      );
+      await audit(pool, { companyId: null, userId: row.id, action: 'auth.2fa_backup_code_used', entity: 'user', entityId: row.id });
+    }
 
     const comp = await pool.query(
       `SELECT c.id, c.name, c.is_active, c.review_status
          FROM user_companies uc JOIN companies c ON c.id = uc.company_id
         WHERE uc.user_id = $1 ORDER BY uc.is_default DESC LIMIT 1`,
-      [userId],
+      [row.id],
     );
-
-    // Block login before issuing any tokens if the company is not yet approved.
-    if (comp.rows[0] && !comp.rows[0].is_active) {
-      const reviewStatus: string = comp.rows[0].review_status ?? 'pending';
-      if (reviewStatus === 'pending') {
-        throw forbidden('حسابك قيد المراجعة. سنُبلغك فور اعتماده من فريق ون كليك.');
-      }
-      throw forbidden('تم تعليق حسابك. يرجى التواصل مع الدعم الفني.');
-    }
-
-    const access = signAccess(userId);
-    const refresh = await issueRefreshToken(pool, userId, req);
-
-    const roles = await pool.query(
-      `SELECT role, company_id FROM user_roles WHERE user_id = $1`, [userId],
-    );
-
-    await audit(pool, {
-      companyId: comp.rows[0]?.id ?? null, userId,
-      action: 'auth.login', entity: 'user', entityId: userId,
-      data: { email: body.email, ip: req.ip },
-    });
-    setRefreshCookie(res, refresh);
-    setCsrfCookie(res);
-    res.json({
-      access_token: access,
-      user: {
-        id: userId, email: body.email, name: u.rows[0].name,
-        isSuperAdmin: u.rows[0].is_super_admin,
-        emailVerified: !!u.rows[0].email_verified_at,
-      },
-      company: comp.rows[0] ?? null,
-      roles: roles.rows,
-    });
+    await issueSession(row.id, row.email, row.name, row.is_super_admin, comp.rows[0], req, res);
   } catch (e) { next(e); }
 });
 
@@ -825,6 +909,209 @@ router.delete('/sessions', requireAuth, requireCsrf, async (req, res, next) => {
       data: { othersOnly },
     });
     res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
+/* ---------- Two-factor authentication (TOTP) ---------- */
+
+function generateBackupCodes(count = 8): { plain: string[]; hashed: string[] } {
+  const plain: string[] = [];
+  const hashed: string[] = [];
+  for (let i = 0; i < count; i++) {
+    const code = crypto.randomBytes(5).toString('hex').toUpperCase(); // 10 hex chars, e.g. "A1B2C3D4E5"
+    plain.push(code);
+    hashed.push(sha(code));
+  }
+  return { plain, hashed };
+}
+
+/**
+ * POST /api/auth/2fa/setup — generates a new (unconfirmed) TOTP secret and a
+ * QR code for the authenticator app. Stored separately from totp_secret so a
+ * user who starts setup but never confirms with /2fa/enable never gets
+ * locked out of their own account by a secret they didn't finish adopting.
+ */
+/** GET /api/auth/2fa/status — whether the current user has 2FA enabled. */
+router.get('/2fa/status', requireAuth, async (req, res, next) => {
+  try {
+    const u = await pool.query<{ totp_enabled: boolean }>(`SELECT totp_enabled FROM users WHERE id = $1`, [req.auth!.userId]);
+    res.json({ totp_enabled: !!u.rows[0]?.totp_enabled });
+  } catch (e) { next(e); }
+});
+
+router.post('/2fa/setup', requireAuth, requireCsrf, async (req, res, next) => {
+  try {
+    const userId = req.auth!.userId;
+    const u = await pool.query<{ email: string; totp_enabled: boolean }>(`SELECT email, totp_enabled FROM users WHERE id = $1`, [userId]);
+    if (!u.rowCount) throw unauthorized();
+    if (u.rows[0].totp_enabled) throw badRequest('المصادقة الثنائية مفعّلة بالفعل — ألغِ تفعيلها أولاً لإعادة الإعداد');
+
+    const secret = authenticator.generateSecret();
+    await pool.query(`UPDATE users SET totp_pending_secret = $1 WHERE id = $2`, [secret, userId]);
+    const branding = await getPlatformBranding();
+    const otpauth = authenticator.keyuri(u.rows[0].email, branding.brandName || 'ون كليك', secret);
+    const qrDataUrl = await QRCode.toDataURL(otpauth);
+    res.json({ secret, qrDataUrl });
+  } catch (e) { next(e); }
+});
+
+/**
+ * POST /api/auth/2fa/enable — confirms the pending secret with a live code
+ * from the authenticator app, activates 2FA, and returns one-time backup
+ * codes (shown to the user exactly once — only their hashes are stored).
+ */
+router.post('/2fa/enable', requireAuth, requireCsrf, async (req, res, next) => {
+  try {
+    const { code } = z.object({ code: z.string().min(6).max(8) }).parse(req.body);
+    const userId = req.auth!.userId;
+    const u = await pool.query<{ totp_pending_secret: string | null }>(`SELECT totp_pending_secret FROM users WHERE id = $1`, [userId]);
+    if (!u.rowCount || !u.rows[0].totp_pending_secret) throw badRequest('ابدأ إعداد المصادقة الثنائية أولاً');
+    if (!authenticator.check(code.replace(/\s/g, ''), u.rows[0].totp_pending_secret)) {
+      throw badRequest('رمز التحقق غير صحيح');
+    }
+    const { plain, hashed } = generateBackupCodes();
+    await pool.query(
+      `UPDATE users SET totp_secret = totp_pending_secret, totp_pending_secret = NULL,
+              totp_enabled = true, totp_backup_codes = $2
+       WHERE id = $1`,
+      [userId, hashed],
+    );
+    await audit(pool, { companyId: null, userId, action: 'auth.2fa_enabled', entity: 'user', entityId: userId });
+    res.json({ ok: true, backupCodes: plain });
+  } catch (e) { next(e); }
+});
+
+/** POST /api/auth/2fa/disable — requires the current password to turn 2FA off. */
+router.post('/2fa/disable', requireAuth, requireCsrf, async (req, res, next) => {
+  try {
+    const { password } = z.object({ password: z.string().min(1) }).parse(req.body);
+    const userId = req.auth!.userId;
+    const u = await pool.query(`SELECT password_hash FROM users WHERE id = $1`, [userId]);
+    if (!u.rowCount) throw unauthorized();
+    if (!(await bcrypt.compare(password, u.rows[0].password_hash))) throw badRequest('كلمة المرور غير صحيحة');
+    await pool.query(
+      `UPDATE users SET totp_secret = NULL, totp_pending_secret = NULL, totp_enabled = false, totp_backup_codes = NULL
+       WHERE id = $1`,
+      [userId],
+    );
+    await audit(pool, { companyId: null, userId, action: 'auth.2fa_disabled', entity: 'user', entityId: userId });
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
+/* ---------- Google Sign-In ---------- */
+
+/**
+ * POST /api/auth/google — logs in or links an account from a Google ID
+ * token (obtained client-side via Google Identity Services). A brand-new
+ * Google user has no company yet, so this returns `needsCompanyName` with a
+ * short-lived signup token instead of creating an account outright — company
+ * signup still goes through the same pending-review gate as a normal
+ * registration (see /google/complete below).
+ */
+router.post('/google', async (req, res, next) => {
+  try {
+    if (!googleClient || !env.GOOGLE_CLIENT_ID) throw badRequest('تسجيل الدخول بجوجل غير مفعّل حاليًا');
+    const { idToken } = z.object({ idToken: z.string().min(10) }).parse(req.body);
+
+    let payload: { sub: string; email?: string; email_verified?: boolean; name?: string };
+    try {
+      const ticket = await googleClient.verifyIdToken({ idToken, audience: env.GOOGLE_CLIENT_ID });
+      const p = ticket.getPayload();
+      if (!p) throw new Error('empty payload');
+      payload = p;
+    } catch {
+      throw unauthorized('تعذّر التحقق من حساب جوجل');
+    }
+    if (!payload.email || !payload.email_verified) throw unauthorized('حساب جوجل بدون بريد إلكتروني مؤكّد');
+
+    const byGoogleId = await pool.query(
+      `SELECT id, email, name, is_super_admin, disabled FROM users WHERE google_id = $1`,
+      [payload.sub],
+    );
+    if (byGoogleId.rowCount) {
+      const row = byGoogleId.rows[0];
+      return completeLogin({ ...row, email_verified_at: new Date() }, req, res);
+    }
+
+    const byEmail = await pool.query(
+      `SELECT id, email, name, is_super_admin, disabled FROM users WHERE email = $1`,
+      [payload.email],
+    );
+    if (byEmail.rowCount) {
+      // Existing password-based account with the same (Google-confirmed) email — link it.
+      const row = byEmail.rows[0];
+      await pool.query(
+        `UPDATE users SET google_id = $1, email_verified_at = COALESCE(email_verified_at, now()) WHERE id = $2`,
+        [payload.sub, row.id],
+      );
+      await audit(pool, { companyId: null, userId: row.id, action: 'auth.google_linked', entity: 'user', entityId: row.id });
+      return completeLogin({ ...row, email_verified_at: new Date() }, req, res);
+    }
+
+    // No local account at all — need a company name before we can create one.
+    res.json({
+      needsCompanyName: true,
+      googleSignupToken: signGoogleSignup(payload.sub, payload.email, payload.name ?? payload.email),
+    });
+  } catch (e) { next(e); }
+});
+
+/**
+ * POST /api/auth/google/complete — finishes signup for a brand-new Google
+ * user by pairing their verified identity with a company name. Mirrors
+ * /register: the company starts in 'pending' review, no tokens are issued
+ * yet. The account gets a random, unusable password hash since it has no
+ * password — "forgot password" can be used later to set a real one.
+ */
+router.post('/google/complete', async (req, res, next) => {
+  try {
+    const { googleSignupToken, companyName } = z.object({
+      googleSignupToken: z.string().min(10),
+      companyName: z.string().min(2),
+    }).parse(req.body);
+
+    let payload: { sub: string; t?: string; email: string; name: string };
+    try { payload = jwt.verify(googleSignupToken, env.JWT_SECRET) as typeof payload; }
+    catch { throw badRequest('انتهت صلاحية الجلسة، سجّل الدخول بجوجل من جديد'); }
+    if (payload.t !== 'gsignup') throw badRequest('Invalid token');
+
+    const exists = await pool.query(`SELECT 1 FROM users WHERE email = $1 OR google_id = $2`, [payload.email, payload.sub]);
+    if (exists.rowCount) throw badRequest('هذا البريد الإلكتروني مسجّل بالفعل — سجّل الدخول بدلاً من ذلك');
+
+    const randomPasswordHash = await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 12);
+    const c = await pool.connect();
+    try {
+      await c.query('BEGIN');
+      const userRes = await c.query(
+        `INSERT INTO users (email, password_hash, name, google_id, email_verified_at) VALUES ($1,$2,$3,$4,now()) RETURNING id`,
+        [payload.email, randomPasswordHash, payload.name, payload.sub],
+      );
+      const userId = userRes.rows[0].id;
+      const platformGeneral = await pool.query(`SELECT value FROM platform_settings WHERE key = 'general'`);
+      const platformPrefix = (platformGeneral.rows[0]?.value as Record<string, unknown> | undefined)?.invoicePrefix;
+      const invoicePrefix = typeof platformPrefix === 'string' && platformPrefix.trim() ? platformPrefix.trim() : 'INV';
+
+      const compRes = await c.query(
+        `INSERT INTO companies (name, email, owner_name, is_active, review_status, invoice_prefix)
+         VALUES ($1,$2,$3,false,'pending',$4) RETURNING id`,
+        [companyName, payload.email, payload.name, invoicePrefix],
+      );
+      const companyId = compRes.rows[0].id;
+      await c.query(`INSERT INTO user_companies (user_id, company_id, is_default) VALUES ($1,$2,true)`, [userId, companyId]);
+      await c.query(`INSERT INTO user_roles (user_id, company_id, role) VALUES ($1,$2,'company_admin')`, [userId, companyId]);
+      await c.query('COMMIT');
+      await audit(pool, {
+        companyId, userId, action: 'auth.register_google', entity: 'user', entityId: userId,
+        data: { email: payload.email, companyName },
+      });
+      res.json({ ok: true, pendingReview: true });
+    } catch (e) {
+      await c.query('ROLLBACK');
+      throw e;
+    } finally {
+      c.release();
+    }
   } catch (e) { next(e); }
 });
 

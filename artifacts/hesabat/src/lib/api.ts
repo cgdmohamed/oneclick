@@ -191,11 +191,104 @@ export interface LoginResponse {
   roles: { role: string; company_id: string | null }[];
 }
 
-export async function loginRequest(email: string, password: string) {
-  const res = await api.post<LoginResponse>('/api/auth/login', { email, password });
+/** Returned by /login (and /google) instead of LoginResponse when the account has 2FA enabled. */
+export interface MfaChallengeResponse {
+  mfaRequired: true;
+  mfaToken: string;
+}
+
+function isMfaChallenge(res: LoginResponse | MfaChallengeResponse): res is MfaChallengeResponse {
+  return (res as MfaChallengeResponse).mfaRequired === true;
+}
+
+function applySession(res: LoginResponse) {
   setAccessToken(res.access_token);
   if (res.company?.id) setActiveCompanyId(res.company.id);
+}
+
+export async function loginRequest(email: string, password: string) {
+  const res = await api.post<LoginResponse | MfaChallengeResponse>('/api/auth/login', { email, password });
+  if (isMfaChallenge(res)) return res;
+  applySession(res);
   return res;
+}
+
+/** Second step of login when loginRequest/googleLoginRequest returned an MFA challenge. */
+export async function verify2faRequest(mfaToken: string, code: string) {
+  const res = await api.post<LoginResponse>('/api/auth/2fa/verify', { mfaToken, code });
+  applySession(res);
+  return res;
+}
+
+/** Returned by /google when the Google account has no matching local user yet. */
+export interface GoogleNeedsCompanyResponse {
+  needsCompanyName: true;
+  googleSignupToken: string;
+}
+
+function isNeedsCompany(res: LoginResponse | MfaChallengeResponse | GoogleNeedsCompanyResponse): res is GoogleNeedsCompanyResponse {
+  return (res as GoogleNeedsCompanyResponse).needsCompanyName === true;
+}
+
+export async function googleLoginRequest(idToken: string) {
+  const res = await api.post<LoginResponse | MfaChallengeResponse | GoogleNeedsCompanyResponse>('/api/auth/google', { idToken });
+  if (isNeedsCompany(res) || isMfaChallenge(res)) return res;
+  applySession(res);
+  return res;
+}
+
+export async function googleCompleteRequest(googleSignupToken: string, companyName: string) {
+  return api.post<{ ok: boolean; pendingReview?: boolean }>('/api/auth/google/complete', { googleSignupToken, companyName });
+}
+
+/* ---------- Impersonation (super admin "view as user") ---------- */
+
+const IMPERSONATION_ADMIN_TOKEN_KEY = 'hesabat.impersonation.admin_token';
+const IMPERSONATION_ADMIN_COMPANY_KEY = 'hesabat.impersonation.admin_company';
+const IMPERSONATION_TARGET_NAME_KEY = 'hesabat.impersonation.target_name';
+
+export const isImpersonating = () => sessionStorage.getItem(IMPERSONATION_ADMIN_TOKEN_KEY) !== null;
+export const getImpersonatedName = () => sessionStorage.getItem(IMPERSONATION_TARGET_NAME_KEY);
+
+/**
+ * AuthProvider caches the hydrated user object (including role) under this
+ * key and reads it synchronously on mount, before the fresh /api/auth/me
+ * call resolves. If we swap the access token without also clearing this, the
+ * next page loads briefly (or, if a role-based redirect fires first,
+ * permanently) with the PREVIOUS session's cached role — e.g. exiting
+ * impersonation would flash/stick on the impersonated user's role until
+ * something else happened to re-trigger the admin check. Must be cleared on
+ * every token swap outside the normal login flow.
+ */
+const AUTH_CACHE_KEY = 'hesabat.auth';
+
+/** Starts viewing the app as another user. Full page reload lands the admin in /app as that user. */
+export async function startImpersonation(targetUserId: string, targetName: string) {
+  const res = await api.post<{ access_token: string; user: { id: string; isSuperAdmin: boolean }; company: { id: string } | null }>(
+    `/api/platform/users/${targetUserId}/impersonate`,
+  );
+  const adminToken = getAccessToken();
+  const adminCompany = getActiveCompanyId();
+  if (adminToken) sessionStorage.setItem(IMPERSONATION_ADMIN_TOKEN_KEY, adminToken);
+  if (adminCompany) sessionStorage.setItem(IMPERSONATION_ADMIN_COMPANY_KEY, adminCompany);
+  sessionStorage.setItem(IMPERSONATION_TARGET_NAME_KEY, targetName);
+  localStorage.removeItem(AUTH_CACHE_KEY);
+  setAccessToken(res.access_token);
+  if (res.company?.id) setActiveCompanyId(res.company.id);
+  window.location.href = '/app';
+}
+
+/** Restores the admin's own session and sends them back to the admin panel. */
+export function exitImpersonation() {
+  const adminToken = sessionStorage.getItem(IMPERSONATION_ADMIN_TOKEN_KEY);
+  const adminCompany = sessionStorage.getItem(IMPERSONATION_ADMIN_COMPANY_KEY);
+  sessionStorage.removeItem(IMPERSONATION_ADMIN_TOKEN_KEY);
+  sessionStorage.removeItem(IMPERSONATION_ADMIN_COMPANY_KEY);
+  sessionStorage.removeItem(IMPERSONATION_TARGET_NAME_KEY);
+  localStorage.removeItem(AUTH_CACHE_KEY);
+  setAccessToken(adminToken);
+  setActiveCompanyId(adminCompany);
+  window.location.href = '/admin';
 }
 
 export async function logoutRequest() {

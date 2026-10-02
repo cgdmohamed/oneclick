@@ -19,7 +19,7 @@ import { useCurrentFeatureSet } from '@/hooks/usePlanAccess';
 import { OnboardingWizard } from '@/components/common/OnboardingWizard';
 import { Sparkles } from 'lucide-react';
 import PendingApproval from '@/pages/app/PendingApproval';
-import { isApiConfigured } from '@/lib/api';
+import { isApiConfigured, isImpersonating, getImpersonatedName, exitImpersonation } from '@/lib/api';
 import { GlobalSearch } from '@/components/common/GlobalSearch';
 
 type NavItem = {
@@ -311,6 +311,16 @@ const AppShellInner = ({ kind }: { kind: 'company' | 'admin' }) => {
       </Sidebar>
 
       <div className="flex-1 flex flex-col min-w-0">
+        {kind === 'company' && isImpersonating() && (
+          <div className="bg-warning text-warning-foreground px-4 py-2 flex items-center justify-between gap-3 text-sm sticky top-0 z-40">
+            <span>
+              أنت تتصفح كـ<strong> {getImpersonatedName() ?? 'مستخدم'}</strong> — أي إجراء تقوم به يُسجَّل باسمه.
+            </span>
+            <Button size="sm" variant="secondary" className="h-7" onClick={exitImpersonation}>
+              إنهاء وعودة للوحة الإدارة
+            </Button>
+          </div>
+        )}
         <header className="shell-header relative h-14 bg-card/60 backdrop-blur sticky top-0 z-30 flex items-center px-4 gap-3 shadow-sm">
           <SidebarTrigger />
           <div className="flex-1" />

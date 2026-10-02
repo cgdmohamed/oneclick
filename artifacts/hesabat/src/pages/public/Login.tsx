@@ -7,7 +7,8 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
 import { useState } from 'react';
 import { useAuth } from '@/lib/auth';
-import { api, isApiConfigured, loginRequest, ApiError } from '@/lib/api';
+import { api, isApiConfigured, loginRequest, verify2faRequest, googleLoginRequest, googleCompleteRequest, ApiError } from '@/lib/api';
+import { GoogleSignInButton, isGoogleSignInConfigured } from '@/components/common/GoogleSignInButton';
 import { toast } from 'sonner';
 
 const UNVERIFIED_EMAIL_MESSAGE = 'يجب تأكيد بريدك الإلكتروني أولاً. تحقق من صندوق الوارد، أو اطلب رابط تأكيد جديد.';
@@ -33,6 +34,70 @@ const Login = () => {
   const [searchParams] = useSearchParams();
   const redirectTo = sanitizeRedirect(searchParams.get('redirect'));
 
+  // Second step of login: account has 2FA enabled.
+  const [mfaToken, setMfaToken] = useState<string | null>(null);
+  const [mfaCode, setMfaCode] = useState('');
+  const [mfaLoading, setMfaLoading] = useState(false);
+
+  // Google sign-in on a brand-new Google account: needs a company name before
+  // the account/company can be created, mirroring the normal register flow.
+  const [googleSignupToken, setGoogleSignupToken] = useState<string | null>(null);
+  const [googleCompanyName, setGoogleCompanyName] = useState('');
+  const [googleLoading, setGoogleLoading] = useState(false);
+
+  const goAfterLogin = (isSuperAdmin?: boolean) => {
+    toast.success('تم تسجيل الدخول');
+    window.location.href = redirectTo ?? (isSuperAdmin ? '/admin' : '/app');
+  };
+
+  const submitMfaCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!mfaToken) return;
+    setMfaLoading(true);
+    try {
+      const res = await verify2faRequest(mfaToken, mfaCode.trim());
+      goAfterLogin(res.user.isSuperAdmin);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'رمز التحقق غير صحيح');
+    } finally {
+      setMfaLoading(false);
+    }
+  };
+
+  const handleGoogleCredential = async (idToken: string) => {
+    setGoogleLoading(true);
+    try {
+      const res = await googleLoginRequest(idToken);
+      if ('needsCompanyName' in res) {
+        setGoogleSignupToken(res.googleSignupToken);
+      } else if ('mfaRequired' in res) {
+        setMfaToken(res.mfaToken);
+      } else {
+        goAfterLogin(res.user.isSuperAdmin);
+      }
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'تعذّر تسجيل الدخول بجوجل');
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
+
+  const submitGoogleCompany = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!googleSignupToken || !googleCompanyName.trim()) return;
+    setGoogleLoading(true);
+    try {
+      await googleCompleteRequest(googleSignupToken, googleCompanyName.trim());
+      toast.success('تم إنشاء حسابك! سنُبلغك فور اعتماده من فريق ون كليك.');
+      setGoogleSignupToken(null);
+      navigate('/login');
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'تعذّر إنشاء الحساب');
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
+
   const resendVerification = async () => {
     setResending(true);
     try {
@@ -52,12 +117,15 @@ const Login = () => {
     try {
       if (isApiConfigured()) {
         const res = await loginRequest(email, password);
-        toast.success('تم تسجيل الدخول');
+        if ('mfaRequired' in res) {
+          setMfaToken(res.mfaToken);
+          return;
+        }
         // Full reload so AuthProvider re-runs its /api/auth/me hydration
         // effect with the newly saved token in localStorage.
         // If a safe same-origin redirect is provided (e.g. from an invitation
         // link), send the user there; otherwise use the default destination.
-        window.location.href = redirectTo ?? (res.user.isSuperAdmin ? '/admin' : '/app');
+        goAfterLogin(res.user.isSuperAdmin);
       } else {
         // Demo mode (no backend configured): require a non-empty password and
         // never grant super_admin via the local mock list.
@@ -92,35 +160,87 @@ const Login = () => {
               الرئيسية
             </Link>
           </div>
-          <h1 className="text-2xl font-bold">مرحباً بعودتك</h1>
-          <p className="text-sm text-muted-foreground mt-1.5">سجّل دخولك للوصول إلى لوحة التحكم.</p>
-          <form onSubmit={submit} className="space-y-4 mt-6">
-            <div>
-              <Label>البريد الإلكتروني</Label>
-              <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="mt-1.5" required />
-            </div>
-            <div>
-              <div className="flex items-center justify-between">
-                <Label>كلمة المرور</Label>
-                <Link to="/forgot-password" className="text-xs text-primary">نسيت كلمة المرور؟</Link>
-              </div>
-              <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="mt-1.5" required />
-            </div>
-            <Button type="submit" size="lg" className="w-full" disabled={loading}>
-              {loading ? 'جارٍ الدخول…' : 'تسجيل الدخول'}
-            </Button>
-            {needsVerification && (
-              <Button
-                type="button" variant="outline" size="lg" className="w-full"
-                onClick={resendVerification} disabled={resending}
-              >
-                {resending ? 'جارٍ الإرسال…' : 'إعادة إرسال رابط تأكيد البريد'}
-              </Button>
-            )}
-          </form>
-          <p className="text-sm text-muted-foreground text-center mt-6">
-            ليس لديك حساب؟ <Link to="/register" className="text-primary font-semibold">سجّل شركتك</Link>
-          </p>
+          {googleSignupToken ? (
+            <>
+              <h1 className="text-2xl font-bold">خطوة أخيرة</h1>
+              <p className="text-sm text-muted-foreground mt-1.5">تم التحقق من حساب جوجل — أدخل اسم شركتك لإكمال إنشاء الحساب.</p>
+              <form onSubmit={submitGoogleCompany} className="space-y-4 mt-6">
+                <div>
+                  <Label>اسم الشركة</Label>
+                  <Input value={googleCompanyName} onChange={(e) => setGoogleCompanyName(e.target.value)} className="mt-1.5" required autoFocus />
+                </div>
+                <Button type="submit" size="lg" className="w-full" disabled={googleLoading}>
+                  {googleLoading ? 'جارٍ الإنشاء…' : 'إنشاء الحساب'}
+                </Button>
+                <Button type="button" variant="ghost" size="sm" className="w-full" onClick={() => setGoogleSignupToken(null)}>
+                  رجوع
+                </Button>
+              </form>
+            </>
+          ) : mfaToken ? (
+            <>
+              <h1 className="text-2xl font-bold">التحقق بخطوتين</h1>
+              <p className="text-sm text-muted-foreground mt-1.5">أدخل رمز التحقق من تطبيق المصادقة، أو أحد رموز الاسترداد الاحتياطية.</p>
+              <form onSubmit={submitMfaCode} className="space-y-4 mt-6">
+                <div>
+                  <Label>رمز التحقق</Label>
+                  <Input
+                    value={mfaCode} onChange={(e) => setMfaCode(e.target.value)}
+                    className="mt-1.5 text-center tracking-[0.3em]" inputMode="numeric"
+                    autoFocus required maxLength={12}
+                  />
+                </div>
+                <Button type="submit" size="lg" className="w-full" disabled={mfaLoading}>
+                  {mfaLoading ? 'جارٍ التحقق…' : 'تأكيد'}
+                </Button>
+                <Button type="button" variant="ghost" size="sm" className="w-full" onClick={() => { setMfaToken(null); setMfaCode(''); }}>
+                  رجوع لتسجيل الدخول
+                </Button>
+              </form>
+            </>
+          ) : (
+            <>
+              <h1 className="text-2xl font-bold">مرحباً بعودتك</h1>
+              <p className="text-sm text-muted-foreground mt-1.5">سجّل دخولك للوصول إلى لوحة التحكم.</p>
+              <form onSubmit={submit} className="space-y-4 mt-6">
+                <div>
+                  <Label>البريد الإلكتروني</Label>
+                  <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="mt-1.5" required />
+                </div>
+                <div>
+                  <div className="flex items-center justify-between">
+                    <Label>كلمة المرور</Label>
+                    <Link to="/forgot-password" className="text-xs text-primary">نسيت كلمة المرور؟</Link>
+                  </div>
+                  <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="mt-1.5" required />
+                </div>
+                <Button type="submit" size="lg" className="w-full" disabled={loading}>
+                  {loading ? 'جارٍ الدخول…' : 'تسجيل الدخول'}
+                </Button>
+                {needsVerification && (
+                  <Button
+                    type="button" variant="outline" size="lg" className="w-full"
+                    onClick={resendVerification} disabled={resending}
+                  >
+                    {resending ? 'جارٍ الإرسال…' : 'إعادة إرسال رابط تأكيد البريد'}
+                  </Button>
+                )}
+              </form>
+              {isGoogleSignInConfigured() && (
+                <>
+                  <div className="flex items-center gap-3 my-5">
+                    <div className="h-px flex-1 bg-border" />
+                    <span className="text-xs text-muted-foreground">أو</span>
+                    <div className="h-px flex-1 bg-border" />
+                  </div>
+                  <GoogleSignInButton onCredential={handleGoogleCredential} />
+                </>
+              )}
+              <p className="text-sm text-muted-foreground text-center mt-6">
+                ليس لديك حساب؟ <Link to="/register" className="text-primary font-semibold">سجّل شركتك</Link>
+              </p>
+            </>
+          )}
         </Card>
       </div>
       <div className="hidden lg:block gradient-hero relative overflow-hidden">

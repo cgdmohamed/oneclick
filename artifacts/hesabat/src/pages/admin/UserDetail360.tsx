@@ -6,9 +6,14 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ArrowRight, Mail, Building2, Crown, FileText, CreditCard, Activity, ShieldCheck, Wallet, AlertCircle } from 'lucide-react';
-import { api, ApiError, isApiConfigured } from '@/lib/api';
+import { api, ApiError, isApiConfigured, startImpersonation } from '@/lib/api';
+import { toast } from 'sonner';
 import { roleLabel, formatCurrency, formatDate, formatDateShort, invoiceStatusLabel, paymentMethodLabel } from '@/lib/format';
 
 interface ApiCompany {
@@ -198,6 +203,33 @@ const UserDetail360 = () => {
               )}
             </div>
           </div>
+          {!user.is_super_admin && !user.disabled && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="outline">تسجيل الدخول كـ{user.name}</Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>تسجيل الدخول كـ{user.name}؟</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    ستنتقل لعرض التطبيق تمامًا كما يراه هذا المستخدم، لمدة 15 دقيقة. أي إجراء تقوم به أثناء ذلك يُسجَّل باسمه في سجل النشاط.
+                    يمكنك العودة للوحة الإدارة في أي وقت من الشريط العلوي.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>إلغاء</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={async () => {
+                      try { await startImpersonation(user.id, user.name); }
+                      catch (e) { toast.error(e instanceof ApiError ? e.message : 'تعذّر بدء الجلسة'); }
+                    }}
+                  >
+                    تأكيد
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
         </div>
       </Card>
 
