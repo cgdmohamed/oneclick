@@ -136,6 +136,44 @@ function noteSuccess(email: string) {
   attempts.delete(email.toLowerCase());
 }
 
+/**
+ * Alerts every super admin that a new company signed up and is waiting for
+ * review — before this, the only way to find out was to open the approvals
+ * screen and happen to notice. Best-effort on both channels: a signup must
+ * never fail or even slow down because a notification/email couldn't be sent.
+ */
+async function notifyAdminsOfNewSignup(opts: { companyName: string; email: string; phone?: string | null }) {
+  try {
+    await pool.query(
+      `INSERT INTO system_notifications (title, body, audience) VALUES ($1,$2,'admin')`,
+      [
+        'طلب تسجيل جديد',
+        `شركة «${opts.companyName}» (${opts.email}${opts.phone ? `، ${opts.phone}` : ''}) سجّلت وتنتظر المراجعة.`,
+      ],
+    );
+  } catch { /* best-effort — never block signup */ }
+
+  try {
+    const admins = await pool.query<{ email: string }>(`SELECT email FROM users WHERE is_super_admin = true`);
+    if (!admins.rowCount) return;
+    const branding = await getPlatformBranding();
+    const html = renderEmail({
+      ...branding,
+      title: 'طلب تسجيل جديد',
+      previewText: `شركة جديدة سجّلت وتنتظر المراجعة: ${opts.companyName}`,
+      bodyHtml: `<p>شركة جديدة سجّلت في المنصة وتنتظر المراجعة:</p>
+                 <p><strong>${opts.companyName}</strong><br/>${opts.email}${opts.phone ? `<br/>${opts.phone}` : ''}</p>`,
+      ctaLabel: 'مراجعة الطلب',
+      ctaUrl: `${env.APP_URL}/admin/approvals`,
+    });
+    await Promise.all(
+      admins.rows.map((a) =>
+        sendEmail({ to: a.email, subject: `طلب تسجيل جديد: ${opts.companyName}`, html }).catch(() => { /* logged by email util */ }),
+      ),
+    );
+  } catch { /* best-effort */ }
+}
+
 async function sendVerificationEmail(userId: string, email: string) {
   const token = signVerify(userId);
   const link = `${env.APP_URL}/verify-email?token=${token}`;
@@ -294,6 +332,7 @@ router.post('/register', async (req, res, next) => {
       });
       // SEC-08: fire-and-forget verification email; failure must not block signup.
       sendVerificationEmail(userId, body.email).catch(() => { /* logged by email util */ });
+      notifyAdminsOfNewSignup({ companyName: body.companyName, email: body.email, phone: body.phone }).catch(() => {});
       // Successful registration — reset IP attempt counter
       clearRegAttempts(ip);
       // Company is pending admin approval — do not issue tokens yet.
