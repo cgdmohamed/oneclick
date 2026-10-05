@@ -76,6 +76,13 @@ r.get('/:id/unified-statement', async (req, res, next) => {
       supplierName = supRs.rows[0]?.name ?? null;
     }
 
+    // Sales invoices contribute their raw `total` here, NOT the already-netted
+    // `remaining` — credit notes, debit notes and bad-debt write-offs are
+    // unioned in below as their OWN line items (same pattern as
+    // purchase_invoice/payout), so netting them into the invoice line too
+    // would double-count. Credit/debit notes also cover STANDALONE notes
+    // (no original_invoice_id) — those have no row at all in `invoices`, so
+    // they can only ever reach this statement through their own branch.
     const rs = await t.db.query(
       `SELECT date, type, reference, amount, delta FROM (
          SELECT i.issue_date AS date, 'sales_invoice' AS type, i.number AS reference,
@@ -88,6 +95,14 @@ r.get('/:id/unified-statement', async (req, res, next) => {
          JOIN invoices inv ON inv.id = pay.invoice_id
          WHERE inv.client_id = $1
          UNION ALL
+         SELECT cn.credit_note_date, 'credit_note', cn.credit_note_number, cn.total, -cn.total
+         FROM credit_notes cn
+         WHERE cn.customer_id = $1 AND cn.status = 'posted'
+         UNION ALL
+         SELECT dn.debit_note_date, 'debit_note', dn.debit_note_number, dn.total, dn.total
+         FROM debit_notes dn
+         WHERE dn.customer_id = $1 AND dn.status = 'posted'
+         UNION ALL
          SELECT pi.invoice_date, 'purchase_invoice', pi.number, pi.total, -pi.total
          FROM purchase_invoices pi
          WHERE $2::uuid IS NOT NULL AND pi.supplier_id = $2 AND pi.status NOT IN ('draft','cancelled')
@@ -95,6 +110,11 @@ r.get('/:id/unified-statement', async (req, res, next) => {
          SELECT po.paid_at, 'payout', COALESCE(po.reference, ''), po.amount, po.amount
          FROM payouts po
          WHERE $2::uuid IS NOT NULL AND po.supplier_id = $2
+         UNION ALL
+         SELECT sp.paid_at, 'supplier_payment', COALESCE(pi2.number, ''), sp.amount, sp.amount
+         FROM supplier_payments sp
+         LEFT JOIN purchase_invoices pi2 ON pi2.id = sp.purchase_invoice_id
+         WHERE $2::uuid IS NOT NULL AND sp.supplier_id = $2
        ) rows
        ORDER BY date ASC, type ASC`,
       [client.id, client.linked_supplier_id],
@@ -105,7 +125,7 @@ r.get('/:id/unified-statement', async (req, res, next) => {
       running += Number(row.delta);
       return {
         date: row.date,
-        type: row.type as 'sales_invoice' | 'collection' | 'purchase_invoice' | 'payout',
+        type: row.type as 'sales_invoice' | 'collection' | 'credit_note' | 'debit_note' | 'purchase_invoice' | 'payout' | 'supplier_payment',
         reference: row.reference,
         amount: Number(row.amount),
         delta: Number(row.delta),

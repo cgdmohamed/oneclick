@@ -356,9 +356,6 @@ router.post('/', enforceInvoiceLimit(), async (req, res, next) => {
           [initialAmount, body.initial_collection!.account_id, t.companyId],
         );
         await postCustomerPayment(t.db, t.companyId, payment.rows[0].id, req.auth!.userId);
-        invoice.paid = initialAmount;
-        invoice.remaining = remaining;
-        invoice.status = status;
       }
     }
 
@@ -369,9 +366,11 @@ router.post('/', enforceInvoiceLimit(), async (req, res, next) => {
       data: { number, total, items: body.items.length, draft: body.draft },
     });
 
+    const freshInvoice = await t.db.query(`SELECT * FROM invoices WHERE id = $1 AND company_id = $2`, [invoice.id, t.companyId]);
+
     await t.db.query('COMMIT');
     txStarted = false;
-    res.status(201).json({ data: invoice });
+    res.status(201).json({ data: freshInvoice.rows[0] });
   } catch (e) {
     if (txStarted) {
       try { await req.tenant?.db.query('ROLLBACK'); } catch { /* ignore rollback errors */ }

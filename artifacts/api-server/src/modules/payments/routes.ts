@@ -122,8 +122,9 @@ router.post('/', async (req, res, next) => {
         action: 'payment.create', entity: 'payment', entityId: payRes.rows[0].id,
         data: { invoice_id: body.invoice_id ?? null, collection_type: body.collection_type, amount, account_id: body.account_id, method: body.method },
       });
+      const freshPayment = await t.db.query(`SELECT * FROM payments WHERE id = $1 AND company_id = $2`, [payRes.rows[0].id, t.companyId]);
       await t.db.query('COMMIT');
-      res.status(201).json({ data: payRes.rows[0] });
+      res.status(201).json({ data: freshPayment.rows[0] });
     } catch (e) {
       await t.db.query('ROLLBACK');
       throw e;
