@@ -347,8 +347,8 @@ const Settings = () => {
               <div><Label>اسم المالك</Label><Input className="mt-1.5" value={profile.ownerName} onChange={e => setP({ ownerName: e.target.value })} /></div>
               <div><Label>البريد الإلكتروني</Label><Input className="mt-1.5" value={profile.email} onChange={e => setP({ email: e.target.value })} /></div>
               <div><Label>رقم الهاتف</Label><Input className="mt-1.5" value={profile.phone} onChange={e => setP({ phone: e.target.value })} /></div>
-              <div><Label>الرقم الضريبي</Label><Input className="mt-1.5" value={profile.taxNumber} onChange={e => setP({ taxNumber: e.target.value })} /></div>
-              <div><Label>السجل التجاري</Label><Input className="mt-1.5" value={profile.commercialReg} onChange={e => setP({ commercialReg: e.target.value })} /></div>
+              <div><Label>الرقم الضريبي</Label><Input className="mt-1.5" inputMode="numeric" pattern="[0-9]*" value={profile.taxNumber} onChange={e => setP({ taxNumber: e.target.value.replace(/\D/g, '') })} /></div>
+              <div><Label>السجل التجاري</Label><Input className="mt-1.5" inputMode="numeric" pattern="[0-9]*" value={profile.commercialReg} onChange={e => setP({ commercialReg: e.target.value.replace(/\D/g, '') })} /></div>
             </div>
             <SaveIndicator status={saveStatus} />
           </Card>

@@ -31,8 +31,8 @@ const UPDATABLE = [
 const updateSchema = z.object({
   name: z.string().min(1).optional().or(z.literal('').transform(() => undefined)),
   legal_name: z.string().optional().nullable(),
-  tax_number: z.string().optional().nullable(),
-  commercial_register: z.string().optional().nullable(),
+  tax_number: z.string().regex(/^\d*$/, 'Tax number must contain digits only').optional().nullable(),
+  commercial_register: z.string().regex(/^\d*$/, 'Commercial register must contain digits only').optional().nullable(),
   email: z.string().email().optional().nullable(),
   phone: z.string().optional().nullable(),
   address: z.string().optional().nullable(),

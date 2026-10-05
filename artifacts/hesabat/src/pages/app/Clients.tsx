@@ -141,7 +141,7 @@ const Clients = () => {
             <Field id="client-phone" label="رقم الهاتف *" type="tel" value={editing.phone} onChange={v => setEditing(e => ({ ...e, phone: v }))} />
             <Field id="client-whatsapp" label="رقم واتساب" type="tel" value={editing.whatsapp ?? ''} onChange={v => setEditing(e => ({ ...e, whatsapp: v }))} />
             <Field id="client-email" label="البريد الإلكتروني" type="email" value={editing.email ?? ''} onChange={v => setEditing(e => ({ ...e, email: v }))} />
-            <Field id="client-tax-number" label="الرقم الضريبي" inputMode="numeric" pattern="[0-9]*" value={editing.taxNumber ?? ''} onChange={v => setEditing(e => ({ ...e, taxNumber: v }))} />
+            <Field id="client-tax-number" label="الرقم الضريبي" inputMode="numeric" pattern="[0-9]*" value={editing.taxNumber ?? ''} onChange={v => setEditing(e => ({ ...e, taxNumber: v.replace(/\D/g, '') }))} />
             <div className="sm:col-span-2"><Field id="client-address" label="العنوان" value={editing.address ?? ''} onChange={v => setEditing(e => ({ ...e, address: v }))} /></div>
             <div className="sm:col-span-2">
               <Label>مرتبط بمورد (اختياري)</Label>
