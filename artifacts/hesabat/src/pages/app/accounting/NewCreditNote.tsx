@@ -59,7 +59,11 @@ const NewCreditNote = () => {
 
   const customers = useQuery({ queryKey: ['clients'], queryFn: async () => (await api.get<{ data: Customer[] }>('/api/clients?page_size=300')).data ?? [] });
   const products = useQuery({ queryKey: ['products'], queryFn: async () => (await api.get<{ data: Product[] }>('/api/products?page_size=300')).data ?? [] });
-  const invoices = useQuery({ queryKey: ['invoices'], queryFn: async () => (await api.get<{ data: InvoiceRow[] }>('/api/invoices?page_size=300')).data ?? [] });
+  // Query key deliberately distinct from the canonical 'invoices' cache used
+  // by useInvoices() elsewhere (e.g. Products.tsx) — this fetches raw
+  // snake_case rows with no `items` field; sharing the key let whichever
+  // query ran last silently overwrite the other's cache shape.
+  const invoices = useQuery({ queryKey: ['invoices-picker'], queryFn: async () => (await api.get<{ data: InvoiceRow[] }>('/api/invoices?page_size=300')).data ?? [] });
   const selectedInvoice = useQuery({
     enabled: !!invoiceId,
     queryKey: ['invoice', invoiceId],
@@ -129,6 +133,7 @@ const NewCreditNote = () => {
       await Promise.all([
         qc.invalidateQueries({ queryKey: ['credit-notes'] }),
         qc.invalidateQueries({ queryKey: ['invoices'] }),
+        qc.invalidateQueries({ queryKey: ['invoices-picker'] }),
         qc.invalidateQueries({ queryKey: ['products'] }),
         qc.invalidateQueries({ queryKey: ['stock-movements'] }),
       ]);

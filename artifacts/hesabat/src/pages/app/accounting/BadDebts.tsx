@@ -36,7 +36,11 @@ const BadDebts = () => {
   const [recovery, setRecovery] = useState({ amount: '', account_id: '', method: 'cash' });
 
   const customers = useQuery({ queryKey: ['clients'], queryFn: async () => (await api.get<{ data: Customer[] }>('/api/clients?page_size=300')).data ?? [] });
-  const invoices = useQuery({ queryKey: ['invoices'], queryFn: async () => (await api.get<{ data: Invoice[] }>('/api/invoices?page_size=300')).data ?? [] });
+  // Query key deliberately distinct from the canonical 'invoices' cache used
+  // by useInvoices() elsewhere (e.g. Products.tsx) — this fetches raw
+  // snake_case rows with no `items` field; sharing the key let whichever
+  // query ran last silently overwrite the other's cache shape.
+  const invoices = useQuery({ queryKey: ['invoices-picker'], queryFn: async () => (await api.get<{ data: Invoice[] }>('/api/invoices?page_size=300')).data ?? [] });
   const allowances = useQuery({ queryKey: ['bad-debt-allowances'], queryFn: async () => (await api.get<{ data: Allowance[] }>('/api/bad-debts/allowances')).data ?? [] });
   const writeOffs = useQuery({ queryKey: ['bad-debt-write-offs'], queryFn: async () => (await api.get<{ data: WriteOff[] }>('/api/bad-debts/write-offs')).data ?? [] });
   const { list: accounts } = useAccounts();
@@ -59,6 +63,7 @@ const BadDebts = () => {
       qc.invalidateQueries({ queryKey: ['bad-debt-allowances'] }),
       qc.invalidateQueries({ queryKey: ['bad-debt-write-offs'] }),
       qc.invalidateQueries({ queryKey: ['invoices'] }),
+      qc.invalidateQueries({ queryKey: ['invoices-picker'] }),
       qc.invalidateQueries({ queryKey: ['financial-report'] }),
     ]);
   };
