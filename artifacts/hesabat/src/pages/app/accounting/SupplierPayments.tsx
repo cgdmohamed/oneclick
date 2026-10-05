@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '@/components/common/PageHeader';
 import { DataTable, type Column } from '@/components/common/DataTable';
+import { StatCard } from '@/components/common/StatCard';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -10,7 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { api } from '@/lib/api';
 import { formatCurrency, formatDateShort, paymentMethodLabel } from '@/lib/format';
-import { Plus } from 'lucide-react';
+import { Plus, Receipt, ArrowUpFromLine, CalendarCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import type { PurchaseInvoice, SupplierPayment } from './types';
 
@@ -66,10 +67,23 @@ const SupplierPayments = () => {
     { key: 'amount', header: 'المبلغ', cell: (r) => <span className="font-semibold">{formatCurrency(Number(r.amount))}</span>, className: 'text-end' },
     { key: 'journal', header: 'القيد', cell: (r) => r.journal_entry_id ? <Link className="text-primary" to={`/app/accounting/journals/${r.journal_entry_id}`}>عرض</Link> : '—' },
   ];
+  const rows = payments.data ?? [];
+  const now = new Date();
+  const totalAmount = rows.reduce((sum, p) => sum + Number(p.amount), 0);
+  const thisMonthAmount = rows.reduce((sum, p) => {
+    const d = new Date(p.paid_at);
+    return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() ? sum + Number(p.amount) : sum;
+  }, 0);
+
   return (
     <div className="space-y-5">
       <PageHeader title="دفعات الموردين" description="سداد أرصدة الموردين وربطها بقيود اليوميات" actions={<Button onClick={() => setOpen(true)}><Plus className="h-4 w-4 me-1" /> تسجيل دفع</Button>} />
-      <DataTable data={payments.data ?? []} columns={columns} searchKeys={['supplier_name', 'reference']} emptyTitle="لا توجد دفعات موردين" />
+      <div className="grid sm:grid-cols-3 gap-4">
+        <StatCard title="عدد الدفعات" value={rows.length} icon={Receipt} accent="info" />
+        <StatCard title="إجمالي دفعات الموردين" value={formatCurrency(totalAmount)} icon={ArrowUpFromLine} accent="destructive" />
+        <StatCard title="دفعات هذا الشهر" value={formatCurrency(thisMonthAmount)} icon={CalendarCheck} accent="success" />
+      </div>
+      <DataTable data={rows} columns={columns} searchKeys={['supplier_name', 'reference']} emptyTitle="لا توجد دفعات موردين" />
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent dir="rtl" className="max-w-lg">
           <DialogHeader><DialogTitle>دفعة مورد جديدة</DialogTitle></DialogHeader>

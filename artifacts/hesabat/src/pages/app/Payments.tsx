@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '@/components/common/PageHeader';
 import { DataTable, Column } from '@/components/common/DataTable';
+import { StatCard } from '@/components/common/StatCard';
 import { payments as mockPayments, accounts as mockAccounts, invoices as mockInvoices } from '@/data/mock';
 import { formatCurrency, formatDateShort, paymentMethodLabel } from '@/lib/format';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -14,7 +15,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useResource } from '@/hooks/useResource';
 import type { PaymentMethod } from '@/types';
 import { api, isApiConfigured } from '@/lib/api';
-import { Plus } from 'lucide-react';
+import { Plus, Wallet, Receipt, CalendarCheck } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface PaymentRowApi {
@@ -161,9 +162,21 @@ const Payments = () => {
     }
   };
 
+  const now = new Date();
+  const totalAmount = list.reduce((sum, p) => sum + p.amount, 0);
+  const thisMonthAmount = list.reduce((sum, p) => {
+    const d = new Date(p.date);
+    return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() ? sum + p.amount : sum;
+  }, 0);
+
   return (
-    <div>
+    <div className="space-y-5">
       <PageHeader title="التحصيلات" description="تحصيلات الفواتير والتحصيلات العامة" />
+      <div className="grid sm:grid-cols-3 gap-4">
+        <StatCard title="عدد عمليات التحصيل" value={list.length} icon={Receipt} accent="info" />
+        <StatCard title="إجمالي التحصيلات" value={formatCurrency(totalAmount)} icon={Wallet} accent="primary" />
+        <StatCard title="تحصيلات هذا الشهر" value={formatCurrency(thisMonthAmount)} icon={CalendarCheck} accent="success" />
+      </div>
       <DataTable
         data={filtered}
         columns={columns}
