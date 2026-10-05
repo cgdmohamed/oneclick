@@ -52,7 +52,11 @@ const NewPurchaseInvoice = () => {
   const [saving, setSaving] = useState(false);
 
   const suppliers = useQuery({ queryKey: ['suppliers'], queryFn: async () => (await api.get<{ data: Supplier[] }>('/api/suppliers?page_size=300')).data ?? [] });
-  const products = useQuery({ queryKey: ['products'], queryFn: async () => (await api.get<{ data: Product[] }>('/api/products?page_size=300')).data ?? [] });
+  // Query key deliberately distinct from the canonical 'products' cache used
+  // by useProducts() elsewhere (e.g. Products.tsx) — this fetches raw
+  // snake_case rows; sharing the key let whichever query ran last silently
+  // overwrite the other's cache shape.
+  const products = useQuery({ queryKey: ['products-picker'], queryFn: async () => (await api.get<{ data: Product[] }>('/api/products?page_size=300')).data ?? [] });
   const paymentAccounts = useQuery({ queryKey: ['accounts'], queryFn: async () => (await api.get<{ data: Account[] }>('/api/accounts?page_size=300')).data ?? [] });
   const accounts = useQuery({ queryKey: ['chart-accounts'], queryFn: async () => (await api.get<{ data: ChartAccount[] }>('/api/accounting/chart-accounts')).data ?? [] });
   const expenseAccounts = (accounts.data ?? []).filter((a) => a.type === 'expense' && a.is_active);

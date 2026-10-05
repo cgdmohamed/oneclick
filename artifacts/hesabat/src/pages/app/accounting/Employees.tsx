@@ -21,8 +21,11 @@ const Employees = () => {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(empty);
   const { data = [] } = useQuery({ queryKey: ['employees'], queryFn: async () => (await api.get<{ data: Employee[] }>('/api/payroll/employees')).data ?? [] });
-  const branches = useQuery({ queryKey: ['branches'], queryFn: async () => (await api.get<{ data: Dimension[] }>('/api/branches?page_size=200')).data ?? [] });
-  const costCenters = useQuery({ queryKey: ['cost-centers'], queryFn: async () => (await api.get<{ data: Dimension[] }>('/api/cost-centers?page_size=200')).data ?? [] });
+  // Query keys deliberately distinct from the canonical Branches.tsx/
+  // CostCenters.tsx caches — these fetch raw snake_case rows; sharing a key
+  // let whichever query ran last silently overwrite the other's cache shape.
+  const branches = useQuery({ queryKey: ['branches-picker'], queryFn: async () => (await api.get<{ data: Dimension[] }>('/api/branches?page_size=200')).data ?? [] });
+  const costCenters = useQuery({ queryKey: ['cost-centers-picker'], queryFn: async () => (await api.get<{ data: Dimension[] }>('/api/cost-centers?page_size=200')).data ?? [] });
   const submit = async () => {
     if (!form.name.trim()) return toast.error('اسم الموظف مطلوب');
     if (!form.basic_salary || Number(form.basic_salary) <= 0) return toast.error('الراتب الأساسي مطلوب ويجب أن يكون أكبر من صفر');

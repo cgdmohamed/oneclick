@@ -78,12 +78,16 @@ const NewInvoice = ({ asModal = false, defaultClientId, onCancel, onCreated }: N
   const [poNumber, setPoNumber] = useState('');
   const [costCenterId, setCostCenterId] = useState('');
   const [projectId, setProjectId] = useState('');
+  // Query keys deliberately distinct from the canonical CostCenters.tsx/
+  // Projects.tsx caches — these fetch raw snake_case rows (`is_active`
+  // instead of `isActive`); sharing a key let whichever query ran last
+  // silently overwrite the other's cache shape, breaking `.is_active` filters.
   const { data: costCenters = [] } = useQuery({
-    queryKey: ['cost-centers'],
+    queryKey: ['cost-centers-picker'],
     queryFn: async () => (await api.get<{ data: DimensionRow[] }>('/api/cost-centers?page_size=200')).data ?? [],
   });
   const { data: projects = [] } = useQuery({
-    queryKey: ['projects'],
+    queryKey: ['projects-picker'],
     queryFn: async () => (await api.get<{ data: DimensionRow[] }>('/api/projects?page_size=200')).data ?? [],
   });
   const activeCostCenters = costCenters.filter((c) => c.is_active);

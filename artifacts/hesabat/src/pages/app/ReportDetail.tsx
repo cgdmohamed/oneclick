@@ -150,14 +150,18 @@ const ReportDetail = () => {
   const apiOn = isApiConfigured();
   const dimensionsEnabled = apiOn && ['payouts', 'product-sales', 'stock-risk'].includes(type);
 
+  // Query keys deliberately distinct from the canonical Branches.tsx/
+  // CostCenters.tsx caches — these fetch raw snake_case rows (`is_active`
+  // instead of `isActive`); sharing a key let whichever query ran last
+  // silently overwrite the other's cache shape, breaking `.is_active` filters.
   const branchesQuery = useQuery({
     enabled: dimensionsEnabled,
-    queryKey: ['branches'],
+    queryKey: ['branches-picker'],
     queryFn: async () => (await api.get<{ data: DimensionRow[] }>('/api/branches?page_size=200')).data ?? [],
   });
   const costCentersQuery = useQuery({
     enabled: dimensionsEnabled,
-    queryKey: ['cost-centers'],
+    queryKey: ['cost-centers-picker'],
     queryFn: async () => (await api.get<{ data: DimensionRow[] }>('/api/cost-centers?page_size=200')).data ?? [],
   });
   const productCategoriesQuery = useQuery({

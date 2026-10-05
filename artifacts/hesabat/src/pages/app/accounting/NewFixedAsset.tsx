@@ -20,8 +20,12 @@ const NewFixedAsset = () => {
   const today = new Date().toISOString().slice(0, 10);
   const [form, setForm] = useState({ asset_code: `FA-${String(Date.now()).slice(-5)}`, name: '', category_id: '', purchase_date: today, acquisition_cost: '', salvage_value: '0', useful_life_months: '60', depreciation_start_date: today, branch_id: '', cost_center_id: '', notes: '' });
   const categories = useQuery({ queryKey: ['asset-categories'], queryFn: async () => (await api.get<{ data: AssetCategory[] }>('/api/fixed-assets/categories')).data ?? [] });
-  const branches = useQuery({ queryKey: ['branches'], queryFn: async () => (await api.get<{ data: Dimension[] }>('/api/branches?page_size=200')).data ?? [] });
-  const costCenters = useQuery({ queryKey: ['cost-centers'], queryFn: async () => (await api.get<{ data: Dimension[] }>('/api/cost-centers?page_size=200')).data ?? [] });
+  // Query keys deliberately distinct from the canonical Branches.tsx/
+  // CostCenters.tsx caches — these fetch raw snake_case rows (`is_active`
+  // instead of `isActive`); sharing a key let whichever query ran last
+  // silently overwrite the other's cache shape, breaking `.is_active` filters.
+  const branches = useQuery({ queryKey: ['branches-picker'], queryFn: async () => (await api.get<{ data: Dimension[] }>('/api/branches?page_size=200')).data ?? [] });
+  const costCenters = useQuery({ queryKey: ['cost-centers-picker'], queryFn: async () => (await api.get<{ data: Dimension[] }>('/api/cost-centers?page_size=200')).data ?? [] });
   const set = (patch: Partial<typeof form>) => setForm((p) => ({ ...p, ...patch }));
   const submit = async () => {
     try {
