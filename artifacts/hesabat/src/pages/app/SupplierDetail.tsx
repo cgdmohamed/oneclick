@@ -41,6 +41,8 @@ interface PayoutRow {
   notes: string | null;
   account_name: string;
   category_name: string | null;
+  source: 'payout' | 'supplier_payment';
+  purchase_invoice_number: string | null;
 }
 
 interface PurchaseInvoiceRow {
@@ -58,6 +60,7 @@ interface StatementData {
   products: ProductRow[];
   invoices: PurchaseInvoiceRow[];
   payouts: PayoutRow[];
+  payments: PayoutRow[];
   total_purchases: string;
   total_payouts: string;
   outstanding_balance: string;
@@ -85,7 +88,7 @@ const SupplierDetail = () => {
     </div>
   );
 
-  const { supplier, products, invoices, payouts, total_purchases, total_payouts, outstanding_balance, last_payout } = data;
+  const { supplier, products, invoices, payments, total_purchases, total_payouts, outstanding_balance, last_payout } = data;
 
   const productCols: Column<ProductRow>[] = [
     { key: 'name', header: 'المنتج', cell: (r) => <span className="font-medium">{r.name}</span> },
@@ -106,10 +109,16 @@ const SupplierDetail = () => {
   const payoutCols: Column<PayoutRow>[] = [
     { key: 'date', header: 'التاريخ', cell: (r) => <span className="text-sm text-muted-foreground">{formatDateShort(r.paid_at)}</span> },
     { key: 'amount', header: 'المبلغ', cell: (r) => <span className="font-semibold">{formatCurrency(Number(r.amount))}</span> },
+    { key: 'source', header: 'النوع', cell: (r) => (
+      <Badge variant="outline">{r.source === 'supplier_payment' ? 'دفعة فاتورة شراء' : 'مصروف/مدفوعات عامة'}</Badge>
+    ) },
     { key: 'method', header: 'الطريقة', cell: (r) => paymentMethodLabel(r.method) },
     { key: 'account', header: 'الحساب', cell: (r) => r.account_name },
-    { key: 'category', header: 'التصنيف', cell: (r) => r.category_name ?? <span className="text-muted-foreground">—</span> },
-    { key: 'ref', header: 'المرجع', cell: (r) => r.reference ?? <span className="text-muted-foreground">—</span> },
+    { key: 'ref_or_category', header: 'المرجع/التصنيف', cell: (r) => (
+      r.purchase_invoice_number
+        ? <span>فاتورة {r.purchase_invoice_number}</span>
+        : (r.category_name ?? r.reference ?? <span className="text-muted-foreground">—</span>)
+    ) },
   ];
 
   return (
@@ -151,7 +160,7 @@ const SupplierDetail = () => {
             <TabsList>
               <TabsTrigger value="statement">كشف الحساب</TabsTrigger>
               <TabsTrigger value="invoices">فواتير الشراء ({invoices.length})</TabsTrigger>
-              <TabsTrigger value="payouts">المدفوعات ({payouts.length})</TabsTrigger>
+              <TabsTrigger value="payouts">المدفوعات ({payments.length})</TabsTrigger>
               <TabsTrigger value="products">المنتجات ({products.length})</TabsTrigger>
             </TabsList>
 
@@ -184,7 +193,7 @@ const SupplierDetail = () => {
             </TabsContent>
 
             <TabsContent value="payouts" className="mt-4">
-              <DataTable data={payoutCols && payouts} columns={payoutCols} />
+              <DataTable data={payments} columns={payoutCols} />
             </TabsContent>
 
             <TabsContent value="products" className="mt-4">

@@ -428,14 +428,12 @@ r.post('/invoices', async (req, res, next) => {
           );
           await t.db.query(`UPDATE accounts SET balance = balance - $1 WHERE id = $2 AND company_id = $3`, [initialPaymentAmount, body.initial_payment!.account_id, t.companyId]);
           await postSupplierPayment(t.db, t.companyId, sp.rows[0].id, req.auth!.userId);
-          pi.rows[0].paid = initialPaymentAmount;
-          pi.rows[0].remaining = remaining;
-          pi.rows[0].status = paymentStatus;
         }
       }
       await audit(t.db, { companyId: t.companyId, userId: req.auth!.userId, action: body.draft ? 'purchase_invoice.draft' : 'purchase_invoice.post', entity: 'purchase_invoice', entityId: pi.rows[0].id, data: { total } });
+      const freshPi = await t.db.query(`SELECT * FROM purchase_invoices WHERE id = $1 AND company_id = $2`, [pi.rows[0].id, t.companyId]);
       await t.db.query('COMMIT');
-      res.status(201).json({ data: pi.rows[0] });
+      res.status(201).json({ data: freshPi.rows[0] });
     } catch (e) {
       await t.db.query('ROLLBACK');
       throw e;
@@ -487,8 +485,9 @@ r.post('/supplier-payments', async (req, res, next) => {
       await t.db.query(`UPDATE accounts SET balance = balance - $1 WHERE id = $2 AND company_id = $3`, [body.amount, body.account_id, t.companyId]);
       await postSupplierPayment(t.db, t.companyId, sp.rows[0].id, req.auth!.userId);
       await audit(t.db, { companyId: t.companyId, userId: req.auth!.userId, action: 'supplier_payment.create', entity: 'supplier_payment', entityId: sp.rows[0].id, data: { amount: body.amount } });
+      const freshSp = await t.db.query(`SELECT * FROM supplier_payments WHERE id = $1 AND company_id = $2`, [sp.rows[0].id, t.companyId]);
       await t.db.query('COMMIT');
-      res.status(201).json({ data: sp.rows[0] });
+      res.status(201).json({ data: freshSp.rows[0] });
     } catch (e) {
       await t.db.query('ROLLBACK');
       throw e;

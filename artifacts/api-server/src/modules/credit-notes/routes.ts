@@ -229,15 +229,25 @@ r.get('/', async (req, res, next) => {
   try {
     const t = req.tenant!;
     const p = parsePagination(req);
-    const total = await t.db.query(`SELECT count(*)::int AS count FROM credit_notes WHERE company_id = $1`, [t.companyId]);
+    const customerId = typeof req.query.customer_id === 'string' ? req.query.customer_id : null;
+    const params: unknown[] = [t.companyId];
+    let customerFilter = '';
+    if (customerId) {
+      params.push(customerId);
+      customerFilter = ` AND cn.customer_id = $${params.length}`;
+    }
+    const total = await t.db.query(
+      `SELECT count(*)::int AS count FROM credit_notes cn WHERE cn.company_id = $1${customerFilter}`,
+      params,
+    );
     const applied = p.applyTo(
       `SELECT cn.*, c.name AS customer_name, i.number AS original_invoice_number
        FROM credit_notes cn
        JOIN clients c ON c.id = cn.customer_id
        LEFT JOIN invoices i ON i.id = cn.original_invoice_id
-       WHERE cn.company_id = $1
+       WHERE cn.company_id = $1${customerFilter}
        ORDER BY cn.created_at DESC`,
-      [t.companyId],
+      params,
     );
     const rs = await t.db.query(applied.sql, applied.params);
     res.json(p.respond(rs.rows, Number(total.rows[0].count)));

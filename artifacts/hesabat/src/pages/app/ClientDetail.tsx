@@ -25,7 +25,7 @@ import type { Invoice, PaymentMethod } from '@/types';
 
 interface UnifiedStatementLine {
   date: string;
-  type: 'sales_invoice' | 'collection' | 'purchase_invoice' | 'payout';
+  type: 'sales_invoice' | 'collection' | 'credit_note' | 'debit_note' | 'purchase_invoice' | 'payout' | 'supplier_payment';
   reference: string;
   amount: number;
   delta: number;
@@ -40,8 +40,11 @@ interface UnifiedStatement {
 const unifiedLineLabel: Record<UnifiedStatementLine['type'], string> = {
   sales_invoice: 'فاتورة بيع',
   collection: 'تحصيل',
+  credit_note: 'إشعار دائن',
+  debit_note: 'إشعار مدين',
   purchase_invoice: 'فاتورة شراء',
   payout: 'دفعة لمورد',
+  supplier_payment: 'دفعة فاتورة شراء',
 };
 
 interface PaymentRecord {
@@ -138,12 +141,55 @@ const ClientDetail = () => {
     },
   });
 
+  // Standalone credit/debit notes (no original_invoice_id) post directly
+  // against AR with no row in `invoices` at all — without fetching them
+  // separately, this page's headline "remaining" total would silently
+  // ignore their real effect on what the client owes.
+  const creditNotesQuery = useQuery({
+    enabled: apiOn && Boolean(id),
+    queryKey: ['client-credit-notes', id],
+    queryFn: async () => {
+      const res = await api.get<{ data: Array<{ id: string; total: string | number; status: string; original_invoice_id: string | null }> }>(
+        `/api/credit-notes?customer_id=${encodeURIComponent(id)}&page_size=200`,
+      );
+      return res.data;
+    },
+  });
+  const debitNotesQuery = useQuery({
+    enabled: apiOn && Boolean(id),
+    queryKey: ['client-debit-notes', id],
+    queryFn: async () => {
+      const res = await api.get<{ data: Array<{ id: string; total: string | number; status: string; original_invoice_id: string | null }> }>(
+        `/api/debit-notes?customer_id=${encodeURIComponent(id)}&page_size=200`,
+      );
+      return res.data;
+    },
+  });
+
+  // Only STANDALONE posted notes (no linked invoice) affect this total —
+  // invoice-linked ones are already netted into invoice.remaining via
+  // recomputeInvoiceBalance(), so including them here too would double-count.
+  const standaloneNotesDelta = useMemo(() => {
+    const credits = (creditNotesQuery.data ?? [])
+      .filter((cn) => cn.status === 'posted' && !cn.original_invoice_id)
+      .reduce((s, cn) => s + Number(cn.total), 0);
+    const debits = (debitNotesQuery.data ?? [])
+      .filter((dn) => dn.status === 'posted' && !dn.original_invoice_id)
+      .reduce((s, dn) => s + Number(dn.total), 0);
+    // Credit notes reduce what the client owes, debit notes increase it.
+    return debits - credits;
+  }, [creditNotesQuery.data, debitNotesQuery.data]);
+
   /* ----- Aggregates (cancelled invoices excluded from financial totals) ----- */
   const totals = useMemo(() => {
     const activeInvoices = clientInvoices.filter((i) => i.status !== 'cancelled');
     const billed = activeInvoices.reduce((s, i) => s + i.total, 0);
     const paid = activeInvoices.reduce((s, i) => s + i.paid, 0);
-    const remaining = activeInvoices.reduce((s, i) => s + i.remaining, 0);
+    // Standalone credit/debit notes (no linked invoice) have no row in
+    // clientInvoices at all, so their real effect on AR must be added here
+    // explicitly — otherwise the headline "remaining" total silently ignores
+    // them even though they genuinely changed what the client owes.
+    const remaining = activeInvoices.reduce((s, i) => s + i.remaining, 0) + standaloneNotesDelta;
     const overdue = activeInvoices.filter((i) => i.status === 'overdue');
     const overdueAmount = overdue.reduce((s, i) => s + i.remaining, 0);
     const lastInvoice = [...clientInvoices].sort(
@@ -151,7 +197,7 @@ const ClientDetail = () => {
     )[0];
     const lastPayment = clientPayments[0];
     return { billed, paid, remaining, overdueAmount, overdueCount: overdue.length, lastInvoice, lastPayment, activeCount: activeInvoices.length };
-  }, [clientInvoices, clientPayments]);
+  }, [clientInvoices, clientPayments, standaloneNotesDelta]);
 
   /* ----- AR Aging buckets (cancelled invoices excluded) ----- */
   const aging = useMemo(() => {

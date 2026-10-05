@@ -46,7 +46,7 @@ const Subscriptions = () => {
     enabled: apiOn,
     queryKey: ['admin-subscriptions'],
     queryFn: async () => {
-      const r = await api.get<{ data: SubRow[] }>('/api/subscriptions');
+      const r = await api.get<{ data: SubRow[] }>('/api/subscriptions?page_size=200');
       return r.data;
     },
   });

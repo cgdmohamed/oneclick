@@ -46,7 +46,9 @@ r.get('/:id/statement', async (req, res, next) => {
     const payoutsRs = await t.db.query(
       `SELECT py.id, py.amount, py.method, py.paid_at, py.reference, py.notes,
               a.name AS account_name,
-              ec.name AS category_name
+              ec.name AS category_name,
+              'payout' AS source,
+              NULL::text AS purchase_invoice_number
        FROM payouts py
        LEFT JOIN accounts a ON a.id = py.account_id
        LEFT JOIN expense_categories ec ON ec.id = py.expense_category_id
@@ -55,22 +57,47 @@ r.get('/:id/statement', async (req, res, next) => {
       [id, t.companyId],
     );
 
+    // Real "pay a purchase invoice" payments land in supplier_payments, a
+    // table entirely separate from payouts — without this query they were
+    // completely invisible on the supplier statement even though they
+    // correctly decrement purchase_invoices.remaining.
+    const supplierPaymentsRs = await t.db.query(
+      `SELECT sp.id, sp.amount, sp.method, sp.paid_at, sp.reference, sp.notes,
+              a.name AS account_name,
+              NULL::text AS category_name,
+              'supplier_payment' AS source,
+              pi.number AS purchase_invoice_number
+       FROM supplier_payments sp
+       LEFT JOIN accounts a ON a.id = sp.account_id
+       LEFT JOIN purchase_invoices pi ON pi.id = sp.purchase_invoice_id
+       WHERE sp.supplier_id = $1 AND sp.company_id = $2
+       ORDER BY sp.paid_at DESC`,
+      [id, t.companyId],
+    );
+
+    const payments = [...payoutsRs.rows, ...supplierPaymentsRs.rows].sort(
+      (a: { paid_at: string }, b: { paid_at: string }) => new Date(b.paid_at).getTime() - new Date(a.paid_at).getTime(),
+    );
+
     // Purchase invoices — without these the statement only ever showed money
     // paid out, never what was owed in the first place, so it could never
     // show a real outstanding balance for the supplier (unlike the client
-    // statement, which already includes sales invoices).
+    // statement, which already includes sales invoices). Draft/cancelled
+    // invoices are excluded — they haven't posted to the ledger yet (or no
+    // longer count), so they must not inflate the outstanding balance, same
+    // as the client unified-statement's invoice filter.
     const invoicesRs = await t.db.query(
       `SELECT pi.id, pi.number, pi.invoice_date, pi.total, pi.paid, pi.remaining, pi.status
        FROM purchase_invoices pi
-       WHERE pi.supplier_id = $1 AND pi.company_id = $2
+       WHERE pi.supplier_id = $1 AND pi.company_id = $2 AND pi.status NOT IN ('draft', 'cancelled')
        ORDER BY pi.invoice_date DESC`,
       [id, t.companyId],
     );
 
     const totalPurchases = invoicesRs.rows.reduce((sum: number, i: { total: string }) => sum + parseFloat(i.total || '0'), 0);
-    const totalPayouts = payoutsRs.rows.reduce((sum: number, p: { amount: string }) => sum + parseFloat(p.amount || '0'), 0);
+    const totalPayouts = payments.reduce((sum: number, p: { amount: string }) => sum + parseFloat(p.amount || '0'), 0);
     const outstanding = invoicesRs.rows.reduce((sum: number, i: { remaining: string }) => sum + parseFloat(i.remaining || '0'), 0);
-    const lastPayout = payoutsRs.rows[0]?.paid_at ?? null;
+    const lastPayout = payments[0]?.paid_at ?? null;
 
     res.json({
       data: {
@@ -78,6 +105,8 @@ r.get('/:id/statement', async (req, res, next) => {
         products:         productsRs.rows,
         invoices:         invoicesRs.rows,
         payouts:          payoutsRs.rows,
+        supplier_payments: supplierPaymentsRs.rows,
+        payments,
         total_purchases:  totalPurchases.toFixed(2),
         total_payouts:    totalPayouts.toFixed(2),
         outstanding_balance: outstanding.toFixed(2),
