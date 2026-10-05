@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { PageHeader } from '@/components/common/PageHeader';
 import { DataTable, Column } from '@/components/common/DataTable';
+import { StatCard } from '@/components/common/StatCard';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -9,7 +10,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
-import { Plus, Pencil, Trash2, Truck, Phone, Mail, ExternalLink } from 'lucide-react';
+import { Plus, Pencil, Trash2, Truck, Phone, Mail, ExternalLink, CheckCircle2, XCircle } from 'lucide-react';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { toast } from 'sonner';
 import { useResource } from '@/hooks/useResource';
@@ -145,9 +146,18 @@ const Suppliers = () => {
     },
   ];
 
+  const activeCount = list.filter((s) => s.isActive).length;
+  const inactiveCount = list.length - activeCount;
+
   return (
-    <div>
+    <div className="space-y-5">
       <PageHeader title="الموردون" description="إدارة بيانات الموردين والمزودين" />
+
+      <div className="grid sm:grid-cols-3 gap-4">
+        <StatCard title="عدد الموردين" value={list.length} icon={Truck} accent="info" />
+        <StatCard title="الموردون النشطون" value={activeCount} icon={CheckCircle2} accent="success" />
+        <StatCard title="الموردون غير النشطين" value={inactiveCount} icon={XCircle} accent="destructive" />
+      </div>
 
       <DataTable
         data={filtered}

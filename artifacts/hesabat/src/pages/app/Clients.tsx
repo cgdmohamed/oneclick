@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PageHeader } from '@/components/common/PageHeader';
 import { DataTable, Column } from '@/components/common/DataTable';
+import { StatCard } from '@/components/common/StatCard';
 import { Button } from '@/components/ui/button';
-import { Plus, Pencil, Trash2, Eye } from 'lucide-react';
+import { Plus, Pencil, Trash2, Eye, Users, UserPlus, Link2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -112,10 +113,23 @@ const Clients = () => {
     )},
   ];
 
+  const now = new Date();
+  const newThisMonth = list.filter((c) => {
+    const d = new Date(c.createdAt);
+    return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+  }).length;
+  const linkedCount = list.filter((c) => c.linkedSupplierId).length;
+
   return (
-    <div>
+    <div className="space-y-5">
       <PageHeader title="العملاء" description="إدارة قاعدة عملائك"
         actions={<Button onClick={openNew}><Plus className="h-4 w-4 ml-1" /> عميل جديد</Button>} />
+
+      <div className="grid sm:grid-cols-3 gap-4">
+        <StatCard title="عدد العملاء" value={list.length} icon={Users} accent="info" />
+        <StatCard title="عملاء جدد هذا الشهر" value={newThisMonth} icon={UserPlus} accent="success" />
+        <StatCard title="عملاء مرتبطون بمورد" value={linkedCount} icon={Link2} accent="primary" />
+      </div>
 
       <DataTable data={list} columns={columns} searchKeys={['name','phone','email']} searchPlaceholder="ابحث باسم العميل أو رقمه..." />
 
