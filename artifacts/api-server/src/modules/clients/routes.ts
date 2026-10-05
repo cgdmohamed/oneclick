@@ -15,7 +15,7 @@ const schema = z.object({
   // client-side validation instead of silently accepting no phone at all.
   phone: z.string().optional().nullable(),
   whatsapp: z.string().optional().nullable(),
-  tax_number: z.string().optional().nullable(),
+  tax_number: z.string().regex(/^\d*$/, 'Tax number must contain digits only').optional().nullable(),
   address: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
   currency: z.string().optional().nullable(),

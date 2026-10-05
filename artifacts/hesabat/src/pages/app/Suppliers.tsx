@@ -201,7 +201,7 @@ const Suppliers = () => {
             </div>
             <div>
               <Label>الرقم الضريبي</Label>
-              <Input className="mt-1.5" inputMode="numeric" pattern="[0-9]*" value={editing.taxNumber} onChange={(e) => setEditing(p => ({ ...p, taxNumber: e.target.value }))} />
+              <Input className="mt-1.5" inputMode="numeric" pattern="[0-9]*" value={editing.taxNumber} onChange={(e) => setEditing(p => ({ ...p, taxNumber: e.target.value.replace(/\D/g, '') }))} />
             </div>
             <div>
               <Label>ملاحظات</Label>

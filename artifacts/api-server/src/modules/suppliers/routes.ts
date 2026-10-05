@@ -7,7 +7,7 @@ const schema = z.object({
   phone:      z.string().optional().nullable(),
   email:      z.string().email().optional().nullable(),
   address:    z.string().optional().nullable(),
-  tax_number: z.string().optional().nullable(),
+  tax_number: z.string().regex(/^\d*$/, 'Tax number must contain digits only').optional().nullable(),
   notes:      z.string().optional().nullable(),
   is_active:  z.boolean().optional().default(true),
 });
