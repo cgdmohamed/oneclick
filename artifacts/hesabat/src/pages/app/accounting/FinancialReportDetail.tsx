@@ -23,11 +23,13 @@ const titleMap: Record<string, string> = {
   'customer-ledger': 'دفتر أستاذ العملاء',
   'ar-aging': 'أعمار الديون',
   'supplier-ledger': 'دفتر أستاذ الموردين',
+  'ap-aging': 'أعمار ديون الموردين',
   vat: 'تقرير ضريبة القيمة المضافة',
   inventory: 'تقييم المخزون',
   'fixed-asset-register': 'سجل الأصول الثابتة',
   'depreciation-schedule': 'جدول الإهلاك',
   'accumulated-depreciation': 'ملخص مجمع الإهلاك',
+  'inventory-reconciliation': 'تسوية قيمة المخزون',
   'payroll-summary': 'ملخص الرواتب',
   'payroll-by-employee': 'الرواتب حسب الموظف',
   'payroll-by-dimension': 'الرواتب حسب الفرع ومركز التكلفة',
@@ -58,7 +60,7 @@ const summaryLabel = (key: string) => ({
   customer_total: 'إجمالي العميل',
   supplier_total: 'إجمالي المورد',
   reconciliation_difference: 'فرق التسوية',
-  // ar-aging summary keys — same buckets as the row-level columns above.
+  // ar-aging / ap-aging summary keys — same buckets as the row-level columns above.
   current: 'حالي',
   days_1_30: '1-30 يوم',
   days_31_60: '31-60 يوم',
@@ -68,6 +70,9 @@ const summaryLabel = (key: string) => ({
   // balance-sheet summary keys.
   current_year_start: 'بداية السنة المالية الحالية',
   is_balanced: 'متوازنة',
+  // inventory-reconciliation summary keys.
+  inventory_total: 'إجمالي قيمة المخزون',
+  inventory_gl_balance: 'رصيد حساب المخزون بالأستاذ',
 }[key] ?? key.replaceAll('_', ' '));
 
 const endpointFor = (type: string) => {
@@ -135,7 +140,7 @@ const FinancialReportDetail = () => {
     if (applied.to) params.set('to', applied.to);
     if (applied.branchId && !['inventory'].includes(type)) params.set('branch_id', applied.branchId);
     if (applied.customerId && ['ar-aging', 'customer-ledger'].includes(type)) params.set('customer_id', applied.customerId);
-    if (applied.supplierId && type === 'supplier-ledger') params.set('supplier_id', applied.supplierId);
+    if (applied.supplierId && ['supplier-ledger', 'ap-aging'].includes(type)) params.set('supplier_id', applied.supplierId);
     if (applied.accountId && ['general-ledger', 'account-statement'].includes(type)) params.set('account_id', applied.accountId);
     if (applied.categoryId && type === 'inventory') params.set('category_id', applied.categoryId);
     if (applied.subcategoryId && type === 'inventory') params.set('subcategory_id', applied.subcategoryId);
@@ -206,6 +211,24 @@ const FinancialReportDetail = () => {
       { key: 'd61', header: '61-90', cell: (r) => formatCurrency(Number(r.days_61_90)), className: 'text-end' },
       { key: 'd90', header: 'أكثر من 90', cell: (r) => formatCurrency(Number(r.over_90)), className: 'text-end' },
       { key: 'total', header: 'الرصيد', cell: (r) => formatCurrency(Number(r.remaining)), className: 'text-end' },
+    ];
+    if (type === 'ap-aging') return [
+      { key: 'supplier', header: 'اسم المورد', cell: (r) => r.supplier_name },
+      { key: 'invoice', header: 'الفاتورة', cell: (r) => r.invoice_number },
+      { key: 'due', header: 'الاستحقاق', cell: (r) => r.due_date ? formatDateShort(r.due_date) : '—' },
+      { key: 'current', header: 'حالي', cell: (r) => formatCurrency(Number(r.current)), className: 'text-end' },
+      { key: 'd1', header: '1-30', cell: (r) => formatCurrency(Number(r.days_1_30)), className: 'text-end' },
+      { key: 'd31', header: '31-60', cell: (r) => formatCurrency(Number(r.days_31_60)), className: 'text-end' },
+      { key: 'd61', header: '61-90', cell: (r) => formatCurrency(Number(r.days_61_90)), className: 'text-end' },
+      { key: 'd90', header: 'أكثر من 90', cell: (r) => formatCurrency(Number(r.over_90)), className: 'text-end' },
+      { key: 'total', header: 'الرصيد', cell: (r) => formatCurrency(Number(r.remaining)), className: 'text-end' },
+    ];
+    if (type === 'inventory-reconciliation') return [
+      { key: 'code', header: 'الكود', cell: (r) => r.account_code },
+      { key: 'name', header: 'حساب المخزون', cell: (r) => r.account_name },
+      { key: 'inv', header: 'قيمة المخزون', cell: (r) => formatCurrency(Number(r.inventory_value)), className: 'text-end' },
+      { key: 'gl', header: 'رصيد الأستاذ', cell: (r) => formatCurrency(Number(r.gl_balance)), className: 'text-end' },
+      { key: 'diff', header: 'الفرق', cell: (r) => formatCurrency(Number(r.difference)), className: 'text-end' },
     ];
     if (type === 'inventory') return [
       { key: 'name', header: 'المنتج', cell: (r) => r.name },
@@ -296,7 +319,7 @@ const FinancialReportDetail = () => {
                 <option value="">كل العملاء</option>
                 {customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
-            ) : type === 'supplier-ledger' ? (
+            ) : ['supplier-ledger', 'ap-aging'].includes(type) ? (
               <select className="h-10 rounded-md border bg-background px-3 text-sm" value={supplierId} onChange={(e) => setSupplierId(e.target.value)}>
                 <option value="">كل الموردين</option>
                 {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}

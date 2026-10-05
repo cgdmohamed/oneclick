@@ -84,6 +84,7 @@ const Clients = () => {
   const openEdit = (c: Client) => { setEditing(c); setOpen(true); };
   const submit = async () => {
     if (!editing.name || !editing.phone) return toast.error('الاسم والهاتف مطلوبان');
+    if (editing.taxNumber && !/^\d+$/.test(editing.taxNumber)) return toast.error('الرقم الضريبي يجب أن يحتوي على أرقام فقط');
     await save(editing);
     setOpen(false);
   };

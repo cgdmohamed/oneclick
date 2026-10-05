@@ -62,103 +62,6 @@ async function reportMeta(db: any, companyId: string, query: Record<string, unkn
   return { settings: settingsRow, warnings, missing_settings: missingSettings, draft_journals: drafts.rows[0].count, unlocked_periods: periods.rows[0].count };
 }
 
-router.get('/overview', async (req, res, next) => {
-  try {
-    const t = req.tenant!;
-    const totals = await t.db.query(`
-      SELECT
-        COALESCE(SUM(total),0)     AS total_sales,
-        COALESCE(SUM(paid),0)      AS total_paid,
-        COALESCE(SUM(remaining),0) AS total_remaining,
-        COUNT(*)                   AS invoices_count
-      FROM invoices WHERE company_id = $1 AND status != 'cancelled'
-    `, [t.companyId]);
-    const payoutTotals = await t.db.query(`
-      SELECT COALESCE(SUM(amount),0) AS total_payouts FROM payouts WHERE company_id = $1
-    `, [t.companyId]);
-    const lowStock = await t.db.query(`SELECT COUNT(*)::int AS n FROM products WHERE company_id = $1 AND product_type = 'stock' AND quantity <= alert_level`, [t.companyId]);
-    const clients  = await t.db.query(`SELECT COUNT(*)::int AS n FROM clients WHERE company_id = $1`, [t.companyId]);
-    const monthly = await t.db.query(`
-      SELECT to_char(date_trunc('month', issue_date), 'YYYY-MM') AS month,
-             COALESCE(SUM(total),0) AS total
-      FROM invoices
-      WHERE company_id = $1 AND issue_date >= now() - interval '6 months'
-        AND status != 'cancelled'
-      GROUP BY 1 ORDER BY 1
-    `, [t.companyId]);
-    const recentInvoices = await t.db.query(`
-      SELECT i.id, i.number, i.issue_date, i.total, i.remaining, i.status,
-             c.name AS client_name
-      FROM invoices i
-      LEFT JOIN clients c ON c.id = i.client_id
-      WHERE i.company_id = $1
-      ORDER BY i.created_at DESC
-      LIMIT 6
-    `, [t.companyId]);
-    const recentCollections = await t.db.query(`
-      SELECT p.id, p.amount, p.paid_at, p.method,
-             a.name AS account_name,
-             i.number AS invoice_number, c.name AS client_name
-      FROM payments p
-      LEFT JOIN accounts a ON a.id = p.account_id
-      LEFT JOIN invoices i ON i.id = p.invoice_id
-      LEFT JOIN clients c ON c.id = i.client_id
-      WHERE p.company_id = $1
-      ORDER BY p.paid_at DESC LIMIT 5
-    `, [t.companyId]);
-    const recentPayouts = await t.db.query(`
-      SELECT py.id, py.amount, py.paid_at, py.method,
-             a.name AS account_name,
-             s.name AS supplier_name, ec.name AS category_name
-      FROM payouts py
-      LEFT JOIN accounts a ON a.id = py.account_id
-      LEFT JOIN suppliers s ON s.id = py.supplier_id
-      LEFT JOIN expense_categories ec ON ec.id = py.expense_category_id
-      WHERE py.company_id = $1
-      ORDER BY py.paid_at DESC LIMIT 5
-    `, [t.companyId]);
-    const accountBalances = await t.db.query(`
-      SELECT id, name, type, balance FROM accounts WHERE company_id = $1 AND is_active = TRUE ORDER BY name ASC
-    `, [t.companyId]);
-
-    const totalPaid    = Number(totals.rows[0]?.total_paid    ?? 0);
-    const totalPayouts = Number(payoutTotals.rows[0]?.total_payouts ?? 0);
-
-    res.json({
-      data: {
-        totals: {
-          ...totals.rows[0],
-          total_payouts: totalPayouts.toFixed(2),
-          net_cash: (totalPaid - totalPayouts).toFixed(2),
-        },
-        low_stock:           lowStock.rows[0].n,
-        clients:             clients.rows[0].n,
-        monthly_sales:       monthly.rows,
-        recent_invoices:     recentInvoices.rows,
-        recent_collections:  recentCollections.rows,
-        recent_payouts:      recentPayouts.rows,
-        account_balances:    accountBalances.rows,
-      },
-    });
-  } catch (e) { next(e); }
-});
-
-router.get('/aging', async (req, res, next) => {
-  try {
-    const t = req.tenant!;
-    const rs = await t.db.query(`
-      SELECT
-        SUM(CASE WHEN due_date IS NULL OR due_date >= now() THEN remaining ELSE 0 END) AS not_due,
-        SUM(CASE WHEN due_date < now() AND due_date >= now() - interval '30 days' THEN remaining ELSE 0 END) AS d_0_30,
-        SUM(CASE WHEN due_date < now() - interval '30 days' AND due_date >= now() - interval '60 days' THEN remaining ELSE 0 END) AS d_30_60,
-        SUM(CASE WHEN due_date < now() - interval '60 days' AND due_date >= now() - interval '90 days' THEN remaining ELSE 0 END) AS d_60_90,
-        SUM(CASE WHEN due_date < now() - interval '90 days' THEN remaining ELSE 0 END) AS d_90_plus
-      FROM invoices WHERE company_id = $1 AND remaining > 0 AND status != 'cancelled'
-    `, [t.companyId]);
-    res.json({ data: rs.rows[0] });
-  } catch (e) { next(e); }
-});
-
 router.get('/payouts', async (req, res, next) => {
   try {
     const t = req.tenant!;
@@ -788,6 +691,98 @@ router.get('/ar-aging', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// Mirrors /ar-aging exactly, but against purchase_invoices/suppliers instead
+// of invoices/clients. Draft/cancelled purchase invoices are excluded, same
+// filter the supplier statement (suppliers/routes.ts GET /:id/statement) uses
+// so they don't inflate an outstanding balance that hasn't posted yet.
+router.get('/ap-aging', async (req, res, next) => {
+  try {
+    const t = req.tenant!;
+    const supplierId = typeof req.query.supplier_id === 'string' ? req.query.supplier_id : null;
+    const asOf = typeof req.query.to === 'string' ? req.query.to : new Date().toISOString().slice(0, 10);
+    const params: unknown[] = [t.companyId, asOf];
+    const where = [`pi.company_id = $1`, `pi.status NOT IN ('draft','cancelled')`, `pi.remaining > 0`, `pi.invoice_date <= $2::date + interval '1 day'`];
+    if (supplierId) {
+      params.push(supplierId);
+      where.push(`pi.supplier_id = $${params.length}`);
+    }
+    const rs = await t.db.query(
+      `SELECT s.id AS supplier_id,
+              s.name AS supplier_name,
+              pi.id AS purchase_invoice_id,
+              pi.number AS invoice_number,
+              pi.invoice_date,
+              pi.due_date,
+              pi.remaining,
+              CASE
+                WHEN pi.due_date IS NULL OR pi.due_date::date >= $2::date THEN pi.remaining
+                ELSE 0
+              END AS current,
+              CASE
+                WHEN pi.due_date::date < $2::date AND pi.due_date::date >= $2::date - interval '30 days' THEN pi.remaining
+                ELSE 0
+              END AS days_1_30,
+              CASE
+                WHEN pi.due_date::date < $2::date - interval '30 days' AND pi.due_date::date >= $2::date - interval '60 days' THEN pi.remaining
+                ELSE 0
+              END AS days_31_60,
+              CASE
+                WHEN pi.due_date::date < $2::date - interval '60 days' AND pi.due_date::date >= $2::date - interval '90 days' THEN pi.remaining
+                ELSE 0
+              END AS days_61_90,
+              CASE
+                WHEN pi.due_date::date < $2::date - interval '90 days' THEN pi.remaining
+                ELSE 0
+              END AS over_90
+       FROM purchase_invoices pi
+       JOIN suppliers s ON s.id = pi.supplier_id
+       WHERE ${where.join(' AND ')}
+       ORDER BY s.name, pi.due_date NULLS FIRST, pi.number`,
+      params,
+    );
+    const summary = rs.rows.reduce((sum: Record<string, number>, row: Record<string, string>) => {
+      for (const key of ['current', 'days_1_30', 'days_31_60', 'days_61_90', 'over_90']) sum[key] += Number(row[key] ?? 0);
+      sum.total += Number(row.remaining ?? 0);
+      return sum;
+    }, { current: 0, days_1_30: 0, days_31_60: 0, days_61_90: 0, over_90: 0, total: 0 });
+    res.json({ data: rs.rows, summary });
+  } catch (e) { next(e); }
+});
+
+// Top Customers / sales-by-customer. Mirrors the "suppliers" activity report
+// (LEFT JOIN so every client appears, even with zero revenue in range) but
+// sums invoice revenue instead of supplier payouts. Counts the same invoice
+// statuses /product-sales counts as real sales (excludes draft/cancelled).
+router.get('/top-customers', async (req, res, next) => {
+  try {
+    const t = req.tenant!;
+    const { from, to } = req.query as Record<string, string>;
+    const params: unknown[] = [t.companyId];
+    const joinWhere = [`i.client_id = c.id`, `i.company_id = c.company_id`, `i.status NOT IN ('draft','cancelled')`];
+    if (from) { params.push(from); joinWhere.push(`i.issue_date >= $${params.length}::date`); }
+    if (to) { params.push(to); joinWhere.push(`i.issue_date < ($${params.length}::date + interval '1 day')`); }
+    const rs = await t.db.query(
+      `SELECT c.id AS customer_id,
+              c.name AS customer_name,
+              COUNT(i.id)::int AS invoice_count,
+              COALESCE(SUM(i.total),0) AS total_revenue,
+              MAX(i.issue_date) AS last_invoice_date
+       FROM clients c
+       LEFT JOIN invoices i ON ${joinWhere.join(' AND ')}
+       WHERE c.company_id = $1
+       GROUP BY c.id, c.name
+       ORDER BY total_revenue DESC, c.name ASC`,
+      params,
+    );
+    const summary = {
+      total_revenue: rs.rows.reduce((s: number, r: { total_revenue: string }) => s + Number(r.total_revenue), 0).toFixed(2),
+      invoice_count: rs.rows.reduce((s: number, r: { invoice_count: number }) => s + Number(r.invoice_count), 0),
+      count: rs.rows.length,
+    };
+    res.json({ data: rs.rows, summary });
+  } catch (e) { next(e); }
+});
+
 function dateFilters(query: Record<string, unknown>, column = 'je.entry_date') {
   const params: unknown[] = [];
   const where: string[] = [];
@@ -846,28 +841,6 @@ router.get('/general-ledger', async (req, res, next) => {
     const debit = rs.rows.reduce((sum: number, row: { debit: string }) => sum + Number(row.debit), 0);
     const credit = rs.rows.reduce((sum: number, row: { credit: string }) => sum + Number(row.credit), 0);
     res.json({ data: rs.rows, summary: { debit: debit.toFixed(2), credit: credit.toFixed(2), difference: (debit - credit).toFixed(2) }, warnings: meta.warnings });
-  } catch (e) { next(e); }
-});
-
-router.get('/account-statement/:accountId', async (req, res, next) => {
-  try {
-    const t = req.tenant!;
-    const meta = await reportMeta(t.db, t.companyId, req.query);
-    const f = dateFilters(req.query);
-    const params: unknown[] = [t.companyId, req.params.accountId, ...f.params];
-    const where = [`je.company_id = $1`, `jel.account_id IN (SELECT descendant_id FROM account_tree WHERE ancestor_id = $2)`, `je.status IN ('posted','reversed')`, ...f.where.map((w) => w.replace(/\$(\d+)/g, (_, n) => `$${Number(n) + 2}`))];
-    const rs = await t.db.query(
-      `${ACCOUNT_ROLLUP_CTE}
-       SELECT je.entry_date, je.number, je.memo, jel.description, jel.debit, jel.credit,
-              SUM(jel.debit - jel.credit) OVER (ORDER BY je.entry_date, je.number, jel.line_no) AS running_balance
-       FROM journal_entry_lines jel JOIN journal_entries je ON je.id = jel.journal_entry_id
-       WHERE ${where.join(' AND ')}
-       ORDER BY je.entry_date, je.number, jel.line_no`,
-      params,
-    );
-    const debit = rs.rows.reduce((sum: number, row: { debit: string }) => sum + Number(row.debit), 0);
-    const credit = rs.rows.reduce((sum: number, row: { credit: string }) => sum + Number(row.credit), 0);
-    res.json({ data: rs.rows, summary: { debit: debit.toFixed(2), credit: credit.toFixed(2), closing_balance: (debit - credit).toFixed(2) }, warnings: meta.warnings });
   } catch (e) { next(e); }
 });
 
@@ -1153,6 +1126,77 @@ router.get('/supplier-ledger', async (req, res, next) => {
     const ledger = await t.db.query(`SELECT COALESCE(SUM(jel.credit - jel.debit),0) AS balance FROM journal_entry_lines jel JOIN journal_entries je ON je.id=jel.journal_entry_id WHERE ${where.join(' AND ')}`, ledgerParams);
     const ledgerBalance = Number(ledger.rows[0].balance);
     res.json({ data: rs.rows, summary: { supplier_total: supplierTotal.toFixed(2), ap_ledger_balance: ledgerBalance.toFixed(2), reconciliation_difference: (supplierTotal - ledgerBalance).toFixed(2) }, warnings: meta.warnings });
+  } catch (e) { next(e); }
+});
+
+// Inventory-vs-GL reconciliation. Mirrors customer-ledger/supplier-ledger's
+// "party total vs GL balance" shape, but on the inventory side: (a) sum of
+// products.inventory_value for stock products, (b) GL balance of whichever
+// inventory account(s) those products actually resolve to — a product can
+// override its own inventory account, or inherit one from its category/
+// parent category, before falling back to accounting_settings.inventory_
+// account_id (same COALESCE chain posting.ts uses when it posts to inventory).
+router.get('/inventory-reconciliation', async (req, res, next) => {
+  try {
+    const t = req.tenant!;
+    const meta = await reportMeta(t.db, t.companyId, req.query);
+    const resolvedRs = await t.db.query(
+      `SELECT COALESCE(p.inventory_account_id, pc.inventory_account_id, parent_pc.inventory_account_id, $2::uuid) AS inventory_account_id,
+              p.inventory_value
+       FROM products p
+       LEFT JOIN product_categories pc ON pc.id = p.category_id AND pc.company_id = p.company_id
+       LEFT JOIN product_categories parent_pc ON parent_pc.id = pc.parent_id AND parent_pc.company_id = pc.company_id
+       WHERE p.company_id = $1 AND p.product_type = 'stock'`,
+      [t.companyId, meta.settings.inventory_account_id ?? null],
+    );
+    const inventoryTotal = resolvedRs.rows.reduce((s: number, r: { inventory_value: string }) => s + Number(r.inventory_value ?? 0), 0);
+    const byAccount = new Map<string, number>();
+    for (const row of resolvedRs.rows as { inventory_account_id: string | null; inventory_value: string }[]) {
+      if (!row.inventory_account_id) continue;
+      byAccount.set(row.inventory_account_id, (byAccount.get(row.inventory_account_id) ?? 0) + Number(row.inventory_value ?? 0));
+    }
+    const accountIds = [...byAccount.keys()];
+    let rows: Record<string, unknown>[] = [];
+    let ledgerBalance = 0;
+    if (accountIds.length) {
+      const accts = await t.db.query(
+        `SELECT ca.id, ca.code, ca.name,
+                COALESCE(gl.bal,0) AS gl_balance
+         FROM chart_accounts ca
+         LEFT JOIN (
+           SELECT jel.account_id, SUM(jel.debit - jel.credit) AS bal
+           FROM journal_entry_lines jel
+           JOIN journal_entries je ON je.id = jel.journal_entry_id AND je.status IN ('posted','reversed')
+           WHERE jel.company_id = $1 AND jel.account_id = ANY($2::uuid[])
+           GROUP BY jel.account_id
+         ) gl ON gl.account_id = ca.id
+         WHERE ca.company_id = $1 AND ca.id = ANY($2::uuid[])
+         ORDER BY ca.code`,
+        [t.companyId, accountIds],
+      );
+      rows = accts.rows.map((a: { id: string; code: string; name: string; gl_balance: string }) => {
+        const invValue = byAccount.get(a.id) ?? 0;
+        const gl = Number(a.gl_balance);
+        ledgerBalance += gl;
+        return {
+          id: a.id,
+          account_code: a.code,
+          account_name: a.name,
+          inventory_value: invValue.toFixed(2),
+          gl_balance: gl.toFixed(2),
+          difference: (invValue - gl).toFixed(2),
+        };
+      });
+    }
+    res.json({
+      data: rows,
+      summary: {
+        inventory_total: inventoryTotal.toFixed(2),
+        inventory_gl_balance: ledgerBalance.toFixed(2),
+        reconciliation_difference: (inventoryTotal - ledgerBalance).toFixed(2),
+      },
+      warnings: meta.warnings,
+    });
   } catch (e) { next(e); }
 });
 
