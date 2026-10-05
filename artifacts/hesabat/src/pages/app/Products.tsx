@@ -331,6 +331,20 @@ const Products = () => {
     if (costBearingType && !editing.cost) {
       toast.warning('تكلفة المنتج صفر — أي فاتورة شراء له لن تُسجَّل كمصروف/مخزون في التقارير المالية إلا إذا عدّلت التكلفة');
     }
+    // `cost` on a stock product is a direct PATCH-able field, but the system
+    // itself keeps recomputing the real weighted-average cost elsewhere
+    // (purchase invoices, stock movements) into `average_cost`. Editing
+    // `cost` by hand on an existing stock product won't retroactively touch
+    // any past COGS entry and can silently diverge from that average going
+    // forward — warn, but still allow the save (same "warn, don't block"
+    // philosophy as the zero-cost warning above).
+    if (editing.id && editing.productType === 'stock') {
+      const original = list.find(p => p.id === editing.id);
+      const currentAverage = Number(original?.averageCost ?? original?.cost ?? 0);
+      if (original && Number(editing.cost ?? 0) !== currentAverage) {
+        toast.warning('عدّلت التكلفة يدويًا — هذا لن يغيّر تكلفة البضاعة المباعة لأي عملية سابقة، وقد يختلف عن متوسط التكلفة الفعلي الذي يحسبه النظام تلقائيًا من فواتير الشراء وحركات المخزون');
+      }
+    }
     await save(editing);
     setOpen(false);
   };

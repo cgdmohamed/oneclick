@@ -54,6 +54,10 @@ const summaryLabel = (key: string) => ({
   ap_ledger_balance: 'رصيد الموردين في الأستاذ',
   outstanding_total: 'إجمالي الرصيد المستحق',
   difference: 'الفرق',
+  // customer-ledger / supplier-ledger summary keys.
+  customer_total: 'إجمالي العميل',
+  supplier_total: 'إجمالي المورد',
+  reconciliation_difference: 'فرق التسوية',
   // ar-aging summary keys — same buckets as the row-level columns above.
   current: 'حالي',
   days_1_30: '1-30 يوم',
@@ -100,11 +104,11 @@ const FinancialReportDetail = () => {
   const [applied, setApplied] = useState({ from: '', to: '', branchId: '', costCenterId: '', customerId: '', supplierId: '', accountId: '', categoryId: '', subcategoryId: '' });
   const { data: branches = [] } = useQuery({
     queryKey: ['branches'],
-    queryFn: async () => (await api.get<{ data: DimensionRow[] }>('/api/branches')).data ?? [],
+    queryFn: async () => (await api.get<{ data: DimensionRow[] }>('/api/branches?page_size=200')).data ?? [],
   });
   const { data: costCenters = [] } = useQuery({
     queryKey: ['cost-centers'],
-    queryFn: async () => (await api.get<{ data: DimensionRow[] }>('/api/cost-centers')).data ?? [],
+    queryFn: async () => (await api.get<{ data: DimensionRow[] }>('/api/cost-centers?page_size=200')).data ?? [],
   });
   const { data: customers = [] } = useQuery({
     queryKey: ['clients'],

@@ -144,12 +144,12 @@ const ReportDetail = () => {
   const branchesQuery = useQuery({
     enabled: dimensionsEnabled,
     queryKey: ['branches'],
-    queryFn: async () => (await api.get<{ data: DimensionRow[] }>('/api/branches')).data ?? [],
+    queryFn: async () => (await api.get<{ data: DimensionRow[] }>('/api/branches?page_size=200')).data ?? [],
   });
   const costCentersQuery = useQuery({
     enabled: dimensionsEnabled,
     queryKey: ['cost-centers'],
-    queryFn: async () => (await api.get<{ data: DimensionRow[] }>('/api/cost-centers')).data ?? [],
+    queryFn: async () => (await api.get<{ data: DimensionRow[] }>('/api/cost-centers?page_size=200')).data ?? [],
   });
   const productCategoriesQuery = useQuery({
     enabled: apiOn && ['inventory', 'inventory-write-offs', 'sales-returns', 'product-sales', 'stock-risk'].includes(type),

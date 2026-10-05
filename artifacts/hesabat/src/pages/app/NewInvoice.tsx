@@ -80,11 +80,11 @@ const NewInvoice = ({ asModal = false, defaultClientId, onCancel, onCreated }: N
   const [projectId, setProjectId] = useState('');
   const { data: costCenters = [] } = useQuery({
     queryKey: ['cost-centers'],
-    queryFn: async () => (await api.get<{ data: DimensionRow[] }>('/api/cost-centers')).data ?? [],
+    queryFn: async () => (await api.get<{ data: DimensionRow[] }>('/api/cost-centers?page_size=200')).data ?? [],
   });
   const { data: projects = [] } = useQuery({
     queryKey: ['projects'],
-    queryFn: async () => (await api.get<{ data: DimensionRow[] }>('/api/projects')).data ?? [],
+    queryFn: async () => (await api.get<{ data: DimensionRow[] }>('/api/projects?page_size=200')).data ?? [],
   });
   const activeCostCenters = costCenters.filter((c) => c.is_active);
   const activeProjects = projects.filter((p) => p.is_active);

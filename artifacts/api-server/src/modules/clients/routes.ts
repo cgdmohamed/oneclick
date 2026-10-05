@@ -8,6 +8,11 @@ const r = Router();
 const schema = z.object({
   name: z.string().min(1),
   email: z.string().email().optional().nullable(),
+  // Optional/nullable here so `schema.partial()` keeps working correctly for
+  // PATCH (a field not sent should stay unchanged, not become required on
+  // every partial update). The CREATE path below enforces the real rule
+  // (phone required) via `createSchema`, matching Clients.tsx's own
+  // client-side validation instead of silently accepting no phone at all.
   phone: z.string().optional().nullable(),
   whatsapp: z.string().optional().nullable(),
   tax_number: z.string().optional().nullable(),
@@ -22,6 +27,14 @@ const schema = z.object({
 });
 
 const FIELDS = ['name', 'email', 'phone', 'whatsapp', 'tax_number', 'address', 'notes', 'currency', 'linked_supplier_id'] as const;
+
+// Clients.tsx (the only real creation path today) already requires phone
+// client-side ("الاسم والهاتف مطلوبان"); the API was silently accepting a
+// direct POST with no phone, bypassing that rule for any other caller.
+// Enforced explicitly in the POST handler below (not via a stricter zod
+// schema) so the error matches this file's existing `badRequest(...)` style
+// instead of a generic zod `validation_error` payload, and so `schema`
+// itself (shared with `schema.partial()` for PATCH) stays untouched.
 
 async function assertLinkedSupplier(db: { query: (sql: string, params?: unknown[]) => Promise<{ rowCount: number | null }> }, companyId: string, supplierId?: string | null) {
   if (!supplierId) return;
@@ -148,6 +161,7 @@ r.post('/', async (req, res, next) => {
   try {
     const t = req.tenant!;
     const parsed = schema.parse(req.body) as Record<string, unknown>;
+    if (!parsed.phone || !String(parsed.phone).trim()) throw badRequest('Phone number is required');
     await assertLinkedSupplier(t.db, t.companyId, parsed.linked_supplier_id as string | null | undefined);
     // Only insert fields the caller actually sent — passing an explicit NULL
     // for an omitted field (e.g. currency) bypasses its DB DEFAULT and

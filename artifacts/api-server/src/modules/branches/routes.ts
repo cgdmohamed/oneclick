@@ -1,7 +1,23 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { parsePagination } from '../../utils/pagination.js';
-import { notFound } from '../../utils/errors.js';
+import { notFound, conflict } from '../../utils/errors.js';
+
+// All FKs from these tables to branches are ON DELETE SET NULL (migrations
+// 031/036/037/040) — without a guard, deleting a branch in use would
+// silently strip it off historical journal entries/invoices/payroll/etc.
+const DELETE_GUARD_TABLES: { table: string; column: string }[] = [
+  { table: 'journal_entries', column: 'branch_id' },
+  { table: 'journal_entry_lines', column: 'branch_id' },
+  { table: 'invoices', column: 'branch_id' },
+  { table: 'payments', column: 'branch_id' },
+  { table: 'payouts', column: 'branch_id' },
+  { table: 'purchase_invoices', column: 'branch_id' },
+  { table: 'supplier_payments', column: 'branch_id' },
+  { table: 'payroll_run_lines', column: 'branch_id' },
+  { table: 'fixed_assets', column: 'branch_id' },
+  { table: 'inventory_write_offs', column: 'branch_id' },
+];
 
 const r = Router();
 
@@ -86,6 +102,15 @@ r.patch('/:id', async (req, res, next) => {
 r.delete('/:id', async (req, res, next) => {
   try {
     const t = req.tenant!;
+    for (const g of DELETE_GUARD_TABLES) {
+      const used = await t.db.query(
+        `SELECT 1 FROM ${g.table} WHERE company_id = $1 AND ${g.column} = $2 LIMIT 1`,
+        [t.companyId, req.params.id],
+      );
+      if (used.rowCount) {
+        throw conflict('Cannot delete — it is used by existing transactions. Deactivate it instead.');
+      }
+    }
     const rs = await t.db.query(`DELETE FROM branches WHERE id = $1 AND company_id = $2`, [req.params.id, t.companyId]);
     res.json({ ok: true, deleted: rs.rowCount });
   } catch (e) { next(e); }

@@ -46,11 +46,11 @@ const NewJournalEntry = () => {
   const activeAccounts = accounts.filter((a) => a.is_active);
   const { data: branches = [] } = useQuery({
     queryKey: ['branches'],
-    queryFn: async () => (await api.get<{ data: DimensionRow[] }>('/api/branches')).data ?? [],
+    queryFn: async () => (await api.get<{ data: DimensionRow[] }>('/api/branches?page_size=200')).data ?? [],
   });
   const { data: costCenters = [] } = useQuery({
     queryKey: ['cost-centers'],
-    queryFn: async () => (await api.get<{ data: DimensionRow[] }>('/api/cost-centers')).data ?? [],
+    queryFn: async () => (await api.get<{ data: DimensionRow[] }>('/api/cost-centers?page_size=200')).data ?? [],
   });
   const activeBranches = branches.filter((b) => b.is_active);
   const activeCostCenters = costCenters.filter((c) => c.is_active);

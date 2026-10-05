@@ -115,7 +115,22 @@ r.post('/categories', async (req, res, next) => {
 r.patch('/categories/:id', async (req, res, next) => {
   try {
     const t = req.tenant!;
+    // Mirror the chart-of-accounts guard: once a category's GL accounts have
+    // already been used to post a real depreciation run, redirecting future
+    // postings to a different account silently splits the asset's
+    // accumulated-depreciation trail across two accounts without warning.
+    const posted = await t.db.query(
+      `SELECT 1 FROM depreciation_run_lines drl
+       JOIN depreciation_runs dr ON dr.id = drl.depreciation_run_id
+       JOIN fixed_assets fa ON fa.id = drl.asset_id
+       WHERE fa.category_id = $1 AND drl.company_id = $2 AND dr.status = 'posted'
+       LIMIT 1`,
+      [req.params.id, t.companyId],
+    );
     const body = categorySchema.partial().parse(req.body);
+    if (posted.rowCount && ('accumulated_depreciation_account_id' in body || 'depreciation_expense_account_id' in body || 'fixed_asset_account_id' in body)) {
+      throw conflict('Asset categories used by posted depreciation runs can only update the name, default useful life, or active status');
+    }
     for (const key of ['fixed_asset_account_id', 'accumulated_depreciation_account_id', 'depreciation_expense_account_id'] as const) await assertAccount(t.db, t.companyId, body[key]);
     const fields = Object.keys(body);
     if (!fields.length) throw badRequest('No changes supplied');
@@ -153,8 +168,19 @@ r.get('/assets/:id', async (req, res, next) => {
   try {
     const t = req.tenant!;
     const asset = await t.db.query(
-      `SELECT fa.*, ac.name AS category_name FROM fixed_assets fa JOIN asset_categories ac ON ac.id = fa.category_id WHERE fa.id = $1 AND fa.company_id = $2`,
-      [req.params.id, t.companyId],
+      `SELECT fa.*, ac.name AS category_name,
+              COALESCE(dep.accumulated,0) AS accumulated_depreciation,
+              GREATEST(0, fa.acquisition_cost - fa.salvage_value - COALESCE(dep.accumulated,0)) AS net_book_value
+       FROM fixed_assets fa
+       JOIN asset_categories ac ON ac.id = fa.category_id
+       LEFT JOIN (
+         SELECT drl.asset_id, SUM(drl.depreciation_amount) AS accumulated
+         FROM depreciation_run_lines drl JOIN depreciation_runs dr ON dr.id = drl.depreciation_run_id
+         WHERE drl.company_id = $1 AND dr.status = 'posted'
+         GROUP BY drl.asset_id
+       ) dep ON dep.asset_id = fa.id
+       WHERE fa.id = $2 AND fa.company_id = $1`,
+      [t.companyId, req.params.id],
     );
     if (!asset.rowCount) throw notFound('Fixed asset not found');
     const lines = await t.db.query(

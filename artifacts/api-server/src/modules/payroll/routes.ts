@@ -255,6 +255,19 @@ r.patch('/components/:id', async (req, res, next) => {
     if (b.account_id) {
       const acc = await t.db.query(`SELECT 1 FROM chart_accounts WHERE id=$1 AND company_id=$2`, [b.account_id, t.companyId]);
       if (!acc.rowCount) throw badRequest('Invalid account');
+      // Mirror the chart-of-accounts/asset-category guard: once a component
+      // has already been posted against a real payroll run, redirecting it
+      // to a different GL account silently splits its journal trail across
+      // two accounts without warning.
+      const used = await t.db.query(
+        `SELECT 1 FROM payroll_line_components plc
+         JOIN payroll_run_lines prl ON prl.id = plc.payroll_run_line_id
+         JOIN payroll_runs pr ON pr.id = prl.payroll_run_id
+         WHERE plc.salary_component_id = $1 AND plc.company_id = $2 AND pr.status IN ('posted','paid')
+         LIMIT 1`,
+        [req.params.id, t.companyId],
+      );
+      if (used.rowCount) throw badRequest('Salary components used by a posted payroll run can only update the name, type, or active status');
     }
     const fields = Object.keys(b);
     if (!fields.length) throw badRequest('No changes supplied');

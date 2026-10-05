@@ -43,8 +43,8 @@ const NewInventoryWriteOff = () => {
   const [saving, setSaving] = useState(false);
 
   const products = useQuery({ queryKey: ['products'], queryFn: async () => (await api.get<{ data: Product[] }>('/api/products?page_size=500')).data ?? [] });
-  const branches = useQuery({ queryKey: ['branches'], queryFn: async () => (await api.get<{ data: Dimension[] }>('/api/branches')).data ?? [] });
-  const costCenters = useQuery({ queryKey: ['cost-centers'], queryFn: async () => (await api.get<{ data: Dimension[] }>('/api/cost-centers')).data ?? [] });
+  const branches = useQuery({ queryKey: ['branches'], queryFn: async () => (await api.get<{ data: Dimension[] }>('/api/branches?page_size=200')).data ?? [] });
+  const costCenters = useQuery({ queryKey: ['cost-centers'], queryFn: async () => (await api.get<{ data: Dimension[] }>('/api/cost-centers?page_size=200')).data ?? [] });
   const stockProducts = (products.data ?? []).filter((p) => p.product_type === 'stock');
 
   const updateItem = (idx: number, patch: Partial<Item>) => setItems((prev) => prev.map((item, i) => i === idx ? { ...item, ...patch } : item));

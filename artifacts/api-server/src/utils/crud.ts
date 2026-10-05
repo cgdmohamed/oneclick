@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { parsePagination } from './pagination.js';
+import { conflict } from './errors.js';
 
 /** Tiny CRUD factory for tenant-scoped tables to keep modules concise. */
 export function crudRouter(opts: {
@@ -14,6 +15,13 @@ export function crudRouter(opts: {
    *  via this generic PATCH — for values that must only change through a
    *  dedicated, audited path (e.g. a stock-movement-backed quantity). */
   patchExcludeFields?: string[];
+  /** Before DELETE, reject with 409 if this row is still referenced by any
+   *  of these (table, column) pairs — the FKs from these tables to this one
+   *  are typically `ON DELETE SET NULL`, so without this guard a delete
+   *  silently strips the dimension tag off historical financial records
+   *  instead of failing loudly. Each table is assumed to carry its own
+   *  `company_id` (true for every dimension-tagged table in this schema). */
+  deleteGuardTables?: { table: string; column: string }[];
 }) {
   const r = Router();
   void opts.fields;
@@ -113,6 +121,17 @@ export function crudRouter(opts: {
   r.delete('/:id', async (req, res, next) => {
     try {
       const t = req.tenant!;
+      if (opts.deleteGuardTables?.length) {
+        for (const g of opts.deleteGuardTables) {
+          const used = await t.db.query(
+            `SELECT 1 FROM ${g.table} WHERE company_id = $1 AND ${g.column} = $2 LIMIT 1`,
+            [t.companyId, req.params.id],
+          );
+          if (used.rowCount) {
+            throw conflict('Cannot delete — it is used by existing transactions. Deactivate it instead.');
+          }
+        }
+      }
       const rs = await t.db.query(
         `DELETE FROM ${opts.table} WHERE id = $1 AND company_id = $2`,
         [req.params.id, t.companyId],

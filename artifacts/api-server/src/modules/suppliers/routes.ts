@@ -94,6 +94,21 @@ r.get('/:id/statement', async (req, res, next) => {
       [id, t.companyId],
     );
 
+    // Purchase returns are already netted into purchase_invoices.remaining
+    // (so outstanding_balance above is numerically correct), but weren't
+    // shown anywhere as their own line — the balance would drop with no
+    // visible reason why. Only posted returns count, matching the invoice
+    // filter above.
+    const returnsRs = await t.db.query(
+      `SELECT pr.id, pr.return_number, pr.return_date, pr.subtotal, pr.vat_amount, pr.total, pr.status,
+              pi.number AS purchase_invoice_number
+       FROM purchase_returns pr
+       LEFT JOIN purchase_invoices pi ON pi.id = pr.original_purchase_invoice_id
+       WHERE pr.supplier_id = $1 AND pr.company_id = $2 AND pr.status = 'posted'
+       ORDER BY pr.return_date DESC`,
+      [id, t.companyId],
+    );
+
     const totalPurchases = invoicesRs.rows.reduce((sum: number, i: { total: string }) => sum + parseFloat(i.total || '0'), 0);
     const totalPayouts = payments.reduce((sum: number, p: { amount: string }) => sum + parseFloat(p.amount || '0'), 0);
     const outstanding = invoicesRs.rows.reduce((sum: number, i: { remaining: string }) => sum + parseFloat(i.remaining || '0'), 0);
@@ -104,6 +119,7 @@ r.get('/:id/statement', async (req, res, next) => {
         supplier,
         products:         productsRs.rows,
         invoices:         invoicesRs.rows,
+        purchase_returns: returnsRs.rows,
         payouts:          payoutsRs.rows,
         supplier_payments: supplierPaymentsRs.rows,
         payments,
