@@ -108,17 +108,50 @@ async function request<T>(method: string, path: string, body?: unknown, retry = 
 
 /**
  * Singleton in-flight refresh promise.
- * If a refresh is already in progress, all concurrent callers share the same
- * Promise instead of firing independent requests. This prevents the server's
- * refresh-token reuse-detection logic from revoking the entire token family
- * when multiple parallel API calls each trigger their own refresh on a 401.
+ * If a refresh is already in progress, all concurrent callers *in this tab*
+ * share the same Promise instead of firing independent requests. This alone
+ * does not protect against a second browser TAB doing the same thing at the
+ * same time — see the cross-tab lock below.
  */
 let _refreshInFlight: Promise<boolean> | null = null;
 
+const REFRESH_LOCK_NAME = 'hesabat-refresh-token';
+
 async function tryRefresh(): Promise<boolean> {
   if (_refreshInFlight) return _refreshInFlight;
-  _refreshInFlight = _doRefresh().finally(() => { _refreshInFlight = null; });
+  _refreshInFlight = _lockedRefresh().finally(() => { _refreshInFlight = null; });
   return _refreshInFlight;
+}
+
+/**
+ * The refresh token lives in one httpOnly cookie shared by every tab of this
+ * browser. The backend rotates it on each /refresh call and treats a second
+ * request bearing the now-superseded token as theft (reuse detection) —
+ * nuking the whole session. Two tabs whose access tokens expire around the
+ * same time would otherwise both fire /refresh with the same (soon-to-be-
+ * stale) cookie value and one of them would trip that check, logging the
+ * user out of both tabs for perfectly normal multi-tab use.
+ *
+ * The Web Locks API (supported in all current browsers) gives us a mutex
+ * that is shared across tabs of the same origin, so only one tab's refresh
+ * actually hits the network at a time; everyone else waits for it. Browsers
+ * without navigator.locks fall back to the old per-tab-only behavior (no
+ * worse than before this fix).
+ */
+async function _lockedRefresh(): Promise<boolean> {
+  if (typeof navigator === 'undefined' || !('locks' in navigator)) {
+    return _doRefresh();
+  }
+  const tokenBeforeWait = getAccessToken();
+  return navigator.locks.request(REFRESH_LOCK_NAME, async () => {
+    // Another tab may have already refreshed (and updated the shared
+    // localStorage access token) while we were waiting for the lock — skip
+    // our own network round-trip, and more importantly skip sending the
+    // refresh cookie a second time with a token the other tab just rotated.
+    const tokenNow = getAccessToken();
+    if (tokenNow && tokenNow !== tokenBeforeWait) return true;
+    return _doRefresh();
+  });
 }
 
 async function _doRefresh(): Promise<boolean> {
