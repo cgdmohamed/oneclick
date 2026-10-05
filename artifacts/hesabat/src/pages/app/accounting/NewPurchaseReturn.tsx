@@ -39,7 +39,11 @@ const NewPurchaseReturn = () => {
   const [saving, setSaving] = useState(false);
 
   const suppliers = useQuery({ queryKey: ['suppliers'], queryFn: async () => (await api.get<{ data: Supplier[] }>('/api/suppliers?page_size=300')).data ?? [] });
-  const products = useQuery({ queryKey: ['products'], queryFn: async () => (await api.get<{ data: Product[] }>('/api/products?page_size=300')).data ?? [] });
+  // Query key deliberately distinct from the canonical 'products' cache used
+  // by useProducts() elsewhere (e.g. Products.tsx) — this fetches raw
+  // snake_case rows; sharing the key let whichever query ran last silently
+  // overwrite the other's cache shape.
+  const products = useQuery({ queryKey: ['products-picker'], queryFn: async () => (await api.get<{ data: Product[] }>('/api/products?page_size=300')).data ?? [] });
   const invoices = useQuery({ queryKey: ['purchase-invoices'], queryFn: async () => (await api.get<{ data: PurchaseInvoice[] }>('/api/purchases/invoices?page_size=300')).data ?? [] });
   const linkedInvoice = useQuery({
     enabled: Boolean(invoiceId),

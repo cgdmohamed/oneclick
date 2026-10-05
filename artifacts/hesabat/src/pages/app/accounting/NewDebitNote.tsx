@@ -50,7 +50,11 @@ const NewDebitNote = () => {
   const [items, setItems] = useState<ItemForm[]>([blankItem()]);
 
   const customers = useQuery({ queryKey: ['clients'], queryFn: async () => (await api.get<{ data: Customer[] }>('/api/clients?page_size=300')).data ?? [] });
-  const products = useQuery({ queryKey: ['products'], queryFn: async () => (await api.get<{ data: Product[] }>('/api/products?page_size=300')).data ?? [] });
+  // Query key deliberately distinct from the canonical 'products' cache used
+  // by useProducts() elsewhere (e.g. Products.tsx) — this fetches raw
+  // snake_case rows; sharing the key let whichever query ran last silently
+  // overwrite the other's cache shape.
+  const products = useQuery({ queryKey: ['products-picker'], queryFn: async () => (await api.get<{ data: Product[] }>('/api/products?page_size=300')).data ?? [] });
   // Query key deliberately distinct from the canonical 'invoices' cache used
   // by useInvoices() elsewhere (e.g. Products.tsx) — this fetches raw
   // snake_case rows with no `items` field; sharing the key let whichever

@@ -42,9 +42,13 @@ const NewInventoryWriteOff = () => {
   const [items, setItems] = useState<Item[]>([blankItem()]);
   const [saving, setSaving] = useState(false);
 
-  const products = useQuery({ queryKey: ['products'], queryFn: async () => (await api.get<{ data: Product[] }>('/api/products?page_size=500')).data ?? [] });
-  const branches = useQuery({ queryKey: ['branches'], queryFn: async () => (await api.get<{ data: Dimension[] }>('/api/branches?page_size=200')).data ?? [] });
-  const costCenters = useQuery({ queryKey: ['cost-centers'], queryFn: async () => (await api.get<{ data: Dimension[] }>('/api/cost-centers?page_size=200')).data ?? [] });
+  // Query keys deliberately distinct from the canonical caches used by
+  // useProducts()/Branches.tsx/CostCenters.tsx — these fetch raw snake_case
+  // rows (e.g. `is_active` instead of `isActive`); sharing a key let
+  // whichever query ran last silently overwrite the other's cache shape.
+  const products = useQuery({ queryKey: ['products-picker'], queryFn: async () => (await api.get<{ data: Product[] }>('/api/products?page_size=500')).data ?? [] });
+  const branches = useQuery({ queryKey: ['branches-picker'], queryFn: async () => (await api.get<{ data: Dimension[] }>('/api/branches?page_size=200')).data ?? [] });
+  const costCenters = useQuery({ queryKey: ['cost-centers-picker'], queryFn: async () => (await api.get<{ data: Dimension[] }>('/api/cost-centers?page_size=200')).data ?? [] });
   const stockProducts = (products.data ?? []).filter((p) => p.product_type === 'stock');
 
   const updateItem = (idx: number, patch: Partial<Item>) => setItems((prev) => prev.map((item, i) => i === idx ? { ...item, ...patch } : item));
@@ -76,6 +80,7 @@ const NewInventoryWriteOff = () => {
       await Promise.all([
         qc.invalidateQueries({ queryKey: ['inventory-write-offs'] }),
         qc.invalidateQueries({ queryKey: ['products'] }),
+        qc.invalidateQueries({ queryKey: ['products-picker'] }),
       ]);
       toast.success(status === 'posted' ? 'تم ترحيل شطب المخزون' : 'تم حفظ مسودة الشطب');
       navigate(`/app/inventory-write-offs/${res.data.id}`);

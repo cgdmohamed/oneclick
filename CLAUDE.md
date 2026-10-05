@@ -1816,3 +1816,69 @@ React Query بيشارك نفس الكاش لنفس المفتاح — فلو ا
 حسب احتياج كل شاشة — ده مريح لكنه بيفتح الباب لنفس فئة الخطأ دي لو اتنين
 استخدموا نفس اسم المفتاح النصي بالصدفة. يستحق مراجعة لاحقًا لتوحيد أسماء
 المفاتيح أو الانتقال التدريجي لـ`useResource` في كل مكان ممكن.
+
+---
+
+# فحص شامل لباقي الشاشات اللي بتستخدم نفس نمط تصادم مفتاح الكاش (بعد كراش المنتجات)
+
+بعد إصلاح كراش `/app/products` (تصادم مفتاح `'invoices'` بين `useInvoices()`
+وأربع شاشات بتجيب بيانات فاتورة خام)، طلب صاحب المشروع فحص باقي الشاشات اللي
+بتستخدم نفس نمط `useQuery` الخام (مش `useResource`) للتأكد من عدم وجود نفس
+فئة الخطأ في مكان تاني. فحصت كل مفاتيح React Query المشتركة في الكود
+(`clients`, `products`, `accounts`, `invoices`, `notifications`, `users`,
+`platform-wallets`, `branches`, `cost-centers`, `projects`, `suppliers`,
+`payments`) ولقيت تصادمين حقيقيين إضافيين، وتصادمات تانية فحصتها واتأكدت
+إنها آمنة فعليًا.
+
+## التصادمان الحقيقيان (تم إصلاحهما)
+
+1. **مفتاح `'products'`**: 5 شاشات (`NewPurchaseInvoice.tsx`,
+   `NewInventoryWriteOff.tsx`, `NewDebitNote.tsx`, `NewPurchaseReturn.tsx`,
+   `NewCreditNote.tsx`) بتجيب صفوف منتج خام (snake_case) تحت نفس مفتاح
+   `useProducts()` القانوني (`productsCfg` في `entities.ts`)، اللي بيحوّل
+   الصفوف لشكل camelCase غني (`productType`, `averageCost`,
+   `inventoryValue`, `alertLevel`, `status`, ...). شاشة `Products.tsx` نفسها
+   بتقرا هذه الحقول camelCase مباشرة في عرض الجدول (`r.productType`,
+   `r.quantity <= r.alertLevel`, إلخ) من غير أي حماية — لو شاشة تانية
+   كتبت شكل خام فوق نفس الكاش قبل ما `Products.tsx` تتفتح، كل هذه الحقول
+   كانت هتظهر فاضية/خاطئة (مش crash زي حالة `invoices`، لكن نفس فئة الخطأ:
+   بيانات غلط أو ناقصة تُعرض بصمت). تم الإصلاح بتغيير مفتاح الخمس شاشات
+   لـ`'products-picker'` + إضافة `invalidateQueries` مطابق في الشاشات اللي
+   كانت أصلاً بتُبطل `'products'`.
+2. **مفاتيح `'branches'`/`'cost-centers'`/`'projects'`**: 8 شاشات
+   (`ReportDetail.tsx`, `NewInventoryWriteOff.tsx`, `Employees.tsx`,
+   `NewJournalEntry.tsx`, `NewFixedAsset.tsx`, `FinancialReportDetail.tsx`,
+   `NewInvoice.tsx`, `Overview.tsx`) بتجيب صفوف فرع/مركز تكلفة/مشروع خام
+   (`is_active` بـsnake_case) تحت نفس مفاتيح `Branches.tsx`/`CostCenters.tsx`/
+   `Projects.tsx` القانونية، اللي بتحوّل لـ`isActive` camelCase. كل الشاشات
+   التمانية بتعمل `.filter(x => x.is_active)` على البيانات — لو الكاش كان
+   فيه شكل camelCase (من زيارة شاشة الإدارة القانونية قبلها)، الفلتر ده كان
+   بيرجع دايمًا فاضي بصمت (`undefined` falsy)، يعني قوائم الفروع/مراكز
+   التكلفة/المشاريع في فاتورة جديدة أو قيد يومية جديد أو شطب مخزون كانت ممكن
+   تظهر فاضية تمامًا بدون أي سبب ظاهر للمستخدم. تم الإصلاح بتغيير مفاتيح
+   الثمان شاشات لـ`'branches-picker'`/`'cost-centers-picker'`/`'projects-picker'`.
+
+اتأكد بالاختبار الحي الكامل (Playwright، شركة اختبار حقيقية `مكتبة المعرفة`):
+زيارة `Branches.tsx`/`CostCenters.tsx`/`Projects.tsx` القانونية أولًا (تملي
+الكاش بشكل camelCase)، ثم فتح `NewJournalEntry.tsx` و`NewInvoice.tsx` —
+بعد الإصلاح، قوائم الفرع/مركز التكلفة/المشروع عرضت العناصر التجريبية
+المُدخلة صح (قبل الإصلاح هذا بالظبط السيناريو اللي كان هيفشل بصمت). زيارة
+`Products.tsx` ثم `NewPurchaseInvoice.tsx` ثم `Products.tsx` تاني — الصفحة
+اترندرت كاملة بالعشر منتجات من غير أي خطأ (`tsc --noEmit` نظيف أيضًا).
+
+## تصادمات فُحصت واتأكد إنها آمنة فعليًا (مفيش تغيير مطلوب)
+
+- **`'clients'`/`'suppliers'`**: `FinancialReportDetail.tsx` و`Payouts.tsx`
+  بيجيبوا صفوف خام تحت نفس المفاتيح، لكن بيقروا بس `.id`/`.name` — الحقلين
+  موجودين بنفس الاسم في الشكل القانوني كمان، فمفيش أي أثر فعلي.
+- **`'accounts'`**: 7 شاشات (`Payments.tsx`, `NewPurchaseInvoice.tsx`,
+  `NewBankReconciliation.tsx`, `SupplierPayments.tsx`,
+  `PayrollRunDetails.tsx`, `NewInvoice.tsx`, `Payouts.tsx`) بتجيب صفوف خام،
+  لكن كلهم بيقروا بس `.id`/`.name`/`.type` (و`NewBankReconciliation.tsx`
+  كمان `.bank_name`/`.balance` اختياريين) — كلهم موجودين بنفس الاسم في
+  الشكل القانوني `accountsCfg`، فمفيش أي فرق فعلي أو عرض بيانات غلط.
+- **`'payments'`**: مفيش أي شاشة بتجيب بيانات خام تحت هذا المفتاح — الاستخدامات
+  الموجودة كلها `invalidateQueries` بس بعد `useResource` القانوني.
+- **`'users'`/`'notifications'`/`'platform-wallets'`**: مفيش أي مفتاح خام
+  متصادم — كل الاستخدامات التانية إما `invalidateQueries` بس أو مفاتيح فرعية
+  مختلفة (زي `['notifications', 'unread-count']`).

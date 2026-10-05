@@ -178,14 +178,18 @@ const Overview = () => {
     queryFn: async () => (await api.get<{ data: DashboardSummary }>(`/api/dashboard/summary${query ? `?${query}` : ''}`)).data,
     refetchInterval: 60_000,
   });
+  // Query keys deliberately distinct from the canonical Branches.tsx/
+  // CostCenters.tsx caches — these fetch raw snake_case rows (`is_active`
+  // instead of `isActive`); sharing a key let whichever query ran last
+  // silently overwrite the other's cache shape, breaking `.is_active` filters.
   const branches = useQuery({
     enabled: apiOn,
-    queryKey: ['branches'],
+    queryKey: ['branches-picker'],
     queryFn: async () => (await api.get<{ data: DimensionRow[] }>('/api/branches?page_size=200')).data ?? [],
   });
   const costCenters = useQuery({
     enabled: apiOn,
-    queryKey: ['cost-centers'],
+    queryKey: ['cost-centers-picker'],
     queryFn: async () => (await api.get<{ data: DimensionRow[] }>('/api/cost-centers?page_size=200')).data ?? [],
   });
 
