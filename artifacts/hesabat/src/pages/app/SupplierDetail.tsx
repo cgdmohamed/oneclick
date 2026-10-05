@@ -55,10 +55,22 @@ interface PurchaseInvoiceRow {
   status: string;
 }
 
+interface PurchaseReturnRow {
+  id: string;
+  return_number: string;
+  return_date: string;
+  subtotal: string | number;
+  vat_amount: string | number;
+  total: string | number;
+  status: string;
+  purchase_invoice_number: string | null;
+}
+
 interface StatementData {
   supplier: SupplierInfo;
   products: ProductRow[];
   invoices: PurchaseInvoiceRow[];
+  purchase_returns: PurchaseReturnRow[];
   payouts: PayoutRow[];
   payments: PayoutRow[];
   total_purchases: string;
@@ -88,7 +100,7 @@ const SupplierDetail = () => {
     </div>
   );
 
-  const { supplier, products, invoices, payments, total_purchases, total_payouts, outstanding_balance, last_payout } = data;
+  const { supplier, products, invoices, purchase_returns, payments, total_purchases, total_payouts, outstanding_balance, last_payout } = data;
 
   const productCols: Column<ProductRow>[] = [
     { key: 'name', header: 'المنتج', cell: (r) => <span className="font-medium">{r.name}</span> },
@@ -104,6 +116,13 @@ const SupplierDetail = () => {
     { key: 'paid', header: 'المدفوع', cell: (r) => formatCurrency(Number(r.paid)) },
     { key: 'remaining', header: 'المتبقي', cell: (r) => <span className="font-semibold">{formatCurrency(Number(r.remaining))}</span> },
     { key: 'status', header: 'الحالة', cell: (r) => invoiceStatusLabel(r.status) },
+  ];
+
+  const returnCols: Column<PurchaseReturnRow>[] = [
+    { key: 'return_number', header: 'رقم المرتجع', cell: (r) => <span className="font-medium">{r.return_number}</span> },
+    { key: 'date', header: 'التاريخ', cell: (r) => <span className="text-sm text-muted-foreground">{formatDateShort(r.return_date)}</span> },
+    { key: 'invoice', header: 'فاتورة الشراء الأصلية', cell: (r) => r.purchase_invoice_number ?? <span className="text-muted-foreground">—</span> },
+    { key: 'total', header: 'الإجمالي', cell: (r) => <span className="font-semibold">{formatCurrency(Number(r.total))}</span> },
   ];
 
   const payoutCols: Column<PayoutRow>[] = [
@@ -160,6 +179,7 @@ const SupplierDetail = () => {
             <TabsList>
               <TabsTrigger value="statement">كشف الحساب</TabsTrigger>
               <TabsTrigger value="invoices">فواتير الشراء ({invoices.length})</TabsTrigger>
+              <TabsTrigger value="returns">مرتجعات الشراء ({purchase_returns.length})</TabsTrigger>
               <TabsTrigger value="payouts">المدفوعات ({payments.length})</TabsTrigger>
               <TabsTrigger value="products">المنتجات ({products.length})</TabsTrigger>
             </TabsList>
@@ -190,6 +210,10 @@ const SupplierDetail = () => {
 
             <TabsContent value="invoices" className="mt-4">
               <DataTable data={invoices} columns={invoiceCols} />
+            </TabsContent>
+
+            <TabsContent value="returns" className="mt-4">
+              <DataTable data={purchase_returns} columns={returnCols} />
             </TabsContent>
 
             <TabsContent value="payouts" className="mt-4">

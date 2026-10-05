@@ -25,10 +25,12 @@ const FixedAssetDetails = () => {
     <div className="space-y-5">
       <Link to="/app/accounting/assets" className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1"><ArrowRight className="h-4 w-4" /> العودة للأصول</Link>
       <PageHeader title={`${asset.asset_code} - ${asset.name}`} description={asset.category_name ?? ''} />
-      <div className="grid sm:grid-cols-4 gap-4">
+      <div className="grid sm:grid-cols-3 lg:grid-cols-6 gap-4">
         <StatCard title="تكلفة الاقتناء" value={formatCurrency(Number(asset.acquisition_cost))} icon={Wallet} accent="info" />
         <StatCard title="القيمة التخريدية" value={formatCurrency(Number(asset.salvage_value))} icon={Wallet} accent="warning" />
         <StatCard title="العمر الافتراضي" value={`${asset.useful_life_months} شهر`} icon={Landmark} accent="primary" />
+        <StatCard title="مجمع الإهلاك" value={formatCurrency(Number(asset.accumulated_depreciation ?? 0))} icon={Wallet} accent="warning" />
+        <StatCard title="صافي القيمة الدفترية" value={formatCurrency(Number(asset.net_book_value ?? asset.acquisition_cost))} icon={Wallet} accent="success" />
         <StatCard title="الحالة" value={asset.status} icon={Landmark} accent="success" />
       </div>
       <Card className="p-4 border-border/60 text-sm grid sm:grid-cols-3 gap-3">

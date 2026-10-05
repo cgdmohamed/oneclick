@@ -181,12 +181,12 @@ const Overview = () => {
   const branches = useQuery({
     enabled: apiOn,
     queryKey: ['branches'],
-    queryFn: async () => (await api.get<{ data: DimensionRow[] }>('/api/branches')).data ?? [],
+    queryFn: async () => (await api.get<{ data: DimensionRow[] }>('/api/branches?page_size=200')).data ?? [],
   });
   const costCenters = useQuery({
     enabled: apiOn,
     queryKey: ['cost-centers'],
-    queryFn: async () => (await api.get<{ data: DimensionRow[] }>('/api/cost-centers')).data ?? [],
+    queryFn: async () => (await api.get<{ data: DimensionRow[] }>('/api/cost-centers?page_size=200')).data ?? [],
   });
 
   const data = dashboard.data;

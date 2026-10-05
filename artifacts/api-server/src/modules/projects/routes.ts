@@ -14,4 +14,12 @@ export default crudRouter({
   schema,
   patchSchema: schema.partial(),
   list: { orderBy: 'name ASC', searchable: ['code', 'name'] },
+  // FKs from these tables to projects are ON DELETE SET NULL (migration
+  // 048) — without this guard, deleting a project in use silently strips
+  // it off historical invoices/journal lines.
+  deleteGuardTables: [
+    { table: 'invoices', column: 'project_id' },
+    { table: 'invoice_items', column: 'project_id' },
+    { table: 'journal_entry_lines', column: 'project_id' },
+  ],
 });

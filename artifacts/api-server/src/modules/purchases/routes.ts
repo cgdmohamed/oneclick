@@ -306,7 +306,25 @@ r.get('/invoices/:id', async (req, res, next) => {
     );
     if (!pi.rowCount) throw notFound('Purchase invoice not found');
     const items = await t.db.query(`SELECT * FROM purchase_invoice_items WHERE purchase_invoice_id = $1 AND company_id = $2 ORDER BY created_at`, [req.params.id, t.companyId]);
-    res.json({ data: { ...pi.rows[0], items: items.rows } });
+    // Same pattern as the sales invoice detail (InvoiceDetails.tsx), which
+    // already includes `payments` for its invoice — this was missing here:
+    // the aggregate paid/remaining was shown, but not which specific
+    // payments/returns produced it.
+    const payments = await t.db.query(
+      `SELECT sp.id, sp.amount, sp.method, sp.paid_at, sp.reference, sp.notes, a.name AS account_name
+       FROM supplier_payments sp LEFT JOIN accounts a ON a.id = sp.account_id
+       WHERE sp.purchase_invoice_id = $1 AND sp.company_id = $2
+       ORDER BY sp.paid_at DESC`,
+      [req.params.id, t.companyId],
+    );
+    const returns = await t.db.query(
+      `SELECT pr.id, pr.return_number, pr.return_date, pr.subtotal, pr.vat_amount, pr.total, pr.status
+       FROM purchase_returns pr
+       WHERE pr.original_purchase_invoice_id = $1 AND pr.company_id = $2 AND pr.status = 'posted'
+       ORDER BY pr.return_date DESC`,
+      [req.params.id, t.companyId],
+    );
+    res.json({ data: { ...pi.rows[0], items: items.rows, payments: payments.rows, purchase_returns: returns.rows } });
   } catch (e) { next(e); }
 });
 
@@ -463,11 +481,16 @@ r.post('/supplier-payments', async (req, res, next) => {
     await t.db.query('BEGIN');
     try {
       if (body.purchase_invoice_id) {
-        const pi = await t.db.query(`SELECT total, paid, supplier_id FROM purchase_invoices WHERE id = $1 AND company_id = $2 FOR UPDATE`, [body.purchase_invoice_id, t.companyId]);
+        const pi = await t.db.query(`SELECT total, paid, remaining, supplier_id FROM purchase_invoices WHERE id = $1 AND company_id = $2 FOR UPDATE`, [body.purchase_invoice_id, t.companyId]);
         if (!pi.rowCount) throw notFound('Purchase invoice not found');
         if (pi.rows[0].supplier_id !== supplierId) throw badRequest('Purchase invoice does not belong to supplier');
         const paid = round2(Number(pi.rows[0].paid) + body.amount);
-        const remaining = round2(Number(pi.rows[0].total) - paid);
+        // Derive from the invoice's current `remaining`, not `total - paid` —
+        // a posted purchase return already reduced `remaining` directly
+        // without touching `paid` (see the return-posting code above), so
+        // recomputing from `total - paid` would silently discard that
+        // reduction and overstate what's still owed by the return amount.
+        const remaining = round2(Number(pi.rows[0].remaining) - body.amount);
         if (remaining < -0.005) throw badRequest('Payment exceeds payable balance');
         await t.db.query(
           `UPDATE purchase_invoices SET paid = $1, remaining = GREATEST(0, $2), status = CASE WHEN $2 <= 0.005 THEN 'paid' ELSE 'partial' END

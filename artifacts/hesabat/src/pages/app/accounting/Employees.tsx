@@ -21,8 +21,8 @@ const Employees = () => {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(empty);
   const { data = [] } = useQuery({ queryKey: ['employees'], queryFn: async () => (await api.get<{ data: Employee[] }>('/api/payroll/employees')).data ?? [] });
-  const branches = useQuery({ queryKey: ['branches'], queryFn: async () => (await api.get<{ data: Dimension[] }>('/api/branches')).data ?? [] });
-  const costCenters = useQuery({ queryKey: ['cost-centers'], queryFn: async () => (await api.get<{ data: Dimension[] }>('/api/cost-centers')).data ?? [] });
+  const branches = useQuery({ queryKey: ['branches'], queryFn: async () => (await api.get<{ data: Dimension[] }>('/api/branches?page_size=200')).data ?? [] });
+  const costCenters = useQuery({ queryKey: ['cost-centers'], queryFn: async () => (await api.get<{ data: Dimension[] }>('/api/cost-centers?page_size=200')).data ?? [] });
   const submit = async () => {
     if (!form.name.trim()) return toast.error('اسم الموظف مطلوب');
     if (!form.basic_salary || Number(form.basic_salary) <= 0) return toast.error('الراتب الأساسي مطلوب ويجب أن يكون أكبر من صفر');

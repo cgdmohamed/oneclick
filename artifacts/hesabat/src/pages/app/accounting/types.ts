@@ -68,6 +68,8 @@ export interface PurchaseInvoice {
   journal_entry_id: string | null;
   notes: string | null;
   items?: PurchaseInvoiceItem[];
+  payments?: SupplierPayment[];
+  purchase_returns?: PurchaseReturn[];
 }
 
 export interface PurchaseInvoiceItem {
