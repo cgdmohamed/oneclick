@@ -5,6 +5,7 @@ import { sendEmail } from '../utils/email.js';
 import { renderEmail } from '../utils/emailTemplate.js';
 import { getPlatformBranding } from '../utils/platformBranding.js';
 import { tickInvoiceAlerts } from './invoiceAlerts.js';
+import { tickBellAlerts } from './bellAlerts.js';
 
 let started = false;
 
@@ -125,6 +126,10 @@ async function tickOverdueThenAlerts() {
   // Runs right after tickOverdue so invoices just marked 'overdue' this
   // cycle are immediately eligible for the onOverdue alert, not a cycle late.
   await tickInvoiceAlerts();
+  // Bell summary notifications (overdue invoices / low stock) — independent
+  // of invoice_alert_settings (which is opt-in and writes a different,
+  // bell-excluded kind), so every company gets this regardless of config.
+  await tickBellAlerts();
 }
 
 export function startJobs() {
