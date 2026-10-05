@@ -97,8 +97,15 @@ router.post('/wallets', async (req, res, next) => {
 
 router.patch('/wallets/:id', async (req, res, next) => {
   try {
+    // `balance` must only move via recorded subscription payments (see
+    // POST /subscription-payments below, which does `balance = balance ± $1`)
+    // — a direct edit here would silently diverge it from the sum of those
+    // recorded payments, with no transaction to explain the difference.
+    if ('balance' in req.body) {
+      throw badRequest('Wallet balance cannot be edited directly — it is derived from recorded payments');
+    }
     const body = walletSchema.partial().parse(req.body);
-    const fields = Object.keys(body);
+    const fields = Object.keys(body).filter((f) => f !== 'balance');
     if (!fields.length) return res.json({ data: null });
     const sets = fields.map((f, i) => `${f} = $${i + 1}`).join(', ');
     const values = fields.map((f) => (body as Record<string, unknown>)[f]);

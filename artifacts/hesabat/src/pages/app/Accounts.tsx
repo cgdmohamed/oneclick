@@ -38,6 +38,13 @@ const empty: FinancialAccount = { id: '', companyId: 'co-1', name: '', type: 'ca
 const iconFor = (t: string) => t === 'bank' ? Building2 : t === 'wallet' ? CreditCard : Wallet;
 
 const Accounts = () => {
+  // Tracked explicitly (rather than derived from `list` inside `toRow`) so
+  // the balance field can be dropped from the update payload — the API now
+  // rejects a PATCH that includes `balance` at all, since a real balance
+  // change must go through a posted transaction (payment/payout/journal
+  // entry), not a direct field edit.
+  const [isNewRecord, setIsNewRecord] = useState(true);
+
   const { list, save } = useResource<FinancialAccount, AccountRow>({
     path: '/api/accounts',
     key: 'accounts',
@@ -56,7 +63,7 @@ const Accounts = () => {
     toRow: (a) => ({
       name: a.name,
       type: a.type,
-      balance: a.balance,
+      ...(isNewRecord ? { balance: a.balance } : {}),
       is_active: a.status !== 'inactive',
       chart_account_id: a.chartAccountId || null,
     }),
@@ -79,7 +86,7 @@ const Accounts = () => {
   return (
     <div>
       <PageHeader title="الحسابات المالية" description="خزائنك وحساباتك البنكية ومحافظك"
-        actions={<Button onClick={() => { setEditing({ ...empty, id: `ac-${Date.now()}` }); setOpen(true); }}><Plus className="h-4 w-4 ml-1" /> حساب جديد</Button>} />
+        actions={<Button onClick={() => { setIsNewRecord(true); setEditing({ ...empty, id: `ac-${Date.now()}` }); setOpen(true); }}><Plus className="h-4 w-4 ml-1" /> حساب جديد</Button>} />
 
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {list.map(a => {
@@ -97,7 +104,7 @@ const Accounts = () => {
                     </div>
                   </div>
                 </div>
-                <Button variant="ghost" size="icon" onClick={() => { setEditing(a); setOpen(true); }}><Pencil className="h-4 w-4" /></Button>
+                <Button variant="ghost" size="icon" onClick={() => { setIsNewRecord(false); setEditing(a); setOpen(true); }}><Pencil className="h-4 w-4" /></Button>
               </div>
               <div className="mt-5 flex items-end justify-between">
                 <div>
@@ -126,7 +133,19 @@ const Accounts = () => {
                 </SelectContent>
               </Select>
             </div>
-            <div><Label>الرصيد</Label><Input type="number" className="mt-1.5" value={editing.balance} onChange={e => setEditing(s => ({ ...s, balance: Number(e.target.value) }))} /></div>
+            <div>
+              <Label>الرصيد الافتتاحي</Label>
+              <Input
+                type="number" className="mt-1.5" value={editing.balance}
+                disabled={!isNewRecord}
+                onChange={e => setEditing(s => ({ ...s, balance: Number(e.target.value) }))}
+              />
+              {!isNewRecord && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  لا يمكن تعديل الرصيد مباشرة بعد الإنشاء — سجّل تحصيل/دفعة/قيد محاسبي لتغييره.
+                </p>
+              )}
+            </div>
             <div>
               <Label>الحساب في دليل الحسابات (اختياري)</Label>
               <div className="mt-1.5">

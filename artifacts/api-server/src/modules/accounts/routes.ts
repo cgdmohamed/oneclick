@@ -90,9 +90,17 @@ r.post('/', async (req, res, next) => {
 r.patch('/:id', async (req, res, next) => {
   try {
     const t = req.tenant!;
+    // `balance` is a creation-time seed value only. Letting it be edited
+    // afterwards changes what the treasury screen shows with no journal
+    // entry behind it, silently diverging from the balance sheet (which is
+    // built entirely from journal_entry_lines) — any real balance change
+    // must go through a posted transaction (payment, payout, journal entry).
+    if ('balance' in req.body) {
+      throw badRequest('Account balance cannot be edited directly — record a payment/payout/journal entry instead');
+    }
     const body = schema.partial().parse(req.body);
     if ('chart_account_id' in body) await assertChartAccount(t.db, t.companyId, body.chart_account_id);
-    const keys = FIELDS.filter((f) => f in body);
+    const keys = FIELDS.filter((f) => f in body && f !== 'balance');
     if (!keys.length) return res.json({ data: null });
     const values = keys.map((f) => (body as Record<string, unknown>)[f]);
     const set = keys.map((f, i) => `${f} = $${i + 3}`).join(', ');

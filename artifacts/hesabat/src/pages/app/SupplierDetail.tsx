@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { ArrowRight, Truck, Phone, Mail, MapPin, Package, Wallet, FileText, ReceiptText } from 'lucide-react';
 import { api } from '@/lib/api';
-import { formatCurrency, formatDateShort, paymentMethodLabel } from '@/lib/format';
+import { formatCurrency, formatDateShort, paymentMethodLabel, invoiceStatusLabel } from '@/lib/format';
 
 interface SupplierInfo {
   id: string;
@@ -43,11 +43,24 @@ interface PayoutRow {
   category_name: string | null;
 }
 
+interface PurchaseInvoiceRow {
+  id: string;
+  number: string;
+  invoice_date: string;
+  total: string | number;
+  paid: string | number;
+  remaining: string | number;
+  status: string;
+}
+
 interface StatementData {
   supplier: SupplierInfo;
   products: ProductRow[];
+  invoices: PurchaseInvoiceRow[];
   payouts: PayoutRow[];
+  total_purchases: string;
   total_payouts: string;
+  outstanding_balance: string;
   last_payout: string | null;
 }
 
@@ -72,13 +85,22 @@ const SupplierDetail = () => {
     </div>
   );
 
-  const { supplier, products, payouts, total_payouts, last_payout } = data;
+  const { supplier, products, invoices, payouts, total_purchases, total_payouts, outstanding_balance, last_payout } = data;
 
   const productCols: Column<ProductRow>[] = [
     { key: 'name', header: 'المنتج', cell: (r) => <span className="font-medium">{r.name}</span> },
     { key: 'sku', header: 'SKU', cell: (r) => r.sku ?? <span className="text-muted-foreground">—</span> },
     { key: 'price', header: 'السعر', cell: (r) => formatCurrency(Number(r.price)) },
     { key: 'qty', header: 'الكمية', cell: (r) => <span className="font-semibold">{r.quantity} {r.unit}</span> },
+  ];
+
+  const invoiceCols: Column<PurchaseInvoiceRow>[] = [
+    { key: 'number', header: 'رقم الفاتورة', cell: (r) => <span className="font-medium">{r.number}</span> },
+    { key: 'date', header: 'التاريخ', cell: (r) => <span className="text-sm text-muted-foreground">{formatDateShort(r.invoice_date)}</span> },
+    { key: 'total', header: 'الإجمالي', cell: (r) => formatCurrency(Number(r.total)) },
+    { key: 'paid', header: 'المدفوع', cell: (r) => formatCurrency(Number(r.paid)) },
+    { key: 'remaining', header: 'المتبقي', cell: (r) => <span className="font-semibold">{formatCurrency(Number(r.remaining))}</span> },
+    { key: 'status', header: 'الحالة', cell: (r) => invoiceStatusLabel(r.status) },
   ];
 
   const payoutCols: Column<PayoutRow>[] = [
@@ -108,10 +130,10 @@ const SupplierDetail = () => {
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard title="إجمالي المصروفات" value={formatCurrency(Number(total_payouts))} icon={Wallet} accent="destructive" />
-        <StatCard title="عدد المنتجات" value={products.length} icon={Package} accent="primary" />
-        <StatCard title="عدد المدفوعات" value={payouts.length} icon={ReceiptText} accent="info" />
-        <StatCard title="آخر دفعة" value={last_payout ? formatDateShort(last_payout) : '—'} icon={FileText} accent="warning" />
+        <StatCard title="المتبقي للمورد" value={formatCurrency(Number(outstanding_balance))} icon={Wallet} accent={Number(outstanding_balance) > 0 ? 'destructive' : 'primary'} />
+        <StatCard title="إجمالي المشتريات" value={formatCurrency(Number(total_purchases))} icon={FileText} accent="info" />
+        <StatCard title="إجمالي المدفوعات" value={formatCurrency(Number(total_payouts))} icon={ReceiptText} accent="primary" />
+        <StatCard title="آخر دفعة" value={last_payout ? formatDateShort(last_payout) : '—'} icon={Package} accent="warning" />
       </div>
 
       <div className="grid lg:grid-cols-3 gap-5">
@@ -125,36 +147,29 @@ const SupplierDetail = () => {
         </Card>
 
         <div className="lg:col-span-2">
-          <Tabs defaultValue="products" dir="rtl">
+          <Tabs defaultValue="statement" dir="rtl">
             <TabsList>
-              <TabsTrigger value="products">المنتجات ({products.length})</TabsTrigger>
-              <TabsTrigger value="payouts">المدفوعات ({payouts.length})</TabsTrigger>
               <TabsTrigger value="statement">كشف الحساب</TabsTrigger>
+              <TabsTrigger value="invoices">فواتير الشراء ({invoices.length})</TabsTrigger>
+              <TabsTrigger value="payouts">المدفوعات ({payouts.length})</TabsTrigger>
+              <TabsTrigger value="products">المنتجات ({products.length})</TabsTrigger>
             </TabsList>
-
-            <TabsContent value="products" className="mt-4">
-              <DataTable data={products} columns={productCols} />
-            </TabsContent>
-
-            <TabsContent value="payouts" className="mt-4">
-              <DataTable data={payoutCols && payouts} columns={payoutCols} />
-            </TabsContent>
 
             <TabsContent value="statement" className="mt-4">
               <Card className="p-5 border-border/60 shadow-soft space-y-4">
                 <h3 className="font-semibold">ملخص حساب المورد</h3>
                 <div className="space-y-3">
                   <div className="flex justify-between py-2 border-b border-border/60">
+                    <span className="text-sm text-muted-foreground">إجمالي فواتير الشراء</span>
+                    <span className="font-semibold">{formatCurrency(Number(total_purchases))}</span>
+                  </div>
+                  <div className="flex justify-between py-2 border-b border-border/60">
                     <span className="text-sm text-muted-foreground">إجمالي المدفوعات للمورد</span>
                     <span className="font-semibold">{formatCurrency(Number(total_payouts))}</span>
                   </div>
                   <div className="flex justify-between py-2 border-b border-border/60">
-                    <span className="text-sm text-muted-foreground">عدد المنتجات المرتبطة</span>
-                    <span className="font-semibold">{products.length}</span>
-                  </div>
-                  <div className="flex justify-between py-2 border-b border-border/60">
-                    <span className="text-sm text-muted-foreground">عدد دفعات المصروفات</span>
-                    <span className="font-semibold">{payouts.length}</span>
+                    <span className="text-sm text-muted-foreground">المتبقي المستحق للمورد</span>
+                    <span className="font-semibold">{formatCurrency(Number(outstanding_balance))}</span>
                   </div>
                   <div className="flex justify-between py-2">
                     <span className="text-sm text-muted-foreground">آخر دفعة</span>
@@ -162,6 +177,18 @@ const SupplierDetail = () => {
                   </div>
                 </div>
               </Card>
+            </TabsContent>
+
+            <TabsContent value="invoices" className="mt-4">
+              <DataTable data={invoices} columns={invoiceCols} />
+            </TabsContent>
+
+            <TabsContent value="payouts" className="mt-4">
+              <DataTable data={payoutCols && payouts} columns={payoutCols} />
+            </TabsContent>
+
+            <TabsContent value="products" className="mt-4">
+              <DataTable data={products} columns={productCols} />
             </TabsContent>
           </Tabs>
         </div>
