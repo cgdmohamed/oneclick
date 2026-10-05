@@ -94,9 +94,14 @@ const Payments = () => {
     queryKey: ['accounts'],
     queryFn: async () => (await api.get<{ data: Account[] }>('/api/accounts?page_size=300')).data ?? [],
   });
+  // Query key deliberately distinct from the canonical 'invoices' cache used
+  // by useInvoices() elsewhere (e.g. Products.tsx) — this fetches raw
+  // snake_case rows with no `items` field, and sharing the key previously
+  // let whichever query ran last silently overwrite the other's cache shape,
+  // crashing any page reading `.items` off a stale raw row.
   const invoices = useQuery({
     enabled: apiOn,
-    queryKey: ['invoices'],
+    queryKey: ['invoices-picker'],
     queryFn: async () => (await api.get<{ data: Invoice[] }>('/api/invoices?page_size=300')).data ?? [],
   });
   const chartAccounts = useQuery({
@@ -151,6 +156,7 @@ const Payments = () => {
         qc.invalidateQueries({ queryKey: ['payments'] }),
         qc.invalidateQueries({ queryKey: ['accounts'] }),
         qc.invalidateQueries({ queryKey: ['invoices'] }),
+        qc.invalidateQueries({ queryKey: ['invoices-picker'] }),
       ]);
       toast.success('تم تسجيل التحصيل');
       setOpen(false);

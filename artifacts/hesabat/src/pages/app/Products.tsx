@@ -382,7 +382,7 @@ const Products = () => {
 
   const usageCount = (p: Product) => {
     const inInvoices = invoices.reduce(
-      (n, inv) => n + inv.items.filter(it => it.productId === p.id).length, 0,
+      (n, inv) => n + (inv.items ?? []).filter(it => it.productId === p.id).length, 0,
     );
     return inInvoices;
   };
