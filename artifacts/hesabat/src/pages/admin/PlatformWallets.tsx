@@ -47,6 +47,12 @@ const empty: PlatformWallet = { id: '', name: '', type: 'cash', balance: 0, stat
 const iconFor = (t: string) => (t === 'bank' ? Building2 : t === 'wallet' ? CreditCard : Wallet);
 
 const PlatformWallets = () => {
+  // Tracked explicitly (rather than derived from `list` inside `toRow`) so
+  // the balance field can be dropped from the update payload — the API now
+  // rejects a PATCH that includes `balance` at all, since it must stay
+  // derived from recorded subscription payments rather than edited by hand.
+  const [isNewRecord, setIsNewRecord] = useState(true);
+
   const { list, save, remove } = useResource<PlatformWallet, WalletRow>({
     path: '/api/platform/wallets',
     key: 'platform-wallets',
@@ -61,7 +67,7 @@ const PlatformWallets = () => {
     toRow: (w) => ({
       name: w.name,
       type: w.type,
-      balance: w.balance,
+      ...(isNewRecord ? { balance: w.balance } : {}),
       is_active: w.status !== 'inactive',
     }),
   });
@@ -91,7 +97,7 @@ const PlatformWallets = () => {
         title="محافظ التحصيل"
         description="المحافظ والحسابات التي تستقبل دفعات اشتراكات الشركات يدوياً"
         actions={
-          <Button onClick={() => { setEditing({ ...empty, id: `pw-${Date.now()}` }); setOpen(true); }}>
+          <Button onClick={() => { setIsNewRecord(true); setEditing({ ...empty, id: `pw-${Date.now()}` }); setOpen(true); }}>
             <Plus className="h-4 w-4 ml-1" /> محفظة جديدة
           </Button>
         }
@@ -116,7 +122,7 @@ const PlatformWallets = () => {
                   <Button variant="ghost" size="icon" title="السجل" onClick={() => setLedgerWallet(w)}>
                     <ListOrdered className="h-4 w-4" />
                   </Button>
-                  <Button variant="ghost" size="icon" onClick={() => { setEditing(w); setOpen(true); }}>
+                  <Button variant="ghost" size="icon" onClick={() => { setIsNewRecord(false); setEditing(w); setOpen(true); }}>
                     <Pencil className="h-4 w-4" />
                   </Button>
                   <Button variant="ghost" size="icon" onClick={() => remove(w.id)}>
@@ -165,7 +171,13 @@ const PlatformWallets = () => {
             <div>
               <Label>الرصيد الافتتاحي</Label>
               <Input type="number" className="mt-1.5" value={editing.balance}
+                disabled={!isNewRecord}
                 onChange={(e) => setEditing((s) => ({ ...s, balance: Number(e.target.value) }))} />
+              {!isNewRecord && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  لا يمكن تعديل الرصيد مباشرة بعد الإنشاء — يتحدّث فقط عبر تسجيل دفعات الاشتراكات.
+                </p>
+              )}
             </div>
             <div>
               <Label>الحالة</Label>

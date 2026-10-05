@@ -185,7 +185,7 @@ const useSuppliers = () => {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   useEffect(() => {
     if (!isApiConfigured()) return;
-    api.get<{ data: Supplier[] }>('/api/suppliers?limit=200')
+    api.get<{ data: Supplier[] }>('/api/suppliers?page_size=200')
       .then(res => setSuppliers(res.data ?? []))
       .catch(() => {});
   }, []);
@@ -308,7 +308,7 @@ const Products = () => {
     enabled: isApiConfigured(),
     queryKey: ['stock-movements'],
     queryFn: async () => {
-      const res = await api.get<{ data: StockMovement[]; total: number }>('/api/stock-movements?limit=200');
+      const res = await api.get<{ data: StockMovement[]; total: number }>('/api/stock-movements?page_size=200');
       return res.data ?? [];
     },
   });

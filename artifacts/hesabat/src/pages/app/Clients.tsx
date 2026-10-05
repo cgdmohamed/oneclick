@@ -37,7 +37,7 @@ const useSuppliers = () => {
   const [suppliers, setSuppliers] = useState<SupplierOption[]>([]);
   useEffect(() => {
     if (!isApiConfigured()) return;
-    api.get<{ data: SupplierOption[] }>('/api/suppliers?limit=200').then(res => setSuppliers(res.data ?? [])).catch(() => {});
+    api.get<{ data: SupplierOption[] }>('/api/suppliers?page_size=200').then(res => setSuppliers(res.data ?? [])).catch(() => {});
   }, []);
   return suppliers;
 };

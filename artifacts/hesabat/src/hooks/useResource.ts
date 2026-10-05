@@ -41,7 +41,13 @@ export function useResource<T extends { id: string }, Row = Record<string, unkno
     enabled: apiOn,
     queryKey: [cfg.key],
     queryFn: async () => {
-      const res = await api.get<{ data: Row[] }>(cfg.path);
+      // The backend defaults to a 25-row page when no page_size is given —
+      // every consumer of this hook (lists, pickers, lookups) needs the
+      // full set, not just the first page, so always ask for the server's
+      // max page size here instead of relying on each call site to
+      // remember to pass one.
+      const sep = cfg.path.includes('?') ? '&' : '?';
+      const res = await api.get<{ data: Row[] }>(`${cfg.path}${sep}page_size=200`);
       return res.data.map(cfg.fromRow);
     },
   });

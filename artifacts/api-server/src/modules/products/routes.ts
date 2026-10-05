@@ -111,6 +111,11 @@ const base = crudRouter({
   ],
   schema,
   patchSchema: schema.partial(),
+  // `quantity` is settable at creation (as an initial opening balance, via
+  // applyOpeningStock) but must never be edited afterwards through this
+  // generic PATCH — it has to go through an audited stock movement, or the
+  // average_cost/inventory_value/journal trail silently falls out of sync.
+  patchExcludeFields: ['quantity'],
   list: {
     selectExtra: `
       (SELECT pc.name FROM product_categories pc WHERE pc.id = products.category_id AND pc.company_id = products.company_id) AS category_name,

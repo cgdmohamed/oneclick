@@ -10,6 +10,10 @@ export function crudRouter(opts: {
   patchSchema?: z.ZodTypeAny;
   defaults?: Record<string, unknown>;
   list?: { orderBy?: string; searchable?: string[]; selectExtra?: string };
+  /** Columns settable on create (via `fields`) but never mutable afterwards
+   *  via this generic PATCH — for values that must only change through a
+   *  dedicated, audited path (e.g. a stock-movement-backed quantity). */
+  patchExcludeFields?: string[];
 }) {
   const r = Router();
   void opts.fields;
@@ -87,8 +91,10 @@ export function crudRouter(opts: {
       const schemaWithPartial = opts.schema as z.ZodTypeAny & { partial?: () => z.ZodTypeAny };
       const parsed = (opts.patchSchema ?? schemaWithPartial.partial?.() ?? opts.schema).parse(req.body) as Record<string, unknown>;
       // SEC-09: hard whitelist — only opts.fields can be mutated, even if the
-      // zod schema accidentally lets extra keys through.
-      const allowed = new Set(opts.fields);
+      // zod schema accidentally lets extra keys through. patchExcludeFields
+      // further narrows this for PATCH only (still settable on create).
+      const excluded = new Set(opts.patchExcludeFields ?? []);
+      const allowed = new Set(opts.fields.filter((f) => !excluded.has(f)));
       const body: Record<string, unknown> = {};
       for (const [k, v] of Object.entries(parsed)) if (allowed.has(k)) body[k] = v;
       const fields = Object.keys(body);

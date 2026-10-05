@@ -55,16 +55,33 @@ r.get('/:id/statement', async (req, res, next) => {
       [id, t.companyId],
     );
 
-    const total = payoutsRs.rows.reduce((sum: number, p: { amount: string }) => sum + parseFloat(p.amount || '0'), 0);
+    // Purchase invoices — without these the statement only ever showed money
+    // paid out, never what was owed in the first place, so it could never
+    // show a real outstanding balance for the supplier (unlike the client
+    // statement, which already includes sales invoices).
+    const invoicesRs = await t.db.query(
+      `SELECT pi.id, pi.number, pi.invoice_date, pi.total, pi.paid, pi.remaining, pi.status
+       FROM purchase_invoices pi
+       WHERE pi.supplier_id = $1 AND pi.company_id = $2
+       ORDER BY pi.invoice_date DESC`,
+      [id, t.companyId],
+    );
+
+    const totalPurchases = invoicesRs.rows.reduce((sum: number, i: { total: string }) => sum + parseFloat(i.total || '0'), 0);
+    const totalPayouts = payoutsRs.rows.reduce((sum: number, p: { amount: string }) => sum + parseFloat(p.amount || '0'), 0);
+    const outstanding = invoicesRs.rows.reduce((sum: number, i: { remaining: string }) => sum + parseFloat(i.remaining || '0'), 0);
     const lastPayout = payoutsRs.rows[0]?.paid_at ?? null;
 
     res.json({
       data: {
         supplier,
-        products:      productsRs.rows,
-        payouts:       payoutsRs.rows,
-        total_payouts: total.toFixed(2),
-        last_payout:   lastPayout,
+        products:         productsRs.rows,
+        invoices:         invoicesRs.rows,
+        payouts:          payoutsRs.rows,
+        total_purchases:  totalPurchases.toFixed(2),
+        total_payouts:    totalPayouts.toFixed(2),
+        outstanding_balance: outstanding.toFixed(2),
+        last_payout:      lastPayout,
       },
     });
   } catch (e) { next(e); }
