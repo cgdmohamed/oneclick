@@ -29,6 +29,7 @@ const titleMap: Record<string, string> = {
   'stock-risk':      'تقرير مخاطر المخزون',
   'inventory-write-offs': 'تقرير هالك / شطب المخزون',
   'product-sales':    'تحليل مبيعات المنتجات',
+  'top-customers':    'المبيعات حسب العميل',
   'accounts-summary':'ملخص الحسابات المالية',
 };
 
@@ -114,6 +115,14 @@ interface StockRiskRow {
   slow_moving: boolean;
   high_value_slow_moving: boolean;
   suggested_action: string;
+}
+
+interface TopCustomerRow {
+  customer_id: string;
+  customer_name: string;
+  invoice_count: number | string;
+  total_revenue: string | number;
+  last_invoice_date: string | null;
 }
 
 interface DimensionRow { id: string; code: string | null; name: string; is_active: boolean }
@@ -277,6 +286,18 @@ const ReportDetail = () => {
     queryFn: async () => {
       const res = await api.get<{ data: AccountSummaryRow[] }>('/api/reports/accounts-summary');
       return res.data ?? [];
+    },
+  });
+
+  const topCustomersQuery = useQuery({
+    enabled: apiOn && type === 'top-customers',
+    queryKey: ['report-top-customers', applied.from, applied.to],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (applied.from) params.set('from', applied.from);
+      if (applied.to) params.set('to', applied.to);
+      const res = await api.get<{ data: TopCustomerRow[]; summary: Record<string, number | string> }>(`/api/reports/top-customers${params.toString() ? `?${params}` : ''}`);
+      return res;
     },
   });
 
@@ -556,6 +577,30 @@ const ReportDetail = () => {
         { key: 'unit', header: 'تكلفة الوحدة', cell: (r) => formatCurrency(Number(r.unit_cost)), className: 'text-end' },
         { key: 'total', header: 'الإجمالي', cell: (r) => formatCurrency(Number(r.total_cost)), className: 'text-end' },
       ] as Column<InventoryWriteOffReportRow>[]} />;
+    }
+    if (type === 'top-customers') {
+      const rows = topCustomersQuery.data?.data ?? [];
+      const summary = topCustomersQuery.data?.summary;
+      return (
+        <div className="space-y-5">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <Card className="p-4"><div className="text-xs text-muted-foreground">إجمالي الإيرادات</div><div className="text-xl font-bold mt-1">{formatCurrency(Number(summary?.total_revenue ?? 0))}</div></Card>
+            <Card className="p-4"><div className="text-xs text-muted-foreground">عدد الفواتير</div><div className="text-xl font-bold mt-1">{Number(summary?.invoice_count ?? 0)}</div></Card>
+            <Card className="p-4"><div className="text-xs text-muted-foreground">عدد العملاء</div><div className="text-xl font-bold mt-1">{Number(summary?.count ?? 0)}</div></Card>
+          </div>
+          <DataTable
+            data={rows.map((r) => ({ id: r.customer_id, ...r }))}
+            columns={[
+              { key: 'name', header: 'العميل', cell: (r) => <Link className="text-primary font-medium" to={`/app/clients/${r.customer_id}`}>{r.customer_name}</Link> },
+              { key: 'count', header: 'عدد الفواتير', cell: (r) => Number(r.invoice_count), className: 'text-end' },
+              { key: 'revenue', header: 'إجمالي الإيرادات', cell: (r) => <span className="font-semibold">{formatCurrency(Number(r.total_revenue))}</span>, className: 'text-end' },
+              { key: 'last', header: 'آخر فاتورة', cell: (r) => r.last_invoice_date ? formatDateShort(r.last_invoice_date) : '—' },
+            ] as Column<TopCustomerRow & { id: string }>[]}
+            pageSize={25}
+            emptyTitle="لا توجد مبيعات في هذه الفترة"
+          />
+        </div>
+      );
     }
     if (type === 'accounts-summary') {
       return <DataTable data={accountsSummaryQuery.data ?? []} columns={[

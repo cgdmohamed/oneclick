@@ -16,6 +16,7 @@ const reports = [
   { id: 'remaining',        icon: TrendingDown,      title: 'تقرير المتبقي',               desc: 'الفواتير غير المسددة كلياً أو جزئياً.' },
   { id: 'sales-returns',    icon: ArrowUpFromLine,   title: 'تقرير مرتجعات المبيعات',      desc: 'الإشعارات الدائنة حسب حالة المرتجع.' },
   { id: 'product-sales',     icon: BarChart3,         title: 'تحليل مبيعات المنتجات',       desc: 'صافي المبيعات والمرتجعات والربحية حسب المنتج.' },
+  { id: 'top-customers',     icon: BarChart3,         title: 'المبيعات حسب العميل',        desc: 'إجمالي الإيرادات وعدد الفواتير لكل عميل، مرتبة تنازليًا.' },
   { id: 'by-method',        icon: Wallet,            title: 'تقرير حسب وسيلة الدفع',      desc: 'تجميع التحصيلات حسب طريقة السداد.' },
   { id: 'by-account',       icon: Building2,         title: 'تقرير حسب الحساب المالي',    desc: 'حركات الإيداع لكل حساب مالي.' },
   { id: 'suppliers',        icon: Truck,             title: 'تقرير نشاط الموردين',        desc: 'إجمالي المصروفات والمنتجات لكل مورد.' },

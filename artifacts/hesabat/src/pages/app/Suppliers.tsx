@@ -89,6 +89,7 @@ const Suppliers = () => {
 
   const submit = async () => {
     if (!editing.name.trim()) return toast.error('اسم المورد مطلوب');
+    if (editing.taxNumber && !/^\d+$/.test(editing.taxNumber)) return toast.error('الرقم الضريبي يجب أن يحتوي على أرقام فقط');
     setSaving(true);
     try {
       await save(editing);
