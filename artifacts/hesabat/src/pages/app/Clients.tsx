@@ -86,6 +86,15 @@ const Clients = () => {
   const submit = async () => {
     if (!editing.name || !editing.phone) return toast.error('الاسم والهاتف مطلوبان');
     if (editing.taxNumber && !/^\d+$/.test(editing.taxNumber)) return toast.error('الرقم الضريبي يجب أن يحتوي على أرقام فقط');
+    // Non-blocking duplicate-phone warning — two clients may legitimately
+    // share a phone number (e.g. a shared office line), so this warns
+    // without preventing the save, matching the zero-cost-item warning
+    // pattern used elsewhere in this app.
+    const normalizedPhone = editing.phone.replace(/\D/g, '');
+    if (normalizedPhone) {
+      const duplicate = list.find((c) => c.id !== editing.id && c.phone.replace(/\D/g, '') === normalizedPhone);
+      if (duplicate) toast.warning(`رقم الهاتف مسجَّل بالفعل لدى العميل «${duplicate.name}» — يُرجى التأكد من عدم تكرار العميل نفسه`);
+    }
     await save(editing);
     setOpen(false);
   };
