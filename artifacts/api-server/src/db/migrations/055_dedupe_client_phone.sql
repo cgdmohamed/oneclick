@@ -21,6 +21,7 @@ DECLARE
   grp RECORD;
   survivor_id uuid;
   loser_ids uuid[];
+  supplier_id uuid;
 BEGIN
   FOR grp IN
     SELECT company_id,
@@ -42,12 +43,23 @@ BEGIN
     UPDATE payments SET client_id = survivor_id WHERE client_id = ANY(loser_ids);
     UPDATE journal_entry_lines SET client_id = survivor_id WHERE client_id = ANY(loser_ids);
 
-    -- Preserve a supplier link from a loser if the survivor doesn't have
-    -- its own (clients_linked_supplier_uq allows at most one client per
-    -- supplier, so at most one loser in the group can have a non-null value).
-    UPDATE clients SET linked_supplier_id = (
-      SELECT linked_supplier_id FROM clients WHERE id = ANY(loser_ids) AND linked_supplier_id IS NOT NULL LIMIT 1
-    ) WHERE id = survivor_id AND linked_supplier_id IS NULL;
+    -- Preserve the survivor's link, or adopt the oldest linked loser's.
+    -- Different losers may link to different suppliers. Release the chosen
+    -- link before assigning it: the unique index is checked immediately,
+    -- even though the loser will be deleted later in this transaction.
+    SELECT linked_supplier_id INTO supplier_id
+    FROM clients
+    WHERE id = ANY(loser_ids) AND linked_supplier_id IS NOT NULL
+    ORDER BY created_at ASC, id ASC
+    LIMIT 1;
+
+    IF supplier_id IS NOT NULL AND EXISTS (
+      SELECT 1 FROM clients WHERE id = survivor_id AND linked_supplier_id IS NULL
+    ) THEN
+      UPDATE clients SET linked_supplier_id = NULL
+      WHERE id = ANY(loser_ids) AND linked_supplier_id = supplier_id;
+      UPDATE clients SET linked_supplier_id = supplier_id WHERE id = survivor_id;
+    END IF;
 
     DELETE FROM clients WHERE id = ANY(loser_ids);
   END LOOP;
