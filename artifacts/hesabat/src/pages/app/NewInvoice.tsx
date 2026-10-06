@@ -189,8 +189,11 @@ const NewInvoice = ({ asModal = false, defaultClientId, onCancel, onCreated }: N
   const addItem    = () => setItems(p => [...p, { id: `i${Date.now()}`, name: '', quantity: 1, unitPrice: 0, discount: 0, vatRate: taxRate }]);
   const update     = (i: number, patch: Partial<Item>) => setItems(p => p.map((it, idx) => idx === i ? { ...it, ...patch } : it));
   const remove     = (i: number) => setItems(p => p.filter((_, idx) => idx !== i));
+  const isOutOfStock = (product: typeof products[number]) =>
+    (product.productType ?? 'stock') === 'stock' && Number(product.quantity) <= 0;
   const pickProduct = (i: number, pid: string) => {
     const p = products.find(x => x.id === pid);
+    if (p && isOutOfStock(p)) return;
     if (p) {
       // Same product already on another line — merge into it instead of
       // carrying the same product across two separate rows.
@@ -426,11 +429,15 @@ const NewInvoice = ({ asModal = false, defaultClientId, onCancel, onCreated }: N
                                   <CommandItem
                                     key={p.id}
                                     value={productSearchText(p)}
+                                    disabled={isOutOfStock(p)}
                                     onSelect={() => pickProduct(i, p.id)}
                                   >
                                     <Check className={cn('h-4 w-4', it.productId === p.id ? 'opacity-100' : 'opacity-0')} />
                                     <div className="min-w-0 flex-1 text-start">
                                       <div className="truncate font-medium">{p.name}</div>
+                                      {isOutOfStock(p) && (
+                                        <div className="text-xs text-muted-foreground">نفد المخزون</div>
+                                      )}
                                       {(p.barcode || p.code) && (
                                         <div className="truncate text-xs text-muted-foreground">
                                           {[p.code, p.barcode].filter(Boolean).join(' - ')}
