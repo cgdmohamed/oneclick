@@ -135,6 +135,9 @@ app.use(cors({
   credentials: true,
   exposedHeaders: ['x-request-id'],
 }));
+// Limit every API route, including public routes and database readiness checks,
+// before parsing request bodies or opening database connections.
+app.use('/api', apiLimiter);
 app.use(express.json({ limit: '5mb' }));
 app.use(cookieParser());
 
@@ -168,7 +171,7 @@ app.use('/api/plans', publicPlansRouter);
 app.use('/api/platform/settings', publicSettingsRouter);
 
 // Protected API
-app.use('/api', apiLimiter, requireAuth, tenantContext, requireActiveSubscription);
+app.use('/api', requireAuth, tenantContext, requireActiveSubscription);
 app.use('/api/plans', adminPlansRouter);
 app.use('/api/companies', companiesRoutes);
 app.use('/api/users', requireFeature('rbac'), usersRoutes);

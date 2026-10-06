@@ -8,6 +8,7 @@
     "build": "node ./build.mjs",
     "migrate": "node ./scripts/migrate.mjs",
     "accounting:qa": "tsx scripts/accounting-live-qa.ts",
+    "security:qa": "tsx --test scripts/security-regression.test.ts",
     "deploy": "pnpm run build && pnpm run migrate",
     "start": "node --enable-source-maps ./dist/index.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit"
