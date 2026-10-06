@@ -102,40 +102,49 @@ const pct = (value: string | number | undefined) => `${Number(value ?? 0).toFixe
 const productMeta = (row: ProductMetric) => [row.sku, row.barcode].filter(Boolean).join(' / ') || '—';
 const categoryText = (row: ProductMetric) => [row.category_name, row.subcategory_name].filter(Boolean).join(' / ') || '—';
 
-const ProductTable = ({ rows, emptyTitle = 'لا توجد بيانات' }: { rows: ProductMetric[]; emptyTitle?: string }) => (
+const ProductTable = ({
+  rows, emptyTitle = 'لا توجد بيانات',
+  hideBarcode = false, hideCategory = false, hideStock = false,
+}: {
+  rows: ProductMetric[]; emptyTitle?: string;
+  hideBarcode?: boolean; hideCategory?: boolean; hideStock?: boolean;
+}) => {
+  const colCount = 8 - (hideBarcode ? 1 : 0) - (hideCategory ? 1 : 0) - (hideStock ? 1 : 0);
+  return (
   <div className="overflow-x-auto">
     <table className="w-full text-sm">
       <thead>
         <tr className="border-b border-border text-xs text-muted-foreground">
           <th className="py-2 text-start font-semibold">المنتج</th>
-          <th className="py-2 text-start font-semibold">الكود / الباركود</th>
-          <th className="py-2 text-start font-semibold">التصنيف</th>
+          {!hideBarcode && <th className="py-2 text-start font-semibold">الكود / الباركود</th>}
+          {!hideCategory && <th className="py-2 text-start font-semibold">التصنيف</th>}
           <th className="py-2 text-end font-semibold">الكمية</th>
           <th className="py-2 text-end font-semibold">المبيعات</th>
           <th className="py-2 text-end font-semibold">مجمل الربح</th>
           <th className="py-2 text-end font-semibold">الهامش</th>
-          <th className="py-2 text-end font-semibold">المخزون</th>
+          {!hideStock && <th className="py-2 text-end font-semibold">المخزون</th>}
         </tr>
       </thead>
       <tbody>
         {rows.length === 0 ? (
-          <tr><td colSpan={8} className="py-8 text-center text-muted-foreground">{emptyTitle}</td></tr>
+          <tr><td colSpan={colCount} className="py-8 text-center text-muted-foreground">{emptyTitle}</td></tr>
         ) : rows.map((row) => (
           <tr key={row.id} className="border-b border-border/40">
             <td className="py-2 font-medium"><Link to={`/app/products/${row.id}`} className="text-primary">{row.name}</Link></td>
-            <td className="py-2 text-muted-foreground">{productMeta(row)}</td>
-            <td className="py-2 text-muted-foreground">{categoryText(row)}</td>
+            {!hideBarcode && <td className="py-2 text-muted-foreground">{productMeta(row)}</td>}
+            {!hideCategory && <td className="py-2 text-muted-foreground">{categoryText(row)}</td>}
             <td className="py-2 text-end">{Number(row.quantity_sold ?? row.returned_quantity ?? row.written_off_quantity ?? 0)}</td>
             <td className="py-2 text-end">{money(row.sales_amount ?? row.returned_amount ?? row.written_off_amount)}</td>
             <td className="py-2 text-end">{money(row.gross_profit)}</td>
             <td className="py-2 text-end">{pct(row.margin_pct)}</td>
-            <td className="py-2 text-end">{Number(row.current_stock ?? 0)}</td>
+            {!hideStock && <td className="py-2 text-end">{Number(row.current_stock ?? 0)}</td>}
           </tr>
         ))}
       </tbody>
     </table>
   </div>
-);
+  );
+};
 
 const SmallList = ({ title, rows, children }: { title: string; rows: unknown[]; children: React.ReactNode }) => (
   <Card className="p-5 border-border/60 shadow-soft">
@@ -347,7 +356,7 @@ const Overview = () => {
             </div>
           </Card>
           <SmallList title="أفضل المنتجات ربحاً" rows={data?.topProductsByProfit ?? []}>
-            <ProductTable rows={(data?.topProductsByProfit ?? []).slice(0, 5)} />
+            <ProductTable rows={(data?.topProductsByProfit ?? []).slice(0, 5)} hideBarcode hideCategory hideStock />
           </SmallList>
         </TabsContent>
 
