@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '@/components/common/PageHeader';
+import { SearchableSelect } from '@/components/common/SearchableSelect';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -128,7 +129,19 @@ const NewPurchaseInvoice = () => {
       <PageHeader title="فاتورة شراء جديدة" description="يمكن أن تزيد المخزون أو تسجل مصروفاً على المورد" />
       <Card className="p-4 border-border/60">
         <div className="grid lg:grid-cols-4 gap-4">
-          <div><Label>المورد</Label><select className="mt-1.5 h-10 w-full rounded-md border bg-background px-3 text-sm" value={supplierId} onChange={(e) => setSupplierId(e.target.value)}><option value="">اختر المورد</option>{(suppliers.data ?? []).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
+          <div>
+            <Label>المورد</Label>
+            <div className="mt-1.5">
+              <SearchableSelect
+                value={supplierId}
+                onValueChange={setSupplierId}
+                options={(suppliers.data ?? []).map((supplier) => ({ value: supplier.id, label: supplier.name }))}
+                placeholder="اختر المورد"
+                searchPlaceholder="ابحث عن مورد..."
+                emptyText="لا يوجد موردون مطابقون"
+              />
+            </div>
+          </div>
           <div><Label>رقم الفاتورة</Label><Input className="mt-1.5" value={number} onChange={(e) => setNumber(e.target.value)} /></div>
           <div><Label>رقم المورد</Label><Input className="mt-1.5" value={supplierNumber} onChange={(e) => setSupplierNumber(e.target.value)} /></div>
           <div><Label>الحالة</Label><select className="mt-1.5 h-10 w-full rounded-md border bg-background px-3 text-sm" value={draft ? 'draft' : 'posted'} onChange={(e) => setDraft(e.target.value === 'draft')}><option value="posted">ترحيل مباشر</option><option value="draft">مسودة</option></select></div>
