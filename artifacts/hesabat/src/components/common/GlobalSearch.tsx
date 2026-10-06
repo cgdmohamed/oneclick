@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Search, Users, Package, FileText, Truck } from 'lucide-react';
+import { Search, Users, Package, FileText, Truck, ShoppingCart, Undo2, Redo2, BookOpen, UserRound, Boxes, Trash2 } from 'lucide-react';
 import {
   CommandDialog,
   CommandEmpty,
@@ -12,13 +12,38 @@ import {
 } from '@/components/ui/command';
 import { Button } from '@/components/ui/button';
 import { api } from '@/lib/api';
-import { formatCurrency, invoiceStatusLabel } from '@/lib/format';
+import { formatCurrency, invoiceStatusLabel, noteStatusLabel } from '@/lib/format';
+
+const docStatusLabel = (s: string): string => {
+  switch (s) {
+    case 'reversed': return 'معكوس';
+    case 'active': return 'نشط';
+    case 'inactive': return 'غير نشط';
+    case 'fully_depreciated': return 'مستهلك بالكامل';
+    case 'disposed': return 'تم التخلص منه';
+    case 'paid': return 'مدفوعة';
+    case 'partial': return 'مدفوعة جزئياً';
+    default: return noteStatusLabel(s);
+  }
+};
 
 interface ClientHit { id: string; name: string; phone?: string | null; code?: string | null }
 interface ProductHit { id: string; name: string; sku?: string | null; barcode?: string | null }
 interface InvoiceHit { id: string; number: string; status: string; total: string | number; client_name?: string | null }
 interface SupplierHit { id: string; name: string; phone?: string | null }
-interface SearchResults { clients: ClientHit[]; products: ProductHit[]; invoices: InvoiceHit[]; suppliers: SupplierHit[] }
+interface PurchaseInvoiceHit { id: string; number: string; status: string; total: string | number; supplier_name?: string | null }
+interface CreditNoteHit { id: string; number: string; status: string; total: string | number; customer_name?: string | null }
+interface DebitNoteHit { id: string; number: string; status: string; total: string | number; customer_name?: string | null }
+interface JournalEntryHit { id: string; number: string; status: string; memo?: string | null }
+interface EmployeeHit { id: string; employee_code: string; name: string; status: string }
+interface FixedAssetHit { id: string; asset_code: string; name: string; status: string }
+interface InventoryWriteOffHit { id: string; number: string; status: string; total_cost: string | number }
+interface SearchResults {
+  clients: ClientHit[]; products: ProductHit[]; invoices: InvoiceHit[]; suppliers: SupplierHit[];
+  purchaseInvoices: PurchaseInvoiceHit[]; creditNotes: CreditNoteHit[]; debitNotes: DebitNoteHit[];
+  journalEntries: JournalEntryHit[]; employees: EmployeeHit[]; fixedAssets: FixedAssetHit[];
+  inventoryWriteOffs: InventoryWriteOffHit[];
+}
 
 export const GlobalSearch = () => {
   const navigate = useNavigate();
@@ -55,7 +80,11 @@ export const GlobalSearch = () => {
   const data = results.data;
   const hasQuery = debounced.length >= 2;
   const totalCount = useMemo(
-    () => (data ? data.clients.length + data.products.length + data.invoices.length + data.suppliers.length : 0),
+    () => (data
+      ? data.clients.length + data.products.length + data.invoices.length + data.suppliers.length
+        + data.purchaseInvoices.length + data.creditNotes.length + data.debitNotes.length
+        + data.journalEntries.length + data.employees.length + data.fixedAssets.length + data.inventoryWriteOffs.length
+      : 0),
     [data],
   );
 
@@ -81,7 +110,7 @@ export const GlobalSearch = () => {
 
       <CommandDialog open={open} onOpenChange={setOpen}>
         <CommandInput
-          placeholder="ابحث عن عميل، منتج، فاتورة، مورد..."
+          placeholder="ابحث عن عميل، منتج، فاتورة، مورد، فاتورة شراء، إشعار، قيد يومية، موظف، أصل ثابت..."
           value={term}
           onValueChange={setTerm}
         />
@@ -134,6 +163,90 @@ export const GlobalSearch = () => {
                   <Truck className="h-4 w-4 me-2 shrink-0" />
                   <span className="flex-1">{s.name}</span>
                   <span className="text-xs text-muted-foreground">{s.phone || ''}</span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          )}
+
+          {(data?.purchaseInvoices.length ?? 0) > 0 && (
+            <CommandGroup heading="فواتير الشراء">
+              {data!.purchaseInvoices.map((pi) => (
+                <CommandItem key={pi.id} value={`purchase-invoice-${pi.id}-${pi.number}`} onSelect={() => go(`/app/purchases/invoices/${pi.id}`)}>
+                  <ShoppingCart className="h-4 w-4 me-2 shrink-0" />
+                  <span className="flex-1">{pi.number} {pi.supplier_name ? `— ${pi.supplier_name}` : ''}</span>
+                  <span className="text-xs text-muted-foreground">{formatCurrency(Number(pi.total))} · {docStatusLabel(pi.status)}</span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          )}
+
+          {(data?.creditNotes.length ?? 0) > 0 && (
+            <CommandGroup heading="الإشعارات الدائنة">
+              {data!.creditNotes.map((cn) => (
+                <CommandItem key={cn.id} value={`credit-note-${cn.id}-${cn.number}`} onSelect={() => go(`/app/credit-notes/${cn.id}`)}>
+                  <Undo2 className="h-4 w-4 me-2 shrink-0" />
+                  <span className="flex-1">{cn.number} {cn.customer_name ? `— ${cn.customer_name}` : ''}</span>
+                  <span className="text-xs text-muted-foreground">{formatCurrency(Number(cn.total))} · {noteStatusLabel(cn.status)}</span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          )}
+
+          {(data?.debitNotes.length ?? 0) > 0 && (
+            <CommandGroup heading="الإشعارات المدينة">
+              {data!.debitNotes.map((dn) => (
+                <CommandItem key={dn.id} value={`debit-note-${dn.id}-${dn.number}`} onSelect={() => go(`/app/debit-notes/${dn.id}`)}>
+                  <Redo2 className="h-4 w-4 me-2 shrink-0" />
+                  <span className="flex-1">{dn.number} {dn.customer_name ? `— ${dn.customer_name}` : ''}</span>
+                  <span className="text-xs text-muted-foreground">{formatCurrency(Number(dn.total))} · {noteStatusLabel(dn.status)}</span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          )}
+
+          {(data?.journalEntries.length ?? 0) > 0 && (
+            <CommandGroup heading="قيود اليومية">
+              {data!.journalEntries.map((je) => (
+                <CommandItem key={je.id} value={`journal-entry-${je.id}-${je.number}`} onSelect={() => go(`/app/accounting/journals/${je.id}`)}>
+                  <BookOpen className="h-4 w-4 me-2 shrink-0" />
+                  <span className="flex-1">{je.number} {je.memo ? `— ${je.memo}` : ''}</span>
+                  <span className="text-xs text-muted-foreground">{docStatusLabel(je.status)}</span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          )}
+
+          {(data?.employees.length ?? 0) > 0 && (
+            <CommandGroup heading="الموظفون">
+              {data!.employees.map((emp) => (
+                <CommandItem key={emp.id} value={`employee-${emp.id}-${emp.name}`} onSelect={() => go('/app/accounting/employees')}>
+                  <UserRound className="h-4 w-4 me-2 shrink-0" />
+                  <span className="flex-1">{emp.name}</span>
+                  <span className="text-xs text-muted-foreground">{emp.employee_code} · {docStatusLabel(emp.status)}</span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          )}
+
+          {(data?.fixedAssets.length ?? 0) > 0 && (
+            <CommandGroup heading="الأصول الثابتة">
+              {data!.fixedAssets.map((fa) => (
+                <CommandItem key={fa.id} value={`fixed-asset-${fa.id}-${fa.name}`} onSelect={() => go(`/app/accounting/assets/${fa.id}`)}>
+                  <Boxes className="h-4 w-4 me-2 shrink-0" />
+                  <span className="flex-1">{fa.name}</span>
+                  <span className="text-xs text-muted-foreground">{fa.asset_code} · {docStatusLabel(fa.status)}</span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          )}
+
+          {(data?.inventoryWriteOffs.length ?? 0) > 0 && (
+            <CommandGroup heading="شطب المخزون">
+              {data!.inventoryWriteOffs.map((wo) => (
+                <CommandItem key={wo.id} value={`write-off-${wo.id}-${wo.number}`} onSelect={() => go(`/app/inventory-write-offs/${wo.id}`)}>
+                  <Trash2 className="h-4 w-4 me-2 shrink-0" />
+                  <span className="flex-1">{wo.number}</span>
+                  <span className="text-xs text-muted-foreground">{formatCurrency(Number(wo.total_cost))} · {docStatusLabel(wo.status)}</span>
                 </CommandItem>
               ))}
             </CommandGroup>
