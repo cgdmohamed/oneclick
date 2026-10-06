@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { api, ApiError } from '@/lib/api';
 import { formatCurrency } from '@/lib/format';
 import { toast } from 'sonner';
+import { SearchableSelect } from '@/components/common/SearchableSelect';
 import type { PayrollRun, PayrollRunLine } from './types';
 
 interface Account { id: string; name: string }
@@ -42,7 +43,7 @@ const PayrollRunDetails = () => {
       <Card className="p-4 border-border/60 text-sm">صافي الرواتب: <span className="font-semibold">{formatCurrency((run.lines ?? []).reduce((s, l) => s + Number(l.net_salary), 0))}</span></Card>
       <DataTable data={run.lines ?? []} columns={cols} emptyTitle="لا توجد بنود رواتب" />
       <Dialog open={payOpen} onOpenChange={setPayOpen}><DialogContent dir="rtl"><DialogHeader><DialogTitle>دفع الرواتب</DialogTitle></DialogHeader>
-        <select className="h-10 rounded-md border bg-background px-3 text-sm" value={accountId} onChange={(e) => setAccountId(e.target.value)}><option value="">اختر حساب الدفع</option>{(accounts.data ?? []).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select>
+        <SearchableSelect value={accountId} onValueChange={setAccountId} placeholder="اختر حساب الدفع" options={(accounts.data ?? []).map((a) => ({ value: a.id, label: a.name }))} />
         <DialogFooter><Button variant="outline" onClick={() => setPayOpen(false)}>إلغاء</Button><Button onClick={pay}>دفع</Button></DialogFooter>
       </DialogContent></Dialog>
     </div>

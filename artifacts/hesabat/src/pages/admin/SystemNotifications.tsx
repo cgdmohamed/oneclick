@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { SearchableSelect } from '@/components/common/SearchableSelect';
 import { Badge } from '@/components/ui/badge';
 import { companies as mockCompanies } from '@/data/mock';
 import { toast } from 'sonner';
@@ -131,13 +131,7 @@ const SystemNotifications = () => {
           <h3 className="font-semibold text-base mb-1">إرسال إشعار للشركات</h3>
           <div>
             <Label>المستهدف</Label>
-            <Select value={target} onValueChange={setTarget}>
-              <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">كل الشركات</SelectItem>
-                {companies.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <div className="mt-1.5"><SearchableSelect value={target} onValueChange={setTarget} options={[{ value: 'all', label: 'كل الشركات' }, ...companies.map(c => ({ value: c.id, label: c.name }))]} /></div>
           </div>
           <div><Label>العنوان</Label><Input className="mt-1.5" value={title} onChange={e => setTitle(e.target.value)} /></div>
           <div><Label>الرسالة</Label><Textarea rows={5} className="mt-1.5" value={body} onChange={e => setBody(e.target.value)} /></div>

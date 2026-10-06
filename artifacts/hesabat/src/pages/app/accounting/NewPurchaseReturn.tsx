@@ -10,6 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { api } from '@/lib/api';
 import { formatCurrency } from '@/lib/format';
 import { ArrowRight, Plus, Trash2 } from 'lucide-react';
+import { SearchableSelect } from '@/components/common/SearchableSelect';
 import { toast } from 'sonner';
 import type { PurchaseInvoice, PurchaseReturn } from './types';
 
@@ -106,8 +107,8 @@ const NewPurchaseReturn = () => {
       <PageHeader title="مرتجع شراء جديد" description="يرحل المرتجع بتخفيض المخزون والذمم الدائنة وضريبة المدخلات" />
       <Card className="p-4 border-border/60">
         <div className="grid lg:grid-cols-4 gap-4">
-          <div><Label>المورد</Label><select className="mt-1.5 h-10 w-full rounded-md border bg-background px-3 text-sm" value={supplierId} onChange={(e) => { setSupplierId(e.target.value); setInvoiceId(''); }}><option value="">اختر المورد</option>{(suppliers.data ?? []).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
-          <div><Label>فاتورة الشراء الأصلية</Label><select className="mt-1.5 h-10 w-full rounded-md border bg-background px-3 text-sm" value={invoiceId} onChange={(e) => setInvoiceId(e.target.value)}><option value="">بدون ربط</option>{supplierInvoices.map((i) => <option key={i.id} value={i.id}>{i.number}</option>)}</select></div>
+          <div><Label>المورد</Label><div className="mt-1.5"><SearchableSelect value={supplierId} onValueChange={(v) => { setSupplierId(v); setInvoiceId(''); }} placeholder="اختر المورد" options={(suppliers.data ?? []).map((s) => ({ value: s.id, label: s.name }))} /></div></div>
+          <div><Label>فاتورة الشراء الأصلية</Label><div className="mt-1.5"><SearchableSelect value={invoiceId} onValueChange={setInvoiceId} placeholder="بدون ربط" options={supplierInvoices.map((i) => ({ value: i.id, label: i.number }))} /></div></div>
           <div><Label>رقم المرتجع</Label><Input className="mt-1.5" value={returnNumber} onChange={(e) => setReturnNumber(e.target.value)} /></div>
           <div><Label>الحالة</Label><select className="mt-1.5 h-10 w-full rounded-md border bg-background px-3 text-sm" value={draft ? 'draft' : 'posted'} onChange={(e) => setDraft(e.target.value === 'draft')}><option value="draft">مسودة</option><option value="posted">ترحيل مباشر</option></select></div>
           <div><Label>التاريخ</Label><Input className="mt-1.5" type="date" value={returnDate} onChange={(e) => setReturnDate(e.target.value)} /></div>
@@ -118,14 +119,19 @@ const NewPurchaseReturn = () => {
       <Card className="p-4 border-border/60 space-y-3">
         {items.map((item, idx) => (
           <div key={idx} className="grid xl:grid-cols-[1.6fr_0.8fr_0.9fr_0.7fr_auto] gap-2 items-end">
-            <div><Label>المنتج</Label><select className="mt-1.5 h-10 w-full rounded-md border bg-background px-3 text-sm" value={item.product_id} onChange={(e) => {
-              const p = (products.data ?? []).find((prod) => prod.id === e.target.value);
-              updateItem(idx, {
-                product_id: e.target.value,
-                unit_cost: String(p?.cost ?? p?.average_cost ?? item.unit_cost),
-                vat_rate: String(p ? (p.vat_status === 'taxable' ? Number(p.vat_rate ?? item.vat_rate) : 0) : item.vat_rate),
-              });
-            }}><option value="">اختر منتجاً</option>{(products.data ?? []).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div>
+            <div><Label>المنتج</Label><div className="mt-1.5"><SearchableSelect
+              value={item.product_id}
+              onValueChange={(v) => {
+                const p = (products.data ?? []).find((prod) => prod.id === v);
+                updateItem(idx, {
+                  product_id: v,
+                  unit_cost: String(p?.cost ?? p?.average_cost ?? item.unit_cost),
+                  vat_rate: String(p ? (p.vat_status === 'taxable' ? Number(p.vat_rate ?? item.vat_rate) : 0) : item.vat_rate),
+                });
+              }}
+              placeholder="اختر منتجاً"
+              options={(products.data ?? []).map((p) => ({ value: p.id, label: p.name }))}
+            /></div></div>
             <div><Label>الكمية</Label><Input className="mt-1.5" type="number" value={item.quantity} onChange={(e) => updateItem(idx, { quantity: e.target.value })} /></div>
             <div><Label>تكلفة الوحدة</Label><Input className="mt-1.5" type="number" value={item.unit_cost} onChange={(e) => updateItem(idx, { unit_cost: e.target.value })} /></div>
             <div><Label>VAT %</Label><Input className="mt-1.5" type="number" value={item.vat_rate} onChange={(e) => updateItem(idx, { vat_rate: e.target.value })} /></div>

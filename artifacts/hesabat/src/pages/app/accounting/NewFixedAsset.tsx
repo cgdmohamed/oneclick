@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { api, ApiError } from '@/lib/api';
 import { ArrowRight } from 'lucide-react';
+import { SearchableSelect } from '@/components/common/SearchableSelect';
 import { toast } from 'sonner';
 import type { AssetCategory, FixedAsset } from './types';
 
@@ -51,14 +52,14 @@ const NewFixedAsset = () => {
         <div className="grid md:grid-cols-4 gap-4">
           <div><Label>كود الأصل</Label><Input className="mt-1.5" value={form.asset_code} onChange={(e) => set({ asset_code: e.target.value })} /></div>
           <div><Label>اسم الأصل</Label><Input className="mt-1.5" value={form.name} onChange={(e) => set({ name: e.target.value })} /></div>
-          <div><Label>التصنيف</Label><select className="mt-1.5 h-10 w-full rounded-md border bg-background px-3 text-sm" value={form.category_id} onChange={(e) => { const c = (categories.data ?? []).find((x) => x.id === e.target.value); set({ category_id: e.target.value, useful_life_months: c ? String(c.default_useful_life_months) : form.useful_life_months }); }}><option value="">اختر التصنيف</option>{(categories.data ?? []).filter((c) => c.is_active).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
+          <div><Label>التصنيف</Label><div className="mt-1.5"><SearchableSelect value={form.category_id} onValueChange={(v) => { const c = (categories.data ?? []).find((x) => x.id === v); set({ category_id: v, useful_life_months: c ? String(c.default_useful_life_months) : form.useful_life_months }); }} placeholder="اختر التصنيف" options={(categories.data ?? []).filter((c) => c.is_active).map((c) => ({ value: c.id, label: c.name }))} /></div></div>
           <div><Label>تاريخ الشراء</Label><Input className="mt-1.5" type="date" value={form.purchase_date} onChange={(e) => set({ purchase_date: e.target.value })} /></div>
           <div><Label>تكلفة الاقتناء</Label><Input className="mt-1.5" type="number" value={form.acquisition_cost} onChange={(e) => set({ acquisition_cost: e.target.value })} /></div>
           <div><Label>القيمة التخريدية</Label><Input className="mt-1.5" type="number" value={form.salvage_value} onChange={(e) => set({ salvage_value: e.target.value })} /></div>
           <div><Label>العمر بالشهور</Label><Input className="mt-1.5" type="number" value={form.useful_life_months} onChange={(e) => set({ useful_life_months: e.target.value })} /></div>
           <div><Label>بداية الإهلاك</Label><Input className="mt-1.5" type="date" value={form.depreciation_start_date} onChange={(e) => set({ depreciation_start_date: e.target.value })} /></div>
-          <div><Label>الفرع</Label><select className="mt-1.5 h-10 w-full rounded-md border bg-background px-3 text-sm" value={form.branch_id} onChange={(e) => set({ branch_id: e.target.value })}><option value="">بدون فرع</option>{(branches.data ?? []).filter((b) => b.is_active).map((b) => <option key={b.id} value={b.id}>{b.code ? `${b.code} - ` : ''}{b.name}</option>)}</select></div>
-          <div><Label>مركز التكلفة</Label><select className="mt-1.5 h-10 w-full rounded-md border bg-background px-3 text-sm" value={form.cost_center_id} onChange={(e) => set({ cost_center_id: e.target.value })}><option value="">بدون مركز</option>{(costCenters.data ?? []).filter((c) => c.is_active).map((c) => <option key={c.id} value={c.id}>{c.code ? `${c.code} - ` : ''}{c.name}</option>)}</select></div>
+          <div><Label>الفرع</Label><div className="mt-1.5"><SearchableSelect value={form.branch_id} onValueChange={(v) => set({ branch_id: v })} placeholder="بدون فرع" options={(branches.data ?? []).filter((b) => b.is_active).map((b) => ({ value: b.id, label: b.code ? `${b.code} - ${b.name}` : b.name }))} /></div></div>
+          <div><Label>مركز التكلفة</Label><div className="mt-1.5"><SearchableSelect value={form.cost_center_id} onValueChange={(v) => set({ cost_center_id: v })} placeholder="بدون مركز" options={(costCenters.data ?? []).filter((c) => c.is_active).map((c) => ({ value: c.id, label: c.code ? `${c.code} - ${c.name}` : c.name }))} /></div></div>
           <div className="md:col-span-4"><Label>ملاحظات</Label><Textarea className="mt-1.5" value={form.notes} onChange={(e) => set({ notes: e.target.value })} /></div>
         </div>
       </Card>

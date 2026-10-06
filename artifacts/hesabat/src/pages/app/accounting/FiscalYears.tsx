@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { api } from '@/lib/api';
 import { formatDateShort } from '@/lib/format';
 import { CalendarDays, Lock, LockOpen, Plus } from 'lucide-react';
+import { SearchableSelect } from '@/components/common/SearchableSelect';
 import { toast } from 'sonner';
 import type { AccountingPeriod, FiscalYear } from './types';
 
@@ -106,10 +107,7 @@ const FiscalYears = () => {
           <DialogHeader><DialogTitle>فترة محاسبية جديدة</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <div><Label>السنة المالية</Label>
-              <select className="mt-1.5 h-10 w-full rounded-md border bg-background px-3 text-sm" value={periodForm.fiscal_year_id} onChange={(e) => setPeriodForm((p) => ({ ...p, fiscal_year_id: e.target.value }))}>
-                <option value="">اختر السنة</option>
-                {years.map((y) => <option key={y.id} value={y.id}>{y.name}</option>)}
-              </select>
+              <div className="mt-1.5"><SearchableSelect value={periodForm.fiscal_year_id} onValueChange={(v) => setPeriodForm((p) => ({ ...p, fiscal_year_id: v }))} placeholder="اختر السنة" options={years.map((y) => ({ value: y.id, label: y.name }))} /></div>
             </div>
             <div><Label>الاسم</Label><Input className="mt-1.5" value={periodForm.name} onChange={(e) => setPeriodForm((p) => ({ ...p, name: e.target.value }))} /></div>
             <div className="grid grid-cols-2 gap-3">

@@ -206,7 +206,7 @@ const BadDebts = () => {
             <div className="grid md:grid-cols-5 gap-4 items-end">
               <div><Label>التاريخ</Label><Input className="mt-1.5" type="date" value={writeOff.write_off_date} onChange={(e) => setWriteOff((p) => ({ ...p, write_off_date: e.target.value }))} /></div>
               <div><Label>العميل</Label><div className="mt-1.5"><SearchableSelect value={writeOff.customer_id} onValueChange={(v) => setWriteOff((p) => ({ ...p, customer_id: v, invoice_id: NONE }))} options={(customers.data ?? []).map((c) => ({ value: c.id, label: c.name }))} placeholder="اختر العميل" searchPlaceholder="ابحث عن عميل..." /></div></div>
-              <div><Label>الفاتورة</Label><Select value={writeOff.invoice_id} onValueChange={(v) => { const inv = customerInvoices.find((i) => i.id === v); setWriteOff((p) => ({ ...p, invoice_id: v, amount: inv ? String(inv.remaining) : p.amount })); }}><SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger><SelectContent><SelectItem value={NONE}>رصيد العميل</SelectItem>{customerInvoices.map((i) => <SelectItem key={i.id} value={i.id}>{i.number} - {formatCurrency(Number(i.remaining))}</SelectItem>)}</SelectContent></Select></div>
+              <div><Label>الفاتورة</Label><div className="mt-1.5"><SearchableSelect value={writeOff.invoice_id} onValueChange={(v) => { const inv = customerInvoices.find((i) => i.id === v); setWriteOff((p) => ({ ...p, invoice_id: v, amount: inv ? String(inv.remaining) : p.amount })); }} options={[{ value: NONE, label: 'رصيد العميل' }, ...customerInvoices.map((i) => ({ value: i.id, label: i.number, sublabel: formatCurrency(Number(i.remaining)) }))]} /></div></div>
               <div><Label>المبلغ</Label><Input className="mt-1.5" type="number" value={writeOff.amount} onChange={(e) => setWriteOff((p) => ({ ...p, amount: e.target.value }))} /></div>
               <Button onClick={createWriteOff}>ترحيل الإعدام</Button>
               <div className="md:col-span-5"><Label>السبب</Label><Textarea className="mt-1.5" value={writeOff.reason} onChange={(e) => setWriteOff((p) => ({ ...p, reason: e.target.value }))} /></div>
@@ -227,10 +227,7 @@ const BadDebts = () => {
             <div><Label>المبلغ المسترد</Label><Input className="mt-1.5" type="number" value={recovery.amount} onChange={(e) => setRecovery((p) => ({ ...p, amount: e.target.value }))} /></div>
             <div>
               <Label>الحساب المستلم فيه المبلغ</Label>
-              <Select value={recovery.account_id} onValueChange={(v) => setRecovery((p) => ({ ...p, account_id: v }))}>
-                <SelectTrigger className="mt-1.5"><SelectValue placeholder="اختر الحساب" /></SelectTrigger>
-                <SelectContent>{accounts.map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}</SelectContent>
-              </Select>
+              <div className="mt-1.5"><SearchableSelect value={recovery.account_id} onValueChange={(v) => setRecovery((p) => ({ ...p, account_id: v }))} placeholder="اختر الحساب" options={accounts.map((a) => ({ value: a.id, label: a.name }))} /></div>
             </div>
             <div>
               <Label>طريقة التحصيل</Label>

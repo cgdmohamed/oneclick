@@ -12,6 +12,7 @@ import { useClients, useAccounts, useInvoices, useProducts } from '@/hooks/entit
 import { api, isApiConfigured } from '@/lib/api';
 import { printElementOnly } from '@/lib/print';
 import { DataTable, Column } from '@/components/common/DataTable';
+import { SearchableSelect } from '@/components/common/SearchableSelect';
 import { formatCurrency, formatDateShort, paymentMethodLabel, invoiceStatusLabel } from '@/lib/format';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { InvoicesCharts, PaymentsCharts, RemainingCharts, ByAccountCharts } from '@/components/common/ReportCharts';
@@ -638,40 +639,25 @@ const ReportDetail = () => {
               <>
                 <div>
                   <Label>الفرع</Label>
-                  <select className="mt-1.5 h-10 w-full rounded-md border bg-background px-3 text-sm" value={branchId} onChange={(e) => setBranchId(e.target.value)}>
-                    <option value="">كل الفروع</option>
-                    {(branchesQuery.data ?? []).filter((b) => b.is_active).map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-                  </select>
+                  <div className="mt-1.5"><SearchableSelect value={branchId} onValueChange={setBranchId} placeholder="كل الفروع" options={(branchesQuery.data ?? []).filter((b) => b.is_active).map((b) => ({ value: b.id, label: b.name }))} /></div>
                 </div>
                 {type === 'product-sales' && (
                   <div>
                     <Label>مركز التكلفة</Label>
-                    <select className="mt-1.5 h-10 w-full rounded-md border bg-background px-3 text-sm" value={costCenterId} onChange={(e) => setCostCenterId(e.target.value)}>
-                      <option value="">كل مراكز التكلفة</option>
-                      {(costCentersQuery.data ?? []).filter((c) => c.is_active).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                    </select>
+                    <div className="mt-1.5"><SearchableSelect value={costCenterId} onValueChange={setCostCenterId} placeholder="كل مراكز التكلفة" options={(costCentersQuery.data ?? []).filter((c) => c.is_active).map((c) => ({ value: c.id, label: c.name }))} /></div>
                   </div>
                 )}
                 <div>
                   <Label>التصنيف</Label>
-                  <select className="mt-1.5 h-10 w-full rounded-md border bg-background px-3 text-sm" value={categoryId} onChange={(e) => { setCategoryId(e.target.value); setSubcategoryId(''); }}>
-                    <option value="">كل التصنيفات</option>
-                    {mainCategories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
+                  <div className="mt-1.5"><SearchableSelect value={categoryId} onValueChange={(v) => { setCategoryId(v); setSubcategoryId(''); }} placeholder="كل التصنيفات" options={mainCategories.map((c) => ({ value: c.id, label: c.name }))} /></div>
                 </div>
                 <div>
                   <Label>التصنيف الفرعي</Label>
-                  <select className="mt-1.5 h-10 w-full rounded-md border bg-background px-3 text-sm" value={subcategoryId} onChange={(e) => setSubcategoryId(e.target.value)} disabled={!categoryId || subcategoriesFor(categoryId).length === 0}>
-                    <option value="">كل التصنيفات الفرعية</option>
-                    {subcategoriesFor(categoryId).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
+                  <div className="mt-1.5"><SearchableSelect value={subcategoryId} onValueChange={setSubcategoryId} placeholder="كل التصنيفات الفرعية" disabled={!categoryId || subcategoriesFor(categoryId).length === 0} options={subcategoriesFor(categoryId).map((c) => ({ value: c.id, label: c.name }))} /></div>
                 </div>
                 <div>
                   <Label>المنتج</Label>
-                  <select className="mt-1.5 h-10 w-full rounded-md border bg-background px-3 text-sm" value={productId} onChange={(e) => setProductId(e.target.value)}>
-                    <option value="">كل المنتجات</option>
-                    {products.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                  </select>
+                  <div className="mt-1.5"><SearchableSelect value={productId} onValueChange={setProductId} placeholder="كل المنتجات" options={products.map((p) => ({ value: p.id, label: p.name }))} /></div>
                 </div>
                 {type === 'product-sales' ? (
                   <>
@@ -707,34 +693,22 @@ const ReportDetail = () => {
               <>
                 <div>
                   <Label>الفرع</Label>
-                  <select className="mt-1.5 h-10 w-full rounded-md border bg-background px-3 text-sm" value={branchId} onChange={(e) => setBranchId(e.target.value)}>
-                    <option value="">كل الفروع</option>
-                    {(branchesQuery.data ?? []).filter((b) => b.is_active).map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-                  </select>
+                  <div className="mt-1.5"><SearchableSelect value={branchId} onValueChange={setBranchId} placeholder="كل الفروع" options={(branchesQuery.data ?? []).filter((b) => b.is_active).map((b) => ({ value: b.id, label: b.name }))} /></div>
                 </div>
                 <div>
                   <Label>مركز التكلفة</Label>
-                  <select className="mt-1.5 h-10 w-full rounded-md border bg-background px-3 text-sm" value={costCenterId} onChange={(e) => setCostCenterId(e.target.value)}>
-                    <option value="">كل مراكز التكلفة</option>
-                    {(costCentersQuery.data ?? []).filter((c) => c.is_active).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
+                  <div className="mt-1.5"><SearchableSelect value={costCenterId} onValueChange={setCostCenterId} placeholder="كل مراكز التكلفة" options={(costCentersQuery.data ?? []).filter((c) => c.is_active).map((c) => ({ value: c.id, label: c.name }))} /></div>
                 </div>
               </>
             ) : categoryFilterEnabled ? (
               <>
                 <div>
                   <Label>التصنيف</Label>
-                  <select className="mt-1.5 h-10 w-full rounded-md border bg-background px-3 text-sm" value={categoryId} onChange={(e) => { setCategoryId(e.target.value); setSubcategoryId(''); }}>
-                    <option value="">كل التصنيفات</option>
-                    {mainCategories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
+                  <div className="mt-1.5"><SearchableSelect value={categoryId} onValueChange={(v) => { setCategoryId(v); setSubcategoryId(''); }} placeholder="كل التصنيفات" options={mainCategories.map((c) => ({ value: c.id, label: c.name }))} /></div>
                 </div>
                 <div>
                   <Label>التصنيف الفرعي</Label>
-                  <select className="mt-1.5 h-10 w-full rounded-md border bg-background px-3 text-sm" value={subcategoryId} onChange={(e) => setSubcategoryId(e.target.value)} disabled={!categoryId || subcategoriesFor(categoryId).length === 0}>
-                    <option value="">كل التصنيفات الفرعية</option>
-                    {subcategoriesFor(categoryId).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
+                  <div className="mt-1.5"><SearchableSelect value={subcategoryId} onValueChange={setSubcategoryId} placeholder="كل التصنيفات الفرعية" disabled={!categoryId || subcategoriesFor(categoryId).length === 0} options={subcategoriesFor(categoryId).map((c) => ({ value: c.id, label: c.name }))} /></div>
                 </div>
               </>
             ) : <><div /><div /></>}

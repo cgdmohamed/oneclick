@@ -10,6 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { api, ApiError } from '@/lib/api';
 import { formatCurrency, formatDateShort } from '@/lib/format';
 import { Plus } from 'lucide-react';
+import { SearchableSelect } from '@/components/common/SearchableSelect';
 import { toast } from 'sonner';
 import type { Employee } from './types';
 
@@ -55,8 +56,8 @@ const Employees = () => {
           <div><Label>البريد</Label><Input className="mt-1.5" value={form.email} onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))} /></div>
           <div><Label>الرقم القومي</Label><Input className="mt-1.5" value={form.national_id} onChange={(e) => setForm((p) => ({ ...p, national_id: e.target.value }))} /></div>
           <div><Label>الراتب الأساسي *</Label><Input className="mt-1.5" type="number" min="0.01" step="0.01" value={form.basic_salary} onChange={(e) => setForm((p) => ({ ...p, basic_salary: e.target.value }))} /></div>
-          <div><Label>الفرع</Label><select className="mt-1.5 h-10 w-full rounded-md border bg-background px-3 text-sm" value={form.branch_id} onChange={(e) => setForm((p) => ({ ...p, branch_id: e.target.value }))}><option value="">بدون</option>{(branches.data ?? []).map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select></div>
-          <div><Label>مركز التكلفة</Label><select className="mt-1.5 h-10 w-full rounded-md border bg-background px-3 text-sm" value={form.cost_center_id} onChange={(e) => setForm((p) => ({ ...p, cost_center_id: e.target.value }))}><option value="">بدون</option>{(costCenters.data ?? []).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
+          <div><Label>الفرع</Label><div className="mt-1.5"><SearchableSelect value={form.branch_id} onValueChange={(v) => setForm((p) => ({ ...p, branch_id: v }))} placeholder="بدون" options={(branches.data ?? []).map((b) => ({ value: b.id, label: b.name }))} /></div></div>
+          <div><Label>مركز التكلفة</Label><div className="mt-1.5"><SearchableSelect value={form.cost_center_id} onValueChange={(v) => setForm((p) => ({ ...p, cost_center_id: v }))} placeholder="بدون" options={(costCenters.data ?? []).map((c) => ({ value: c.id, label: c.name }))} /></div></div>
           <div className="md:col-span-3"><Label>ملاحظات</Label><Textarea className="mt-1.5" value={form.notes} onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))} /></div>
         </div>
         <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>إلغاء</Button><Button onClick={submit}>حفظ</Button></DialogFooter>

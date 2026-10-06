@@ -1,6 +1,7 @@
 import { useMemo, useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '@/components/common/PageHeader';
+import { SearchableSelect } from '@/components/common/SearchableSelect';
 import { DataTable, Column } from '@/components/common/DataTable';
 import { companies as mockCompanies, plans as mockPlans } from '@/data/mock';
 import { Button } from '@/components/ui/button';
@@ -227,16 +228,7 @@ const EditCompanyModal = ({ company, onClose, onSaved }: EditModalProps) => {
               <p className="text-sm font-semibold text-muted-foreground">الاشتراك</p>
               <div className="space-y-1">
                 <Label>الباقة</Label>
-                <Select value={planId} onValueChange={setPlanId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="اختر الباقة" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {plans.filter((p) => p.is_active).map((p) => (
-                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SearchableSelect value={planId} onValueChange={setPlanId} placeholder="اختر الباقة" options={plans.filter((p) => p.is_active).map((p) => ({ value: p.id, label: p.name }))} />
               </div>
               <div className="space-y-1">
                 <Label>دورة الفوترة</Label>

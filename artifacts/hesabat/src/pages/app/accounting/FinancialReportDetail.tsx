@@ -11,6 +11,7 @@ import { api } from '@/lib/api';
 import { formatCurrency, formatDateShort } from '@/lib/format';
 import { printElementOnly } from '@/lib/print';
 import { AlertTriangle, ArrowRight, Printer } from 'lucide-react';
+import { SearchableSelect } from '@/components/common/SearchableSelect';
 import { recordRecentReport } from './recentReports';
 import { accountTypeLabel } from './types';
 
@@ -309,41 +310,20 @@ const FinancialReportDetail = () => {
         <div className="grid sm:grid-cols-3 lg:grid-cols-6 gap-3 items-end">
             <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
             <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
-            <select className="h-10 rounded-md border bg-background px-3 text-sm" value={branchId} onChange={(e) => setBranchId(e.target.value)}>
-              <option value="">كل الفروع</option>
-              {branches.filter((b) => b.is_active).map((b) => <option key={b.id} value={b.id}>{b.code ? `${b.code} - ` : ''}{b.name}</option>)}
-            </select>
+            <SearchableSelect value={branchId} onValueChange={setBranchId} placeholder="كل الفروع" options={branches.filter((b) => b.is_active).map((b) => ({ value: b.id, label: b.code ? `${b.code} - ${b.name}` : b.name }))} />
             {['general-ledger', 'account-statement'].includes(type) ? (
-              <select className="h-10 rounded-md border bg-background px-3 text-sm" value={accountId} onChange={(e) => setAccountId(e.target.value)}>
-                <option value="">كل الحسابات</option>
-                {accounts.filter((a) => a.is_active).map((a) => <option key={a.id} value={a.id}>{a.code} - {a.name}</option>)}
-              </select>
+              <SearchableSelect value={accountId} onValueChange={setAccountId} placeholder="كل الحسابات" options={accounts.filter((a) => a.is_active).map((a) => ({ value: a.id, label: `${a.code} - ${a.name}` }))} />
             ) : ['ar-aging', 'customer-ledger'].includes(type) ? (
-              <select className="h-10 rounded-md border bg-background px-3 text-sm" value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
-                <option value="">كل العملاء</option>
-                {customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
+              <SearchableSelect value={customerId} onValueChange={setCustomerId} placeholder="كل العملاء" options={customers.map((c) => ({ value: c.id, label: c.name }))} />
             ) : ['supplier-ledger', 'ap-aging'].includes(type) ? (
-              <select className="h-10 rounded-md border bg-background px-3 text-sm" value={supplierId} onChange={(e) => setSupplierId(e.target.value)}>
-                <option value="">كل الموردين</option>
-                {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-              </select>
+              <SearchableSelect value={supplierId} onValueChange={setSupplierId} placeholder="كل الموردين" options={suppliers.map((s) => ({ value: s.id, label: s.name }))} />
             ) : type === 'inventory' ? (
-              <select className="h-10 rounded-md border bg-background px-3 text-sm" value={categoryId} onChange={(e) => { setCategoryId(e.target.value); setSubcategoryId(''); }}>
-                <option value="">كل التصنيفات</option>
-                {mainCategories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
+              <SearchableSelect value={categoryId} onValueChange={(v) => { setCategoryId(v); setSubcategoryId(''); }} placeholder="كل التصنيفات" options={mainCategories.map((c) => ({ value: c.id, label: c.name }))} />
             ) : ['trial-balance', 'income-statement', 'vat'].includes(type) ? (
-              <select className="h-10 rounded-md border bg-background px-3 text-sm" value={costCenterId} onChange={(e) => setCostCenterId(e.target.value)}>
-                <option value="">كل مراكز التكلفة</option>
-                {costCenters.filter((c) => c.is_active).map((c) => <option key={c.id} value={c.id}>{c.code ? `${c.code} - ` : ''}{c.name}</option>)}
-              </select>
+              <SearchableSelect value={costCenterId} onValueChange={setCostCenterId} placeholder="كل مراكز التكلفة" options={costCenters.filter((c) => c.is_active).map((c) => ({ value: c.id, label: c.code ? `${c.code} - ${c.name}` : c.name }))} />
             ) : <div />}
             {type === 'inventory' && (
-              <select className="h-10 rounded-md border bg-background px-3 text-sm" value={subcategoryId} onChange={(e) => setSubcategoryId(e.target.value)} disabled={!categoryId || subcategoriesFor(categoryId).length === 0}>
-                <option value="">كل التصنيفات الفرعية</option>
-                {subcategoriesFor(categoryId).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
+              <SearchableSelect value={subcategoryId} onValueChange={setSubcategoryId} placeholder="كل التصنيفات الفرعية" disabled={!categoryId || subcategoriesFor(categoryId).length === 0} options={subcategoriesFor(categoryId).map((c) => ({ value: c.id, label: c.name }))} />
             )}
             <Button onClick={() => setApplied({ from, to, branchId, costCenterId, customerId, supplierId, accountId, categoryId, subcategoryId })}>تطبيق</Button>
             <Button variant="ghost" onClick={() => { setFrom(''); setTo(''); setBranchId(''); setCostCenterId(''); setCustomerId(''); setSupplierId(''); setAccountId(''); setCategoryId(''); setSubcategoryId(''); setApplied({ from: '', to: '', branchId: '', costCenterId: '', customerId: '', supplierId: '', accountId: '', categoryId: '', subcategoryId: '' }); }}>مسح</Button>

@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { api, ApiError } from '@/lib/api';
+import { SearchableSelect } from '@/components/common/SearchableSelect';
 import { toast } from 'sonner';
 import type { ChartAccount, SalaryComponent } from './types';
 
@@ -38,7 +39,7 @@ const SalaryComponents = () => {
         <div className="grid md:grid-cols-4 gap-3 items-end">
           <div><Label>الاسم</Label><Input className="mt-1.5" value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} /></div>
           <div><Label>النوع</Label><select className="mt-1.5 h-10 w-full rounded-md border bg-background px-3 text-sm" value={form.type} onChange={(e) => setForm((p) => ({ ...p, type: e.target.value }))}><option value="earning">استحقاق</option><option value="deduction">استقطاع</option><option value="employer_contribution">تحمل صاحب العمل</option></select></div>
-          <div><Label>الحساب</Label><select className="mt-1.5 h-10 w-full rounded-md border bg-background px-3 text-sm" value={form.account_id} onChange={(e) => setForm((p) => ({ ...p, account_id: e.target.value }))}><option value="">اختر الحساب</option>{(accounts.data ?? []).map((a) => <option key={a.id} value={a.id}>{a.code} - {a.name}</option>)}</select></div>
+          <div><Label>الحساب</Label><div className="mt-1.5"><SearchableSelect value={form.account_id} onValueChange={(v) => setForm((p) => ({ ...p, account_id: v }))} placeholder="اختر الحساب" options={(accounts.data ?? []).map((a) => ({ value: a.id, label: `${a.code} - ${a.name}` }))} /></div></div>
           <Button onClick={submit}>حفظ المكون</Button>
         </div>
       </Card>

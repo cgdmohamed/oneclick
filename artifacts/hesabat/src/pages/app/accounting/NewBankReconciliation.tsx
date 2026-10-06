@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { api, ApiError } from '@/lib/api';
 import { ArrowRight } from 'lucide-react';
+import { SearchableSelect } from '@/components/common/SearchableSelect';
 import { toast } from 'sonner';
 import type { BankReconciliation } from './types';
 
@@ -42,7 +43,7 @@ const NewBankReconciliation = () => {
       <PageHeader title="تسوية بنك جديدة" description="اختر حساباً بنكياً وأدخل رصيد كشف البنك بالجنيه المصري" />
       <Card className="p-4 border-border/60">
         <div className="grid md:grid-cols-2 gap-4">
-          <div><Label>الحساب البنكي</Label><select className="mt-1.5 h-10 w-full rounded-md border bg-background px-3 text-sm" value={form.account_id} onChange={(e) => setForm((p) => ({ ...p, account_id: e.target.value }))}><option value="">اختر حساباً بنكياً</option>{(accounts.data ?? []).filter((a) => a.type === 'bank').map((a) => <option key={a.id} value={a.id}>{a.name}{a.bank_name ? ` - ${a.bank_name}` : ''}</option>)}</select></div>
+          <div><Label>الحساب البنكي</Label><div className="mt-1.5"><SearchableSelect value={form.account_id} onValueChange={(v) => setForm((p) => ({ ...p, account_id: v }))} placeholder="اختر حساباً بنكياً" options={(accounts.data ?? []).filter((a) => a.type === 'bank').map((a) => ({ value: a.id, label: a.name, sublabel: a.bank_name || undefined }))} /></div></div>
           <div><Label>تاريخ كشف البنك</Label><Input className="mt-1.5" type="date" value={form.statement_date} onChange={(e) => setForm((p) => ({ ...p, statement_date: e.target.value }))} /></div>
           <div><Label>الرصيد الافتتاحي اختياري</Label><Input className="mt-1.5" type="number" value={form.opening_balance} onChange={(e) => setForm((p) => ({ ...p, opening_balance: e.target.value }))} /></div>
           <div><Label>رصيد الإقفال في كشف البنك</Label><Input className="mt-1.5" type="number" value={form.closing_balance} onChange={(e) => setForm((p) => ({ ...p, closing_balance: e.target.value }))} /></div>
