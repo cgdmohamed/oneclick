@@ -1,0 +1,2 @@
+# Dependency patches are hashed by pnpm; keep identical bytes on all platforms.
+patches/*.patch text eol=lf
