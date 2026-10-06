@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { api, ApiError } from '@/lib/api';
+import { SearchableSelect } from '@/components/common/SearchableSelect';
 import { toast } from 'sonner';
 import type { AssetCategory, ChartAccount } from './types';
 
@@ -28,7 +29,7 @@ const AssetCategories = () => {
     { key: 'life', header: 'العمر الافتراضي', cell: (r) => `${r.default_useful_life_months} شهر` },
     { key: 'status', header: 'الحالة', cell: (r) => r.is_active ? 'نشط' : 'غير نشط' },
   ];
-  const accountOptions = (placeholder: string) => <><option value="">{placeholder}</option>{accounts.map((a) => <option key={a.id} value={a.id}>{a.code} - {a.name}</option>)}</>;
+  const accountOptionList = accounts.map((a) => ({ value: a.id, label: `${a.code} - ${a.name}` }));
   return (
     <div className="space-y-5">
       <PageHeader title="تصنيفات الأصول" description="حسابات الإهلاك والعمر الافتراضي الافتراضي لكل تصنيف" />
@@ -36,8 +37,8 @@ const AssetCategories = () => {
         <div className="grid md:grid-cols-5 gap-3 items-end">
           <div><Label>الاسم</Label><Input className="mt-1.5" value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} /></div>
           <div><Label>العمر بالشهور</Label><Input className="mt-1.5" type="number" value={form.default_useful_life_months} onChange={(e) => setForm((p) => ({ ...p, default_useful_life_months: e.target.value }))} /></div>
-          <select className="h-10 rounded-md border bg-background px-3 text-sm" value={form.fixed_asset_account_id} onChange={(e) => setForm((p) => ({ ...p, fixed_asset_account_id: e.target.value }))}>{accountOptions('حساب الأصل')}</select>
-          <select className="h-10 rounded-md border bg-background px-3 text-sm" value={form.accumulated_depreciation_account_id} onChange={(e) => setForm((p) => ({ ...p, accumulated_depreciation_account_id: e.target.value }))}>{accountOptions('حساب مجمع الإهلاك')}</select>
+          <SearchableSelect value={form.fixed_asset_account_id} onValueChange={(v) => setForm((p) => ({ ...p, fixed_asset_account_id: v }))} placeholder="حساب الأصل" options={accountOptionList} />
+          <SearchableSelect value={form.accumulated_depreciation_account_id} onValueChange={(v) => setForm((p) => ({ ...p, accumulated_depreciation_account_id: v }))} placeholder="حساب مجمع الإهلاك" options={accountOptionList} />
           <Button onClick={create}>حفظ التصنيف</Button>
         </div>
       </Card>

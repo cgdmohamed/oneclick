@@ -153,20 +153,27 @@ const NewPurchaseInvoice = () => {
       <Card className="p-4 border-border/60 space-y-3">
         {items.map((item, idx) => (
           <div key={idx} className="grid xl:grid-cols-[1.3fr_1.5fr_0.7fr_0.8fr_0.7fr_auto] gap-2 items-end">
-            <div><Label>منتج أو مصروف</Label><select className="mt-1.5 h-10 w-full rounded-md border bg-background px-3 text-sm" value={item.product_id || `expense:${item.expense_account_id}`} onChange={(e) => {
-              const value = e.target.value;
-              if (value.startsWith('expense:')) updateItem(idx, { product_id: '', expense_account_id: value.replace('expense:', '') });
-              else {
-                const p = (products.data ?? []).find((prod) => prod.id === value);
-                updateItem(idx, {
-                  product_id: value,
-                  expense_account_id: p?.product_type === 'stock' ? '' : item.expense_account_id,
-                  description: p?.name ?? item.description,
-                  unit_cost: String(p?.cost ?? p?.average_cost ?? item.unit_cost),
-                  vat_rate: String(p?.vat_status === 'taxable' ? Number(p?.vat_rate ?? item.vat_rate) : 0),
-                });
-              }
-            }}><option value="">اختر</option>{(products.data ?? []).map((p) => <option key={p.id} value={p.id}>{p.name}{p.barcode ? ` - ${p.barcode}` : ''}</option>)}{expenseAccounts.map((a) => <option key={a.id} value={`expense:${a.id}`}>مصروف: {a.code} - {a.name}</option>)}</select></div>
+            <div><Label>منتج أو مصروف</Label><div className="mt-1.5"><SearchableSelect
+              value={item.product_id || (item.expense_account_id ? `expense:${item.expense_account_id}` : '')}
+              onValueChange={(value) => {
+                if (value.startsWith('expense:')) updateItem(idx, { product_id: '', expense_account_id: value.replace('expense:', '') });
+                else {
+                  const p = (products.data ?? []).find((prod) => prod.id === value);
+                  updateItem(idx, {
+                    product_id: value,
+                    expense_account_id: p?.product_type === 'stock' ? '' : item.expense_account_id,
+                    description: p?.name ?? item.description,
+                    unit_cost: String(p?.cost ?? p?.average_cost ?? item.unit_cost),
+                    vat_rate: String(p?.vat_status === 'taxable' ? Number(p?.vat_rate ?? item.vat_rate) : 0),
+                  });
+                }
+              }}
+              placeholder="اختر"
+              options={[
+                ...(products.data ?? []).map((p) => ({ value: p.id, label: p.name, sublabel: p.barcode || undefined })),
+                ...expenseAccounts.map((a) => ({ value: `expense:${a.id}`, label: `مصروف: ${a.code} - ${a.name}` })),
+              ]}
+            /></div></div>
             <div><Label>الوصف</Label><Input className="mt-1.5" value={item.description} onChange={(e) => updateItem(idx, { description: e.target.value })} /></div>
             <div><Label>الكمية</Label><Input className="mt-1.5" type="number" value={item.quantity} onChange={(e) => updateItem(idx, { quantity: e.target.value })} /></div>
             <div><Label>تكلفة الوحدة</Label><Input className="mt-1.5" type="number" value={item.unit_cost} onChange={(e) => updateItem(idx, { unit_cost: e.target.value })} /></div>
@@ -188,7 +195,7 @@ const NewPurchaseInvoice = () => {
         {enableInitialPayment && !draft && (
           <div className="grid md:grid-cols-5 gap-3 items-end">
             <div><Label>مبلغ الدفع</Label><Input className="mt-1.5" type="number" min="0" max={totals.total} step="0.01" value={initialPayment.amount} onChange={(e) => setInitialPayment((p) => ({ ...p, amount: e.target.value }))} /></div>
-            <div><Label>حساب الدفع</Label><select className="mt-1.5 h-10 w-full rounded-md border bg-background px-3 text-sm" value={initialPayment.account_id} onChange={(e) => setInitialPayment((p) => ({ ...p, account_id: e.target.value }))}><option value="">اختر الحساب</option>{(paymentAccounts.data ?? []).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select></div>
+            <div><Label>حساب الدفع</Label><div className="mt-1.5"><SearchableSelect value={initialPayment.account_id} onValueChange={(v) => setInitialPayment((p) => ({ ...p, account_id: v }))} placeholder="اختر الحساب" options={(paymentAccounts.data ?? []).map((a) => ({ value: a.id, label: a.name }))} /></div></div>
             <div><Label>الطريقة</Label><select className="mt-1.5 h-10 w-full rounded-md border bg-background px-3 text-sm" value={initialPayment.method} onChange={(e) => setInitialPayment((p) => ({ ...p, method: e.target.value }))}><option value="cash">نقدي</option><option value="bank">تحويل بنكي</option><option value="wallet">محفظة إلكترونية</option></select></div>
             <div><Label>المرجع</Label><Input className="mt-1.5" value={initialPayment.reference} onChange={(e) => setInitialPayment((p) => ({ ...p, reference: e.target.value }))} /></div>
             <div><Label>ملاحظات الدفع</Label><Input className="mt-1.5" value={initialPayment.notes} onChange={(e) => setInitialPayment((p) => ({ ...p, notes: e.target.value }))} /></div>

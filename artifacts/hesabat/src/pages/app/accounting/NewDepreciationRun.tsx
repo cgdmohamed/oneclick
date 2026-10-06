@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { api, ApiError } from '@/lib/api';
 import { formatCurrency, formatDateShort } from '@/lib/format';
 import { ArrowRight, Calculator, Wallet } from 'lucide-react';
+import { SearchableSelect } from '@/components/common/SearchableSelect';
 import { toast } from 'sonner';
 import type { AccountingPeriod, DepreciationRun, DepreciationRunLine } from './types';
 
@@ -43,10 +44,7 @@ const NewDepreciationRun = () => {
         <div className="grid md:grid-cols-3 gap-4 items-end">
           <div className="md:col-span-2">
             <label className="text-sm text-muted-foreground">الفترة المحاسبية</label>
-            <select className="mt-1.5 h-10 w-full rounded-md border bg-background px-3 text-sm" value={periodId} onChange={(e) => setPeriodId(e.target.value)}>
-              <option value="">اختر الفترة</option>
-              {(periods.data ?? []).map((p) => <option key={p.id} value={p.id}>{p.fiscal_year_name} - {p.name} ({formatDateShort(p.starts_on)} / {formatDateShort(p.ends_on)})</option>)}
-            </select>
+            <div className="mt-1.5"><SearchableSelect value={periodId} onValueChange={setPeriodId} placeholder="اختر الفترة" options={(periods.data ?? []).map((p) => ({ value: p.id, label: `${p.fiscal_year_name} - ${p.name}`, sublabel: `${formatDateShort(p.starts_on)} / ${formatDateShort(p.ends_on)}` }))} /></div>
           </div>
           <Button variant="outline" onClick={() => preview.refetch()} disabled={!periodId}><Calculator className="h-4 w-4 ml-1" /> تحديث المعاينة</Button>
         </div>

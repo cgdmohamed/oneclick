@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { SearchableSelect } from '@/components/common/SearchableSelect';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Check, X, RotateCcw, Trash2, Mail, Phone, Building2, Hourglass, ShieldCheck, ShieldX, Search, Loader2, AlertTriangle, CheckCircle2 } from 'lucide-react';
@@ -77,16 +77,7 @@ const ApproveDialog = ({
         <div className="space-y-4">
           <div>
             <Label>الباقة</Label>
-            <Select value={planId} onValueChange={setPlanId}>
-              <SelectTrigger className="mt-1.5"><SelectValue placeholder="اختر الباقة..." /></SelectTrigger>
-              <SelectContent>
-                {plans.map(p => (
-                  <SelectItem key={p.id} value={p.id}>
-                    {p.name} — {formatCurrency(p.price_monthly)} / شهر
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="mt-1.5"><SearchableSelect value={planId} onValueChange={setPlanId} placeholder="اختر الباقة..." options={plans.map(p => ({ value: p.id, label: `${p.name} — ${formatCurrency(p.price_monthly)} / شهر` }))} /></div>
           </div>
           <div>
             <Label>دورة الفوترة</Label>

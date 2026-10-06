@@ -12,6 +12,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { api } from '@/lib/api';
 import { formatCurrency, formatDateShort, paymentMethodLabel } from '@/lib/format';
 import { Plus, Receipt, ArrowUpFromLine, CalendarCheck } from 'lucide-react';
+import { SearchableSelect } from '@/components/common/SearchableSelect';
 import { toast } from 'sonner';
 import type { PurchaseInvoice, SupplierPayment } from './types';
 
@@ -89,13 +90,18 @@ const SupplierPayments = () => {
           <DialogHeader><DialogTitle>دفعة مورد جديدة</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
-              <div><Label>المورد</Label><select className="mt-1.5 h-10 w-full rounded-md border bg-background px-3 text-sm" value={form.supplier_id} onChange={(e) => setForm((p) => ({ ...p, supplier_id: e.target.value, purchase_invoice_id: '' }))}><option value="">سيتم استنتاجه من الفاتورة</option>{(suppliers.data ?? []).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
-              <div><Label>حساب الدفع</Label><select className="mt-1.5 h-10 w-full rounded-md border bg-background px-3 text-sm" value={form.account_id} onChange={(e) => setForm((p) => ({ ...p, account_id: e.target.value }))}><option value="">اختر الحساب</option>{(accounts.data ?? []).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select></div>
+              <div><Label>المورد</Label><div className="mt-1.5"><SearchableSelect value={form.supplier_id} onValueChange={(v) => setForm((p) => ({ ...p, supplier_id: v, purchase_invoice_id: '' }))} placeholder="سيتم استنتاجه من الفاتورة" options={(suppliers.data ?? []).map((s) => ({ value: s.id, label: s.name }))} /></div></div>
+              <div><Label>حساب الدفع</Label><div className="mt-1.5"><SearchableSelect value={form.account_id} onValueChange={(v) => setForm((p) => ({ ...p, account_id: v }))} placeholder="اختر الحساب" options={(accounts.data ?? []).map((a) => ({ value: a.id, label: a.name }))} /></div></div>
             </div>
-            <div><Label>فاتورة الشراء (اختياري)</Label><select className="mt-1.5 h-10 w-full rounded-md border bg-background px-3 text-sm" value={form.purchase_invoice_id} onChange={(e) => {
-              const inv = (invoices.data ?? []).find((i) => i.id === e.target.value);
-              setForm((p) => ({ ...p, purchase_invoice_id: e.target.value, supplier_id: inv?.supplier_id ?? p.supplier_id, amount: inv ? String(inv.remaining) : p.amount }));
-            }}><option value="">بدون ربط</option>{supplierInvoices.map((i) => <option key={i.id} value={i.id}>{i.number} - متبقي {formatCurrency(Number(i.remaining))}</option>)}</select></div>
+            <div><Label>فاتورة الشراء (اختياري)</Label><div className="mt-1.5"><SearchableSelect
+              value={form.purchase_invoice_id}
+              onValueChange={(v) => {
+                const inv = (invoices.data ?? []).find((i) => i.id === v);
+                setForm((p) => ({ ...p, purchase_invoice_id: v, supplier_id: inv?.supplier_id ?? p.supplier_id, amount: inv ? String(inv.remaining) : p.amount }));
+              }}
+              placeholder="بدون ربط"
+              options={supplierInvoices.map((i) => ({ value: i.id, label: i.number, sublabel: `متبقي ${formatCurrency(Number(i.remaining))}` }))}
+            /></div></div>
             <div className="grid grid-cols-2 gap-3">
               <div><Label>المبلغ</Label><Input className="mt-1.5" type="number" value={form.amount} onChange={(e) => setForm((p) => ({ ...p, amount: e.target.value }))} /></div>
               <div><Label>التاريخ</Label><Input className="mt-1.5" type="date" value={form.paid_at} onChange={(e) => setForm((p) => ({ ...p, paid_at: e.target.value }))} /></div>

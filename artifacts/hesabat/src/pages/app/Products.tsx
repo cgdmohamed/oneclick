@@ -662,22 +662,19 @@ const Products = () => {
             searchPlaceholder="ابحث بالمنتج أو الكود أو الباركود..."
             rightToolbar={
               <div className="flex flex-wrap gap-2">
-                <Select value={catFilter} onValueChange={(v) => { setCatFilter(v); setSubcatFilter('all'); }}>
-                  <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">كل التصنيفات</SelectItem>
-                    <SelectItem value="__none__">بدون تصنيف</SelectItem>
-                    {mainCategories.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+                <SearchableSelect
+                  value={catFilter}
+                  onValueChange={(v) => { setCatFilter(v); setSubcatFilter('all'); }}
+                  triggerClassName="w-44"
+                  options={[{ value: 'all', label: 'كل التصنيفات' }, { value: '__none__', label: 'بدون تصنيف' }, ...mainCategories.map(c => ({ value: c.id, label: c.name }))]}
+                />
                 {catFilter !== 'all' && catFilter !== '__none__' && subcategoriesFor(catFilter).length > 0 && (
-                  <Select value={subcatFilter} onValueChange={setSubcatFilter}>
-                    <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">كل التصنيفات الفرعية</SelectItem>
-                      {subcategoriesFor(catFilter).map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                  <SearchableSelect
+                    value={subcatFilter}
+                    onValueChange={setSubcatFilter}
+                    triggerClassName="w-44"
+                    options={[{ value: 'all', label: 'كل التصنيفات الفرعية' }, ...subcategoriesFor(catFilter).map(c => ({ value: c.id, label: c.name }))]}
+                  />
                 )}
               </div>
             }
@@ -751,30 +748,22 @@ const Products = () => {
                 </div>
                 <div>
                   <Label>التصنيف</Label>
-                  <Select
+                  <div className="mt-1.5"><SearchableSelect
                     value={editingParentCategoryId}
                     onValueChange={(v) => setEditing(s => ({ ...s, categoryId: v === '__none__' ? undefined : v, parentCategoryId: v === '__none__' ? undefined : v, subcategoryId: undefined }))}
-                  >
-                    <SelectTrigger className="mt-1.5"><SelectValue placeholder="اختر تصنيفاً" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__none__">بدون تصنيف</SelectItem>
-                      {mainCategories.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                    placeholder="اختر تصنيفاً"
+                    options={[{ value: '__none__', label: 'بدون تصنيف' }, ...mainCategories.map(c => ({ value: c.id, label: c.name }))]}
+                  /></div>
                 </div>
                 <div>
                   <Label>التصنيف الفرعي</Label>
-                  <Select
+                  <div className="mt-1.5"><SearchableSelect
                     value={editingSubcategoryId}
                     onValueChange={(v) => setEditing(s => ({ ...s, categoryId: v === '__none__' ? (editingParentCategoryId === '__none__' ? undefined : editingParentCategoryId) : v, subcategoryId: v === '__none__' ? undefined : v }))}
                     disabled={editingParentCategoryId === '__none__' || subcategoriesFor(editingParentCategoryId).length === 0}
-                  >
-                    <SelectTrigger className="mt-1.5"><SelectValue placeholder="اختر تصنيفاً فرعياً" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__none__">بدون تصنيف فرعي</SelectItem>
-                      {subcategoriesFor(editingParentCategoryId).map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                    placeholder="اختر تصنيفاً فرعياً"
+                    options={[{ value: '__none__', label: 'بدون تصنيف فرعي' }, ...subcategoriesFor(editingParentCategoryId).map(c => ({ value: c.id, label: c.name }))]}
+                  /></div>
                 </div>
                 <div><Label htmlFor="product-unit">الوحدة</Label><Input id="product-unit" className="mt-1.5" value={(editing as { unit?: string }).unit ?? ''} onChange={e => setEditing(s => ({ ...s, unit: e.target.value }))} placeholder="قطعة" /></div>
               </TabsContent>
@@ -976,13 +965,7 @@ const Products = () => {
                 onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addCategory(); } }}
                 disabled={catSaving}
               />
-              <Select value={newCatParent} onValueChange={setNewCatParent}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__main__">تصنيف رئيسي</SelectItem>
-                  {mainCategories.map(c => <SelectItem key={c.id} value={c.id}>فرعي من: {c.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <SearchableSelect value={newCatParent} onValueChange={setNewCatParent} options={[{ value: '__main__', label: 'تصنيف رئيسي' }, ...mainCategories.map(c => ({ value: c.id, label: `فرعي من: ${c.name}` }))]} />
               <Button onClick={addCategory} disabled={catSaving}>
                 {catSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Plus className="h-4 w-4 me-1" /> إضافة</>}
               </Button>
@@ -1063,17 +1046,12 @@ const Products = () => {
               </div>
               <div>
                 <Label>التصنيف الرئيسي</Label>
-                <Select
+                <div className="mt-1.5"><SearchableSelect
                   value={mappingCat.parent_id ?? '__main__'}
                   onValueChange={(v) => setMappingCat(s => s ? { ...s, parent_id: v === '__main__' ? null : v } : s)}
                   disabled={(mappingCat.subcategory_count ?? 0) > 0}
-                >
-                  <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__main__">تصنيف رئيسي</SelectItem>
-                    {mainCategories.filter(c => c.id !== mappingCat.id).map(c => <SelectItem key={c.id} value={c.id}>فرعي من: {c.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+                  options={[{ value: '__main__', label: 'تصنيف رئيسي' }, ...mainCategories.filter(c => c.id !== mappingCat.id).map(c => ({ value: c.id, label: `فرعي من: ${c.name}` }))]}
+                /></div>
               </div>
               <div className="grid sm:grid-cols-2 gap-3">
                 <div><Label className="text-xs">المبيعات</Label>{accountSelect(mappingCat.sales_account_id, (v) => setMappingCat(s => s ? { ...s, sales_account_id: v ?? null } : s))}</div>

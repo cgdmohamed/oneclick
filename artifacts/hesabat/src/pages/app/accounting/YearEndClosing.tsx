@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { api, ApiError } from '@/lib/api';
 import { formatCurrency, formatDateShort } from '@/lib/format';
 import { AlertTriangle, CheckCircle2, FileText, Lock, Scale, Wallet } from 'lucide-react';
+import { SearchableSelect } from '@/components/common/SearchableSelect';
 import { toast } from 'sonner';
 import type { FiscalYear, JournalEntry } from './types';
 
@@ -98,9 +99,7 @@ const YearEndClosing = () => {
         <div className="grid md:grid-cols-4 gap-4 items-end">
           <div className="md:col-span-2">
             <label className="text-sm text-muted-foreground">السنة المالية</label>
-            <select className="mt-1.5 h-10 w-full rounded-md border bg-background px-3 text-sm" value={selectedYearId} onChange={(e) => setYearId(e.target.value)}>
-              {years.map((year) => <option key={year.id} value={year.id}>{year.name} - {formatDateShort(year.starts_on)} / {formatDateShort(year.ends_on)}</option>)}
-            </select>
+            <div className="mt-1.5"><SearchableSelect value={selectedYearId} onValueChange={setYearId} options={years.map((year) => ({ value: year.id, label: year.name, sublabel: `${formatDateShort(year.starts_on)} / ${formatDateShort(year.ends_on)}` }))} /></div>
           </div>
           <div>{preview?.fiscal_year.is_closed ? <Badge variant="secondary">مغلقة</Badge> : <Badge>مفتوحة</Badge>}</div>
           {preview?.existing_closing ? <Button variant="outline" onClick={() => navigate(`/app/accounting/journals/${preview.existing_closing!.id}`)}><FileText className="h-4 w-4 ml-1" /> عرض قيد الإقفال</Button> : null}

@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { PageHeader } from '@/components/common/PageHeader';
 import { StatCard } from '@/components/common/StatCard';
+import { SearchableSelect } from '@/components/common/SearchableSelect';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -256,31 +257,19 @@ const Overview = () => {
               </div>
               <div>
                 <Label>الفرع</Label>
-                <select className="mt-1.5 h-10 w-full rounded-md border bg-background px-3 text-sm" value={branchId} onChange={(e) => setBranchId(e.target.value)}>
-                  <option value="">كل الفروع</option>
-                  {(branches.data ?? []).filter((b) => b.is_active).map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-                </select>
+                <div className="mt-1.5"><SearchableSelect value={branchId} onValueChange={setBranchId} placeholder="كل الفروع" options={(branches.data ?? []).filter((b) => b.is_active).map((b) => ({ value: b.id, label: b.name }))} /></div>
               </div>
               <div>
                 <Label>مركز التكلفة</Label>
-                <select className="mt-1.5 h-10 w-full rounded-md border bg-background px-3 text-sm" value={costCenterId} onChange={(e) => setCostCenterId(e.target.value)}>
-                  <option value="">كل مراكز التكلفة</option>
-                  {(costCenters.data ?? []).filter((c) => c.is_active).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
+                <div className="mt-1.5"><SearchableSelect value={costCenterId} onValueChange={setCostCenterId} placeholder="كل مراكز التكلفة" options={(costCenters.data ?? []).filter((c) => c.is_active).map((c) => ({ value: c.id, label: c.name }))} /></div>
               </div>
               <div>
                 <Label>التصنيف</Label>
-                <select className="mt-1.5 h-10 w-full rounded-md border bg-background px-3 text-sm" value={categoryId} onChange={(e) => { setCategoryId(e.target.value); setSubcategoryId(''); }}>
-                  <option value="">كل التصنيفات</option>
-                  {mainCategories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
+                <div className="mt-1.5"><SearchableSelect value={categoryId} onValueChange={(v) => { setCategoryId(v); setSubcategoryId(''); }} placeholder="كل التصنيفات" options={mainCategories.map((c) => ({ value: c.id, label: c.name }))} /></div>
               </div>
               <div>
                 <Label>التصنيف الفرعي</Label>
-                <select className="mt-1.5 h-10 w-full rounded-md border bg-background px-3 text-sm" value={subcategoryId} onChange={(e) => setSubcategoryId(e.target.value)} disabled={!categoryId || subcategoriesFor(categoryId).length === 0}>
-                  <option value="">كل التصنيفات الفرعية</option>
-                  {subcategoriesFor(categoryId).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
+                <div className="mt-1.5"><SearchableSelect value={subcategoryId} onValueChange={setSubcategoryId} placeholder="كل التصنيفات الفرعية" disabled={!categoryId || subcategoriesFor(categoryId).length === 0} options={subcategoriesFor(categoryId).map((c) => ({ value: c.id, label: c.name }))} /></div>
               </div>
               <Button className="w-full" onClick={() => setFiltersOpen(false)}>تطبيق</Button>
             </div>

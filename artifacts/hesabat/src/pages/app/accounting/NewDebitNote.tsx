@@ -129,7 +129,7 @@ const NewDebitNote = () => {
       <Card className="p-4 border-border/60 space-y-4">
         <div className="grid md:grid-cols-4 gap-4">
           <div><Label>العميل</Label><div className="mt-1.5"><SearchableSelect value={customerId} onValueChange={(v) => { setCustomerId(v); setInvoiceId(''); }} options={(customers.data ?? []).map((c) => ({ value: c.id, label: c.name }))} placeholder="اختر العميل" searchPlaceholder="ابحث عن عميل..." /></div></div>
-          <div><Label>الفاتورة الأصلية</Label><Select value={invoiceId || 'none'} onValueChange={(v) => setInvoiceId(v === 'none' ? '' : v)}><SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="none">بدون ربط</SelectItem>{customerInvoices.map((invoice) => <SelectItem key={invoice.id} value={invoice.id}>{invoice.number}</SelectItem>)}</SelectContent></Select></div>
+          <div><Label>الفاتورة الأصلية</Label><div className="mt-1.5"><SearchableSelect value={invoiceId} onValueChange={setInvoiceId} placeholder="بدون ربط" options={customerInvoices.map((invoice) => ({ value: invoice.id, label: invoice.number }))} /></div></div>
           <div><Label>رقم الإشعار</Label><Input className="mt-1.5 text-muted-foreground" value="سيُحدَّد تلقائيًا بعد الحفظ" disabled /></div>
           <div><Label>التاريخ</Label><Input className="mt-1.5" type="date" value={date} onChange={(e) => setDate(e.target.value)} /></div>
           <div><Label>الحالة</Label><Select value={status} onValueChange={(v) => setStatus(v as 'draft' | 'posted')}><SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="draft">مسودة</SelectItem><SelectItem value="posted">مرحل مباشرة</SelectItem></SelectContent></Select></div>

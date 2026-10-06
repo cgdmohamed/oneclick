@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { SearchableSelect } from '@/components/common/SearchableSelect';
 import { toast } from 'sonner';
 import { api, isApiConfigured, ApiError } from '@/lib/api';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -231,17 +232,7 @@ const Subscriptions = () => {
               </div>
               <div>
                 <Label>محفظة التحصيل</Label>
-                <Select value={walletId} onValueChange={setWalletId}>
-                  <SelectTrigger className="mt-1.5"><SelectValue placeholder="اختر محفظة" /></SelectTrigger>
-                  <SelectContent>
-                    {(walletsQuery.data ?? []).map((w) => (
-                      <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>
-                    ))}
-                    {(walletsQuery.data ?? []).length === 0 && (
-                      <SelectItem value="none" disabled>لا توجد محافظ — أنشئها من صفحة محافظ التحصيل</SelectItem>
-                    )}
-                  </SelectContent>
-                </Select>
+                <div className="mt-1.5"><SearchableSelect value={walletId} onValueChange={setWalletId} placeholder="اختر محفظة" emptyText="لا توجد محافظ — أنشئها من صفحة محافظ التحصيل" options={(walletsQuery.data ?? []).map((w) => ({ value: w.id, label: w.name }))} /></div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -304,17 +295,7 @@ const Subscriptions = () => {
               </div>
               <div>
                 <Label>الباقة الجديدة</Label>
-                <Select value={newPlanId} onValueChange={setNewPlanId}>
-                  <SelectTrigger className="mt-1.5"><SelectValue placeholder="اختر الباقة" /></SelectTrigger>
-                  <SelectContent>
-                    {(plansQuery.data ?? []).map((p) => (
-                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                    ))}
-                    {(plansQuery.data ?? []).length === 0 && (
-                      <SelectItem value="none" disabled>لا توجد باقات مفعّلة</SelectItem>
-                    )}
-                  </SelectContent>
-                </Select>
+                <div className="mt-1.5"><SearchableSelect value={newPlanId} onValueChange={setNewPlanId} placeholder="اختر الباقة" emptyText="لا توجد باقات مفعّلة" options={(plansQuery.data ?? []).map((p) => ({ value: p.id, label: p.name }))} /></div>
               </div>
               <div>
                 <Label>دورة الفوترة</Label>

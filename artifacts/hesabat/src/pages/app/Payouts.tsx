@@ -201,10 +201,7 @@ const Payouts = () => {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>الحساب المالي *</Label>
-                <Select value={form.account_id} onValueChange={(v) => setForm(p => ({ ...p, account_id: v }))}>
-                  <SelectTrigger className="mt-1.5"><SelectValue placeholder="اختر حساباً" /></SelectTrigger>
-                  <SelectContent>{accounts.map(a => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}</SelectContent>
-                </Select>
+                <div className="mt-1.5"><SearchableSelect value={form.account_id} onValueChange={(v) => setForm(p => ({ ...p, account_id: v }))} placeholder="اختر حساباً" options={accounts.map(a => ({ value: a.id, label: a.name }))} /></div>
               </div>
               <div>
                 <Label>المبلغ *</Label>
@@ -236,13 +233,7 @@ const Payouts = () => {
               </div>
               <div>
                 <Label>التصنيف (اختياري)</Label>
-                <Select value={form.expense_category_id || '__none__'} onValueChange={(v) => setForm(p => ({ ...p, expense_category_id: v === '__none__' ? '' : v }))}>
-                  <SelectTrigger className="mt-1.5"><SelectValue placeholder="بدون تصنيف" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">بدون تصنيف</SelectItem>
-                    {categories.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+                <div className="mt-1.5"><SearchableSelect value={form.expense_category_id || '__none__'} onValueChange={(v) => setForm(p => ({ ...p, expense_category_id: v === '__none__' ? '' : v }))} placeholder="بدون تصنيف" options={[{ value: '__none__', label: 'بدون تصنيف' }, ...categories.map(c => ({ value: c.id, label: c.name }))]} /></div>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">

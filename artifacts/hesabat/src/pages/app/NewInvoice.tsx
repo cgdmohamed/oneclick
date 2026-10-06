@@ -359,23 +359,11 @@ const NewInvoice = ({ asModal = false, defaultClientId, onCancel, onCreated }: N
           <div className="grid sm:grid-cols-2 gap-4">
             <div>
               <Label>مركز التكلفة</Label>
-              <Select value={costCenterId || '__none__'} onValueChange={(v) => setCostCenterId(v === '__none__' ? '' : v)}>
-                <SelectTrigger className="mt-1.5"><SelectValue placeholder="بدون" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">بدون</SelectItem>
-                  {activeCostCenters.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <div className="mt-1.5"><SearchableSelect value={costCenterId} onValueChange={setCostCenterId} placeholder="بدون" options={activeCostCenters.map(c => ({ value: c.id, label: c.name }))} /></div>
             </div>
             <div>
               <Label>المشروع</Label>
-              <Select value={projectId || '__none__'} onValueChange={(v) => setProjectId(v === '__none__' ? '' : v)}>
-                <SelectTrigger className="mt-1.5"><SelectValue placeholder="بدون" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">بدون</SelectItem>
-                  {activeProjects.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <div className="mt-1.5"><SearchableSelect value={projectId} onValueChange={setProjectId} placeholder="بدون" options={activeProjects.map(p => ({ value: p.id, label: p.name }))} /></div>
             </div>
           </div>
 
@@ -543,10 +531,7 @@ const NewInvoice = ({ asModal = false, defaultClientId, onCancel, onCreated }: N
               </div>
               <div>
                 <Label>حساب التحصيل</Label>
-                <Select value={initialCollection.account_id} onValueChange={(v) => setInitialCollection((p) => ({ ...p, account_id: v }))}>
-                  <SelectTrigger className="mt-1.5 bg-background"><SelectValue placeholder="اختر الحساب عند وجود تحصيل" /></SelectTrigger>
-                  <SelectContent>{(accounts.data ?? []).map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}</SelectContent>
-                </Select>
+                <div className="mt-1.5"><SearchableSelect value={initialCollection.account_id} onValueChange={(v) => setInitialCollection((p) => ({ ...p, account_id: v }))} placeholder="اختر الحساب عند وجود تحصيل" options={(accounts.data ?? []).map((a) => ({ value: a.id, label: a.name }))} /></div>
               </div>
               <div>
                 <Label>طريقة التحصيل</Label>

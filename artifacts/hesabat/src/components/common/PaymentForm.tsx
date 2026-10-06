@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { SearchableSelect } from '@/components/common/SearchableSelect';
 import { Trash2, Plus } from 'lucide-react';
 import { paymentMethodLabel, formatCurrency } from '@/lib/format';
 import type { PaymentMethod, PaymentSplit } from '@/types';
@@ -67,17 +68,13 @@ export const PaymentForm = ({ remaining, onSubmit, onCancel }: PaymentFormProps)
               {/* طريقة الدفع وصف فقط؛ الحساب الفعلي المستلَم فيه المبلغ يُختار
                   بحرية من كل حسابات الشركة (يمكن إنشاء حساب بنكي مخصص
                   للشيكات أو تسويات البطاقات من شاشة الحسابات). */}
-              <Select value={s.accountId} onValueChange={(v) => update(i, { accountId: v })}>
-                <SelectTrigger><SelectValue placeholder="اختر حساباً" /></SelectTrigger>
-                <SelectContent>
-                  {accountsForCompany.map(a => (
-                    <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
-                  ))}
-                  {accountsForCompany.length === 0 && (
-                    <SelectItem value="none" disabled>لا توجد حسابات نشطة</SelectItem>
-                  )}
-                </SelectContent>
-              </Select>
+              <SearchableSelect
+                value={s.accountId}
+                onValueChange={(v) => update(i, { accountId: v })}
+                placeholder="اختر حساباً"
+                emptyText="لا توجد حسابات نشطة"
+                options={accountsForCompany.map(a => ({ value: a.id, label: a.name }))}
+              />
             </div>
             <div className="col-span-10 md:col-span-2">
               <Label className="text-xs">المبلغ</Label>

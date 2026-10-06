@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { api } from '@/lib/api';
 import { AlertTriangle, CheckCircle2, Settings } from 'lucide-react';
+import { SearchableSelect } from '@/components/common/SearchableSelect';
 import { toast } from 'sonner';
 import type { ChartAccount } from './types';
 
@@ -57,6 +58,7 @@ const AccountingSettings = () => {
   const [local, setLocal] = useState<Partial<SettingsRow>>({});
   const values = { ...(settings ?? {}), ...local } as Partial<SettingsRow>;
   const missing = useMemo(() => fields.filter(([key]) => !values[key]), [values]);
+  const accountOptions = useMemo(() => accounts.map((a) => ({ value: a.id, label: `${a.code} - ${a.name}` })), [accounts]);
 
   const initialize = async () => {
     await api.post('/api/accounting/initialize');
@@ -107,14 +109,12 @@ const AccountingSettings = () => {
             <div key={key}>
               <Label>{arabic}</Label>
               <div className="text-xs text-muted-foreground mb-1">{english}</div>
-              <select
-                className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+              <SearchableSelect
                 value={values[key] ?? ''}
-                onChange={(e) => setLocal((p) => ({ ...p, [key]: e.target.value || null }))}
-              >
-                <option value="">اختر حساباً</option>
-                {accounts.map((a) => <option key={a.id} value={a.id}>{a.code} - {a.name}</option>)}
-              </select>
+                onValueChange={(v) => setLocal((p) => ({ ...p, [key]: v || null }))}
+                placeholder="اختر حساباً"
+                options={accountOptions}
+              />
             </div>
           ))}
         </div>
