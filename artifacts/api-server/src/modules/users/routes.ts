@@ -5,6 +5,7 @@ import { pool } from '../../db/client.js';
 import { requireRole } from '../../middleware/rbac.js';
 import { badRequest } from '../../utils/errors.js';
 import { audit } from '../../utils/audit.js';
+import { logInternalAdminAction } from '../../utils/internalLog.js';
 import { enforceUserLimit } from '../../middleware/planLimits.js';
 import { parsePagination } from '../../utils/pagination.js';
 
@@ -123,12 +124,22 @@ router.patch('/:id/status', requireRole('company_admin'), async (req, res, next)
     );
     if (!updated.rowCount) throw badRequest('User not found');
 
+    const action = body.disabled ? 'user.disable' : 'user.enable';
     await audit(t.db, {
       companyId: t.companyId, userId: req.auth!.userId,
-      action: body.disabled ? 'user.disable' : 'user.enable',
-      entity: 'user', entityId: id,
+      action, entity: 'user', entityId: id,
       data: { disabled: body.disabled },
     });
+    // Only logged when the actor is a super admin (e.g. acting via "View as
+    // Company") — a company's own admin disabling their own staff is routine
+    // and already covered by the regular audit log above.
+    if (t.isSuperAdmin) {
+      await logInternalAdminAction({
+        actorUserId: req.auth!.userId, action,
+        targetType: 'user', targetId: id, targetLabel: updated.rows[0].email,
+        details: { company_id: t.companyId },
+      });
+    }
 
     res.json({ data: updated.rows[0] });
   } catch (e) { next(e); }
@@ -138,6 +149,7 @@ router.delete('/:id', requireRole('company_admin'), async (req, res, next) => {
   try {
     const t = req.tenant!;
     if (req.params.id === req.auth!.userId) throw badRequest('Cannot remove yourself');
+    const targetUser = await pool.query(`SELECT email FROM users WHERE id = $1`, [req.params.id]);
     const c = await pool.connect();
     try {
       await c.query('BEGIN');
@@ -146,6 +158,13 @@ router.delete('/:id', requireRole('company_admin'), async (req, res, next) => {
       await c.query('COMMIT');
     } catch (e) { await c.query('ROLLBACK'); throw e; } finally { c.release(); }
     const id = req.params.id as string;
+    if (t.isSuperAdmin) {
+      await logInternalAdminAction({
+        actorUserId: req.auth!.userId, action: 'user.remove',
+        targetType: 'user', targetId: id, targetLabel: targetUser.rows[0]?.email ?? null,
+        details: { company_id: t.companyId },
+      });
+    }
     await audit(t.db, {
       companyId: t.companyId, userId: req.auth!.userId,
       action: 'user.remove', entity: 'user', entityId: id,
