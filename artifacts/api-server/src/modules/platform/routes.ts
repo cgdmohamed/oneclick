@@ -11,6 +11,7 @@ import { pool } from '../../db/client.js';
 import { requireSuperAdmin } from '../../middleware/rbac.js';
 import { badRequest, notFound } from '../../utils/errors.js';
 import { audit } from '../../utils/audit.js';
+import { logInternalAdminAction } from '../../utils/internalLog.js';
 import { adminSettingsRouter } from './settingsRoutes.js';
 import { parsePagination } from '../../utils/pagination.js';
 import { sendEmail } from '../../utils/email.js';
@@ -301,6 +302,11 @@ router.post('/view-as/stop', async (req, res, next) => {
       entity: 'company',
       entityId: companyId,
     });
+    await logInternalAdminAction({
+      actorUserId: req.auth!.userId, action: 'view_as_company_stop',
+      targetType: 'company', targetId: companyId, targetLabel: null,
+      requestId: req.id as string | undefined, requestIp: req.ip,
+    });
     res.json({ data: true });
   } catch (e) { next(e); }
 });
@@ -316,6 +322,11 @@ router.post('/view-as/:companyId', async (req, res, next) => {
       entity: 'company',
       entityId: company.rows[0].id,
       data: { company_name: company.rows[0].name },
+    });
+    await logInternalAdminAction({
+      actorUserId: req.auth!.userId, action: 'view_as_company_start',
+      targetType: 'company', targetId: company.rows[0].id, targetLabel: company.rows[0].name,
+      requestId: req.id as string | undefined, requestIp: req.ip,
     });
     res.json({ data: { id: company.rows[0].id, name: company.rows[0].name } });
   } catch (e) { next(e); }
@@ -490,6 +501,11 @@ router.patch('/companies/:id/review', async (req, res, next) => {
       action: `company.review_${body.review_status}`, entity: 'company', entityId: req.params.id,
       data: { review_status: body.review_status, review_notes: body.review_notes ?? null },
     });
+    await logInternalAdminAction({
+      actorUserId: reviewedBy, action: `company.review_${body.review_status}`,
+      targetType: 'company', targetId: req.params.id, targetLabel: rs.rows[0].name,
+      details: { review_status: body.review_status },
+    });
     res.json({ data: rs.rows[0] });
   } catch (e) { next(e); }
 });
@@ -502,10 +518,14 @@ router.patch('/companies/:id', async (req, res, next) => {
       [body.is_active, req.params.id],
     );
     if (!rs.rowCount) throw notFound();
+    const action = body.is_active ? 'company.activate' : 'company.suspend';
     await audit(pool, {
       companyId: req.params.id, userId: req.auth!.userId,
-      action: body.is_active ? 'company.activate' : 'company.suspend',
-      entity: 'company', entityId: req.params.id,
+      action, entity: 'company', entityId: req.params.id,
+    });
+    await logInternalAdminAction({
+      actorUserId: req.auth!.userId, action,
+      targetType: 'company', targetId: req.params.id, targetLabel: rs.rows[0].name,
     });
     res.json({ data: rs.rows[0] });
   } catch (e) { next(e); }
@@ -548,6 +568,12 @@ router.patch('/subscriptions/:companyId/plan', async (req, res, next) => {
       companyId: req.params.companyId, userId: req.auth!.userId,
       action: 'company.plan_change', entity: 'subscription', entityId: req.params.companyId,
       data: { plan_id: body.plan_id, cycle: body.cycle, amount: body.amount },
+    });
+    const companyName = await pool.query(`SELECT name FROM companies WHERE id = $1`, [req.params.companyId]);
+    await logInternalAdminAction({
+      actorUserId: req.auth!.userId, action: 'company.plan_change',
+      targetType: 'company', targetId: req.params.companyId, targetLabel: companyName.rows[0]?.name ?? null,
+      details: { plan_id: body.plan_id, cycle: body.cycle, amount: body.amount },
     });
     res.json({ ok: true });
   } catch (e) {
@@ -1134,6 +1160,10 @@ router.patch('/signups/:id/reset', async (req, res, next) => {
       companyId: req.params.id, userId: reviewedBy,
       action: 'company.reset_review', entity: 'company', entityId: req.params.id,
     });
+    await logInternalAdminAction({
+      actorUserId: reviewedBy, action: 'company.reset_review',
+      targetType: 'company', targetId: req.params.id, targetLabel: null,
+    });
     const updated = await pool.query(
       `SELECT ${SIGNUP_COLS} FROM companies c WHERE c.id = $1`,
       [req.params.id],
@@ -1145,7 +1175,7 @@ router.patch('/signups/:id/reset', async (req, res, next) => {
 router.delete('/signups/:id', async (req, res, next) => {
   try {
     const company = await pool.query(
-      `SELECT id, review_status FROM companies WHERE id = $1`,
+      `SELECT id, name, email, review_status FROM companies WHERE id = $1`,
       [req.params.id],
     );
     if (!company.rowCount) throw notFound('Company not found');
@@ -1160,6 +1190,15 @@ router.delete('/signups/:id', async (req, res, next) => {
     if (await companyHasOperationalData(req.params.id)) {
       throw badRequest('This company has existing data and cannot be deleted. Decline it instead.');
     }
+
+    // Snapshot identifying details before the row (and its cascaded audit_log
+    // rows — audit_log.company_id is ON DELETE CASCADE) are gone for good.
+    await logInternalAdminAction({
+      actorUserId: req.auth!.userId, action: 'company.delete',
+      targetType: 'company', targetId: req.params.id,
+      targetLabel: company.rows[0].name,
+      details: { email: company.rows[0].email },
+    });
 
     await pool.query(`DELETE FROM companies WHERE id = $1`, [req.params.id]);
     await audit(pool, {
@@ -1328,7 +1367,7 @@ router.patch('/users/:id/role', async (req, res, next) => {
   try {
     const body = userRoleSchema.parse(req.body);
     const existing = await pool.query(
-      `SELECT id FROM user_companies WHERE user_id = $1 AND company_id = $2`,
+      `SELECT 1 FROM user_companies WHERE user_id = $1 AND company_id = $2`,
       [req.params.id, body.company_id],
     );
     if (!existing.rowCount) throw notFound('User not in this company');
@@ -1347,6 +1386,12 @@ router.patch('/users/:id/role', async (req, res, next) => {
       companyId: body.company_id, userId: req.auth!.userId,
       action: 'user.role_change', entity: 'user', entityId: req.params.id,
       data: { role: body.role },
+    });
+    const target = await pool.query(`SELECT email FROM users WHERE id = $1`, [req.params.id]);
+    await logInternalAdminAction({
+      actorUserId: req.auth!.userId, action: 'user.role_change',
+      targetType: 'user', targetId: req.params.id, targetLabel: target.rows[0]?.email ?? null,
+      details: { company_id: body.company_id, role: body.role },
     });
     res.json({ ok: true });
   } catch (e) { next(e); }
