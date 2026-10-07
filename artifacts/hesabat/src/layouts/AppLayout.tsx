@@ -19,7 +19,7 @@ import { useCurrentFeatureSet } from '@/hooks/usePlanAccess';
 import { OnboardingWizard } from '@/components/common/OnboardingWizard';
 import { Sparkles } from 'lucide-react';
 import PendingApproval from '@/pages/app/PendingApproval';
-import { isApiConfigured } from '@/lib/api';
+import { isApiConfigured, isViewAsActive, setViewAsActive, setActiveCompanyId, getActiveCompanyId, api } from '@/lib/api';
 import { GlobalSearch } from '@/components/common/GlobalSearch';
 
 type NavItem = {
@@ -239,6 +239,15 @@ const AppShellInner = ({ kind }: { kind: 'company' | 'admin' }) => {
     isApiConfigured() &&
     !hasActivePlan;
 
+  const viewingAsCompany = kind === 'company' && user?.role === 'super_admin' && isViewAsActive();
+  const exitViewAs = async () => {
+    const companyId = getActiveCompanyId();
+    try { await api.post('/api/platform/view-as/stop', { company_id: companyId }); } catch { /* best-effort */ }
+    setActiveCompanyId(null);
+    setViewAsActive(false);
+    window.location.href = '/admin/companies';
+  };
+
   const navGroups = (kind === 'admin' ? adminNavGroups : companyNavGroups)
     .map((group) => ({
       ...group,
@@ -409,6 +418,20 @@ const AppShellInner = ({ kind }: { kind: 'company' | 'admin' }) => {
           </DropdownMenu>
         </header>
         <main className="flex-1 p-4 md:p-6 lg:p-8">
+          {viewingAsCompany && (
+            <div
+              dir="rtl"
+              className="mb-4 flex items-center gap-3 rounded-xl border border-warning/40 bg-warning/10 px-4 py-3 text-sm text-foreground"
+            >
+              <Crown className="h-4 w-4 text-warning shrink-0" />
+              <p className="flex-1 leading-relaxed">
+                أنت تستعرض بيانات شركة <span className="font-semibold">«{companyName}»</span> بصفة سوبر أدمن.
+              </p>
+              <Button variant="outline" size="sm" className="gap-1 shrink-0" onClick={exitViewAs}>
+                <LogOut className="h-4 w-4" /> الخروج من وضع العرض
+              </Button>
+            </div>
+          )}
           {showNoPlanBanner && (
             <div
               dir="rtl"

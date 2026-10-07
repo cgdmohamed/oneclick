@@ -3,7 +3,8 @@ import type { Role, User } from '@/types';
 import { users, companies } from '@/data/mock';
 import {
   isApiConfigured, getAccessToken, setAccessToken, setRefreshToken,
-  setActiveCompanyId, api, setPendingApprovalCallback,
+  setActiveCompanyId, getActiveCompanyId, isViewAsActive, setViewAsActive,
+  api, setPendingApprovalCallback,
 } from '@/lib/api';
 import { setCompanyCurrencyCode } from '@/lib/currency';
 
@@ -67,7 +68,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         if (cancelled) return;
         setPendingApproval(false);
         const defaultCompany = me.companies.find((c) => c.is_default) ?? me.companies[0];
-        if (defaultCompany) setActiveCompanyId(defaultCompany.id);
+        // A super admin viewing a company via the "عرض كالشركة" action has no
+        // real membership in `me.companies`, so the deliberately-set company_id
+        // in localStorage must survive this hydration. Anyone else — including
+        // a super admin NOT in that mode — gets the active company resolved
+        // strictly from their own `me.companies`, clearing any stale leftover
+        // from a previous, unrelated login on the same browser.
+        const viewingAs = me.user.is_super_admin && isViewAsActive() && !!getActiveCompanyId();
+        if (defaultCompany) {
+          setActiveCompanyId(defaultCompany.id);
+        } else if (!viewingAs) {
+          setActiveCompanyId(null);
+          setViewAsActive(false);
+        }
+        const effectiveCompanyId = defaultCompany?.id ?? (viewingAs ? getActiveCompanyId() ?? undefined : undefined);
         const role: Role = me.user.is_super_admin
           ? 'super_admin'
           : (me.roles[0]?.role ?? 'company_admin');
@@ -76,17 +90,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           name: me.user.name,
           email: me.user.email,
           role,
-          companyId: defaultCompany?.id,
+          companyId: effectiveCompanyId,
         });
         setOnboardingDone(!!me.user.onboarding_done);
         setApiCompanyName(defaultCompany?.name ?? null);
         setHasActivePlan(me.has_active_plan ?? me.user.is_super_admin);
 
-        if (defaultCompany?.id) {
+        if (effectiveCompanyId) {
           try {
-            const co = await api.get<{ data: { currency?: string } }>('/api/companies/me');
-            if (!cancelled && co?.data?.currency) {
-              setCompanyCurrencyCode(co.data.currency);
+            const co = await api.get<{ data: { name?: string; currency?: string } }>('/api/companies/me');
+            if (!cancelled) {
+              if (viewingAs && co?.data?.name) setApiCompanyName(co.data.name);
+              if (co?.data?.currency) setCompanyCurrencyCode(co.data.currency);
             }
           } catch { /* ignore — currency stays at default */ }
         }
@@ -140,6 +155,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setAccessToken(null);
         setRefreshToken(null);
         setActiveCompanyId(null);
+        setViewAsActive(false);
       }
     },
     setRole: (role: Role) => {

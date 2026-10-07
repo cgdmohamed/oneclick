@@ -281,6 +281,46 @@ router.delete('/subscription-payments/:id', async (req, res, next) => {
   }
 });
 
+/* ---------------- View as Company (super-admin impersonation) ----------------
+ * A deliberate, audited way for a super admin to browse /app/* screens scoped
+ * to a specific company with full company_admin-equivalent access (the same
+ * tenantContext bypass already grants this once x-company-id is set — see
+ * middleware/tenant.ts — this just adds an explicit, logged entry/exit point
+ * instead of that header being trusted silently).
+ */
+// Must come before the /:companyId route below — Express matches routes in
+// registration order, and a param route registered first would swallow the
+// literal "stop" segment as if it were a company id.
+router.post('/view-as/stop', async (req, res, next) => {
+  try {
+    const companyId = (req.body?.company_id as string | undefined) ?? null;
+    await audit(pool, {
+      companyId,
+      userId: req.auth!.userId,
+      action: 'view_as_company_stop',
+      entity: 'company',
+      entityId: companyId,
+    });
+    res.json({ data: true });
+  } catch (e) { next(e); }
+});
+
+router.post('/view-as/:companyId', async (req, res, next) => {
+  try {
+    const company = await pool.query(`SELECT id, name FROM companies WHERE id = $1`, [req.params.companyId]);
+    if (!company.rowCount) throw notFound('Company not found');
+    await audit(pool, {
+      companyId: company.rows[0].id,
+      userId: req.auth!.userId,
+      action: 'view_as_company_start',
+      entity: 'company',
+      entityId: company.rows[0].id,
+      data: { company_name: company.rows[0].name },
+    });
+    res.json({ data: { id: company.rows[0].id, name: company.rows[0].name } });
+  } catch (e) { next(e); }
+});
+
 /* ---------------- Audit Log (super-admin) ---------------- */
 router.get('/audit-log', async (req, res, next) => {
   try {
