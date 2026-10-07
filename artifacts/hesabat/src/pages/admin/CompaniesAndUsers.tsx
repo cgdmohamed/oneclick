@@ -4,9 +4,10 @@ import { PageHeader } from '@/components/common/PageHeader';
 import { DataTable, Column } from '@/components/common/DataTable';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, Loader2 } from 'lucide-react';
-import { api, isApiConfigured } from '@/lib/api';
+import { ChevronLeft, Eye, Loader2 } from 'lucide-react';
+import { api, isApiConfigured, ApiError, setActiveCompanyId, setViewAsActive } from '@/lib/api';
 import { companyStatusLabel, formatDateShort } from '@/lib/format';
+import { toast } from 'sonner';
 
 interface ApiRow {
   id: string;
@@ -62,6 +63,17 @@ const CompaniesAndUsers = () => {
     enabled: isApiConfigured(),
   });
 
+  const viewAsCompany = async (id: string) => {
+    try {
+      const res = await api.post<{ data: { id: string; name: string } }>(`/api/platform/view-as/${id}`, {});
+      setActiveCompanyId(res.data.id);
+      setViewAsActive(true);
+      window.location.href = '/app';
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : 'تعذّر الدخول كالشركة');
+    }
+  };
+
   const columns: Column<Row>[] = [
     {
       key: 'company', header: 'الشركة', cell: r => (
@@ -80,11 +92,16 @@ const CompaniesAndUsers = () => {
     },
     {
       key: 'actions', header: '', cell: r => (
-        <Button asChild variant="ghost" size="sm" className="gap-1" disabled={!r.ownerUserId}>
-          <Link to={`/admin/users/${r.ownerUserId ?? ''}`}>إدارة
-            <ChevronLeft className="h-4 w-4" />
-          </Link>
-        </Button>
+        <div className="flex items-center justify-end gap-1">
+          <Button variant="ghost" size="sm" className="gap-1" onClick={() => viewAsCompany(r.id)}>
+            <Eye className="h-4 w-4" /> عرض كالشركة
+          </Button>
+          <Button asChild variant="ghost" size="sm" className="gap-1" disabled={!r.ownerUserId}>
+            <Link to={`/admin/users/${r.ownerUserId ?? ''}`}>إدارة
+              <ChevronLeft className="h-4 w-4" />
+            </Link>
+          </Button>
+        </div>
       ),
     },
   ];

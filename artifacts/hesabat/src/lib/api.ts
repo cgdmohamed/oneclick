@@ -10,6 +10,7 @@
 const TOKEN_KEY = 'hesabat.access_token';
 const REFRESH_KEY = 'hesabat.refresh_token'; // legacy — cleared on load
 const COMPANY_KEY = 'hesabat.company_id';
+const VIEW_AS_KEY = 'hesabat.view_as_active';
 
 // When VITE_API_URL is the sentinel "same-origin" we use empty string so all
 // fetch paths are relative (handled by the Vite dev proxy → /api/* → backend).
@@ -40,6 +41,18 @@ export const setRefreshToken = (_t: string | null): void => { /* cookie-managed 
 export const getActiveCompanyId = () => localStorage.getItem(COMPANY_KEY);
 export const setActiveCompanyId = (id: string | null) =>
   id ? localStorage.setItem(COMPANY_KEY, id) : localStorage.removeItem(COMPANY_KEY);
+
+/**
+ * "View as company" marker — set only by the super-admin "عرض كالشركة" action
+ * (CompaniesAndUsers.tsx) so the auth hydration effect can tell a deliberate
+ * impersonation session apart from a stale company_id left over in localStorage
+ * from a previous, unrelated login on the same browser (the original bug this
+ * guards against: a super admin login silently inheriting another account's
+ * last-active company because nothing ever cleared it).
+ */
+export const isViewAsActive = () => localStorage.getItem(VIEW_AS_KEY) === '1';
+export const setViewAsActive = (active: boolean) =>
+  active ? localStorage.setItem(VIEW_AS_KEY, '1') : localStorage.removeItem(VIEW_AS_KEY);
 
 export class ApiError extends Error {
   constructor(public status: number, message: string, public body?: unknown) {
@@ -236,7 +249,10 @@ function isMfaChallenge(res: LoginResponse | MfaChallengeResponse): res is MfaCh
 
 function applySession(res: LoginResponse) {
   setAccessToken(res.access_token);
-  if (res.company?.id) setActiveCompanyId(res.company.id);
+  // Always resolve fresh — never leave a previous session's company_id in
+  // place when the new login has none (e.g. a super admin with no company).
+  setActiveCompanyId(res.company?.id ?? null);
+  setViewAsActive(false);
 }
 
 export async function loginRequest(email: string, password: string) {
@@ -328,6 +344,7 @@ export async function logoutRequest() {
   try { await api.post('/api/auth/logout'); } catch { /* ignore */ }
   setAccessToken(null);
   setActiveCompanyId(null);
+  setViewAsActive(false);
 }
 
 export async function registerRequest(input: { email: string; password: string; name: string; companyName: string; phone?: string; website?: string }) {

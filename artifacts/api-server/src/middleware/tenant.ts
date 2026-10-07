@@ -1,6 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
 import { pool } from '../db/client.js';
-import { forbidden, unauthorized } from '../utils/errors.js';
+import { badRequest, forbidden, unauthorized } from '../utils/errors.js';
 import type pg from 'pg';
 
 declare module 'express-serve-static-core' {
@@ -63,6 +63,17 @@ export async function tenantContext(req: Request, res: Response, next: NextFunct
   // Non-super-admin users must have a valid company association.
   if (!companyId && !isSuperAdmin) {
     return next(forbidden('No company associated with this account'));
+  }
+
+  // A super admin with no active company selected (hasn't entered "view as
+  // company" mode) must not fall through to a business route with an empty
+  // companyId — every such route assumes t.companyId is always a real UUID,
+  // and an empty string reaching a query raises a confusing low-level
+  // "invalid input syntax for uuid" error instead of a clear one. Only
+  // platform-level (company-agnostic) routes are exempt.
+  const companyAgnostic = req.path.startsWith('/platform') || req.path.startsWith('/plans');
+  if (!companyId && isSuperAdmin && !companyAgnostic) {
+    return next(badRequest('اختر شركة لعرضها أولاً من شاشة "الشركات والمشتركون".'));
   }
 
   // Block access for non-super-admins when the company is inactive.
