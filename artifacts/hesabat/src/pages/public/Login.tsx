@@ -57,7 +57,16 @@ const Login = () => {
         // effect with the newly saved token in localStorage.
         // If a safe same-origin redirect is provided (e.g. from an invitation
         // link), send the user there; otherwise use the default destination.
-        window.location.href = redirectTo ?? (res.user.isSuperAdmin ? '/admin' : '/app');
+        // A super admin is never sent into /app/* via this param — a stale
+        // redirect (e.g. carried over from a session that expired while on
+        // a company page) must not override their landing on /admin. The
+        // reciprocal guard in AppLayout.tsx would bounce them back anyway,
+        // but deciding it here avoids the extra redirect hop.
+        const superAdminDestination =
+          redirectTo && redirectTo.startsWith('/admin') ? redirectTo : '/admin';
+        window.location.href = res.user.isSuperAdmin
+          ? superAdminDestination
+          : (redirectTo ?? '/app');
       } else {
         // Demo mode (no backend configured): require a non-empty password and
         // never grant super_admin via the local mock list.

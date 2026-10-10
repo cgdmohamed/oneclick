@@ -501,6 +501,17 @@ const AppLayout = ({ kind = 'company' as 'company' | 'admin' }) => {
   useEffect(() => {
     if (user && kind === 'admin' && user.role !== 'super_admin') navigate('/app');
   }, [user, kind, navigate]);
+  // Mirror image of the guard above: a super admin has no company of their
+  // own (unless they deliberately entered "View as Company"), so landing on
+  // the company shell — via a stale /login?redirect=/app/... link, a
+  // bookmark, the back button, or typing the URL directly — must bounce
+  // them to the real admin dashboard instead of silently rendering someone
+  // else's company data.
+  useEffect(() => {
+    if (user && kind === 'company' && user.role === 'super_admin' && !isViewAsActive()) {
+      navigate('/admin', { replace: true });
+    }
+  }, [user, kind, navigate]);
   if (pendingApproval) return <PendingApproval />;
   if (authLoading || !user) return null;
   return (
