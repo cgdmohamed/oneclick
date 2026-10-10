@@ -47,7 +47,17 @@ const Login = () => {
 
   const goAfterLogin = (isSuperAdmin?: boolean) => {
     toast.success('تم تسجيل الدخول');
-    window.location.href = redirectTo ?? (isSuperAdmin ? '/admin' : '/app');
+    // A super admin is never sent into /app/* via this param — a stale
+    // redirect (e.g. carried over from a session that expired while on a
+    // company page) must not override their landing on /admin. The
+    // reciprocal guard in AppLayout.tsx would bounce them back anyway, but
+    // deciding it here avoids the extra redirect hop. Applies to every
+    // login path that reaches this helper (password, 2FA, Google).
+    const superAdminDestination =
+      redirectTo && redirectTo.startsWith('/admin') ? redirectTo : '/admin';
+    window.location.href = isSuperAdmin
+      ? superAdminDestination
+      : (redirectTo ?? '/app');
   };
 
   const submitMfaCode = async (e: React.FormEvent) => {
