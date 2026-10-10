@@ -44,7 +44,7 @@ const ApproveDialog = ({
 }) => {
   const [planId, setPlanId] = useState('');
   const [cycle, setCycle] = useState<'monthly' | 'yearly' | 'trial'>('monthly');
-  const [trialDays, setTrialDays] = useState(14);
+  const [trialDays, setTrialDays] = useState(7);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -100,7 +100,7 @@ const ApproveDialog = ({
           {cycle === 'trial' && (
             <div>
               <Label>مدة التجربة (أيام)</Label>
-              <Input type="number" min={1} max={90} value={trialDays} onChange={e => setTrialDays(+e.target.value || 14)} className="mt-1.5" />
+              <Input type="number" min={1} max={90} value={trialDays} onChange={e => setTrialDays(+e.target.value || 7)} className="mt-1.5" />
             </div>
           )}
           <div className="rounded-lg bg-muted/40 p-3 flex items-center justify-between text-sm">

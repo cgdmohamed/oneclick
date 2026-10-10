@@ -239,7 +239,7 @@ const EditCompanyModal = ({ company, onClose, onSaved }: EditModalProps) => {
                   <SelectContent>
                     <SelectItem value="monthly">شهري (30 يوم)</SelectItem>
                     <SelectItem value="yearly">سنوي (365 يوم)</SelectItem>
-                    <SelectItem value="trial">تجريبي (14 يوم)</SelectItem>
+                    <SelectItem value="trial">تجريبي (7 أيام)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

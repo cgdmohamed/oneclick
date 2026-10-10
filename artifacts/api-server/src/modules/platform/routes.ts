@@ -538,7 +538,7 @@ router.patch('/subscriptions/:companyId/plan', async (req, res, next) => {
     const body = z.object({
       plan_id:    z.string().uuid(),
       cycle:      z.enum(['monthly', 'yearly', 'trial']),
-      trial_days: z.coerce.number().int().min(1).max(365).optional().default(14),
+      trial_days: z.coerce.number().int().min(1).max(365).optional().default(7),
       amount:     z.coerce.number().min(0).optional().default(0),
     }).parse(req.body);
     await client.query('BEGIN');
@@ -1016,7 +1016,7 @@ router.get('/signups', async (req, res, next) => {
 const approveSchema = z.object({
   plan_id:    z.string().uuid(),
   cycle:      z.enum(['monthly', 'yearly', 'trial']),
-  trial_days: z.coerce.number().int().min(1).max(365).optional().default(14),
+  trial_days: z.coerce.number().int().min(1).max(365).optional().default(7),
   amount:     z.coerce.number().min(0).optional().default(0),
 });
 
