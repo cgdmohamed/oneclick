@@ -254,17 +254,19 @@ async function postPurchaseReturn(db: any, companyId: string, purchaseReturnId: 
   }
 
   const settings = await getSettings(db, companyId);
-  const inventoryGroups = new Map<string, number>();
+  const inventoryGroups = new Map<string, { accountId: string; productId: string; amount: number }>();
   for (const item of items.rows) {
     const accountId = item.resolved_inventory_account_id ?? settings.inventory_account_id;
     if (!accountId) throw badRequest('Missing inventory account');
-    inventoryGroups.set(accountId, round2((inventoryGroups.get(accountId) ?? 0) + Number(item.quantity) * Number(item.unit_cost)));
+    const key = `${accountId}:${item.product_id}`;
+    const current = inventoryGroups.get(key);
+    inventoryGroups.set(key, { accountId, productId: item.product_id, amount: round2((current?.amount ?? 0) + Number(item.quantity) * Number(item.unit_cost)) });
   }
   const lines: JournalLineInput[] = [
     { accountId: settings.accounts_payable_account_id, debit: Number(ret.total), description: `Purchase return ${ret.return_number}` },
   ];
-  for (const [accountId, amount] of inventoryGroups) {
-    if (amount > 0) lines.push({ accountId, credit: amount, description: `Purchase return ${ret.return_number}` });
+  for (const group of inventoryGroups.values()) {
+    if (group.amount > 0) lines.push({ accountId: group.accountId, credit: group.amount, description: `Purchase return ${ret.return_number}`, productId: group.productId });
   }
   if (Number(ret.vat_amount) > 0) {
     lines.push({ accountId: settings.purchase_vat_account_id, credit: Number(ret.vat_amount), description: `Purchase return VAT ${ret.return_number}` });

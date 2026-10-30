@@ -424,6 +424,7 @@ export async function postSalesInvoice(db: Queryable, companyId: string, invoice
     `SELECT
        ii.cost_center_id,
        ii.project_id,
+       ii.product_id,
        COALESCE(p.sales_account_id, pc.sales_account_id, parent_pc.sales_account_id, $3::uuid) AS account_id,
        COALESCE(SUM(ii.quantity * ii.unit_price),0) AS amount
      FROM invoice_items ii
@@ -431,14 +432,14 @@ export async function postSalesInvoice(db: Queryable, companyId: string, invoice
      LEFT JOIN product_categories pc ON pc.id = p.category_id AND pc.company_id = p.company_id
      LEFT JOIN product_categories parent_pc ON parent_pc.id = pc.parent_id AND parent_pc.company_id = pc.company_id
      WHERE ii.invoice_id = $1 AND ii.company_id = $2
-     GROUP BY 1, 2, 3`,
+     GROUP BY 1, 2, 3, 4`,
     [invoiceId, companyId, s.sales_revenue_account_id],
   );
   const subtotal = Number(inv.subtotal) || 0;
   const revenueRows = revenueGroups.rows.map((row) => {
     const gross = Number(row.amount);
     const discountShare = subtotal > 0 ? round2(Number(inv.discount ?? 0) * (gross / subtotal)) : 0;
-    return { costCenterId: row.cost_center_id ?? null, projectId: row.project_id ?? null, accountId: row.account_id as string | null, amount: round2(gross - discountShare) };
+    return { costCenterId: row.cost_center_id ?? null, projectId: row.project_id ?? null, productId: row.product_id ?? null, accountId: row.account_id as string | null, amount: round2(gross - discountShare) };
   });
   const allocatedRevenue = round2(revenueRows.reduce((sum, row) => sum + row.amount, 0));
   if (revenueRows.length > 0) {
@@ -446,7 +447,7 @@ export async function postSalesInvoice(db: Queryable, companyId: string, invoice
   }
   for (const row of revenueRows) {
     if (row.amount > 0) {
-      lines.push({ accountId: s.sales_revenue_account_id, credit: row.amount, description: `Invoice ${inv.number}`, branchId: inv.branch_id, costCenterId: row.costCenterId, projectId: row.projectId });
+      lines.push({ accountId: s.sales_revenue_account_id, credit: row.amount, description: `Invoice ${inv.number}`, branchId: inv.branch_id, costCenterId: row.costCenterId, projectId: row.projectId, productId: row.productId });
       lines[lines.length - 1].accountId = requireAccount(row.accountId ?? s.sales_revenue_account_id, 'sales revenue');
     }
   }

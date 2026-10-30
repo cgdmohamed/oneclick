@@ -77,7 +77,10 @@ async function postWriteOff(db: any, companyId: string, writeOffId: string, user
   const lossAccountId = settings.inventory_loss_expense_account_id ?? settings.inventory_adjustment_account_id;
   if (!lossAccountId) throw badRequest('Missing Inventory Loss / Damaged Goods Expense account');
 
-  const inventoryGroups = new Map<string, number>();
+  // Keyed by account+product (not just account, like the old single-amount
+  // map) so multiple products sharing one inventory account still get their
+  // own taggable line instead of merging into one untraceable total.
+  const inventoryGroups = new Map<string, { accountId: string; productId: string; amount: number }>();
   let totalCost = 0;
   for (const item of items.rows) {
     if (item.product_type !== 'stock') throw badRequest(`Product "${item.product_name}" is not a stock product`);
@@ -111,15 +114,17 @@ async function postWriteOff(db: any, companyId: string, writeOffId: string, user
        VALUES ($1,$2,'write_off',$3,$4,$5,$6,$7,$8,$9)`,
       [companyId, item.product_id, writeOffId, wo.write_off_date, quantity, unitCost, value, newQty, newValue],
     );
-    inventoryGroups.set(inventoryAccountId, round2((inventoryGroups.get(inventoryAccountId) ?? 0) + value));
+    const key = `${inventoryAccountId}:${item.product_id}`;
+    const current = inventoryGroups.get(key);
+    inventoryGroups.set(key, { accountId: inventoryAccountId, productId: item.product_id, amount: round2((current?.amount ?? 0) + value) });
     totalCost = round2(totalCost + value);
   }
 
   const lines: JournalLineInput[] = [
     { accountId: lossAccountId, debit: totalCost, description: `Inventory write-off ${wo.write_off_number}`, branchId: wo.branch_id, costCenterId: wo.cost_center_id },
   ];
-  for (const [accountId, amount] of inventoryGroups) {
-    if (amount > 0) lines.push({ accountId, credit: amount, description: `Inventory write-off ${wo.write_off_number}`, branchId: wo.branch_id, costCenterId: wo.cost_center_id });
+  for (const group of inventoryGroups.values()) {
+    if (group.amount > 0) lines.push({ accountId: group.accountId, credit: group.amount, description: `Inventory write-off ${wo.write_off_number}`, branchId: wo.branch_id, costCenterId: wo.cost_center_id, productId: group.productId });
   }
 
   const je = await createJournalEntry(db, {
