@@ -27,9 +27,10 @@ interface PaymentRowApi {
   account_name: string;
   invoice_id: string | null;
   invoice_number: string | null;
-  collection_type?: 'invoice_collection' | 'general_receipt';
+  collection_type?: 'invoice_collection' | 'general_receipt' | 'on_account';
   credit_account_id?: string | null;
   credit_account_name?: string | null;
+  client_name?: string | null;
 }
 
 interface PaymentRow {
@@ -39,18 +40,18 @@ interface PaymentRow {
   method: PaymentMethod;
   accountName: string;
   invoiceNumber: string;
-  type: 'invoice_collection' | 'general_receipt';
+  type: 'invoice_collection' | 'general_receipt' | 'on_account';
   creditAccountName?: string | null;
+  clientName: string;
 }
 
 interface Account { id: string; name: string; type: string; }
-interface Invoice { id: string; number: string; remaining: string | number; total: string | number; client_name?: string | null; status: string; }
-interface ChartAccount { id: string; code: string; name: string; type: string; is_active: boolean; }
+interface Invoice { id: string; number: string; remaining: string | number; total: string | number; client_id: string; client_name?: string | null; status: string; }
+interface Client { id: string; name: string; }
 
 const emptyForm = {
-  collection_type: 'invoice_collection' as 'invoice_collection' | 'general_receipt',
+  client_id: '',
   invoice_id: '',
-  credit_account_id: '',
   account_id: '',
   amount: '',
   paid_at: new Date().toISOString().slice(0, 10),
@@ -68,6 +69,7 @@ const initialFlat: PaymentRow[] = mockPayments.flatMap(p => p.splits.map((s, i) 
   accountName: mockAccounts.find(a => a.id === s.accountId)?.name ?? '—',
   invoiceNumber: mockInvoices.find(inv => inv.id === p.invoiceId)?.number ?? '—',
   type: 'invoice_collection',
+  clientName: '—',
 })));
 
 const Payments = () => {
@@ -86,6 +88,7 @@ const Payments = () => {
       invoiceNumber: r.invoice_number ?? '—',
       type: r.collection_type ?? 'invoice_collection',
       creditAccountName: r.credit_account_name ?? null,
+      clientName: r.client_name ?? '—',
     }),
     toRow: () => ({}),
   });
@@ -93,6 +96,15 @@ const Payments = () => {
     enabled: apiOn,
     queryKey: ['accounts'],
     queryFn: async () => (await api.get<{ data: Account[] }>('/api/accounts?page_size=300')).data ?? [],
+  });
+  // Deliberately distinct from the canonical 'clients' cache (useClients())
+  // for the same reason as 'invoices-picker' below — raw rows here, no
+  // camelCase transform, so they must never share a cache key with a
+  // transformed shape elsewhere.
+  const clients = useQuery({
+    enabled: apiOn,
+    queryKey: ['clients-picker'],
+    queryFn: async () => (await api.get<{ data: Client[] }>('/api/clients?page_size=300')).data ?? [],
   });
   // Query key deliberately distinct from the canonical 'invoices' cache used
   // by useInvoices() elsewhere (e.g. Products.tsx) — this fetches raw
@@ -104,11 +116,6 @@ const Payments = () => {
     queryKey: ['invoices-picker'],
     queryFn: async () => (await api.get<{ data: Invoice[] }>('/api/invoices?page_size=300')).data ?? [],
   });
-  const chartAccounts = useQuery({
-    enabled: apiOn,
-    queryKey: ['chart-accounts'],
-    queryFn: async () => (await api.get<{ data: ChartAccount[] }>('/api/accounting/chart-accounts?limit=500')).data ?? [],
-  });
 
   const [method, setMethod] = useState<string>('all');
   const [open, setOpen] = useState(false);
@@ -116,35 +123,39 @@ const Payments = () => {
   const [saving, setSaving] = useState(false);
   const selectedInvoice = (invoices.data ?? []).find((i) => i.id === form.invoice_id);
   const moneyAccounts = accounts.data ?? [];
-  const creditAccounts = (chartAccounts.data ?? []).filter((a) => a.is_active);
+  const clientOpenInvoices = (invoices.data ?? []).filter(
+    (i) => i.client_id === form.client_id && i.status !== 'draft' && i.status !== 'cancelled' && Number(i.remaining) > 0,
+  );
   const filtered = useMemo(
     () => method === 'all' ? list : list.filter(f => f.method === method),
     [method, list],
   );
 
+  const typeLabel = (t: PaymentRow['type']) =>
+    t === 'general_receipt' ? 'تحصيل عام' : t === 'on_account' ? 'تحصيل على الحساب' : 'تحصيل فاتورة';
+
   const columns: Column<PaymentRow>[] = [
     { key: 'date', header: 'التاريخ', cell: r => <span className="text-muted-foreground">{formatDateShort(r.date)}</span> },
-    { key: 'type', header: 'النوع', cell: r => r.type === 'general_receipt' ? 'تحصيل عام' : 'تحصيل فاتورة' },
+    { key: 'client', header: 'العميل', cell: r => r.clientName },
+    { key: 'type', header: 'النوع', cell: r => typeLabel(r.type) },
     { key: 'inv', header: 'الفاتورة', cell: r => r.invoiceNumber },
-    { key: 'credit', header: 'حساب الدائن', cell: r => r.type === 'general_receipt' ? r.creditAccountName ?? '—' : 'ذمم العملاء' },
     { key: 'method', header: 'الطريقة', cell: r => paymentMethodLabel(r.method) },
     { key: 'account', header: 'الحساب المالي', cell: r => r.accountName },
     { key: 'amount', header: 'المبلغ', cell: r => <span className="font-semibold">{formatCurrency(r.amount)}</span>, className: 'text-end' },
   ];
 
   const submit = async () => {
+    if (!form.client_id) return toast.error('اختر العميل');
     if (!form.account_id) return toast.error('اختر حساب التحصيل');
     const amount = Number(form.amount);
     if (!amount || amount <= 0) return toast.error('أدخل مبلغاً صحيحاً');
-    if (form.collection_type === 'invoice_collection' && !form.invoice_id) return toast.error('اختر الفاتورة');
-    if (form.collection_type === 'general_receipt' && !form.credit_account_id) return toast.error('اختر حساب الدائن');
     if (selectedInvoice && amount > Number(selectedInvoice.remaining ?? selectedInvoice.total) + 0.005) return toast.error('مبلغ التحصيل أكبر من المتبقي');
     setSaving(true);
     try {
       await api.post('/api/payments', {
-        collection_type: form.collection_type,
-        invoice_id: form.collection_type === 'invoice_collection' ? form.invoice_id : null,
-        credit_account_id: form.collection_type === 'general_receipt' ? form.credit_account_id : null,
+        collection_type: form.invoice_id ? 'invoice_collection' : 'on_account',
+        invoice_id: form.invoice_id || null,
+        client_id: form.client_id,
         account_id: form.account_id,
         amount,
         paid_at: new Date(form.paid_at).toISOString(),
@@ -210,14 +221,37 @@ const Payments = () => {
           <DialogHeader><DialogTitle>تحصيل جديد</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
             <div className="grid grid-cols-2 gap-3">
-              <div><Label>نوع التحصيل</Label><Select value={form.collection_type} onValueChange={(v) => setForm((p) => ({ ...p, collection_type: v as typeof form.collection_type, invoice_id: '', credit_account_id: '' }))}><SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="invoice_collection">تحصيل فاتورة</SelectItem><SelectItem value="general_receipt">تحصيل عام</SelectItem></SelectContent></Select></div>
+              <div>
+                <Label>العميل</Label>
+                <div className="mt-1.5">
+                  <SearchableSelect
+                    value={form.client_id}
+                    onValueChange={(v) => setForm((p) => ({ ...p, client_id: v, invoice_id: '' }))}
+                    placeholder="اختر العميل"
+                    searchPlaceholder="ابحث باسم العميل..."
+                    options={(clients.data ?? []).map((c) => ({ value: c.id, label: c.name }))}
+                  />
+                </div>
+              </div>
               <div><Label>حساب التحصيل</Label><div className="mt-1.5"><SearchableSelect value={form.account_id} onValueChange={(v) => setForm((p) => ({ ...p, account_id: v }))} placeholder="اختر الحساب" options={moneyAccounts.map((a) => ({ value: a.id, label: a.name }))} /></div></div>
             </div>
-            {form.collection_type === 'invoice_collection' ? (
-              <div><Label>الفاتورة</Label><div className="mt-1.5"><SearchableSelect value={form.invoice_id} onValueChange={(v) => setForm((p) => ({ ...p, invoice_id: v, amount: String((invoices.data ?? []).find((i) => i.id === v)?.remaining ?? p.amount) }))} placeholder="اختر الفاتورة" options={(invoices.data ?? []).filter((i) => i.status !== 'draft' && i.status !== 'cancelled' && Number(i.remaining) > 0).map((i) => ({ value: i.id, label: `${i.number} - ${i.client_name ?? '—'}`, sublabel: `متبقي ${formatCurrency(Number(i.remaining))}` }))} /></div></div>
-            ) : (
-              <div><Label>حساب الدائن</Label><div className="mt-1.5"><SearchableSelect value={form.credit_account_id} onValueChange={(v) => setForm((p) => ({ ...p, credit_account_id: v }))} options={creditAccounts.map((a) => ({ value: a.id, label: `${a.code} - ${a.name}` }))} placeholder="اختر حساب الدائن" searchPlaceholder="ابحث بالكود أو الاسم..." /></div></div>
-            )}
+            <div>
+              <Label>الفاتورة (اختياري)</Label>
+              <div className="mt-1.5">
+                <SearchableSelect
+                  value={form.invoice_id}
+                  onValueChange={(v) => setForm((p) => ({ ...p, invoice_id: v, amount: String((invoices.data ?? []).find((i) => i.id === v)?.remaining ?? p.amount) }))}
+                  placeholder={form.client_id ? 'بدون فاتورة (تحصيل على الحساب)' : 'اختر العميل أولاً'}
+                  options={[
+                    { value: '', label: 'بدون فاتورة (تحصيل على الحساب)' },
+                    ...clientOpenInvoices.map((i) => ({ value: i.id, label: i.number, sublabel: `متبقي ${formatCurrency(Number(i.remaining))}` })),
+                  ]}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                بدون اختيار فاتورة، يُسجَّل التحصيل على حساب العميل مباشرة (دون ربطه بفاتورة محددة).
+              </p>
+            </div>
             <div className="grid grid-cols-2 gap-3">
               <div><Label>المبلغ</Label><Input className="mt-1.5" type="number" min="0" step="0.01" value={form.amount} onChange={(e) => setForm((p) => ({ ...p, amount: e.target.value }))} /></div>
               <div><Label>التاريخ</Label><Input className="mt-1.5" type="date" value={form.paid_at} onChange={(e) => setForm((p) => ({ ...p, paid_at: e.target.value }))} /></div>

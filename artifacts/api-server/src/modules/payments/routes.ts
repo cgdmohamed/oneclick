@@ -10,7 +10,13 @@ import { assertBranch } from '../../utils/dimensions.js';
 const router = Router();
 
 const createSchema = z.object({
-  collection_type: z.enum(['invoice_collection', 'general_receipt']).default('invoice_collection'),
+  // 'general_receipt' (credit an arbitrary non-AR account, no client) is kept
+  // for backward compatibility with existing rows/integrations but is no
+  // longer exposed in the "تحصيل جديد" screen — every collection recorded
+  // there now requires a client, either applied to one of their invoices
+  // (invoice_collection) or on-account against their AR balance directly
+  // with no specific invoice (on_account).
+  collection_type: z.enum(['invoice_collection', 'general_receipt', 'on_account']).default('invoice_collection'),
   invoice_id: z.string().uuid().optional().nullable(),
   client_id: z.string().uuid().optional().nullable(),
   account_id: z.string().uuid(),
@@ -38,11 +44,12 @@ router.get('/', async (req, res, next) => {
         [t.companyId, clientId],
       );
       const a = p.applyTo(
-        `SELECT p.*, i.number AS invoice_number, a.name AS account_name, ca.name AS credit_account_name
+        `SELECT p.*, i.number AS invoice_number, a.name AS account_name, ca.name AS credit_account_name, c.name AS client_name
          FROM payments p
          LEFT JOIN invoices i ON i.id = p.invoice_id
          JOIN accounts a ON a.id = p.account_id
          LEFT JOIN chart_accounts ca ON ca.id = p.credit_account_id
+         LEFT JOIN clients c ON c.id = COALESCE(p.client_id, i.client_id)
          WHERE p.company_id = $1 AND COALESCE(p.client_id, i.client_id) = $2
          ORDER BY p.paid_at DESC`,
         [t.companyId, clientId],
@@ -53,11 +60,12 @@ router.get('/', async (req, res, next) => {
 
     const totalQ = await t.db.query(`SELECT count(*)::int AS count FROM payments WHERE company_id = $1`, [t.companyId]);
     const a = p.applyTo(`
-      SELECT p.*, i.number AS invoice_number, a.name AS account_name, ca.name AS credit_account_name
+      SELECT p.*, i.number AS invoice_number, a.name AS account_name, ca.name AS credit_account_name, c.name AS client_name
       FROM payments p
       LEFT JOIN invoices i ON i.id = p.invoice_id
       JOIN accounts a ON a.id = p.account_id
       LEFT JOIN chart_accounts ca ON ca.id = p.credit_account_id
+      LEFT JOIN clients c ON c.id = COALESCE(p.client_id, i.client_id)
       WHERE p.company_id = $1
       ORDER BY p.paid_at DESC
     `, [t.companyId]);
@@ -79,6 +87,7 @@ router.post('/', async (req, res, next) => {
     const amount = round2(body.amount);
     if (body.collection_type === 'invoice_collection' && !body.invoice_id) throw badRequest('Invoice is required for invoice collection');
     if (body.collection_type === 'general_receipt' && !body.credit_account_id) throw badRequest('Credit account is required for general receipt');
+    if (body.collection_type === 'on_account' && !body.client_id) throw badRequest('Client is required for an on-account payment');
     if (body.client_id) {
       const client = await t.db.query(`SELECT 1 FROM clients WHERE id = $1 AND company_id = $2`, [body.client_id, t.companyId]);
       if (!client.rowCount) throw badRequest('Client not found');

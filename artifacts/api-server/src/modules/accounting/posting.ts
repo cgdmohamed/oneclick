@@ -23,35 +23,35 @@ type SourceRef = {
 };
 
 const defaultAccounts = [
-  ['1100', 'Accounts Receivable', 'asset', 'debit', 'accounts_receivable_account_id'],
-  ['1200', 'Inventory', 'asset', 'debit', 'inventory_account_id'],
-  ['1150', 'Allowance for Doubtful Debts', 'asset', 'credit', 'doubtful_debts_allowance_account_id'],
-  ['1500', 'Fixed Assets', 'asset', 'debit', 'fixed_assets_account_id'],
-  ['1590', 'Accumulated Depreciation', 'asset', 'credit', 'accumulated_depreciation_account_id'],
-  ['1010', 'Cash', 'asset', 'debit', 'cash_account_id'],
-  ['1020', 'Bank', 'asset', 'debit', 'bank_account_id'],
-  ['1030', 'Wallet', 'asset', 'debit', 'wallet_account_id'],
-  ['2100', 'Accounts Payable', 'liability', 'credit', 'accounts_payable_account_id'],
-  ['2200', 'VAT Payable', 'liability', 'credit', 'sales_vat_account_id'],
-  ['2300', 'Employee Payables', 'liability', 'credit', 'employee_payables_account_id'],
-  ['2310', 'Social Insurance Payable', 'liability', 'credit', 'social_insurance_payable_account_id'],
-  ['2320', 'Payroll Tax Payable', 'liability', 'credit', 'payroll_tax_payable_account_id'],
-  ['2330', 'Payroll Deductions Payable', 'liability', 'credit', 'payroll_deductions_payable_account_id'],
-  ['1300', 'VAT Input', 'asset', 'debit', 'purchase_vat_account_id'],
-  ['3100', 'Retained Earnings / Opening Balance Equity', 'equity', 'credit', 'retained_earnings_account_id'],
-  ['3200', 'Current Year Profit/Loss', 'equity', 'credit', 'income_summary_account_id'],
-  ['4100', 'Sales Revenue', 'revenue', 'credit', 'sales_revenue_account_id'],
-  ['4200', 'Sales Returns', 'revenue', 'debit', 'sales_returns_account_id'],
-  ['4300', 'Interest Income', 'revenue', 'credit', 'interest_income_account_id'],
-  ['5100', 'Cost of Goods Sold', 'expense', 'debit', 'cogs_account_id'],
-  ['5200', 'General Expenses', 'expense', 'debit', 'general_expenses_account_id'],
-  ['5250', 'Bank Charges Expense', 'expense', 'debit', 'bank_charges_expense_account_id'],
-  ['5260', 'Inventory Loss / Damaged Goods Expense', 'expense', 'debit', 'inventory_loss_expense_account_id'],
-  ['5400', 'Bad Debt Expense', 'expense', 'debit', 'bad_debt_expense_account_id'],
-  ['5500', 'Depreciation Expense', 'expense', 'debit', 'depreciation_expense_account_id'],
-  ['5600', 'Gain/Loss on Asset Disposal', 'expense', 'debit', 'asset_disposal_gain_loss_account_id'],
-  ['5700', 'Salaries Expense', 'expense', 'debit', 'salaries_expense_account_id'],
-  ['5300', 'Inventory Adjustment', 'expense', 'debit', 'inventory_adjustment_account_id'],
+  ['1100', 'العملاء', 'asset', 'debit', 'accounts_receivable_account_id'],
+  ['1200', 'المخزون', 'asset', 'debit', 'inventory_account_id'],
+  ['1150', 'مخصص الديون المشكوك في تحصيلها', 'asset', 'credit', 'doubtful_debts_allowance_account_id'],
+  ['1500', 'الأصول الثابتة', 'asset', 'debit', 'fixed_assets_account_id'],
+  ['1590', 'مجمع الإهلاك', 'asset', 'credit', 'accumulated_depreciation_account_id'],
+  ['1010', 'الخزينة', 'asset', 'debit', 'cash_account_id'],
+  ['1020', 'البنك', 'asset', 'debit', 'bank_account_id'],
+  ['1030', 'المحفظة الإلكترونية', 'asset', 'debit', 'wallet_account_id'],
+  ['2100', 'الموردون', 'liability', 'credit', 'accounts_payable_account_id'],
+  ['2200', 'ضريبة القيمة المضافة المستحقة', 'liability', 'credit', 'sales_vat_account_id'],
+  ['2300', 'مستحقات الموظفين', 'liability', 'credit', 'employee_payables_account_id'],
+  ['2310', 'التأمينات الاجتماعية المستحقة', 'liability', 'credit', 'social_insurance_payable_account_id'],
+  ['2320', 'الضرائب المستحقة على الرواتب', 'liability', 'credit', 'payroll_tax_payable_account_id'],
+  ['2330', 'الاستقطاعات المستحقة على الرواتب', 'liability', 'credit', 'payroll_deductions_payable_account_id'],
+  ['1300', 'ضريبة القيمة المضافة على المشتريات', 'asset', 'debit', 'purchase_vat_account_id'],
+  ['3100', 'الأرباح المرحّلة / رصيد افتتاحي', 'equity', 'credit', 'retained_earnings_account_id'],
+  ['3200', 'صافي ربح/خسارة السنة الحالية', 'equity', 'credit', 'income_summary_account_id'],
+  ['4100', 'إيرادات المبيعات', 'revenue', 'credit', 'sales_revenue_account_id'],
+  ['4200', 'مرتجعات المبيعات', 'revenue', 'debit', 'sales_returns_account_id'],
+  ['4300', 'إيرادات الفوائد', 'revenue', 'credit', 'interest_income_account_id'],
+  ['5100', 'تكلفة البضاعة المباعة', 'expense', 'debit', 'cogs_account_id'],
+  ['5200', 'مصروفات عامة', 'expense', 'debit', 'general_expenses_account_id'],
+  ['5250', 'مصروفات رسوم بنكية', 'expense', 'debit', 'bank_charges_expense_account_id'],
+  ['5260', 'مصروف تالف/هالك المخزون', 'expense', 'debit', 'inventory_loss_expense_account_id'],
+  ['5400', 'مصروف الديون المعدومة', 'expense', 'debit', 'bad_debt_expense_account_id'],
+  ['5500', 'مصروف الإهلاك', 'expense', 'debit', 'depreciation_expense_account_id'],
+  ['5600', 'ربح/خسارة التخلص من الأصول', 'expense', 'debit', 'asset_disposal_gain_loss_account_id'],
+  ['5700', 'مصروف الرواتب', 'expense', 'debit', 'salaries_expense_account_id'],
+  ['5300', 'تسوية المخزون', 'expense', 'debit', 'inventory_adjustment_account_id'],
 ] as const;
 
 function asDateOnly(value: string | Date): string {
@@ -529,10 +529,15 @@ export async function postCustomerPayment(db: Queryable, companyId: string, paym
   const creditAccountId = pay.collection_type === 'general_receipt'
     ? requireAccount(pay.credit_account_id, 'general receipt credit')
     : requireAccount(s.accounts_receivable_account_id, 'accounts receivable');
+  const memo = pay.collection_type === 'general_receipt'
+    ? `General receipt ${pay.reference ?? paymentId}`
+    : pay.collection_type === 'on_account'
+      ? `On-account collection ${pay.reference ?? paymentId}`
+      : `Collection for invoice ${pay.invoice_number}`;
   const je = await createJournalEntry(db, {
     companyId,
     entryDate: pay.paid_at,
-    memo: pay.collection_type === 'general_receipt' ? `General receipt ${pay.reference ?? paymentId}` : `Collection for invoice ${pay.invoice_number}`,
+    memo,
     source: { type: 'payment', id: paymentId },
     userId,
     branchId: pay.branch_id ?? null,

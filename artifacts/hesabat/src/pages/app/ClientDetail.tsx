@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { PageHeader } from '@/components/common/PageHeader';
 import { StatCard } from '@/components/common/StatCard';
@@ -37,6 +37,15 @@ interface UnifiedStatement {
   net_balance: number;
   lines: UnifiedStatementLine[];
 }
+interface LedgerStatementLine {
+  entry_date: string;
+  memo: string | null;
+  description: string | null;
+  reference: string | null;
+  debit: string;
+  credit: string;
+  running_balance: string;
+}
 const unifiedLineLabel: Record<UnifiedStatementLine['type'], string> = {
   sales_invoice: 'فاتورة بيع',
   collection: 'تحصيل',
@@ -72,6 +81,7 @@ const ageBucket = (days: number): string => {
 
 const ClientDetail = () => {
   const { id = '' } = useParams();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { list: clients } = useClients();
   const { list: invoices } = useInvoices();
@@ -138,6 +148,23 @@ const ClientDetail = () => {
     queryFn: async () => {
       const res = await api.get<{ data: UnifiedStatement }>(`/api/clients/${id}/unified-statement`);
       return res.data;
+    },
+  });
+
+  // Line-by-line debit/credit statement, sourced directly from the general
+  // ledger (journal_entry_lines) — every posted line that touches this
+  // client's AR account, with a running balance. Distinct from the
+  // "unified" statement above (which only exists for a client linked to a
+  // supplier record) and from the invoices/payments tabs below (which list
+  // business documents, not ledger entries).
+  const ledgerStatementQuery = useQuery({
+    enabled: apiOn && Boolean(id),
+    queryKey: ['client-ledger-statement', id],
+    queryFn: async () => {
+      const res = await api.get<{ data: LedgerStatementLine[]; summary: { closing_balance: string } }>(
+        `/api/reports/customer-ledger-detail?customer_id=${encodeURIComponent(id!)}`,
+      );
+      return res;
     },
   });
 
@@ -416,9 +443,10 @@ const ClientDetail = () => {
         />
       </div>
 
-      <Tabs defaultValue="overview">
+      <Tabs defaultValue={searchParams.get('tab') === 'ledger' ? 'ledger' : 'overview'}>
         <TabsList>
           <TabsTrigger value="overview">نظرة عامة</TabsTrigger>
+          <TabsTrigger value="ledger">كشف الحساب</TabsTrigger>
           <TabsTrigger value="invoices">الفواتير ({clientInvoices.length})</TabsTrigger>
           <TabsTrigger value="payments">المدفوعات ({clientPayments.length})</TabsTrigger>
           {client?.linkedSupplierId && <TabsTrigger value="unified">كشف حساب موحد</TabsTrigger>}
@@ -548,6 +576,52 @@ const ClientDetail = () => {
           ) : (
             <DataTable data={filteredPayments} columns={paymentCols} searchKeys={['invoiceNumber']} />
           )}
+        </TabsContent>
+
+        <TabsContent value="ledger" className="mt-4 space-y-3">
+            <Card className="p-4 border-border/60 flex flex-wrap items-center justify-between gap-3">
+              <p className="text-sm text-muted-foreground">
+                كشف حساب مباشر من دفتر الأستاذ — كل قيد مرحّل يخص حساب العميل «{client?.name}» بالمدين والدائن والرصيد التراكمي.
+              </p>
+              {ledgerStatementQuery.data?.summary && (
+                <div className="text-end">
+                  <p className="text-xs text-muted-foreground mb-0.5">الرصيد الحالي</p>
+                  <p className="text-lg font-bold">{fc(Number(ledgerStatementQuery.data.summary.closing_balance))}</p>
+                </div>
+              )}
+            </Card>
+            {ledgerStatementQuery.isLoading ? (
+              <Card className="p-10 text-center text-muted-foreground border-dashed">جارٍ التحميل…</Card>
+            ) : !ledgerStatementQuery.data?.data.length ? (
+              <Card className="p-10 text-center text-muted-foreground border-dashed">لا توجد قيود مرحّلة بعد.</Card>
+            ) : (
+              <Card className="border-border/60 overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/50 text-muted-foreground">
+                    <tr>
+                      <th className="text-start p-3 font-medium">التاريخ</th>
+                      <th className="text-start p-3 font-medium">البيان</th>
+                      <th className="text-start p-3 font-medium">المرجع</th>
+                      <th className="text-end p-3 font-medium">مدين</th>
+                      <th className="text-end p-3 font-medium">دائن</th>
+                      <th className="text-end p-3 font-medium">الرصيد</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ledgerStatementQuery.data.data.map((l, i) => (
+                      <tr key={i} className="border-t border-border/40">
+                        <td className="p-3">{formatDateShort(l.entry_date)}</td>
+                        <td className="p-3">{l.description || l.memo || '—'}</td>
+                        <td className="p-3">{l.reference || '—'}</td>
+                        <td className="p-3 text-end">{Number(l.debit) > 0 ? fc(Number(l.debit)) : '—'}</td>
+                        <td className="p-3 text-end">{Number(l.credit) > 0 ? fc(Number(l.credit)) : '—'}</td>
+                        <td className="p-3 text-end font-medium">{fc(Number(l.running_balance))}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </Card>
+            )}
         </TabsContent>
 
         {/* Unified statement (client linked to a supplier record — same party) */}

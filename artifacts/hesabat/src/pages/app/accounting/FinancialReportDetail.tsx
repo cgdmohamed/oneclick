@@ -201,7 +201,17 @@ const FinancialReportDetail = () => {
       { key: 'balance', header: 'الرصيد', cell: (r) => formatCurrency(Number(r.type === 'asset' ? r.debit_balance : r.credit_balance)), className: 'text-end' },
     ];
     if (type === 'customer-ledger' || type === 'supplier-ledger') return [
-      { key: 'name', header: type === 'customer-ledger' ? 'العميل' : 'المورد', cell: (r) => r.name },
+      {
+        key: 'name', header: type === 'customer-ledger' ? 'العميل' : 'المورد',
+        cell: (r) => (
+          <Link
+            to={`/app/${type === 'customer-ledger' ? 'clients' : 'suppliers'}/${r.id}?tab=ledger`}
+            className="text-primary hover:underline"
+          >
+            {r.name}
+          </Link>
+        ),
+      },
       { key: 'debit', header: 'مدين دفتر الأستاذ', cell: (r) => formatCurrency(Number(r.ledger_debit ?? 0)), className: 'text-end' },
       { key: 'credit', header: 'دائن دفتر الأستاذ', cell: (r) => formatCurrency(Number(r.ledger_credit ?? 0)), className: 'text-end' },
       { key: 'outstanding', header: 'الرصيد', cell: (r) => formatCurrency(Number(r.outstanding)), className: 'text-end' },

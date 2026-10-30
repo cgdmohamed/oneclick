@@ -1,8 +1,10 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import multer from 'multer';
 import { audit } from '../../utils/audit.js';
 import { badRequest, conflict, notFound } from '../../utils/errors.js';
 import { parsePagination } from '../../utils/pagination.js';
+import { parseSpreadsheet, buildXlsxBuffer } from '../../utils/spreadsheet.js';
 import {
   assertPeriodOpen,
   createJournalEntry,
@@ -14,6 +16,46 @@ import {
 } from './posting.js';
 
 const r = Router();
+
+function toCsvRow(fields: unknown[]): string {
+  return fields.map((f) => {
+    const s = String(f ?? '');
+    return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  }).join(',');
+}
+
+const csvUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const name = file.originalname.toLowerCase();
+    const ok =
+      file.mimetype === 'text/csv' ||
+      file.mimetype === 'application/vnd.ms-excel' ||
+      file.mimetype === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+      name.endsWith('.csv') || name.endsWith('.xlsx');
+    if (!ok) return cb(new Error('يجب أن يكون الملف بصيغة CSV أو Excel (xlsx)'));
+    cb(null, true);
+  },
+});
+
+function csvUploadMiddleware(
+  req: import('express').Request,
+  res: import('express').Response,
+  next: import('express').NextFunction,
+) {
+  csvUpload.single('file')(req, res, (err) => {
+    if (!err) return next();
+    if (err instanceof multer.MulterError) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(413).json({ message: 'حجم الملف يتجاوز الحد المسموح به (5 ميجابايت)' });
+      }
+      return res.status(400).json({ message: `خطأ في رفع الملف: ${err.message}` });
+    }
+    if (err instanceof Error) return res.status(400).json({ message: err.message });
+    next(err);
+  });
+}
 
 const accountSchema = z.object({
   parent_id: z.string().uuid().optional().nullable(),
@@ -76,6 +118,147 @@ r.get('/chart-accounts', async (req, res, next) => {
       [t.companyId],
     );
     res.json({ data: rs.rows });
+  } catch (e) { next(e); }
+});
+
+const CHART_CSV_HEADERS = ['code', 'name', 'type', 'normal_balance', 'parent_code', 'status'];
+const CHART_TEMPLATE_ROW = ['1025', 'بنك الاستثمار القومي', 'asset', 'debit', '1020', 'active'];
+
+r.get('/chart-accounts/export', async (req, res, next) => {
+  try {
+    const t = req.tenant!;
+    const rs = await t.db.query(
+      `SELECT ca.code, ca.name, ca.type, ca.normal_balance, p.code AS parent_code,
+              CASE WHEN ca.is_active THEN 'active' ELSE 'inactive' END AS status
+       FROM chart_accounts ca
+       LEFT JOIN chart_accounts p ON p.id = ca.parent_id
+       WHERE ca.company_id = $1
+       ORDER BY ca.code`,
+      [t.companyId],
+    );
+    const dataRows = rs.rows.map((r) => [r.code, r.name, r.type, r.normal_balance, r.parent_code ?? '', r.status]);
+    if (req.query.format === 'xlsx') {
+      const buf = await buildXlsxBuffer('دليل الحسابات', CHART_CSV_HEADERS, dataRows);
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', 'attachment; filename="chart-of-accounts.xlsx"');
+      return res.send(buf);
+    }
+    const csv = [toCsvRow(CHART_CSV_HEADERS), ...dataRows.map((r) => toCsvRow(r))].join('\r\n');
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="chart-of-accounts.csv"');
+    res.send('﻿' + csv);
+  } catch (e) { next(e); }
+});
+
+r.get('/chart-accounts/export/template', async (req, res, next) => {
+  try {
+    if (req.query.format === 'xlsx') {
+      const buf = await buildXlsxBuffer('دليل الحسابات', CHART_CSV_HEADERS, [CHART_TEMPLATE_ROW]);
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', 'attachment; filename="chart-of-accounts-template.xlsx"');
+      return res.send(buf);
+    }
+    const csv = [toCsvRow(CHART_CSV_HEADERS), toCsvRow(CHART_TEMPLATE_ROW)].join('\r\n');
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="chart-of-accounts-template.csv"');
+    res.send('﻿' + csv);
+  } catch (e) { next(e); }
+});
+
+/*
+ * Two-phase import (dry_run), mirroring the products importer: rows are
+ * upserted by (company_id, code) — an existing code's name/type/balance/
+ * parent/status get updated, a new code gets created. parent_code may
+ * reference either an account that already exists OR an earlier row in
+ * the same file (processed top-to-bottom, so list parents before children).
+ */
+r.post('/chart-accounts/import', csvUploadMiddleware, async (req, res, next) => {
+  try {
+    const t = req.tenant!;
+    if (!req.file) return res.status(400).json({ message: 'يجب رفع ملف CSV أو Excel' });
+    const dryRun = (req.body?.dry_run ?? 'false').toString().toLowerCase() !== 'false';
+
+    let records: string[][];
+    try {
+      records = await parseSpreadsheet(req.file.buffer, req.file.originalname);
+    } catch {
+      return res.status(422).json({ message: 'ملف CSV أو Excel غير صالح أو تالف' });
+    }
+    if (records.length < 2) return res.status(422).json({ message: 'الملف فارغ أو لا يحتوي على بيانات' });
+
+    const headers = records[0].map((h) => h.toLowerCase());
+    const colIdx = (name: string) => headers.indexOf(name);
+    const iCode = colIdx('code');
+    const iName = colIdx('name');
+    const iType = colIdx('type');
+    const iNormal = colIdx('normal_balance');
+    const iParent = colIdx('parent_code');
+    const iStatus = colIdx('status');
+    if (iCode === -1) return res.status(422).json({ message: 'العمود "code" مطلوب' });
+    if (iName === -1) return res.status(422).json({ message: 'العمود "name" مطلوب' });
+
+    const VALID_TYPES = ['asset', 'liability', 'equity', 'revenue', 'expense'];
+    const existing = await t.db.query(`SELECT code, id FROM chart_accounts WHERE company_id = $1`, [t.companyId]);
+    const codeToId = new Map<string, string>(existing.rows.map((r: { code: string; id: string }) => [r.code, r.id]));
+
+    interface RowResult { row: number; code: string; error?: string; created?: boolean; updated?: boolean; }
+    const results: RowResult[] = [];
+    let created = 0, updated = 0;
+
+    for (let i = 1; i < records.length; i++) {
+      const row = records[i];
+      const get = (idx: number) => (idx >= 0 ? (row[idx] ?? '').trim() : '');
+      const csvRowNum = i + 1;
+      const code = get(iCode);
+      const name = get(iName);
+      const type = (get(iType) || 'asset').toLowerCase();
+      const normalBalance = (get(iNormal) || (['asset', 'expense'].includes(type) ? 'debit' : 'credit')).toLowerCase();
+      const parentCode = get(iParent);
+      const status = (get(iStatus) || 'active').toLowerCase();
+
+      if (!code) { results.push({ row: csvRowNum, code: '', error: 'كود الحساب مطلوب' }); continue; }
+      if (!name) { results.push({ row: csvRowNum, code, error: 'اسم الحساب مطلوب' }); continue; }
+      if (!VALID_TYPES.includes(type)) { results.push({ row: csvRowNum, code, error: `نوع الحساب غير صحيح: ${type}` }); continue; }
+      if (!['debit', 'credit'].includes(normalBalance)) { results.push({ row: csvRowNum, code, error: `طبيعة الرصيد غير صحيحة: ${normalBalance}` }); continue; }
+      let parentId: string | null = null;
+      if (parentCode) {
+        parentId = codeToId.get(parentCode) ?? null;
+        if (!parentId) { results.push({ row: csvRowNum, code, error: `الحساب الأب بكود "${parentCode}" غير موجود` }); continue; }
+      }
+      const isActive = status !== 'inactive';
+
+      if (dryRun) {
+        results.push({ row: csvRowNum, code, created: !codeToId.has(code), updated: codeToId.has(code) });
+        continue;
+      }
+
+      const existingId = codeToId.get(code);
+      const rs = await t.db.query(
+        `INSERT INTO chart_accounts (company_id, parent_id, code, name, type, normal_balance, is_active)
+         VALUES ($1,$2,$3,$4,$5,$6,$7)
+         ON CONFLICT (company_id, code)
+         DO UPDATE SET parent_id = EXCLUDED.parent_id, name = EXCLUDED.name, type = EXCLUDED.type,
+                        normal_balance = EXCLUDED.normal_balance, is_active = EXCLUDED.is_active, updated_at = now()
+         RETURNING id`,
+        [t.companyId, parentId, code, name, type, normalBalance, isActive],
+      );
+      codeToId.set(code, rs.rows[0].id);
+      if (existingId) updated++; else created++;
+      results.push({ row: csvRowNum, code, created: !existingId, updated: Boolean(existingId) });
+    }
+
+    if (!dryRun) {
+      await audit(t.db, { companyId: t.companyId, userId: req.auth!.userId, action: 'chart_account.import', entity: 'chart_account', data: { created, updated } });
+    }
+
+    res.json({
+      dry_run: dryRun,
+      total: records.length - 1,
+      created: dryRun ? results.filter((r) => r.created).length : created,
+      updated: dryRun ? results.filter((r) => r.updated).length : updated,
+      errors: results.filter((r) => r.error).length,
+      results,
+    });
   } catch (e) { next(e); }
 });
 
@@ -480,6 +663,56 @@ r.post('/journal-entries', async (req, res, next) => {
       })),
     });
     await audit(t.db, { companyId: t.companyId, userId: req.auth!.userId, action: `journal.${body.status}`, entity: 'journal_entry', entityId: entry.id });
+    res.status(201).json({ data: entry });
+  } catch (e) { next(e); }
+});
+
+const reconciliationEntrySchema = z.object({
+  entry_date: z.string(),
+  description: z.string().min(1),
+  amount: z.coerce.number().positive(),
+  from_account_id: z.string().uuid(),
+  to_account_id: z.string().uuid(),
+  branch_id: z.string().uuid().optional().nullable(),
+});
+
+// General-purpose "قيد تسوية" — moves a balance from any one chart account
+// (a leaf/sub-account or a parent/main account) to any other, as a single
+// posted, balanced two-line journal entry. Unlike the bank-reconciliation
+// adjustment (bank-reconciliations/routes.ts), which only ever pairs a bank
+// account with its fixed bank-charges/interest accounts, this accepts any
+// two accounts in the company's chart — the reconciliation reports
+// (customer-ledger, supplier-ledger, inventory-reconciliation) only *detect*
+// a difference; this is the matching corrective action.
+r.post('/reconciliation-entries', async (req, res, next) => {
+  try {
+    const t = req.tenant!;
+    const body = reconciliationEntrySchema.parse(req.body);
+    if (body.from_account_id === body.to_account_id) {
+      throw badRequest('Source and destination accounts must be different');
+    }
+    const accounts = await t.db.query(
+      `SELECT id, code, name FROM chart_accounts WHERE company_id = $1 AND id IN ($2, $3)`,
+      [t.companyId, body.from_account_id, body.to_account_id],
+    );
+    if (accounts.rowCount !== 2) throw badRequest('Both accounts must belong to this company');
+    const entry = await createJournalEntry(t.db, {
+      companyId: t.companyId,
+      entryDate: body.entry_date,
+      memo: `قيد تسوية: ${body.description}`,
+      status: 'posted',
+      userId: req.auth!.userId,
+      branchId: body.branch_id ?? null,
+      lines: [
+        { accountId: body.to_account_id, description: body.description, debit: body.amount, branchId: body.branch_id ?? null },
+        { accountId: body.from_account_id, description: body.description, credit: body.amount, branchId: body.branch_id ?? null },
+      ],
+    });
+    await audit(t.db, {
+      companyId: t.companyId, userId: req.auth!.userId, action: 'journal.reconciliation_entry',
+      entity: 'journal_entry', entityId: entry.id,
+      data: { from_account_id: body.from_account_id, to_account_id: body.to_account_id, amount: body.amount },
+    });
     res.status(201).json({ data: entry });
   } catch (e) { next(e); }
 });
