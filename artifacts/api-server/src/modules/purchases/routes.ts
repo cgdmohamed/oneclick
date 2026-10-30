@@ -84,17 +84,22 @@ async function postPurchaseInvoice(db: any, companyId: string, purchaseInvoiceId
     [purchaseInvoiceId, companyId, settings.inventory_account_id],
   );
   const lines: JournalLineInput[] = [];
-  const inventoryGroups = new Map<string, { accountId: string; costCenterId: string | null; amount: number }>();
+  // Grouped by product (not just account+cost-center, like the expense
+  // group below) so each product's share of the purchase is a separate,
+  // taggable line — otherwise multiple stock items sharing one inventory
+  // account would merge into a single line with no way to tell which
+  // product it belongs to in that product's own ledger.
+  const inventoryGroups = new Map<string, { accountId: string; costCenterId: string | null; productId: string | null; amount: number }>();
   for (const item of items.rows.filter((it: any) => it.product_id && it.product_type === 'stock')) {
     const accountId = item.resolved_inventory_account_id ?? settings.inventory_account_id;
     if (!accountId) throw badRequest('Missing accounting account for inventory');
     const costCenterId = item.cost_center_id ?? null;
-    const key = `${accountId}:${costCenterId ?? ''}`;
+    const key = `${accountId}:${costCenterId ?? ''}:${item.product_id}`;
     const current = inventoryGroups.get(key);
-    inventoryGroups.set(key, { accountId, costCenterId, amount: round2((current?.amount ?? 0) + Number(item.quantity) * Number(item.unit_cost)) });
+    inventoryGroups.set(key, { accountId, costCenterId, productId: item.product_id, amount: round2((current?.amount ?? 0) + Number(item.quantity) * Number(item.unit_cost)) });
   }
   for (const group of inventoryGroups.values()) {
-    if (group.amount > 0) lines.push({ accountId: group.accountId, debit: group.amount, description: `Purchase ${pi.rows[0].number}`, branchId: pi.rows[0].branch_id, costCenterId: group.costCenterId });
+    if (group.amount > 0) lines.push({ accountId: group.accountId, debit: group.amount, description: `Purchase ${pi.rows[0].number}`, branchId: pi.rows[0].branch_id, costCenterId: group.costCenterId, productId: group.productId });
   }
 
   const expenseGroups = new Map<string, { accountId: string; costCenterId: string | null; amount: number }>();

@@ -64,6 +64,17 @@ interface StockLedgerRow {
   journal_entry_number?: string | null;
 }
 
+interface LedgerStatementLine {
+  entry_date: string;
+  memo: string | null;
+  description: string | null;
+  account_code: string;
+  account_name: string;
+  debit: string;
+  credit: string;
+  running_balance: string;
+}
+
 interface ActivityRow {
   id: string;
   number: string;
@@ -138,6 +149,18 @@ const ProductDetails = () => {
       if (applied.to) params.set('to', applied.to);
       return (await api.get<{ data: StockLedgerRow[] }>(`/api/products/${id}/stock-card?${params}`)).data ?? [];
     },
+  });
+
+  // Direct general-ledger debit/credit statement for this product (as
+  // opposed to "كارت الصنف" above, which is quantity-focused) — sourced
+  // from journal_entry_lines.product_id, covering sales COGS/inventory,
+  // purchase invoice inventory, stock movements and opening stock.
+  const ledgerQuery = useQuery({
+    enabled: Boolean(id),
+    queryKey: ['product-ledger-statement', id],
+    queryFn: async () => (await api.get<{ data: LedgerStatementLine[]; summary: { closing_balance: string } }>(
+      `/api/reports/product-ledger-detail?product_id=${encodeURIComponent(id)}`,
+    )),
   });
 
   const openingMutation = useMutation({
@@ -255,6 +278,7 @@ const ProductDetails = () => {
             <TabsList>
               <TabsTrigger value="overview">نظرة عامة</TabsTrigger>
               <TabsTrigger value="stock">كارت الصنف</TabsTrigger>
+              <TabsTrigger value="ledger">كشف الحساب</TabsTrigger>
               <TabsTrigger value="sales">المبيعات</TabsTrigger>
               <TabsTrigger value="purchases">المشتريات</TabsTrigger>
               <TabsTrigger value="returns">المرتجعات</TabsTrigger>
@@ -293,6 +317,52 @@ const ProductDetails = () => {
                 </div>
                 <DataTable data={stockCard.data ?? []} columns={stockColumns} pageSize={25} emptyTitle="لا توجد حركات مخزون لهذا المنتج" />
               </div>
+            </TabsContent>
+
+            <TabsContent value="ledger" className="mt-4 space-y-3">
+              <Card className="p-4 border-border/60 flex flex-wrap items-center justify-between gap-3">
+                <p className="text-sm text-muted-foreground">
+                  كشف حساب مباشر من دفتر الأستاذ — كل قيد مرحّل يخص حساب المخزون لهذا المنتج بالمدين والدائن والرصيد التراكمي.
+                </p>
+                {ledgerQuery.data?.summary && (
+                  <div className="text-end">
+                    <p className="text-xs text-muted-foreground mb-0.5">الرصيد الحالي (قيمة المخزون)</p>
+                    <p className="text-lg font-bold">{formatCurrency(Number(ledgerQuery.data.summary.closing_balance))}</p>
+                  </div>
+                )}
+              </Card>
+              {ledgerQuery.isLoading ? (
+                <Card className="p-10 text-center text-muted-foreground border-dashed">جارٍ التحميل…</Card>
+              ) : !ledgerQuery.data?.data.length ? (
+                <Card className="p-10 text-center text-muted-foreground border-dashed">لا توجد قيود مرحّلة بعد.</Card>
+              ) : (
+                <Card className="border-border/60 overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-muted/50 text-muted-foreground">
+                      <tr>
+                        <th className="text-start p-3 font-medium">التاريخ</th>
+                        <th className="text-start p-3 font-medium">البيان</th>
+                        <th className="text-start p-3 font-medium">الحساب</th>
+                        <th className="text-end p-3 font-medium">مدين</th>
+                        <th className="text-end p-3 font-medium">دائن</th>
+                        <th className="text-end p-3 font-medium">الرصيد</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {ledgerQuery.data.data.map((l, i) => (
+                        <tr key={i} className="border-t border-border/40">
+                          <td className="p-3">{formatDateShort(l.entry_date)}</td>
+                          <td className="p-3">{l.description || l.memo || '—'}</td>
+                          <td className="p-3">{l.account_code} - {l.account_name}</td>
+                          <td className="p-3 text-end">{Number(l.debit) > 0 ? formatCurrency(Number(l.debit)) : '—'}</td>
+                          <td className="p-3 text-end">{Number(l.credit) > 0 ? formatCurrency(Number(l.credit)) : '—'}</td>
+                          <td className="p-3 text-end font-medium">{formatCurrency(Number(l.running_balance))}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </Card>
+              )}
             </TabsContent>
 
             <TabsContent value="sales" className="mt-4">

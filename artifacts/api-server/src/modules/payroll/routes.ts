@@ -341,18 +341,21 @@ async function postPayroll(db: any, companyId: string, runId: string, userId?: s
   );
   const journalLines: any[] = [];
   for (const line of lines.rows) {
-    if (Number(line.basic_salary) > 0) journalLines.push({ accountId: settings.salaries_expense_account_id, debit: Number(line.basic_salary), description: `Basic salary ${line.employee_name}`, branchId: line.branch_id, costCenterId: line.cost_center_id });
+    if (Number(line.basic_salary) > 0) journalLines.push({ accountId: settings.salaries_expense_account_id, debit: Number(line.basic_salary), description: `Basic salary ${line.employee_name}`, branchId: line.branch_id, costCenterId: line.cost_center_id, employeeId: line.employee_id });
     for (const comp of line.components) {
       const amount = Number(comp.amount ?? 0);
       if (amount <= 0) continue;
-      if (comp.type === 'earning') journalLines.push({ accountId: comp.account_id, debit: amount, description: comp.name, branchId: line.branch_id, costCenterId: line.cost_center_id });
-      if (comp.type === 'deduction') journalLines.push({ accountId: comp.account_id, credit: amount, description: comp.name, branchId: line.branch_id, costCenterId: line.cost_center_id });
+      if (comp.type === 'earning') journalLines.push({ accountId: comp.account_id, debit: amount, description: comp.name, branchId: line.branch_id, costCenterId: line.cost_center_id, employeeId: line.employee_id });
+      if (comp.type === 'deduction') journalLines.push({ accountId: comp.account_id, credit: amount, description: comp.name, branchId: line.branch_id, costCenterId: line.cost_center_id, employeeId: line.employee_id });
       if (comp.type === 'employer_contribution') {
-        journalLines.push({ accountId: settings.salaries_expense_account_id, debit: amount, description: comp.name, branchId: line.branch_id, costCenterId: line.cost_center_id });
-        journalLines.push({ accountId: comp.account_id, credit: amount, description: comp.name, branchId: line.branch_id, costCenterId: line.cost_center_id });
+        journalLines.push({ accountId: settings.salaries_expense_account_id, debit: amount, description: comp.name, branchId: line.branch_id, costCenterId: line.cost_center_id, employeeId: line.employee_id });
+        journalLines.push({ accountId: comp.account_id, credit: amount, description: comp.name, branchId: line.branch_id, costCenterId: line.cost_center_id, employeeId: line.employee_id });
       }
     }
-    if (Number(line.net_salary) > 0) journalLines.push({ accountId: settings.employee_payables_account_id, credit: Number(line.net_salary), description: `Net salary ${line.employee_name}`, branchId: line.branch_id, costCenterId: line.cost_center_id });
+    // employeeId tagged on the payable line specifically is what the new
+    // employee statement endpoint (reports/employee-ledger-detail) filters
+    // on, same role client_id plays for the AR control account.
+    if (Number(line.net_salary) > 0) journalLines.push({ accountId: settings.employee_payables_account_id, credit: Number(line.net_salary), description: `Net salary ${line.employee_name}`, branchId: line.branch_id, costCenterId: line.cost_center_id, employeeId: line.employee_id });
   }
   const je = await createJournalEntry(db, { companyId, entryDate, memo: `Payroll ${run.rows[0].period_year}-${String(run.rows[0].period_month).padStart(2, '0')}`, source: { type: 'payroll_run', id: runId }, userId, lines: journalLines });
   await db.query(`UPDATE payroll_runs SET status='posted', posted_at=NOW(), posted_by=$3, journal_entry_id=$4, updated_at=NOW() WHERE id=$1 AND company_id=$2`, [runId, companyId, userId ?? null, je.id]);
@@ -410,8 +413,16 @@ r.post('/runs/:id/pay', async (req, res, next) => {
       const run = await t.db.query(`SELECT * FROM payroll_runs WHERE id=$1 AND company_id=$2 FOR UPDATE`, [req.params.id, t.companyId]);
       if (!run.rowCount) throw notFound('Payroll run not found');
       if (run.rows[0].status !== 'posted') throw conflict('Only posted unpaid payroll can be paid');
-      const total = await t.db.query(`SELECT COALESCE(SUM(net_salary),0) AS amount FROM payroll_run_lines WHERE payroll_run_id=$1 AND company_id=$2`, [req.params.id, t.companyId]);
-      const amount = round2(Number(total.rows[0].amount));
+      // Paying a run always settles every employee's net_salary in full (no
+      // partial-pay option), so splitting the one lump debit into one line
+      // per employee changes nothing about the total or the accounts
+      // involved — it only lets each employee's own payable line be tagged
+      // and show up correctly in their individual statement.
+      const perEmployee = await t.db.query(
+        `SELECT employee_id, net_salary FROM payroll_run_lines WHERE payroll_run_id=$1 AND company_id=$2 AND net_salary > 0`,
+        [req.params.id, t.companyId],
+      );
+      const amount = round2(perEmployee.rows.reduce((sum: number, r: { net_salary: string }) => sum + Number(r.net_salary), 0));
       const settings = await getSettings(t.db, t.companyId);
       const cashAccount = await moneyAccountChartAccount(t.db, t.companyId, b.account_id);
       const je = await createJournalEntry(t.db, {
@@ -421,7 +432,10 @@ r.post('/runs/:id/pay', async (req, res, next) => {
         source: { type: 'payroll_payment', id: req.params.id },
         userId: req.auth!.userId,
         lines: [
-          { accountId: settings.employee_payables_account_id, debit: amount, description: 'Payroll payment' },
+          ...perEmployee.rows.map((r: { employee_id: string; net_salary: string }) => ({
+            accountId: settings.employee_payables_account_id, debit: round2(Number(r.net_salary)),
+            description: 'Payroll payment', employeeId: r.employee_id,
+          })),
           { accountId: cashAccount, credit: amount, description: 'Payroll payment' },
         ],
       });

@@ -228,12 +228,12 @@ r.post('/', async (req, res, next) => {
           userId: req.auth!.userId,
           lines: delta >= 0
             ? [
-                { accountId: inventoryAccountId, debit: value, description: body.reason },
-                { accountId: adjustmentAccountId, credit: value, description: body.reason },
+                { accountId: inventoryAccountId, debit: value, description: body.reason, productId: body.product_id },
+                { accountId: adjustmentAccountId, credit: value, description: body.reason, productId: body.product_id },
               ]
             : [
-                { accountId: adjustmentAccountId, debit: value, description: body.reason },
-                { accountId: inventoryAccountId, credit: value, description: body.reason },
+                { accountId: adjustmentAccountId, debit: value, description: body.reason, productId: body.product_id },
+                { accountId: inventoryAccountId, credit: value, description: body.reason, productId: body.product_id },
               ],
         });
         await t.db.query(`UPDATE stock_movements SET journal_entry_id = $1 WHERE id = $2 AND company_id = $3`, [je.id, ins.rows[0].id, t.companyId]);
