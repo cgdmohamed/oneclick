@@ -1,4 +1,4 @@
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { PageHeader } from '@/components/common/PageHeader';
 import { StatCard } from '@/components/common/StatCard';
@@ -10,6 +10,16 @@ import { Badge } from '@/components/ui/badge';
 import { ArrowRight, Truck, Phone, Mail, MapPin, Package, Wallet, FileText, ReceiptText } from 'lucide-react';
 import { api } from '@/lib/api';
 import { formatCurrency, formatDateShort, paymentMethodLabel, invoiceStatusLabel } from '@/lib/format';
+
+interface LedgerStatementLine {
+  entry_date: string;
+  memo: string | null;
+  description: string | null;
+  reference: string | null;
+  debit: string;
+  credit: string;
+  running_balance: string;
+}
 
 interface SupplierInfo {
   id: string;
@@ -81,6 +91,7 @@ interface StatementData {
 
 const SupplierDetail = () => {
   const { id = '' } = useParams();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
   const { data, isLoading, isError } = useQuery({
@@ -88,6 +99,22 @@ const SupplierDetail = () => {
     queryFn: async () => {
       const res = await api.get<{ data: StatementData }>(`/api/suppliers/${id}/statement`);
       return res.data;
+    },
+    enabled: Boolean(id),
+  });
+
+  // Line-by-line debit/credit statement sourced directly from the general
+  // ledger (journal_entry_lines) — every posted line against this
+  // supplier's AP account, with a running balance. The "statement" tab
+  // above is just a 4-row document-total summary; this is the actual GL
+  // ledger view.
+  const ledgerQuery = useQuery({
+    queryKey: ['supplier-ledger-statement', id],
+    queryFn: async () => {
+      const res = await api.get<{ data: LedgerStatementLine[]; summary: { closing_balance: string } }>(
+        `/api/reports/supplier-ledger-detail?supplier_id=${encodeURIComponent(id)}`,
+      );
+      return res;
     },
     enabled: Boolean(id),
   });
@@ -175,9 +202,10 @@ const SupplierDetail = () => {
         </Card>
 
         <div className="lg:col-span-2">
-          <Tabs defaultValue="statement" dir="rtl">
+          <Tabs defaultValue={searchParams.get('tab') === 'ledger' ? 'ledger' : 'statement'} dir="rtl">
             <TabsList>
-              <TabsTrigger value="statement">كشف الحساب</TabsTrigger>
+              <TabsTrigger value="statement">ملخص الحساب</TabsTrigger>
+              <TabsTrigger value="ledger">كشف الحساب (دفتر الأستاذ)</TabsTrigger>
               <TabsTrigger value="invoices">فواتير الشراء ({invoices.length})</TabsTrigger>
               <TabsTrigger value="returns">مرتجعات الشراء ({purchase_returns.length})</TabsTrigger>
               <TabsTrigger value="payouts">المدفوعات ({payments.length})</TabsTrigger>
@@ -206,6 +234,52 @@ const SupplierDetail = () => {
                   </div>
                 </div>
               </Card>
+            </TabsContent>
+
+            <TabsContent value="ledger" className="mt-4 space-y-3">
+              <Card className="p-4 border-border/60 flex flex-wrap items-center justify-between gap-3">
+                <p className="text-sm text-muted-foreground">
+                  كشف حساب مباشر من دفتر الأستاذ — كل قيد مرحّل يخص حساب المورد بالمدين والدائن والرصيد التراكمي.
+                </p>
+                {ledgerQuery.data?.summary && (
+                  <div className="text-end">
+                    <p className="text-xs text-muted-foreground mb-0.5">الرصيد الحالي</p>
+                    <p className="text-lg font-bold">{formatCurrency(Number(ledgerQuery.data.summary.closing_balance))}</p>
+                  </div>
+                )}
+              </Card>
+              {ledgerQuery.isLoading ? (
+                <Card className="p-10 text-center text-muted-foreground border-dashed">جارٍ التحميل…</Card>
+              ) : !ledgerQuery.data?.data.length ? (
+                <Card className="p-10 text-center text-muted-foreground border-dashed">لا توجد قيود مرحّلة بعد.</Card>
+              ) : (
+                <Card className="border-border/60 overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-muted/50 text-muted-foreground">
+                      <tr>
+                        <th className="text-start p-3 font-medium">التاريخ</th>
+                        <th className="text-start p-3 font-medium">البيان</th>
+                        <th className="text-start p-3 font-medium">المرجع</th>
+                        <th className="text-end p-3 font-medium">مدين</th>
+                        <th className="text-end p-3 font-medium">دائن</th>
+                        <th className="text-end p-3 font-medium">الرصيد</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {ledgerQuery.data.data.map((l, i) => (
+                        <tr key={i} className="border-t border-border/40">
+                          <td className="p-3">{formatDateShort(l.entry_date)}</td>
+                          <td className="p-3">{l.description || l.memo || '—'}</td>
+                          <td className="p-3">{l.reference || '—'}</td>
+                          <td className="p-3 text-end">{Number(l.debit) > 0 ? formatCurrency(Number(l.debit)) : '—'}</td>
+                          <td className="p-3 text-end">{Number(l.credit) > 0 ? formatCurrency(Number(l.credit)) : '—'}</td>
+                          <td className="p-3 text-end font-medium">{formatCurrency(Number(l.running_balance))}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </Card>
+              )}
             </TabsContent>
 
             <TabsContent value="invoices" className="mt-4">

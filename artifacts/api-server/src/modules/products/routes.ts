@@ -1,11 +1,11 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import multer from 'multer';
-import { parse as parseCsv } from 'csv-parse/sync';
 import { crudRouter } from '../../utils/crud.js';
 import { badRequest, notFound } from '../../utils/errors.js';
 import { round2 } from '../../utils/money.js';
 import { audit } from '../../utils/audit.js';
+import { parseSpreadsheet, buildXlsxBuffer } from '../../utils/spreadsheet.js';
 import { createJournalEntry, getSettings, type JournalLineInput } from '../accounting/posting.js';
 
 const productTypes = ['stock', 'service', 'non_stock', 'expense'] as const;
@@ -143,11 +143,13 @@ const csvUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
+    const name = file.originalname.toLowerCase();
     const ok =
       file.mimetype === 'text/csv' ||
       file.mimetype === 'application/vnd.ms-excel' ||
-      file.originalname.toLowerCase().endsWith('.csv');
-    if (!ok) return cb(new Error('يجب أن يكون الملف بصيغة CSV'));
+      file.mimetype === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+      name.endsWith('.csv') || name.endsWith('.xlsx');
+    if (!ok) return cb(new Error('يجب أن يكون الملف بصيغة CSV أو Excel (xlsx)'));
     cb(null, true);
   },
 });
@@ -418,17 +420,20 @@ router.get('/export', async (req, res, next) => {
       [t.companyId],
     );
 
-    const lines: string[] = [
-      toCsvRow(CSV_HEADERS),
-      ...rs.rows.map((r) =>
-        toCsvRow([
-          r.name, r.sku ?? '', r.barcode ?? '', r.product_type, r.description ?? '',
-          r.price, r.cost, r.quantity, r.alert_level,
-          r.unit, r.category_name ?? '', r.supplier_name ?? '', r.vat_status, r.vat_rate, r.status,
-        ]),
-      ),
-    ];
+    const dataRows: (string | number)[][] = rs.rows.map((r) => [
+      r.name, r.sku ?? '', r.barcode ?? '', r.product_type, r.description ?? '',
+      r.price, r.cost, r.quantity, r.alert_level,
+      r.unit, r.category_name ?? '', r.supplier_name ?? '', r.vat_status, r.vat_rate, r.status,
+    ]);
 
+    if (req.query.format === 'xlsx') {
+      const buf = await buildXlsxBuffer('المنتجات', CSV_HEADERS, dataRows);
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', 'attachment; filename="products.xlsx"');
+      return res.send(buf);
+    }
+
+    const lines: string[] = [toCsvRow(CSV_HEADERS), ...dataRows.map((r) => toCsvRow(r))];
     const csv = lines.join('\r\n');
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', 'attachment; filename="products.csv"');
@@ -437,11 +442,19 @@ router.get('/export', async (req, res, next) => {
 });
 
 /* ─── GET /api/products/export/template ────────────────────── */
-router.get('/export/template', (_req, res) => {
-  const csv = [toCsvRow(CSV_HEADERS), toCsvRow(TEMPLATE_ROW)].join('\r\n');
-  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-  res.setHeader('Content-Disposition', 'attachment; filename="products-template.csv"');
-  res.send('\uFEFF' + csv);
+router.get('/export/template', async (req, res, next) => {
+  try {
+    if (req.query.format === 'xlsx') {
+      const buf = await buildXlsxBuffer('المنتجات', CSV_HEADERS, [TEMPLATE_ROW]);
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', 'attachment; filename="products-template.xlsx"');
+      return res.send(buf);
+    }
+    const csv = [toCsvRow(CSV_HEADERS), toCsvRow(TEMPLATE_ROW)].join('\r\n');
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="products-template.csv"');
+    res.send('\uFEFF' + csv);
+  } catch (e) { next(e); }
 });
 
 /* ─── POST /api/products/import ─────────────────────────────── */
@@ -456,22 +469,19 @@ router.get('/export/template', (_req, res) => {
 router.post('/import', csvUploadMiddleware, async (req, res, next) => {
   try {
     const t = req.tenant!;
-    if (!req.file) return res.status(400).json({ message: 'يجب رفع ملف CSV' });
+    if (!req.file) return res.status(400).json({ message: 'يجب رفع ملف CSV أو Excel' });
 
     const dryRun = (req.body?.dry_run ?? 'false').toString().toLowerCase() !== 'false';
 
-    // csv-parse handles BOM, CRLF/LF, RFC4180 quoting, and embedded newlines.
+    // Shared parser: CSV (csv-parse, handles BOM/CRLF/RFC4180 quoting) or
+    // Excel (.xlsx, via exceljs) — both land in the same string[][] shape
+    // so the validation/insert logic below never needs to know which one
+    // the user uploaded.
     let records: string[][];
     try {
-      records = parseCsv(req.file.buffer, {
-        bom: true,
-        relax_column_count: true,
-        skip_empty_lines: true,
-        trim: true,
-        encoding: 'utf-8',
-      }) as string[][];
+      records = await parseSpreadsheet(req.file.buffer, req.file.originalname);
     } catch {
-      return res.status(422).json({ message: 'ملف CSV غير صالح أو تالف' });
+      return res.status(422).json({ message: 'ملف CSV أو Excel غير صالح أو تالف' });
     }
 
     if (records.length < 2) {

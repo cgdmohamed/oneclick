@@ -452,11 +452,11 @@ const Products = () => {
     }
   };
 
-  const handleExport = async () => {
+  const handleExport = async (format: 'csv' | 'xlsx' = 'csv') => {
     if (!isApiConfigured()) { toast.error('الاتصال بالخادم غير متاح'); return; }
     setExportLoading(true);
     try {
-      const res = await fetch(`${API_URL}/api/products/export`, {
+      const res = await fetch(`${API_URL}/api/products/export?format=${format}`, {
         credentials: 'include',
         headers: getAuthHeaders(),
       });
@@ -464,7 +464,7 @@ const Products = () => {
       const blob = await res.blob();
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = 'products.csv';
+      a.download = `products.${format}`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -477,10 +477,10 @@ const Products = () => {
     }
   };
 
-  const handleTemplateDownload = async () => {
+  const handleTemplateDownload = async (format: 'csv' | 'xlsx' = 'csv') => {
     if (!isApiConfigured()) { toast.error('الاتصال بالخادم غير متاح'); return; }
     try {
-      const res = await fetch(`${API_URL}/api/products/export/template`, {
+      const res = await fetch(`${API_URL}/api/products/export/template?format=${format}`, {
         credentials: 'include',
         headers: getAuthHeaders(),
       });
@@ -488,7 +488,7 @@ const Products = () => {
       const blob = await res.blob();
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = 'products-template.csv';
+      a.download = `products-template.${format}`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -629,12 +629,16 @@ const Products = () => {
     <div>
       <PageHeader title="المنتجات والمخزون" description="إدارة المنتجات وحركة المخزون"
         actions={<>
-          <Button variant="outline" size="sm" onClick={handleExport} disabled={exportLoading}>
+          <Button variant="outline" size="sm" onClick={() => handleExport('csv')} disabled={exportLoading}>
             {exportLoading ? <Loader2 className="h-4 w-4 animate-spin me-1" /> : <Download className="h-4 w-4 me-1" />}
             تصدير CSV
           </Button>
+          <Button variant="outline" size="sm" onClick={() => handleExport('xlsx')} disabled={exportLoading}>
+            {exportLoading ? <Loader2 className="h-4 w-4 animate-spin me-1" /> : <Download className="h-4 w-4 me-1" />}
+            تصدير Excel
+          </Button>
           <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
-            <Upload className="h-4 w-4 me-1" /> استيراد CSV
+            <Upload className="h-4 w-4 me-1" /> استيراد
           </Button>
           <Button variant="outline" onClick={() => { reloadCats(); setCatsOpen(true); }}><Tags className="h-4 w-4 me-1" /> التصنيفات</Button>
           <Button onClick={() => { setEditing({ ...empty, id: '', vatRate: defaultVatRate() }); setOpen(true); }}><Plus className="h-4 w-4 me-1" /> منتج جديد</Button>
@@ -1086,9 +1090,14 @@ const Products = () => {
                 <p>التصنيفات غير الموجودة ستُنشأ تلقائياً. يمكن تنزيل نموذج لمعرفة الشكل الصحيح.</p>
                 <p className="mt-1 text-amber-600">⚠️ الاستيراد يُنشئ منتجات جديدة فقط ولا يعدّل منتجًا موجودًا بالفعل؛ عمود "quantity" يُعتمد كرصيد افتتاحي للمنتج الجديد فقط، ولا يمكن استخدام الاستيراد لتعديل كمية منتج قائم — استخدم "حركة مخزون" لذلك.</p>
               </div>
-              <Button variant="outline" size="sm" onClick={handleTemplateDownload} className="shrink-0">
-                <Download className="h-4 w-4 me-1" /> نموذج CSV
-              </Button>
+              <div className="flex flex-col gap-1.5 shrink-0">
+                <Button variant="outline" size="sm" onClick={() => handleTemplateDownload('csv')}>
+                  <Download className="h-4 w-4 me-1" /> نموذج CSV
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => handleTemplateDownload('xlsx')}>
+                  <Download className="h-4 w-4 me-1" /> نموذج Excel
+                </Button>
+              </div>
             </div>
 
             {!importPreview && (
@@ -1105,13 +1114,13 @@ const Products = () => {
                   <div className="flex flex-col items-center gap-2">
                     <Upload className="h-8 w-8 text-muted-foreground/60" />
                     <p className="text-sm font-medium">اسحب الملف هنا أو اضغط للاختيار</p>
-                    <p className="text-xs text-muted-foreground">ملفات CSV فقط</p>
+                    <p className="text-xs text-muted-foreground">ملفات CSV أو Excel (xlsx)</p>
                   </div>
                 )}
                 <input
                   ref={importFileRef}
                   type="file"
-                  accept=".csv,text/csv"
+                  accept=".csv,text/csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                   className="hidden"
                   onChange={(e) => { handleImportFileChange(e.target.files?.[0]); e.target.value = ''; }}
                 />
