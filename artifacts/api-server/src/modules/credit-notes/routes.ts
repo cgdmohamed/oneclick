@@ -152,20 +152,22 @@ async function postCreditNote(db: Queryable, companyId: string, creditNoteId: st
   const lines: JournalLineInput[] = [
     { accountId: settings.accounts_receivable_account_id, credit: Number(note.total), description: `Credit note ${note.credit_note_number}` },
   ];
-  const returnGroups = new Map<string, number>();
+  const returnGroups = new Map<string, { accountId: string; productId: string | null; amount: number }>();
   for (const item of items.rows) {
     const accountId = item.resolved_sales_returns_account_id ?? settings.sales_returns_account_id;
     if (!accountId) throw badRequest('Missing sales returns account');
-    returnGroups.set(accountId, round2((returnGroups.get(accountId) ?? 0) + Number(item.quantity) * Number(item.unit_price)));
+    const key = `${accountId}:${item.product_id ?? ''}`;
+    const current = returnGroups.get(key);
+    returnGroups.set(key, { accountId, productId: item.product_id ?? null, amount: round2((current?.amount ?? 0) + Number(item.quantity) * Number(item.unit_price)) });
   }
-  for (const [accountId, amount] of returnGroups) {
-    if (amount > 0) lines.push({ accountId, debit: amount, description: `Credit note ${note.credit_note_number}` });
+  for (const group of returnGroups.values()) {
+    if (group.amount > 0) lines.push({ accountId: group.accountId, debit: group.amount, description: `Credit note ${note.credit_note_number}`, productId: group.productId });
   }
   if (Number(note.vat_amount) > 0) {
     lines.push({ accountId: settings.sales_vat_account_id, debit: Number(note.vat_amount), description: `Credit note VAT ${note.credit_note_number}` });
   }
 
-  const cogsGroups = new Map<string, { inventoryAccountId: string; cogsAccountId: string; amount: number }>();
+  const cogsGroups = new Map<string, { inventoryAccountId: string; cogsAccountId: string; productId: string; amount: number }>();
   for (const item of items.rows) {
     if (!item.product_id) continue;
     if (item.product_type !== 'stock') continue;
@@ -189,14 +191,14 @@ async function postCreditNote(db: Queryable, companyId: string, creditNoteId: st
     const inventoryAccountId = item.resolved_inventory_account_id ?? settings.inventory_account_id;
     const cogsAccountId = item.resolved_cogs_account_id ?? settings.cogs_account_id;
     if (!inventoryAccountId || !cogsAccountId) throw badRequest('Missing inventory or COGS account');
-    const key = `${inventoryAccountId}:${cogsAccountId}`;
+    const key = `${inventoryAccountId}:${cogsAccountId}:${item.product_id}`;
     const current = cogsGroups.get(key);
-    cogsGroups.set(key, { inventoryAccountId, cogsAccountId, amount: round2((current?.amount ?? 0) + value) });
+    cogsGroups.set(key, { inventoryAccountId, cogsAccountId, productId: item.product_id, amount: round2((current?.amount ?? 0) + value) });
   }
   for (const group of cogsGroups.values()) {
     if (group.amount > 0) {
-      lines.push({ accountId: group.inventoryAccountId, debit: group.amount, description: `Credit note inventory ${note.credit_note_number}` });
-      lines.push({ accountId: group.cogsAccountId, credit: group.amount, description: `Credit note COGS ${note.credit_note_number}` });
+      lines.push({ accountId: group.inventoryAccountId, debit: group.amount, description: `Credit note inventory ${note.credit_note_number}`, productId: group.productId });
+      lines.push({ accountId: group.cogsAccountId, credit: group.amount, description: `Credit note COGS ${note.credit_note_number}`, productId: group.productId });
     }
   }
 
