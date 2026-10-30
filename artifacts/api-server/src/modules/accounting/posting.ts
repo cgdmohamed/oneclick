@@ -15,6 +15,8 @@ export type JournalLineInput = {
   costCenterId?: string | null;
   clientId?: string | null;
   projectId?: string | null;
+  employeeId?: string | null;
+  productId?: string | null;
 };
 
 type SourceRef = {
@@ -288,8 +290,8 @@ export async function createJournalEntry(db: Queryable, args: {
   for (const line of args.lines) {
     await db.query(
       `INSERT INTO journal_entry_lines
-       (company_id, journal_entry_id, account_id, description, debit, credit, line_no, branch_id, cost_center_id, client_id, project_id)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+       (company_id, journal_entry_id, account_id, description, debit, credit, line_no, branch_id, cost_center_id, client_id, project_id, employee_id, product_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
       [
         args.companyId,
         je.rows[0].id,
@@ -302,6 +304,8 @@ export async function createJournalEntry(db: Queryable, args: {
         line.costCenterId ?? null,
         line.clientId ?? null,
         line.projectId ?? null,
+        line.employeeId ?? null,
+        line.productId ?? null,
       ],
     );
   }
@@ -455,6 +459,7 @@ export async function postSalesInvoice(db: Queryable, companyId: string, invoice
     `SELECT
        ii.cost_center_id,
        ii.project_id,
+       ii.product_id,
        COALESCE(p.cogs_account_id, pc.cogs_account_id, parent_pc.cogs_account_id, $3::uuid) AS cogs_account_id,
        COALESCE(p.inventory_account_id, pc.inventory_account_id, parent_pc.inventory_account_id, $4::uuid) AS inventory_account_id,
        COALESCE(SUM(ii.quantity * COALESCE(NULLIF(p.average_cost, 0), p.cost, 0)),0) AS amount
@@ -463,14 +468,14 @@ export async function postSalesInvoice(db: Queryable, companyId: string, invoice
      LEFT JOIN product_categories parent_pc ON parent_pc.id = pc.parent_id AND parent_pc.company_id = pc.company_id
      WHERE ii.invoice_id = $1 AND ii.company_id = $2
        AND p.product_type = 'stock'
-     GROUP BY 1, 2, 3, 4`,
+     GROUP BY 1, 2, 3, 4, 5`,
     [invoiceId, companyId, s.cogs_account_id, s.inventory_account_id],
   );
   for (const row of cogs.rows) {
     const cogsAmount = round2(Number(row.amount ?? 0));
     if (cogsAmount > 0) {
-      lines.push({ accountId: requireAccount(row.cogs_account_id ?? s.cogs_account_id, 'cost of goods sold'), debit: cogsAmount, description: `COGS ${inv.number}`, branchId: inv.branch_id, costCenterId: row.cost_center_id ?? null, projectId: row.project_id ?? null });
-      lines.push({ accountId: requireAccount(row.inventory_account_id ?? s.inventory_account_id, 'inventory'), credit: cogsAmount, description: `COGS ${inv.number}`, branchId: inv.branch_id, costCenterId: row.cost_center_id ?? null, projectId: row.project_id ?? null });
+      lines.push({ accountId: requireAccount(row.cogs_account_id ?? s.cogs_account_id, 'cost of goods sold'), debit: cogsAmount, description: `COGS ${inv.number}`, branchId: inv.branch_id, costCenterId: row.cost_center_id ?? null, projectId: row.project_id ?? null, productId: row.product_id ?? null });
+      lines.push({ accountId: requireAccount(row.inventory_account_id ?? s.inventory_account_id, 'inventory'), credit: cogsAmount, description: `COGS ${inv.number}`, branchId: inv.branch_id, costCenterId: row.cost_center_id ?? null, projectId: row.project_id ?? null, productId: row.product_id ?? null });
     }
   }
 

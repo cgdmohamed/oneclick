@@ -278,8 +278,8 @@ async function applyOpeningStock(
   if (!inventoryAccountId || !equityAccountId) throw badRequest('Missing inventory or opening balance equity account');
 
   const lines: JournalLineInput[] = [
-    { accountId: inventoryAccountId, debit: value, description: args.notes ?? 'Opening stock' },
-    { accountId: equityAccountId, credit: value, description: args.notes ?? 'Opening stock' },
+    { accountId: inventoryAccountId, debit: value, description: args.notes ?? 'Opening stock', productId },
+    { accountId: equityAccountId, credit: value, description: args.notes ?? 'Opening stock', productId },
   ];
   const je = await createJournalEntry(db, {
     companyId,

@@ -1217,6 +1217,92 @@ router.get('/supplier-ledger-detail', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// Line-by-line debit/credit statement for ONE employee. Unlike the
+// customer/supplier ledgers above, employee_id is a direct column on
+// journal_entry_lines (058_employee_product_dimensions.sql) rather than
+// something reconstructed through source-document joins — every employee
+// still shares the one "مستحقات الموظفين" control account, but each of
+// their own lines is tagged, so this just filters directly on it.
+router.get('/employee-ledger-detail', async (req, res, next) => {
+  try {
+    const t = req.tenant!;
+    const employeeId = typeof req.query.employee_id === 'string' ? req.query.employee_id : null;
+    if (!employeeId) throw new Error('employee_id is required');
+    const meta = await reportMeta(t.db, t.companyId, req.query);
+    const f = dateFilters(req.query);
+    const params: unknown[] = [t.companyId, employeeId, ...f.params];
+    // Restricted to liability accounts so this is a true balance-bearing
+    // statement of the employee's payable (2300, or any sub-account under
+    // it) — without this, the same employee_id tag also sitting on the
+    // salary EXPENSE debit line (5700, posted alongside the payable credit
+    // for the same payroll run) would net against it into a meaningless
+    // combined "balance" mixing an expense and a liability account.
+    const where = [
+      `jel.company_id = $1`, `jel.employee_id = $2`, `je.status IN ('posted','reversed')`, `ca.type = 'liability'`,
+      ...f.where.map((w) => w.replace(/\$(\d+)/g, (_, n) => `$${Number(n) + 2}`)),
+    ];
+    const rs = await t.db.query(
+      `SELECT je.entry_date, je.memo, jel.description, jel.debit, jel.credit, ca.code AS account_code, ca.name AS account_name
+       FROM journal_entry_lines jel
+       JOIN journal_entries je ON je.id = jel.journal_entry_id
+       JOIN chart_accounts ca ON ca.id = jel.account_id
+       WHERE ${where.join(' AND ')}
+       ORDER BY je.entry_date, je.created_at`,
+      params,
+    );
+    let balance = 0;
+    const rows = rs.rows.map((r: { debit: string; credit: string }) => {
+      balance += Number(r.credit) - Number(r.debit);
+      return { ...r, running_balance: balance.toFixed(2) };
+    });
+    res.json({ data: rows, summary: { closing_balance: balance.toFixed(2) }, warnings: meta.warnings });
+  } catch (e) { next(e); }
+});
+
+// Same idea for a single product, filtered on journal_entry_lines.product_id
+// directly — covers the inventory movements that currently tag it: sales
+// COGS/inventory lines, purchase invoice inventory lines, stock movements,
+// and opening stock. Does NOT cover sales revenue lines (those stay
+// grouped by account/cost-center/project only — a product's "statement"
+// here tracks its inventory value, same spirit as the employee payable
+// ledger above), nor inventory write-offs or credit/debit note reversals,
+// which were not tagged with product_id in this round.
+router.get('/product-ledger-detail', async (req, res, next) => {
+  try {
+    const t = req.tenant!;
+    const productId = typeof req.query.product_id === 'string' ? req.query.product_id : null;
+    if (!productId) throw new Error('product_id is required');
+    const meta = await reportMeta(t.db, t.companyId, req.query);
+    const f = dateFilters(req.query);
+    const params: unknown[] = [t.companyId, productId, ...f.params];
+    // Restricted to asset accounts for the same reason as the employee
+    // ledger above: product_id is also tagged on the COGS EXPENSE debit
+    // line (5100) alongside the inventory credit for the same sale, and
+    // mixing an expense account into this balance would make the running
+    // total meaningless. This keeps it to the product's inventory value
+    // (1200, or any sub-account under it) specifically.
+    const where = [
+      `jel.company_id = $1`, `jel.product_id = $2`, `je.status IN ('posted','reversed')`, `ca.type = 'asset'`,
+      ...f.where.map((w) => w.replace(/\$(\d+)/g, (_, n) => `$${Number(n) + 2}`)),
+    ];
+    const rs = await t.db.query(
+      `SELECT je.entry_date, je.memo, jel.description, jel.debit, jel.credit, ca.code AS account_code, ca.name AS account_name
+       FROM journal_entry_lines jel
+       JOIN journal_entries je ON je.id = jel.journal_entry_id
+       JOIN chart_accounts ca ON ca.id = jel.account_id
+       WHERE ${where.join(' AND ')}
+       ORDER BY je.entry_date, je.created_at`,
+      params,
+    );
+    let balance = 0;
+    const rows = rs.rows.map((r: { debit: string; credit: string }) => {
+      balance += Number(r.debit) - Number(r.credit);
+      return { ...r, running_balance: balance.toFixed(2) };
+    });
+    res.json({ data: rows, summary: { closing_balance: balance.toFixed(2) }, warnings: meta.warnings });
+  } catch (e) { next(e); }
+});
+
 // Inventory-vs-GL reconciliation. Mirrors customer-ledger/supplier-ledger's
 // "party total vs GL balance" shape, but on the inventory side: (a) sum of
 // products.inventory_value for stock products, (b) GL balance of whichever
