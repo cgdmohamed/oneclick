@@ -8,6 +8,7 @@ export interface ChartAccount {
   type: 'asset' | 'liability' | 'equity' | 'revenue' | 'expense';
   normal_balance: 'debit' | 'credit';
   is_active: boolean;
+  is_party_account?: boolean;
 }
 
 export interface FiscalYear {

@@ -40,6 +40,8 @@ export interface Client {
   createdAt: string;
   /** Supplier record representing the same real-world party, if linked (see Clients unified statement). */
   linkedSupplierId?: string | null;
+  /** This client's own sub-account in the chart of accounts (under 1100), if one has been created. */
+  chartAccountId?: string | null;
 }
 
 export interface Product {

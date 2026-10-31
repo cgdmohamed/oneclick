@@ -192,8 +192,8 @@ export async function ensurePartySubAccount(
   const seq = await db.query(`SELECT COUNT(*) + 1 AS next FROM chart_accounts WHERE company_id = $1 AND parent_id = $2`, [companyId, parentAccountId]);
   const code = `${parent.rows[0].code}-${String(seq.rows[0].next).padStart(4, '0')}`;
   const rs = await db.query(
-    `INSERT INTO chart_accounts (company_id, parent_id, code, name, type, normal_balance, is_active)
-     VALUES ($1,$2,$3,$4,$5,$6,true) RETURNING id`,
+    `INSERT INTO chart_accounts (company_id, parent_id, code, name, type, normal_balance, is_active, is_party_account)
+     VALUES ($1,$2,$3,$4,$5,$6,true,true) RETURNING id`,
     [companyId, parentAccountId, code, name, parent.rows[0].type, parent.rows[0].normal_balance],
   );
   return rs.rows[0].id as string;
