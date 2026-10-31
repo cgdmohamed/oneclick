@@ -141,7 +141,7 @@ r.post('/write-offs', async (req, res, next) => {
     const amount = round2(body.amount);
     await assertPeriodOpen(t.db, t.companyId, date);
 
-    const customer = await t.db.query(`SELECT 1 FROM clients WHERE id = $1 AND company_id = $2`, [body.customer_id, t.companyId]);
+    const customer = await t.db.query(`SELECT chart_account_id FROM clients WHERE id = $1 AND company_id = $2`, [body.customer_id, t.companyId]);
     if (!customer.rowCount) throw badRequest('Invalid customer');
     if (body.invoice_id) {
       const inv = await t.db.query(`SELECT client_id, remaining FROM invoices WHERE id = $1 AND company_id = $2 AND status != 'cancelled'`, [body.invoice_id, t.companyId]);
@@ -169,7 +169,7 @@ r.post('/write-offs', async (req, res, next) => {
         userId: req.auth!.userId,
         lines: [
           { accountId: settings.doubtful_debts_allowance_account_id, debit: amount, description: body.reason },
-          { accountId: settings.accounts_receivable_account_id, credit: amount, description: body.reason },
+          { accountId: customer.rows[0].chart_account_id ?? settings.accounts_receivable_account_id, credit: amount, description: body.reason, clientId: body.customer_id },
         ],
       });
       await t.db.query(`UPDATE bad_debt_write_offs SET journal_entry_id = $1 WHERE id = $2 AND company_id = $3`, [je.id, ins.rows[0].id, t.companyId]);

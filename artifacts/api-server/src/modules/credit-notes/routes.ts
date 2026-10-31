@@ -110,7 +110,12 @@ async function originalUnitCost(db: Queryable, companyId: string, invoiceId: str
 }
 
 async function postCreditNote(db: Queryable, companyId: string, creditNoteId: string, userId?: string | null) {
-  const noteRs = await db.query(`SELECT * FROM credit_notes WHERE id = $1 AND company_id = $2 FOR UPDATE`, [creditNoteId, companyId]);
+  const noteRs = await db.query(
+    `SELECT cn.*, c.chart_account_id AS client_chart_account_id FROM credit_notes cn
+     LEFT JOIN clients c ON c.id = cn.customer_id AND c.company_id = cn.company_id
+     WHERE cn.id = $1 AND cn.company_id = $2 FOR UPDATE OF cn`,
+    [creditNoteId, companyId],
+  );
   if (!noteRs.rowCount) throw notFound('Credit note not found');
   const note = noteRs.rows[0];
   if (note.status === 'posted' && note.journal_entry_id) return note.journal_entry_id as string;
@@ -150,7 +155,7 @@ async function postCreditNote(db: Queryable, companyId: string, creditNoteId: st
   }, creditNoteId);
 
   const lines: JournalLineInput[] = [
-    { accountId: settings.accounts_receivable_account_id, credit: Number(note.total), description: `Credit note ${note.credit_note_number}` },
+    { accountId: note.client_chart_account_id ?? settings.accounts_receivable_account_id, credit: Number(note.total), description: `Credit note ${note.credit_note_number}`, clientId: note.customer_id },
   ];
   const returnGroups = new Map<string, { accountId: string; productId: string | null; amount: number }>();
   for (const item of items.rows) {

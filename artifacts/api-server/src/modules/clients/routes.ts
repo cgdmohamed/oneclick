@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { parsePagination } from '../../utils/pagination.js';
 import { badRequest, notFound } from '../../utils/errors.js';
+import { ensureAccountingSetup, ensurePartySubAccount, getSettings } from '../accounting/posting.js';
 
 const r = Router();
 
@@ -173,6 +174,15 @@ r.post('/', async (req, res, next) => {
       `INSERT INTO clients (company_id, ${keys.join(',')}) VALUES ($1, ${keys.map((_, i) => `$${i + 2}`).join(',')}) RETURNING *`,
       [t.companyId, ...values],
     );
+    // Real sub-account under "العملاء" (1100) so the client shows up as its
+    // own line in دليل الحسابات, not just a client_id tag on shared lines.
+    await ensureAccountingSetup(t.db, t.companyId);
+    const settings = await getSettings(t.db, t.companyId);
+    const chartAccountId = await ensurePartySubAccount(t.db, t.companyId, settings.accounts_receivable_account_id, rs.rows[0].name);
+    if (chartAccountId) {
+      await t.db.query(`UPDATE clients SET chart_account_id = $1 WHERE id = $2`, [chartAccountId, rs.rows[0].id]);
+      rs.rows[0].chart_account_id = chartAccountId;
+    }
     res.status(201).json({ data: rs.rows[0] });
   } catch (e) { next(e); }
 });
@@ -191,6 +201,9 @@ r.patch('/:id', async (req, res, next) => {
       [req.params.id, t.companyId, ...values],
     );
     if (!rs.rowCount) throw notFound();
+    if ('name' in body && rs.rows[0].chart_account_id) {
+      await t.db.query(`UPDATE chart_accounts SET name = $1 WHERE id = $2 AND company_id = $3`, [body.name, rs.rows[0].chart_account_id, t.companyId]);
+    }
     res.json({ data: rs.rows[0] });
   } catch (e) { next(e); }
 });

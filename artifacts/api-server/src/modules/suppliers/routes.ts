@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { crudRouter } from '../../utils/crud.js';
+import { ensureAccountingSetup, ensurePartySubAccount, getSettings } from '../accounting/posting.js';
 
 const schema = z.object({
   name:       z.string().min(1),
@@ -129,6 +130,55 @@ r.get('/:id/statement', async (req, res, next) => {
         last_payout:      lastPayout,
       },
     });
+  } catch (e) { next(e); }
+});
+
+// Overrides crudRouter's generic POST / so a real sub-account under
+// "الموردون" (2100) can be created right after the supplier row, same
+// reasoning as ensurePartySubAccount's own doc comment in posting.ts.
+// Registered before `r.use('/', base)` below, so Express matches this
+// instead of the generic handler for POST /.
+r.post('/', async (req, res, next) => {
+  try {
+    const t = req.tenant!;
+    const body = schema.parse(req.body);
+    const rs = await t.db.query(
+      `INSERT INTO suppliers (company_id, name, phone, email, address, tax_number, notes, is_active)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+      [t.companyId, body.name, body.phone ?? null, body.email ?? null, body.address ?? null, body.tax_number ?? null, body.notes ?? null, body.is_active],
+    );
+    await ensureAccountingSetup(t.db, t.companyId);
+    const settings = await getSettings(t.db, t.companyId);
+    const chartAccountId = await ensurePartySubAccount(t.db, t.companyId, settings.accounts_payable_account_id, rs.rows[0].name);
+    if (chartAccountId) {
+      await t.db.query(`UPDATE suppliers SET chart_account_id = $1 WHERE id = $2`, [chartAccountId, rs.rows[0].id]);
+      rs.rows[0].chart_account_id = chartAccountId;
+    }
+    res.status(201).json({ data: rs.rows[0] });
+  } catch (e) { next(e); }
+});
+
+// Overrides crudRouter's generic PATCH /:id so a rename also keeps the
+// supplier's linked chart_accounts sub-account name in sync — otherwise it
+// goes stale and the supplier shows under its old name in the chart of
+// accounts/ledger reports after being renamed here.
+r.patch('/:id', async (req, res, next) => {
+  try {
+    const t = req.tenant!;
+    const body = schema.partial().parse(req.body);
+    const keys = (['name', 'phone', 'email', 'address', 'tax_number', 'notes', 'is_active'] as const).filter((f) => f in body);
+    if (!keys.length) return res.json({ data: null });
+    const values = keys.map((f) => (body as Record<string, unknown>)[f]);
+    const set = keys.map((f, i) => `${f} = $${i + 3}`).join(', ');
+    const rs = await t.db.query(
+      `UPDATE suppliers SET ${set} WHERE id = $1 AND company_id = $2 RETURNING *`,
+      [req.params.id, t.companyId, ...values],
+    );
+    if (!rs.rowCount) return res.status(404).json({ error: 'not_found' });
+    if ('name' in body && rs.rows[0].chart_account_id) {
+      await t.db.query(`UPDATE chart_accounts SET name = $1 WHERE id = $2 AND company_id = $3`, [body.name, rs.rows[0].chart_account_id, t.companyId]);
+    }
+    res.json({ data: rs.rows[0] });
   } catch (e) { next(e); }
 });
 

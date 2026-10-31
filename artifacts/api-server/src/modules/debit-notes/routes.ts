@@ -56,7 +56,12 @@ async function validateDebitNote(db: Queryable, companyId: string, body: z.infer
 }
 
 async function postDebitNote(db: Queryable, companyId: string, debitNoteId: string, userId?: string | null) {
-  const noteRs = await db.query(`SELECT * FROM debit_notes WHERE id = $1 AND company_id = $2 FOR UPDATE`, [debitNoteId, companyId]);
+  const noteRs = await db.query(
+    `SELECT dn.*, c.chart_account_id AS client_chart_account_id FROM debit_notes dn
+     LEFT JOIN clients c ON c.id = dn.customer_id AND c.company_id = dn.company_id
+     WHERE dn.id = $1 AND dn.company_id = $2 FOR UPDATE OF dn`,
+    [debitNoteId, companyId],
+  );
   if (!noteRs.rowCount) throw notFound('Debit note not found');
   const note = noteRs.rows[0];
   if (note.status === 'posted' && note.journal_entry_id) return note.journal_entry_id as string;
@@ -84,7 +89,7 @@ async function postDebitNote(db: Queryable, companyId: string, debitNoteId: stri
   }
 
   const lines: JournalLineInput[] = [
-    { accountId: settings.accounts_receivable_account_id, debit: Number(note.total), description: `Debit note ${note.debit_note_number}`, clientId: note.customer_id },
+    { accountId: note.client_chart_account_id ?? settings.accounts_receivable_account_id, debit: Number(note.total), description: `Debit note ${note.debit_note_number}`, clientId: note.customer_id },
   ];
   const revenueGroups = new Map<string, number>();
   for (const item of items.rows) {
