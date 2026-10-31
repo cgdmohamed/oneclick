@@ -7,7 +7,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { ArrowRight, Truck, Phone, Mail, MapPin, Package, Wallet, FileText, ReceiptText } from 'lucide-react';
+import { ArrowRight, Truck, Phone, Mail, MapPin, Package, Wallet, FileText, ReceiptText, BookOpen } from 'lucide-react';
 import { api } from '@/lib/api';
 import { formatCurrency, formatDateShort, paymentMethodLabel, invoiceStatusLabel } from '@/lib/format';
 
@@ -31,6 +31,7 @@ interface SupplierInfo {
   notes: string | null;
   is_active: boolean;
   created_at: string;
+  chart_account_id: string | null;
 }
 
 interface ProductRow {
@@ -198,6 +199,14 @@ const SupplierDetail = () => {
           {supplier.email && <p className="text-sm flex items-center gap-2"><Mail className="h-3.5 w-3.5 text-muted-foreground" />{supplier.email}</p>}
           {supplier.address && <p className="text-sm flex items-center gap-2"><MapPin className="h-3.5 w-3.5 text-muted-foreground" />{supplier.address}</p>}
           {supplier.tax_number && <p className="text-sm text-muted-foreground">الرقم الضريبي: {supplier.tax_number}</p>}
+          {supplier.chart_account_id && (
+            <Link
+              to={`/app/accounting/chart?account=${supplier.chart_account_id}`}
+              className="text-sm flex items-center gap-2 text-muted-foreground hover:text-foreground"
+            >
+              <BookOpen className="h-3.5 w-3.5" /> الحساب في دليل الحسابات
+            </Link>
+          )}
           {supplier.notes && <p className="text-sm text-muted-foreground border-t border-border pt-2">{supplier.notes}</p>}
         </Card>
 

@@ -14,7 +14,7 @@ import { SentAlertsCenter } from '@/components/common/SentAlertsCenter';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
   ArrowRight, Phone, Mail, MapPin, FileBadge2, FileText, CreditCard,
-  Wallet, Activity, Plus, AlertTriangle, TrendingUp, Calendar, User as UserIcon, Printer, X,
+  Wallet, Activity, Plus, AlertTriangle, TrendingUp, Calendar, User as UserIcon, Printer, X, BookOpen,
 } from 'lucide-react';
 import { useClients, useInvoices } from '@/hooks/entities';
 import { payments as mockPayments, accounts as mockAccounts } from '@/data/mock';
@@ -407,6 +407,14 @@ const ClientDetail = () => {
                   <span className="inline-flex items-center gap-1.5">
                     <FileBadge2 className="h-3.5 w-3.5" /> ضريبي: {client.taxNumber}
                   </span>
+                )}
+                {client.chartAccountId && (
+                  <Link
+                    to={`/app/accounting/chart?account=${client.chartAccountId}`}
+                    className="inline-flex items-center gap-1.5 hover:text-foreground"
+                  >
+                    <BookOpen className="h-3.5 w-3.5" /> الحساب في دليل الحسابات
+                  </Link>
                 )}
               </div>
               <div className="text-xs text-muted-foreground inline-flex items-center gap-1.5">

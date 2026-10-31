@@ -56,9 +56,9 @@ async function reportMeta(db: any, companyId: string, query: Record<string, unkn
   }
   const periods = await db.query(`SELECT COUNT(*)::int AS count FROM accounting_periods WHERE ${periodWhere.join(' AND ')}`, periodParams);
   const warnings: string[] = [];
-  if (missingSettings.length) warnings.push(`Accounting settings incomplete: ${missingSettings.join(', ')}`);
-  if (Number(drafts.rows[0].count) > 0) warnings.push(`${drafts.rows[0].count} unposted draft journal(s) in the selected range`);
-  if (Number(periods.rows[0].count) > 0) warnings.push(`${periods.rows[0].count} accounting period(s) in scope are not locked/closed`);
+  if (missingSettings.length) warnings.push(`إعدادات المحاسبة غير مكتملة: ${missingSettings.join('، ')}`);
+  if (Number(drafts.rows[0].count) > 0) warnings.push(`يوجد ${drafts.rows[0].count} قيد يومية غير مرحّل (مسودة) ضمن الفترة المحددة`);
+  if (Number(periods.rows[0].count) > 0) warnings.push(`يوجد ${periods.rows[0].count} فترة محاسبية ضمن النطاق غير مقفلة`);
   return { settings: settingsRow, warnings, missing_settings: missingSettings, draft_journals: drafts.rows[0].count, unlocked_periods: periods.rows[0].count };
 }
 
@@ -848,7 +848,7 @@ router.get('/account-statement', async (req, res, next) => {
   try {
     const t = req.tenant!;
     const accountId = typeof req.query.account_id === 'string' ? req.query.account_id : null;
-    if (!accountId) return res.json({ data: [], summary: {}, warnings: ['Select an account to view the account statement'] });
+    if (!accountId) return res.json({ data: [], summary: {}, warnings: ['اختر حسابًا لعرض كشف الحساب'] });
     const meta = await reportMeta(t.db, t.companyId, req.query);
     const f = dateFilters(req.query);
     const params: unknown[] = [t.companyId, accountId, ...f.params];

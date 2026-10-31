@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '@/components/common/PageHeader';
 import { DataTable, type Column } from '@/components/common/DataTable';
@@ -49,6 +50,13 @@ const emptyAdjustment = {
 
 const ChartOfAccounts = () => {
   const qc = useQueryClient();
+  const [searchParams] = useSearchParams();
+  const deepLinkAccountId = searchParams.get('account');
+  // A link from a client/supplier/employee's own page ("الحساب في دليل
+  // الحسابات") points at a specific auto-generated sub-account, so the
+  // default hidden-by-toggle filter above must not hide the very row the
+  // link was meant to show.
+  const [showPartyAccounts, setShowPartyAccounts] = useState(!!deepLinkAccountId);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<Partial<ChartAccount>>(empty);
   const [saving, setSaving] = useState(false);
@@ -68,10 +76,32 @@ const ChartOfAccounts = () => {
     queryFn: async () => (await api.get<{ data: ChartAccount[] }>('/api/accounting/chart-accounts')).data ?? [],
   });
 
-  const rows = useMemo(() => data.map((a) => ({
-    ...a,
-    tree_name: `${a.parent_id ? '   ' : ''}${a.code} - ${a.name}`,
-  })), [data]);
+  const partyAccountsCount = useMemo(() => data.filter((a) => a.is_party_account).length, [data]);
+
+  // Auto-generated party sub-accounts (one per client/supplier/employee —
+  // see ensurePartySubAccount() in posting.ts) can number in the hundreds
+  // and would otherwise flood this flat list; hidden by default, toggle
+  // reveals them when actually needed (e.g. a manual reconciliation entry
+  // against one specific party).
+  const pickerOptions = useMemo(
+    () => data.filter((a) => showPartyAccounts || !a.is_party_account).map((a) => ({ value: a.id, label: `${a.code} - ${a.name}` })),
+    [data, showPartyAccounts],
+  );
+
+  const rows = useMemo(() => data
+    .filter((a) => showPartyAccounts || !a.is_party_account)
+    .map((a) => ({
+      ...a,
+      tree_name: `${a.parent_id ? '   ' : ''}${a.code} - ${a.name}`,
+    })), [data, showPartyAccounts]);
+
+  // Resolved client-side from the account id in the URL (rather than
+  // trusting a code passed by the caller) so the search box always lands on
+  // whatever this account is actually called/coded right now.
+  const deepLinkCode = useMemo(
+    () => (deepLinkAccountId ? data.find((a) => a.id === deepLinkAccountId)?.code : undefined),
+    [data, deepLinkAccountId],
+  );
 
   const submit = async () => {
     if (!form.code?.trim()) return toast.error('أدخل كود الحساب');
@@ -222,7 +252,10 @@ const ChartOfAccounts = () => {
     { key: 'name', header: 'الحساب', cell: (r) => <div><div className="font-medium">{r.name}</div>{r.parent_name && <div className="text-xs text-muted-foreground">تابع لـ {r.parent_code} - {r.parent_name}</div>}</div> },
     { key: 'type', header: 'النوع', cell: (r) => accountTypeLabel(r.type) },
     { key: 'normal', header: 'الطبيعة', cell: (r) => normalBalanceLabel(r.normal_balance) },
-    { key: 'status', header: 'الحالة', cell: (r) => <Badge variant={r.is_active ? 'default' : 'secondary'}>{r.is_active ? 'نشط' : 'غير نشط'}</Badge> },
+    { key: 'status', header: 'الحالة', cell: (r) => <div className="flex items-center gap-1.5">
+      <Badge variant={r.is_active ? 'default' : 'secondary'}>{r.is_active ? 'نشط' : 'غير نشط'}</Badge>
+      {r.is_party_account && <Badge variant="outline" className="text-xs text-muted-foreground">تلقائي</Badge>}
+    </div> },
     { key: 'actions', header: '', cell: (r) => <Button variant="ghost" size="icon" onClick={() => { setForm(r); setOpen(true); }}><Pencil className="h-4 w-4" /></Button> },
   ];
 
@@ -231,7 +264,13 @@ const ChartOfAccounts = () => {
       <PageHeader
         title="دليل الحسابات"
         description="حسابات الأستاذ العام حسب الهيكل الهرمي وطبيعة الرصيد"
-        actions={<div className="flex flex-wrap gap-2">
+        actions={<div className="flex flex-wrap items-center gap-2">
+          {partyAccountsCount > 0 && (
+            <label className="flex items-center gap-2 text-sm text-muted-foreground px-2 border rounded-md h-9">
+              <Switch checked={showPartyAccounts} onCheckedChange={setShowPartyAccounts} />
+              إظهار الحسابات الفرعية التلقائية ({partyAccountsCount})
+            </label>
+          )}
           <Button variant="outline" size="sm" onClick={() => handleExport('csv')} disabled={exportLoading}>
             {exportLoading ? <Loader2 className="h-4 w-4 animate-spin ml-1" /> : <Download className="h-4 w-4 ml-1" />} تصدير CSV
           </Button>
@@ -243,7 +282,14 @@ const ChartOfAccounts = () => {
           <Button onClick={() => { setForm(empty); setOpen(true); }}><Plus className="h-4 w-4 ml-1" /> حساب جديد</Button>
         </div>}
       />
-      <DataTable data={rows} columns={columns} searchKeys={['code', 'name']} emptyTitle="لا توجد حسابات" />
+      <DataTable
+        key={deepLinkCode ?? 'all'}
+        data={rows}
+        columns={columns}
+        searchKeys={['code', 'name']}
+        defaultSearch={deepLinkCode}
+        emptyTitle="لا توجد حسابات"
+      />
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent dir="rtl" className="max-w-xl">
@@ -264,7 +310,7 @@ const ChartOfAccounts = () => {
                 <SearchableSelect
                   value={form.parent_id ?? '__none__'}
                   onValueChange={(v) => setForm((p) => ({ ...p, parent_id: v === '__none__' ? null : v }))}
-                  options={[{ value: '__none__', label: 'بدون حساب أب' }, ...data.filter((a) => a.id !== form.id).map((a) => ({ value: a.id, label: `${a.code} - ${a.name}` }))]}
+                  options={[{ value: '__none__', label: 'بدون حساب أب' }, ...pickerOptions.filter((o) => o.value !== form.id)]}
                   placeholder="بدون حساب أب"
                   searchPlaceholder="ابحث بالكود أو الاسم..."
                 />
@@ -304,7 +350,7 @@ const ChartOfAccounts = () => {
                 <SearchableSelect
                   value={adjustment.from_account_id}
                   onValueChange={(v) => setAdjustment((p) => ({ ...p, from_account_id: v }))}
-                  options={data.map((a) => ({ value: a.id, label: `${a.code} - ${a.name}` }))}
+                  options={pickerOptions}
                   placeholder="اختر الحساب"
                   searchPlaceholder="ابحث بالكود أو الاسم..."
                 />
@@ -316,7 +362,7 @@ const ChartOfAccounts = () => {
                 <SearchableSelect
                   value={adjustment.to_account_id}
                   onValueChange={(v) => setAdjustment((p) => ({ ...p, to_account_id: v }))}
-                  options={data.map((a) => ({ value: a.id, label: `${a.code} - ${a.name}` }))}
+                  options={pickerOptions}
                   placeholder="اختر الحساب"
                   searchPlaceholder="ابحث بالكود أو الاسم..."
                 />

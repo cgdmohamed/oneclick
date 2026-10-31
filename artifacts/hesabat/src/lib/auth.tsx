@@ -62,9 +62,25 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     let cancelled = false;
     if (!isApiConfigured() || !getAccessToken()) return;
+    // A transient failure here (slow cold start, a dropped connection, a
+    // 5xx) must not look identical to "this token is invalid" — retrying
+    // once before giving up keeps a valid session alive through a blip
+    // instead of bouncing the user to /login (observed live: navigating
+    // straight to a deep report link occasionally hit exactly this during
+    // a slow first load, wiping a perfectly good access token).
+    const fetchMeWithRetry = async (): Promise<MeResponse> => {
+      try {
+        return await api.get<MeResponse>('/api/auth/me');
+      } catch (err: unknown) {
+        const e = err as { status?: number };
+        if (e?.status === 401 || e?.status === 403) throw err;
+        await new Promise((r) => setTimeout(r, 600));
+        return api.get<MeResponse>('/api/auth/me');
+      }
+    };
     (async () => {
       try {
-        const me = await api.get<MeResponse>('/api/auth/me');
+        const me = await fetchMeWithRetry();
         if (cancelled) return;
         setPendingApproval(false);
         const defaultCompany = me.companies.find((c) => c.is_default) ?? me.companies[0];
@@ -110,7 +126,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const e = err as { status?: number; message?: string };
         if (e?.status === 403 && e?.message?.toLowerCase().includes('pending review')) {
           setPendingApproval(true);
-        } else {
+        } else if (e?.status === 401 || e?.status === 403) {
+          // The backend explicitly rejected this token — it really is invalid
+          // (expired, revoked, wrong user). Only this case justifies a full
+          // logout; anything else (no status at all = a network-level
+          // failure, or a 5xx) must leave the stored token alone so the next
+          // mount can simply try again instead of forcing a fresh login.
           setAccessToken(null);
           setRefreshToken(null);
         }

@@ -18,6 +18,8 @@ interface DataTableProps<T> {
   columns: Column<T>[];
   searchKeys?: (keyof T)[];
   searchPlaceholder?: string;
+  /** Pre-fills the search box on mount (e.g. a deep link from another page). */
+  defaultSearch?: string;
   emptyTitle?: string;
   rightToolbar?: ReactNode;
   loading?: boolean;
@@ -29,10 +31,10 @@ interface DataTableProps<T> {
 }
 
 export function DataTable<T extends { id: string }>({
-  data, columns, searchKeys, searchPlaceholder = 'بحث...', emptyTitle = 'لا توجد بيانات',
+  data, columns, searchKeys, searchPlaceholder = 'بحث...', emptyTitle = 'لا توجد بيانات', defaultSearch,
   rightToolbar, loading = false, onRowClick, pageSize: initialPageSize = 10, pageSizeOptions = [10, 25, 50, 100],
 }: DataTableProps<T>) {
-  const [q, setQ] = useState('');
+  const [q, setQ] = useState(defaultSearch ?? '');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(initialPageSize || 0);
 
