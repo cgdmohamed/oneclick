@@ -4,7 +4,7 @@ import { audit } from '../../utils/audit.js';
 import { badRequest, conflict, notFound } from '../../utils/errors.js';
 import { round2 } from '../../utils/money.js';
 import { assertBranch, assertCostCenter } from '../../utils/dimensions.js';
-import { assertPeriodOpen, createJournalEntry, getSettings, reverseJournalEntry } from '../accounting/posting.js';
+import { assertPeriodOpen, createJournalEntry, ensureAccountingSetup, ensurePartySubAccount, getSettings, reverseJournalEntry } from '../accounting/posting.js';
 
 const r = Router();
 
@@ -206,6 +206,15 @@ r.post('/employees', async (req, res, next) => {
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
       [t.companyId, employeeCode, b.name, b.phone ?? null, b.email ?? null, b.national_id ?? null, b.hire_date, b.status, b.branch_id ?? null, b.cost_center_id ?? null, b.basic_salary, b.notes ?? null],
     );
+    // Real sub-account under "مستحقات الموظفين" (2300), same reasoning as
+    // ensurePartySubAccount's own doc comment.
+    await ensureAccountingSetup(t.db, t.companyId);
+    const settings = await getSettings(t.db, t.companyId);
+    const chartAccountId = await ensurePartySubAccount(t.db, t.companyId, settings.employee_payables_account_id, rs.rows[0].name);
+    if (chartAccountId) {
+      await t.db.query(`UPDATE employees SET chart_account_id = $1 WHERE id = $2`, [chartAccountId, rs.rows[0].id]);
+      rs.rows[0].chart_account_id = chartAccountId;
+    }
     await audit(t.db, { companyId: t.companyId, userId: req.auth!.userId, action: 'employee.create', entity: 'employee', entityId: rs.rows[0].id });
     res.status(201).json({ data: rs.rows[0] });
   } catch (e) { next(e); }
@@ -223,6 +232,9 @@ r.patch('/employees/:id', async (req, res, next) => {
     const values = fields.map((key) => (b as any)[key]);
     const rs = await t.db.query(`UPDATE employees SET ${sets}, updated_at=NOW() WHERE id=$1 AND company_id=$2 RETURNING *`, [req.params.id, t.companyId, ...values]);
     if (!rs.rowCount) throw notFound('Employee not found');
+    if (b.name !== undefined && rs.rows[0].chart_account_id) {
+      await t.db.query(`UPDATE chart_accounts SET name = $1 WHERE id = $2 AND company_id = $3`, [b.name, rs.rows[0].chart_account_id, t.companyId]);
+    }
     await audit(t.db, { companyId: t.companyId, userId: req.auth!.userId, action: 'employee.update', entity: 'employee', entityId: req.params.id, data: b });
     res.json({ data: rs.rows[0] });
   } catch (e) { next(e); }
@@ -330,13 +342,13 @@ async function postPayroll(db: any, companyId: string, runId: string, userId?: s
   await assertPeriodOpen(db, companyId, entryDate);
   const settings = await getSettings(db, companyId);
   const lines = await db.query(
-    `SELECT prl.*, e.name AS employee_name,
+    `SELECT prl.*, e.name AS employee_name, e.chart_account_id AS employee_chart_account_id,
             COALESCE(json_agg(json_build_object('type', sc.type, 'account_id', sc.account_id, 'amount', plc.amount, 'name', sc.name)) FILTER (WHERE plc.id IS NOT NULL), '[]') AS components
      FROM payroll_run_lines prl JOIN employees e ON e.id=prl.employee_id
      LEFT JOIN payroll_line_components plc ON plc.payroll_run_line_id=prl.id
      LEFT JOIN salary_components sc ON sc.id=plc.salary_component_id
      WHERE prl.company_id=$1 AND prl.payroll_run_id=$2
-     GROUP BY prl.id, e.name`,
+     GROUP BY prl.id, e.name, e.chart_account_id`,
     [companyId, runId],
   );
   const journalLines: any[] = [];
@@ -355,7 +367,7 @@ async function postPayroll(db: any, companyId: string, runId: string, userId?: s
     // employeeId tagged on the payable line specifically is what the new
     // employee statement endpoint (reports/employee-ledger-detail) filters
     // on, same role client_id plays for the AR control account.
-    if (Number(line.net_salary) > 0) journalLines.push({ accountId: settings.employee_payables_account_id, credit: Number(line.net_salary), description: `Net salary ${line.employee_name}`, branchId: line.branch_id, costCenterId: line.cost_center_id, employeeId: line.employee_id });
+    if (Number(line.net_salary) > 0) journalLines.push({ accountId: line.employee_chart_account_id ?? settings.employee_payables_account_id, credit: Number(line.net_salary), description: `Net salary ${line.employee_name}`, branchId: line.branch_id, costCenterId: line.cost_center_id, employeeId: line.employee_id });
   }
   const je = await createJournalEntry(db, { companyId, entryDate, memo: `Payroll ${run.rows[0].period_year}-${String(run.rows[0].period_month).padStart(2, '0')}`, source: { type: 'payroll_run', id: runId }, userId, lines: journalLines });
   await db.query(`UPDATE payroll_runs SET status='posted', posted_at=NOW(), posted_by=$3, journal_entry_id=$4, updated_at=NOW() WHERE id=$1 AND company_id=$2`, [runId, companyId, userId ?? null, je.id]);
@@ -419,7 +431,9 @@ r.post('/runs/:id/pay', async (req, res, next) => {
       // involved — it only lets each employee's own payable line be tagged
       // and show up correctly in their individual statement.
       const perEmployee = await t.db.query(
-        `SELECT employee_id, net_salary FROM payroll_run_lines WHERE payroll_run_id=$1 AND company_id=$2 AND net_salary > 0`,
+        `SELECT prl.employee_id, prl.net_salary, e.chart_account_id AS employee_chart_account_id
+         FROM payroll_run_lines prl JOIN employees e ON e.id = prl.employee_id
+         WHERE prl.payroll_run_id=$1 AND prl.company_id=$2 AND prl.net_salary > 0`,
         [req.params.id, t.companyId],
       );
       const amount = round2(perEmployee.rows.reduce((sum: number, r: { net_salary: string }) => sum + Number(r.net_salary), 0));
@@ -432,8 +446,8 @@ r.post('/runs/:id/pay', async (req, res, next) => {
         source: { type: 'payroll_payment', id: req.params.id },
         userId: req.auth!.userId,
         lines: [
-          ...perEmployee.rows.map((r: { employee_id: string; net_salary: string }) => ({
-            accountId: settings.employee_payables_account_id, debit: round2(Number(r.net_salary)),
+          ...perEmployee.rows.map((r: { employee_id: string; net_salary: string; employee_chart_account_id: string | null }) => ({
+            accountId: r.employee_chart_account_id ?? settings.employee_payables_account_id, debit: round2(Number(r.net_salary)),
             description: 'Payroll payment', employeeId: r.employee_id,
           })),
           { accountId: cashAccount, credit: amount, description: 'Payroll payment' },

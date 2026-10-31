@@ -1044,12 +1044,13 @@ router.get('/customer-ledger', async (req, res, next) => {
     const meta = await reportMeta(t.db, t.companyId, req.query);
     const f = dateFilters(req.query);
     const params: unknown[] = [t.companyId, meta.settings.accounts_receivable_account_id, ...f.params];
-    const where = [`jel.company_id = $1`, `jel.account_id = $2`, `je.status IN ('posted','reversed')`, ...f.where.map((w) => w.replace(/\$(\d+)/g, (_, n) => `$${Number(n) + 2}`))];
+    const where = [`jel.company_id = $1`, `jel.account_id IN (SELECT descendant_id FROM account_tree WHERE ancestor_id = $2)`, `je.status IN ('posted','reversed')`, ...f.where.map((w) => w.replace(/\$(\d+)/g, (_, n) => `$${Number(n) + 2}`))];
     dimensionFilters(req.query, params, where);
     const customerId = typeof req.query.customer_id === 'string' ? req.query.customer_id : null;
     if (customerId) params.push(customerId);
     const rs = await t.db.query(
-      `WITH ar_lines AS (
+      `${ACCOUNT_ROLLUP_CTE},
+       ar_lines AS (
          SELECT je.source_type, je.source_id, jel.debit, jel.credit
          FROM journal_entry_lines jel
          JOIN journal_entries je ON je.id = jel.journal_entry_id
@@ -1060,13 +1061,14 @@ router.get('/customer-ledger', async (req, res, next) => {
          -- (payments.invoice_id IS NULL, so pay_inv never resolves) — without
          -- it, on-account collections silently drop out of every customer
          -- balance/ledger.
-         SELECT COALESCE(inv.client_id, pay_inv.client_id, pay.client_id, cn.customer_id, bwo.customer_id, dda.customer_id) AS customer_id,
+         SELECT COALESCE(inv.client_id, pay_inv.client_id, pay.client_id, cn.customer_id, dn.customer_id, bwo.customer_id, dda.customer_id) AS customer_id,
                 debit, credit
          FROM ar_lines l
          LEFT JOIN invoices inv ON l.source_type = 'invoice' AND inv.id = l.source_id
          LEFT JOIN payments pay ON l.source_type = 'payment' AND pay.id = l.source_id
          LEFT JOIN invoices pay_inv ON pay_inv.id = pay.invoice_id
          LEFT JOIN credit_notes cn ON l.source_type = 'credit_note' AND cn.id = l.source_id
+         LEFT JOIN debit_notes dn ON l.source_type = 'debit_note' AND dn.id = l.source_id
          LEFT JOIN bad_debt_write_offs bwo ON l.source_type = 'bad_debt_write_off' AND bwo.id = l.source_id
          LEFT JOIN doubtful_debt_allowances dda ON l.source_type = 'doubtful_debt_allowance' AND dda.id = l.source_id
        )
@@ -1083,7 +1085,7 @@ router.get('/customer-ledger', async (req, res, next) => {
     );
     const customerTotal = rs.rows.reduce((s: number, r: { outstanding: string }) => s + Number(r.outstanding), 0);
     const ledgerParams = customerId ? params.slice(0, -1) : params;
-    const ledger = await t.db.query(`SELECT COALESCE(SUM(jel.debit - jel.credit),0) AS balance FROM journal_entry_lines jel JOIN journal_entries je ON je.id=jel.journal_entry_id WHERE ${where.join(' AND ')}`, ledgerParams);
+    const ledger = await t.db.query(`${ACCOUNT_ROLLUP_CTE} SELECT COALESCE(SUM(jel.debit - jel.credit),0) AS balance FROM journal_entry_lines jel JOIN journal_entries je ON je.id=jel.journal_entry_id WHERE ${where.join(' AND ')}`, ledgerParams);
     const ledgerBalance = Number(ledger.rows[0].balance);
     res.json({ data: rs.rows, summary: { customer_total: customerTotal.toFixed(2), ar_ledger_balance: ledgerBalance.toFixed(2), reconciliation_difference: (customerTotal - ledgerBalance).toFixed(2) }, warnings: meta.warnings });
   } catch (e) { next(e); }
@@ -1095,12 +1097,13 @@ router.get('/supplier-ledger', async (req, res, next) => {
     const meta = await reportMeta(t.db, t.companyId, req.query);
     const f = dateFilters(req.query);
     const params: unknown[] = [t.companyId, meta.settings.accounts_payable_account_id, ...f.params];
-    const where = [`jel.company_id = $1`, `jel.account_id = $2`, `je.status IN ('posted','reversed')`, ...f.where.map((w) => w.replace(/\$(\d+)/g, (_, n) => `$${Number(n) + 2}`))];
+    const where = [`jel.company_id = $1`, `jel.account_id IN (SELECT descendant_id FROM account_tree WHERE ancestor_id = $2)`, `je.status IN ('posted','reversed')`, ...f.where.map((w) => w.replace(/\$(\d+)/g, (_, n) => `$${Number(n) + 2}`))];
     dimensionFilters(req.query, params, where);
     const supplierId = typeof req.query.supplier_id === 'string' ? req.query.supplier_id : null;
     if (supplierId) params.push(supplierId);
     const rs = await t.db.query(
-      `WITH ap_lines AS (
+      `${ACCOUNT_ROLLUP_CTE},
+       ap_lines AS (
          SELECT je.source_type, je.source_id, jel.debit, jel.credit
          FROM journal_entry_lines jel
          JOIN journal_entries je ON je.id = jel.journal_entry_id
@@ -1127,7 +1130,7 @@ router.get('/supplier-ledger', async (req, res, next) => {
     );
     const supplierTotal = rs.rows.reduce((s: number, r: { outstanding: string }) => s + Number(r.outstanding), 0);
     const ledgerParams = supplierId ? params.slice(0, -1) : params;
-    const ledger = await t.db.query(`SELECT COALESCE(SUM(jel.credit - jel.debit),0) AS balance FROM journal_entry_lines jel JOIN journal_entries je ON je.id=jel.journal_entry_id WHERE ${where.join(' AND ')}`, ledgerParams);
+    const ledger = await t.db.query(`${ACCOUNT_ROLLUP_CTE} SELECT COALESCE(SUM(jel.credit - jel.debit),0) AS balance FROM journal_entry_lines jel JOIN journal_entries je ON je.id=jel.journal_entry_id WHERE ${where.join(' AND ')}`, ledgerParams);
     const ledgerBalance = Number(ledger.rows[0].balance);
     res.json({ data: rs.rows, summary: { supplier_total: supplierTotal.toFixed(2), ap_ledger_balance: ledgerBalance.toFixed(2), reconciliation_difference: (supplierTotal - ledgerBalance).toFixed(2) }, warnings: meta.warnings });
   } catch (e) { next(e); }
@@ -1147,27 +1150,29 @@ router.get('/customer-ledger-detail', async (req, res, next) => {
     const meta = await reportMeta(t.db, t.companyId, req.query);
     const f = dateFilters(req.query);
     const params: unknown[] = [t.companyId, meta.settings.accounts_receivable_account_id, ...f.params];
-    const where = [`jel.company_id = $1`, `jel.account_id = $2`, `je.status IN ('posted','reversed')`, ...f.where.map((w) => w.replace(/\$(\d+)/g, (_, n) => `$${Number(n) + 2}`))];
+    const where = [`jel.company_id = $1`, `jel.account_id IN (SELECT descendant_id FROM account_tree WHERE ancestor_id = $2)`, `je.status IN ('posted','reversed')`, ...f.where.map((w) => w.replace(/\$(\d+)/g, (_, n) => `$${Number(n) + 2}`))];
     const rs = await t.db.query(
-      `WITH ar_lines AS (
+      `${ACCOUNT_ROLLUP_CTE},
+       ar_lines AS (
          SELECT je.id AS entry_id, je.entry_date, je.created_at, je.memo, je.source_type, je.source_id, jel.debit, jel.credit, jel.description
          FROM journal_entry_lines jel
          JOIN journal_entries je ON je.id = jel.journal_entry_id
          WHERE ${where.join(' AND ')}
        )
        SELECT l.entry_id, l.entry_date, l.memo, l.description, l.debit, l.credit, l.source_type,
-              COALESCE(inv.number, cn.credit_note_number, dda.id::text, bwo.id::text) AS reference
+              COALESCE(inv.number, cn.credit_note_number, dn.debit_note_number, dda.id::text, bwo.id::text) AS reference
        FROM ar_lines l
        LEFT JOIN invoices inv ON l.source_type = 'invoice' AND inv.id = l.source_id AND inv.client_id = $${params.length + 1}
        LEFT JOIN payments pay ON l.source_type = 'payment' AND pay.id = l.source_id
        LEFT JOIN invoices pay_inv ON pay_inv.id = pay.invoice_id AND pay_inv.client_id = $${params.length + 1}
        LEFT JOIN credit_notes cn ON l.source_type = 'credit_note' AND cn.id = l.source_id AND cn.customer_id = $${params.length + 1}
+       LEFT JOIN debit_notes dn ON l.source_type = 'debit_note' AND dn.id = l.source_id AND dn.customer_id = $${params.length + 1}
        LEFT JOIN bad_debt_write_offs bwo ON l.source_type = 'bad_debt_write_off' AND bwo.id = l.source_id AND bwo.customer_id = $${params.length + 1}
        LEFT JOIN doubtful_debt_allowances dda ON l.source_type = 'doubtful_debt_allowance' AND dda.id = l.source_id AND dda.customer_id = $${params.length + 1}
        -- pay.client_id covers an "on_account" collection (no invoice_id, so
        -- pay_inv never resolves) — without it, on-account collections would
        -- silently vanish from this client's statement.
-       WHERE COALESCE(inv.client_id, pay_inv.client_id, pay.client_id, cn.customer_id, bwo.customer_id, dda.customer_id) = $${params.length + 1}
+       WHERE COALESCE(inv.client_id, pay_inv.client_id, pay.client_id, cn.customer_id, dn.customer_id, bwo.customer_id, dda.customer_id) = $${params.length + 1}
        ORDER BY l.entry_date, l.created_at`,
       [...params, customerId],
     );
@@ -1190,9 +1195,10 @@ router.get('/supplier-ledger-detail', async (req, res, next) => {
     const meta = await reportMeta(t.db, t.companyId, req.query);
     const f = dateFilters(req.query);
     const params: unknown[] = [t.companyId, meta.settings.accounts_payable_account_id, ...f.params];
-    const where = [`jel.company_id = $1`, `jel.account_id = $2`, `je.status IN ('posted','reversed')`, ...f.where.map((w) => w.replace(/\$(\d+)/g, (_, n) => `$${Number(n) + 2}`))];
+    const where = [`jel.company_id = $1`, `jel.account_id IN (SELECT descendant_id FROM account_tree WHERE ancestor_id = $2)`, `je.status IN ('posted','reversed')`, ...f.where.map((w) => w.replace(/\$(\d+)/g, (_, n) => `$${Number(n) + 2}`))];
     const rs = await t.db.query(
-      `WITH ap_lines AS (
+      `${ACCOUNT_ROLLUP_CTE},
+       ap_lines AS (
          SELECT je.id AS entry_id, je.entry_date, je.created_at, je.memo, je.source_type, je.source_id, jel.debit, jel.credit, jel.description
          FROM journal_entry_lines jel
          JOIN journal_entries je ON je.id = jel.journal_entry_id

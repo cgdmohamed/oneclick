@@ -171,6 +171,34 @@ export async function ensureAccountingSetup(db: Queryable, companyId: string) {
   }
 }
 
+// Creates a real chart-of-accounts sub-account for one client/supplier/
+// employee under the given control account (1100/2100/2300), so the
+// party shows up as its own line in دليل الحسابات instead of only being
+// distinguishable via the client_id/employee_id tag on journal lines
+// (058_employee_product_dimensions.sql — that tagging stays, as a
+// belt-and-suspenders fallback for any line that somehow still lands on
+// the shared parent account). Code is "<parent code>-<4-digit sequence>",
+// same scheme the 059_party_sub_accounts.sql backfill used, so live
+// creation continues that company's sequence rather than colliding with
+// it. Call this once, right after the party's own row is inserted —
+// idempotent only in the sense that it's never called twice for the same
+// party (callers hold the new row's id and only call this on create).
+export async function ensurePartySubAccount(
+  db: Queryable, companyId: string, parentAccountId: string | null | undefined, name: string,
+): Promise<string | null> {
+  if (!parentAccountId) return null;
+  const parent = await db.query(`SELECT code, type, normal_balance FROM chart_accounts WHERE id = $1 AND company_id = $2`, [parentAccountId, companyId]);
+  if (!parent.rowCount) return null;
+  const seq = await db.query(`SELECT COUNT(*) + 1 AS next FROM chart_accounts WHERE company_id = $1 AND parent_id = $2`, [companyId, parentAccountId]);
+  const code = `${parent.rows[0].code}-${String(seq.rows[0].next).padStart(4, '0')}`;
+  const rs = await db.query(
+    `INSERT INTO chart_accounts (company_id, parent_id, code, name, type, normal_balance, is_active)
+     VALUES ($1,$2,$3,$4,$5,$6,true) RETURNING id`,
+    [companyId, parentAccountId, code, name, parent.rows[0].type, parent.rows[0].normal_balance],
+  );
+  return rs.rows[0].id as string;
+}
+
 export async function ensureFiscalYear(db: Queryable, companyId: string, entryDate: string | Date) {
   const date = asDateOnly(entryDate);
   const existing = await db.query(
@@ -405,10 +433,16 @@ async function moneyAccountChartAccount(db: Queryable, companyId: string, accoun
 }
 
 export async function postSalesInvoice(db: Queryable, companyId: string, invoiceId: string, userId?: string | null) {
-  const invoice = await db.query(`SELECT * FROM invoices WHERE id = $1 AND company_id = $2`, [invoiceId, companyId]);
+  const invoice = await db.query(
+    `SELECT i.*, c.chart_account_id AS client_chart_account_id FROM invoices i
+     LEFT JOIN clients c ON c.id = i.client_id AND c.company_id = i.company_id
+     WHERE i.id = $1 AND i.company_id = $2`,
+    [invoiceId, companyId],
+  );
   if (!invoice.rowCount || invoice.rows[0].journal_entry_id) return invoice.rows[0]?.journal_entry_id;
   const s = await getSettings(db, companyId);
   const inv = invoice.rows[0];
+  const arAccountId = inv.client_chart_account_id ?? s.accounts_receivable_account_id;
   const revenue = round2(Number(inv.subtotal) - Number(inv.discount ?? 0));
   // VAT-01 safeguard: never post a journal entry for an invoice whose
   // stored total doesn't reconcile with subtotal - discount + vat. This is
@@ -418,7 +452,7 @@ export async function postSalesInvoice(db: Queryable, companyId: string, invoice
     throw badRequest(`Invoice ${inv.number} total does not reconcile with subtotal, discount and VAT — refusing to post`);
   }
   const lines: JournalLineInput[] = [
-    { accountId: s.accounts_receivable_account_id, debit: Number(inv.total), description: `Invoice ${inv.number}`, branchId: inv.branch_id, clientId: inv.client_id, costCenterId: inv.cost_center_id ?? null, projectId: inv.project_id ?? null },
+    { accountId: arAccountId, debit: Number(inv.total), description: `Invoice ${inv.number}`, branchId: inv.branch_id, clientId: inv.client_id, costCenterId: inv.cost_center_id ?? null, projectId: inv.project_id ?? null },
   ];
   const revenueGroups = await db.query(
     `SELECT
@@ -524,7 +558,10 @@ export async function recomputeInvoiceBalance(db: Queryable, companyId: string, 
 
 export async function postCustomerPayment(db: Queryable, companyId: string, paymentId: string, userId?: string | null) {
   const payment = await db.query(
-    `SELECT p.*, i.number AS invoice_number FROM payments p LEFT JOIN invoices i ON i.id = p.invoice_id
+    `SELECT p.*, i.number AS invoice_number, c.chart_account_id AS client_chart_account_id
+     FROM payments p
+     LEFT JOIN invoices i ON i.id = p.invoice_id
+     LEFT JOIN clients c ON c.id = p.client_id AND c.company_id = p.company_id
      WHERE p.id = $1 AND p.company_id = $2`,
     [paymentId, companyId],
   );
@@ -534,7 +571,7 @@ export async function postCustomerPayment(db: Queryable, companyId: string, paym
   const cashAccountId = await moneyAccountChartAccount(db, companyId, payment.rows[0].account_id);
   const creditAccountId = pay.collection_type === 'general_receipt'
     ? requireAccount(pay.credit_account_id, 'general receipt credit')
-    : requireAccount(s.accounts_receivable_account_id, 'accounts receivable');
+    : requireAccount(pay.client_chart_account_id ?? s.accounts_receivable_account_id, 'accounts receivable');
   const memo = pay.collection_type === 'general_receipt'
     ? `General receipt ${pay.reference ?? paymentId}`
     : pay.collection_type === 'on_account'
@@ -579,10 +616,16 @@ export async function postPayout(db: Queryable, companyId: string, payoutId: str
 }
 
 export async function postSupplierPayment(db: Queryable, companyId: string, supplierPaymentId: string, userId?: string | null) {
-  const payment = await db.query(`SELECT * FROM supplier_payments WHERE id = $1 AND company_id = $2`, [supplierPaymentId, companyId]);
+  const payment = await db.query(
+    `SELECT sp.*, s.chart_account_id AS supplier_chart_account_id FROM supplier_payments sp
+     LEFT JOIN suppliers s ON s.id = sp.supplier_id AND s.company_id = sp.company_id
+     WHERE sp.id = $1 AND sp.company_id = $2`,
+    [supplierPaymentId, companyId],
+  );
   if (!payment.rowCount || payment.rows[0].journal_entry_id) return payment.rows[0]?.journal_entry_id;
   const s = await getSettings(db, companyId);
   const cashAccountId = await moneyAccountChartAccount(db, companyId, payment.rows[0].account_id);
+  const apAccountId = payment.rows[0].supplier_chart_account_id ?? s.accounts_payable_account_id;
   const je = await createJournalEntry(db, {
     companyId,
     entryDate: payment.rows[0].paid_at,
@@ -591,7 +634,7 @@ export async function postSupplierPayment(db: Queryable, companyId: string, supp
     userId,
     branchId: payment.rows[0].branch_id ?? null,
     lines: [
-      { accountId: s.accounts_payable_account_id, debit: Number(payment.rows[0].amount), description: payment.rows[0].notes, branchId: payment.rows[0].branch_id },
+      { accountId: apAccountId, debit: Number(payment.rows[0].amount), description: payment.rows[0].notes, branchId: payment.rows[0].branch_id },
       { accountId: cashAccountId, credit: Number(payment.rows[0].amount), description: payment.rows[0].notes, branchId: payment.rows[0].branch_id },
     ],
   });

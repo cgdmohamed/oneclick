@@ -69,9 +69,15 @@ const returnSchema = z.object({
 });
 
 async function postPurchaseInvoice(db: any, companyId: string, purchaseInvoiceId: string, userId?: string | null) {
-  const pi = await db.query(`SELECT * FROM purchase_invoices WHERE id = $1 AND company_id = $2`, [purchaseInvoiceId, companyId]);
+  const pi = await db.query(
+    `SELECT pi.*, s.chart_account_id AS supplier_chart_account_id FROM purchase_invoices pi
+     LEFT JOIN suppliers s ON s.id = pi.supplier_id AND s.company_id = pi.company_id
+     WHERE pi.id = $1 AND pi.company_id = $2`,
+    [purchaseInvoiceId, companyId],
+  );
   if (!pi.rowCount || pi.rows[0].journal_entry_id || pi.rows[0].status === 'draft') return pi.rows[0]?.journal_entry_id;
   const settings = await getSettings(db, companyId);
+  const apAccountId = pi.rows[0].supplier_chart_account_id ?? settings.accounts_payable_account_id;
   const items = await db.query(
     `SELECT pii.*, p.product_type,
             COALESCE(p.inventory_account_id, pc.inventory_account_id, parent_pc.inventory_account_id, $3::uuid) AS resolved_inventory_account_id,
@@ -117,7 +123,7 @@ async function postPurchaseInvoice(db: any, companyId: string, purchaseInvoiceId
   if (Number(pi.rows[0].vat_amount) > 0) {
     lines.push({ accountId: settings.purchase_vat_account_id, debit: Number(pi.rows[0].vat_amount), description: `Purchase VAT ${pi.rows[0].number}`, branchId: pi.rows[0].branch_id });
   }
-  lines.push({ accountId: settings.accounts_payable_account_id, credit: Number(pi.rows[0].total), description: `Purchase ${pi.rows[0].number}`, branchId: pi.rows[0].branch_id });
+  lines.push({ accountId: apAccountId, credit: Number(pi.rows[0].total), description: `Purchase ${pi.rows[0].number}`, branchId: pi.rows[0].branch_id });
 
   const je = await createJournalEntry(db, {
     companyId,
@@ -175,7 +181,12 @@ async function validatePurchaseReturn(db: any, companyId: string, body: z.infer<
 }
 
 async function postPurchaseReturn(db: any, companyId: string, purchaseReturnId: string, userId?: string | null) {
-  const pr = await db.query(`SELECT * FROM purchase_returns WHERE id = $1 AND company_id = $2 FOR UPDATE`, [purchaseReturnId, companyId]);
+  const pr = await db.query(
+    `SELECT pr.*, s.chart_account_id AS supplier_chart_account_id FROM purchase_returns pr
+     LEFT JOIN suppliers s ON s.id = pr.supplier_id AND s.company_id = pr.company_id
+     WHERE pr.id = $1 AND pr.company_id = $2 FOR UPDATE OF pr`,
+    [purchaseReturnId, companyId],
+  );
   if (!pr.rowCount) throw notFound('Purchase return not found');
   const ret = pr.rows[0];
   if (ret.status === 'posted' && ret.journal_entry_id) return ret.journal_entry_id;
@@ -263,7 +274,7 @@ async function postPurchaseReturn(db: any, companyId: string, purchaseReturnId: 
     inventoryGroups.set(key, { accountId, productId: item.product_id, amount: round2((current?.amount ?? 0) + Number(item.quantity) * Number(item.unit_cost)) });
   }
   const lines: JournalLineInput[] = [
-    { accountId: settings.accounts_payable_account_id, debit: Number(ret.total), description: `Purchase return ${ret.return_number}` },
+    { accountId: ret.supplier_chart_account_id ?? settings.accounts_payable_account_id, debit: Number(ret.total), description: `Purchase return ${ret.return_number}` },
   ];
   for (const group of inventoryGroups.values()) {
     if (group.amount > 0) lines.push({ accountId: group.accountId, credit: group.amount, description: `Purchase return ${ret.return_number}`, productId: group.productId });
