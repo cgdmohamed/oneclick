@@ -15,12 +15,14 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
   ArrowRight, Phone, Mail, MapPin, FileBadge2, FileText, CreditCard,
   Wallet, Activity, Plus, AlertTriangle, TrendingUp, Calendar, User as UserIcon, Printer, X, BookOpen,
+  Download, Loader2,
 } from 'lucide-react';
 import { useClients, useInvoices } from '@/hooks/entities';
 import { payments as mockPayments, accounts as mockAccounts } from '@/data/mock';
-import { api, isApiConfigured } from '@/lib/api';
+import { api, API_URL, getAuthHeaders, isApiConfigured } from '@/lib/api';
 import { formatCurrency, formatDateShort, invoiceStatusLabel, paymentMethodLabel } from '@/lib/format';
 import { printElementOnly } from '@/lib/print';
+import { toast } from 'sonner';
 import type { Invoice, PaymentMethod } from '@/types';
 
 interface UnifiedStatementLine {
@@ -167,6 +169,28 @@ const ClientDetail = () => {
       return res;
     },
   });
+
+  const [ledgerExportLoading, setLedgerExportLoading] = useState<'csv' | 'xlsx' | null>(null);
+  const handleLedgerExport = async (format: 'csv' | 'xlsx') => {
+    if (!isApiConfigured() || !id) return;
+    setLedgerExportLoading(format);
+    try {
+      const res = await fetch(`${API_URL}/api/reports/customer-ledger-detail?customer_id=${encodeURIComponent(id)}&format=${format}`, { credentials: 'include', headers: getAuthHeaders() });
+      if (!res.ok) throw new Error('Export failed');
+      const blob = await res.blob();
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `customer-statement.${format}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(a.href);
+    } catch {
+      toast.error('تعذّر تصدير كشف الحساب');
+    } finally {
+      setLedgerExportLoading(null);
+    }
+  };
 
   // Standalone credit/debit notes (no original_invoice_id) post directly
   // against AR with no row in `invoices` at all — without fetching them
@@ -591,12 +615,24 @@ const ClientDetail = () => {
               <p className="text-sm text-muted-foreground">
                 كشف حساب مباشر من دفتر الأستاذ — كل قيد مرحّل يخص حساب العميل «{client?.name}» بالمدين والدائن والرصيد التراكمي.
               </p>
-              {ledgerStatementQuery.data?.summary && (
-                <div className="text-end">
-                  <p className="text-xs text-muted-foreground mb-0.5">الرصيد الحالي</p>
-                  <p className="text-lg font-bold">{fc(Number(ledgerStatementQuery.data.summary.closing_balance))}</p>
-                </div>
-              )}
+              <div className="flex items-center gap-3">
+                {!!ledgerStatementQuery.data?.data.length && (
+                  <div className="flex gap-2 no-print">
+                    <Button variant="outline" size="sm" onClick={() => handleLedgerExport('csv')} disabled={!!ledgerExportLoading}>
+                      {ledgerExportLoading === 'csv' ? <Loader2 className="h-3.5 w-3.5 animate-spin me-1" /> : <Download className="h-3.5 w-3.5 me-1" />} CSV
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => handleLedgerExport('xlsx')} disabled={!!ledgerExportLoading}>
+                      {ledgerExportLoading === 'xlsx' ? <Loader2 className="h-3.5 w-3.5 animate-spin me-1" /> : <Download className="h-3.5 w-3.5 me-1" />} Excel
+                    </Button>
+                  </div>
+                )}
+                {ledgerStatementQuery.data?.summary && (
+                  <div className="text-end">
+                    <p className="text-xs text-muted-foreground mb-0.5">الرصيد الحالي</p>
+                    <p className="text-lg font-bold">{fc(Number(ledgerStatementQuery.data.summary.closing_balance))}</p>
+                  </div>
+                )}
+              </div>
             </Card>
             {ledgerStatementQuery.isLoading ? (
               <Card className="p-10 text-center text-muted-foreground border-dashed">جارٍ التحميل…</Card>
