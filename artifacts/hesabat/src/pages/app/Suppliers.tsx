@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '@/components/common/PageHeader';
 import { DataTable, Column } from '@/components/common/DataTable';
 import { StatCard } from '@/components/common/StatCard';
@@ -14,6 +15,7 @@ import { Plus, Pencil, Trash2, Truck, Phone, Mail, ExternalLink, CheckCircle2, X
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { toast } from 'sonner';
 import { useResource } from '@/hooks/useResource';
+import { api, ApiError } from '@/lib/api';
 
 interface SupplierRow {
   id: string;
@@ -45,6 +47,7 @@ const empty: Supplier = {
 };
 
 const Suppliers = () => {
+  const qc = useQueryClient();
   const { list, save, remove } = useResource<Supplier, SupplierRow>({
     path: '/api/suppliers',
     key: 'suppliers',
@@ -77,6 +80,7 @@ const Suppliers = () => {
   const [toDelete, setToDelete] = useState<Supplier | null>(null);
   const [saving, setSaving]   = useState(false);
   const [search, setSearch]   = useState('');
+  const [alsoClient, setAlsoClient] = useState(false);
 
   const filtered = list.filter(s =>
     !search ||
@@ -85,12 +89,48 @@ const Suppliers = () => {
     s.email.toLowerCase().includes(search.toLowerCase()),
   );
 
-  const openAdd  = () => { setEditing(empty); setOpen(true); };
-  const openEdit = (s: Supplier) => { setEditing({ ...s }); setOpen(true); };
+  const openAdd  = () => { setEditing(empty); setAlsoClient(false); setOpen(true); };
+  const openEdit = (s: Supplier) => { setEditing({ ...s }); setAlsoClient(false); setOpen(true); };
 
   const submit = async () => {
     if (!editing.name.trim()) return toast.error('اسم المورد مطلوب');
     if (editing.taxNumber && !/^\d+$/.test(editing.taxNumber)) return toast.error('الرقم الضريبي يجب أن يحتوي على أرقام فقط');
+
+    if (!editing.id && alsoClient) {
+      setSaving(true);
+      try {
+        const supplierRes = await api.post<{ data: { id: string } }>('/api/suppliers', {
+          name: editing.name, phone: editing.phone || null, email: editing.email || null,
+          address: editing.address || null, tax_number: editing.taxNumber || null,
+          notes: editing.notes || null, is_active: editing.isActive,
+        });
+        const supplierId = supplierRes.data.id;
+        try {
+          const clientRes = await api.post<{ data: { id: string } }>('/api/clients', {
+            name: editing.name, phone: editing.phone || null, email: editing.email || null,
+            address: editing.address || null, tax_number: editing.taxNumber || null,
+          });
+          await api.patch(`/api/clients/${clientRes.data.id}`, { linked_supplier_id: supplierId });
+          toast.success('تم تسجيل المورد والعميل وربطهما ببعض');
+        } catch (e) {
+          // The supplier itself is already saved successfully — a failure
+          // here must not look like the whole save failed, since it didn't.
+          toast.warning(
+            `تم حفظ المورد، لكن تعذّر تسجيله كعميل أيضًا${e instanceof ApiError ? `: ${e.message}` : ''} — يمكنك ربطه يدويًا لاحقًا من حقل "مرتبط بمورد" في شاشة العملاء`,
+          );
+        }
+        qc.invalidateQueries({ queryKey: ['suppliers'] });
+        qc.invalidateQueries({ queryKey: ['suppliers-lite'] });
+        qc.invalidateQueries({ queryKey: ['clients'] });
+        setOpen(false);
+      } catch {
+        toast.error('تعذّر حفظ المورد');
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
+
     setSaving(true);
     try {
       await save(editing);
@@ -211,6 +251,15 @@ const Suppliers = () => {
               <Switch checked={editing.isActive} onCheckedChange={(v) => setEditing(p => ({ ...p, isActive: v }))} id="is-active" />
               <Label htmlFor="is-active">نشط</Label>
             </div>
+            {!editing.id && (
+              <div className="flex items-center justify-between rounded-lg border px-3 py-2.5">
+                <div>
+                  <Label htmlFor="also-client">تسجيله كعميل أيضًا</Label>
+                  <p className="text-xs text-muted-foreground mt-0.5">ينشئ سجل عميل بنفس البيانات ويربطه بهذا المورد تلقائيًا.</p>
+                </div>
+                <Switch id="also-client" checked={alsoClient} onCheckedChange={setAlsoClient} />
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>إلغاء</Button>

@@ -40,7 +40,7 @@ const FIELDS = ['name', 'email', 'phone', 'whatsapp', 'tax_number', 'address', '
 async function assertLinkedSupplier(db: { query: (sql: string, params?: unknown[]) => Promise<{ rowCount: number | null }> }, companyId: string, supplierId?: string | null) {
   if (!supplierId) return;
   const rs = await db.query(`SELECT 1 FROM suppliers WHERE id = $1 AND company_id = $2`, [supplierId, companyId]);
-  if (!rs.rowCount) throw badRequest('Invalid supplier link');
+  if (!rs.rowCount) throw badRequest('المورد المرتبط غير صالح');
 }
 
 r.get('/', async (req, res, next) => {
@@ -162,7 +162,7 @@ r.post('/', async (req, res, next) => {
   try {
     const t = req.tenant!;
     const parsed = schema.parse(req.body) as Record<string, unknown>;
-    if (!parsed.phone || !String(parsed.phone).trim()) throw badRequest('Phone number is required');
+    if (!parsed.phone || !String(parsed.phone).trim()) throw badRequest('رقم الهاتف مطلوب');
     await assertLinkedSupplier(t.db, t.companyId, parsed.linked_supplier_id as string | null | undefined);
     // Only insert fields the caller actually sent — passing an explicit NULL
     // for an omitted field (e.g. currency) bypasses its DB DEFAULT and
