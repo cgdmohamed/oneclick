@@ -1,10 +1,58 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import multer from 'multer';
 import { parsePagination } from '../../utils/pagination.js';
 import { badRequest, notFound } from '../../utils/errors.js';
+import { parseSpreadsheet, buildXlsxBuffer } from '../../utils/spreadsheet.js';
 import { ensureAccountingSetup, ensurePartySubAccount, getSettings } from '../accounting/posting.js';
 
 const r = Router();
+
+const csvUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const name = file.originalname.toLowerCase();
+    const ok =
+      file.mimetype === 'text/csv' ||
+      file.mimetype === 'application/vnd.ms-excel' ||
+      file.mimetype === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+      name.endsWith('.csv') || name.endsWith('.xlsx');
+    if (!ok) return cb(new Error('يجب أن يكون الملف بصيغة CSV أو Excel (xlsx)'));
+    cb(null, true);
+  },
+});
+
+/** Wrap csvUpload to convert Multer fileFilter/size errors into 4xx JSON responses. */
+function csvUploadMiddleware(
+  req: import('express').Request,
+  res: import('express').Response,
+  next: import('express').NextFunction,
+) {
+  csvUpload.single('file')(req, res, (err) => {
+    if (!err) return next();
+    if (err instanceof multer.MulterError) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(413).json({ message: 'حجم الملف يتجاوز الحد المسموح به (5 ميجابايت)' });
+      }
+      return res.status(400).json({ message: `خطأ في رفع الملف: ${err.message}` });
+    }
+    if (err instanceof Error) {
+      return res.status(400).json({ message: err.message });
+    }
+    next(err);
+  });
+}
+
+function toCsvRow(fields: unknown[]): string {
+  return fields.map((f) => {
+    const s = String(f ?? '');
+    return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  }).join(',');
+}
+
+const IMPORT_HEADERS = ['name', 'phone', 'email', 'whatsapp', 'tax_number', 'address', 'notes'];
+const IMPORT_TEMPLATE_ROW = ['عميل تجريبي', '01012345678', 'client@example.com', '01012345678', '', 'القاهرة، مصر', ''];
 
 const schema = z.object({
   name: z.string().min(1),
@@ -54,6 +102,126 @@ r.get('/', async (req, res, next) => {
     );
     const rs = await t.db.query(applied.sql, applied.params);
     res.json(p.respond(rs.rows, Number(totalQ.rows[0]?.count ?? 0)));
+  } catch (e) { next(e); }
+});
+
+// Registered before `/:id` so Express matches these literal paths instead of
+// treating "export"/"import" as a client id.
+r.get('/export', async (req, res, next) => {
+  try {
+    const t = req.tenant!;
+    const rs = await t.db.query(
+      `SELECT name, phone, email, whatsapp, tax_number, address, notes
+       FROM clients WHERE company_id = $1 ORDER BY created_at ASC`,
+      [t.companyId],
+    );
+    const dataRows: string[][] = rs.rows.map((c) => [
+      c.name, c.phone ?? '', c.email ?? '', c.whatsapp ?? '', c.tax_number ?? '', c.address ?? '', c.notes ?? '',
+    ]);
+    if (req.query.format === 'xlsx') {
+      const buf = await buildXlsxBuffer('العملاء', IMPORT_HEADERS, dataRows);
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', 'attachment; filename="clients.xlsx"');
+      return res.send(buf);
+    }
+    const csv = [toCsvRow(IMPORT_HEADERS), ...dataRows.map((row) => toCsvRow(row))].join('\r\n');
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="clients.csv"');
+    res.send('﻿' + csv);
+  } catch (e) { next(e); }
+});
+
+r.get('/export/template', async (req, res, next) => {
+  try {
+    if (req.query.format === 'xlsx') {
+      const buf = await buildXlsxBuffer('العملاء', IMPORT_HEADERS, [IMPORT_TEMPLATE_ROW]);
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', 'attachment; filename="clients-template.xlsx"');
+      return res.send(buf);
+    }
+    const csv = [toCsvRow(IMPORT_HEADERS), toCsvRow(IMPORT_TEMPLATE_ROW)].join('\r\n');
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="clients-template.csv"');
+    res.send('﻿' + csv);
+  } catch (e) { next(e); }
+});
+
+/*
+ * Two-phase import (dry_run), same shape as products/chart-accounts import:
+ * every row is validated independently (name + phone required, tax number
+ * digits-only — the same rules POST / enforces), and a row is always a new
+ * client (no upsert-by-name — two clients legitimately sharing a name/phone
+ * is allowed elsewhere in this app, just warned about, not merged).
+ */
+r.post('/import', csvUploadMiddleware, async (req, res, next) => {
+  try {
+    const t = req.tenant!;
+    if (!req.file) return res.status(400).json({ message: 'يجب رفع ملف CSV أو Excel' });
+    const dryRun = (req.body?.dry_run ?? 'false').toString().toLowerCase() !== 'false';
+
+    let records: string[][];
+    try {
+      records = await parseSpreadsheet(req.file.buffer, req.file.originalname);
+    } catch {
+      return res.status(422).json({ message: 'ملف CSV أو Excel غير صالح أو تالف' });
+    }
+    if (records.length < 2) return res.status(422).json({ message: 'الملف فارغ أو لا يحتوي على بيانات' });
+
+    const headers = records[0].map((h) => h.toLowerCase());
+    const colIdx = (name: string) => headers.indexOf(name);
+    const iName      = colIdx('name');
+    const iPhone     = colIdx('phone');
+    const iEmail     = colIdx('email');
+    const iWhatsapp  = colIdx('whatsapp');
+    const iTaxNumber = colIdx('tax_number');
+    const iAddress   = colIdx('address');
+    const iNotes     = colIdx('notes');
+    if (iName === -1) return res.status(422).json({ message: 'العمود "name" مطلوب' });
+    if (iPhone === -1) return res.status(422).json({ message: 'العمود "phone" مطلوب' });
+
+    interface RowResult { row: number; name: string; error?: string; created?: boolean; }
+    const results: RowResult[] = [];
+    let created = 0;
+    const settings = dryRun ? null : await (async () => { await ensureAccountingSetup(t.db, t.companyId); return getSettings(t.db, t.companyId); })();
+
+    for (let i = 1; i < records.length; i++) {
+      const row = records[i];
+      const get = (idx: number) => (idx >= 0 ? (row[idx] ?? '').trim() : '');
+      const csvRowNum = i + 1;
+
+      const name = get(iName);
+      const phone = get(iPhone);
+      const taxNumber = get(iTaxNumber);
+      if (!name) { results.push({ row: csvRowNum, name: '', error: 'اسم العميل مطلوب' }); continue; }
+      if (!phone) { results.push({ row: csvRowNum, name, error: 'رقم الهاتف مطلوب' }); continue; }
+      if (taxNumber && !/^\d+$/.test(taxNumber)) { results.push({ row: csvRowNum, name, error: 'الرقم الضريبي يجب أن يحتوي على أرقام فقط' }); continue; }
+
+      if (dryRun) {
+        results.push({ row: csvRowNum, name, created: true });
+        created++;
+        continue;
+      }
+
+      const ins = await t.db.query(
+        `INSERT INTO clients (company_id, name, phone, email, whatsapp, tax_number, address, notes)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id, name`,
+        [t.companyId, name, phone, get(iEmail) || null, get(iWhatsapp) || null, taxNumber || null, get(iAddress) || null, get(iNotes) || null],
+      );
+      const chartAccountId = await ensurePartySubAccount(t.db, t.companyId, settings!.accounts_receivable_account_id, ins.rows[0].name);
+      if (chartAccountId) {
+        await t.db.query(`UPDATE clients SET chart_account_id = $1 WHERE id = $2`, [chartAccountId, ins.rows[0].id]);
+      }
+      created++;
+      results.push({ row: csvRowNum, name, created: true });
+    }
+
+    res.json({
+      dry_run: dryRun,
+      total: records.length - 1,
+      created,
+      errors: results.filter((r) => r.error).length,
+      results,
+    });
   } catch (e) { next(e); }
 });
 
