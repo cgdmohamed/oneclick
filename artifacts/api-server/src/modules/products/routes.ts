@@ -202,7 +202,12 @@ function toCsvRow(fields: unknown[]): string {
 
 
 const CSV_HEADERS = ['name','sku','barcode','product_type','description','price','cost','quantity','alert_level','unit','category','supplier','vat_status','vat_rate','status'];
-const TEMPLATE_ROW = ['منتج تجريبي','SKU-001','6220000000000','stock','وصف المنتج','100','50','10','3','قطعة','إلكترونيات','مورد تجريبي','taxable','14','active'];
+// The supplier column is left blank on purpose: unlike "category", which
+// the import auto-creates when it doesn't exist, a named supplier must
+// already exist or the whole row is rejected — so a non-empty example
+// value here would make this template fail to import on any fresh company
+// that doesn't happen to have a supplier by that exact name.
+const TEMPLATE_ROW = ['منتج تجريبي','SKU-001','6220000000000','stock','وصف المنتج','100','50','10','3','قطعة','إلكترونيات','','taxable','14','active'];
 
 const router = Router();
 
@@ -609,7 +614,16 @@ router.post('/import', csvUploadMiddleware, async (req, res, next) => {
       const isActive  = statusRaw === '' || statusRaw === 'active' || statusRaw === '1' || statusRaw === 'true';
 
       if (dryRun) {
-        // Preview only — no writes. Unknown categories are valid (will be auto-created on commit).
+        // Preview only — no writes. Unknown categories are valid (will be
+        // auto-created on commit), but an unknown supplier is NOT — the
+        // commit path below rejects that row outright, so the preview must
+        // catch it too, or it shows "✓ created" for a row that then fails
+        // for real the moment the user clicks confirm.
+        const supplierName = get(iSupplier);
+        if (supplierName && !(await findSupplierId(supplierName))) {
+          results.push({ row: csvRowNum, name, error: 'المورد غير موجود' });
+          continue;
+        }
         results.push({ row: csvRowNum, name, created: true });
         created++;
       } else {
