@@ -7,10 +7,11 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { api } from '@/lib/api';
+import { api, API_URL, getAuthHeaders, isApiConfigured } from '@/lib/api';
 import { formatCurrency, formatDateShort } from '@/lib/format';
 import { printElementOnly } from '@/lib/print';
-import { AlertTriangle, ArrowRight, Printer } from 'lucide-react';
+import { AlertTriangle, ArrowRight, Download, Loader2, Printer } from 'lucide-react';
+import { toast } from 'sonner';
 import { SearchableSelect } from '@/components/common/SearchableSelect';
 import { recordRecentReport } from './recentReports';
 import { accountTypeLabel } from './types';
@@ -74,6 +75,10 @@ const summaryLabel = (key: string) => ({
   // inventory-reconciliation summary keys.
   inventory_total: 'إجمالي قيمة المخزون',
   inventory_gl_balance: 'رصيد حساب المخزون بالأستاذ',
+  // account-statement summary keys.
+  debit: 'إجمالي المدين',
+  credit: 'إجمالي الدائن',
+  closing_balance: 'الرصيد الختامي',
 }[key] ?? key.replaceAll('_', ' '));
 
 const endpointFor = (type: string) => {
@@ -156,6 +161,34 @@ const FinancialReportDetail = () => {
     queryKey: ['financial-report', type, query],
     queryFn: async () => api.get<{ data: any[] | Record<string, unknown>; summary?: Record<string, string | number | boolean>; warnings?: string[] }>(`${endpointFor(type)}${query ? `?${query}` : ''}`),
   });
+
+  // Only account-statement implements a `format=csv|xlsx` export today (see
+  // sendTable() in reports/routes.ts) — the customer/supplier "كشف حساب"
+  // equivalents live on ClientDetail.tsx/SupplierDetail.tsx directly, not on
+  // this generic report-type route.
+  const [exportLoading, setExportLoading] = useState<'csv' | 'xlsx' | null>(null);
+  const canExport = type === 'account-statement' && !!applied.accountId;
+  const handleExport = async (format: 'csv' | 'xlsx') => {
+    if (!isApiConfigured()) { toast.error('الاتصال بالخادم غير متاح'); return; }
+    setExportLoading(format);
+    try {
+      const sep = query ? '&' : '?';
+      const res = await fetch(`${API_URL}${endpointFor(type)}${query ? `?${query}` : ''}${sep}format=${format}`, { credentials: 'include', headers: getAuthHeaders() });
+      if (!res.ok) throw new Error('Export failed');
+      const blob = await res.blob();
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `${type}.${format}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(a.href);
+    } catch {
+      toast.error('تعذّر تصدير التقرير');
+    } finally {
+      setExportLoading(null);
+    }
+  };
   const rows = Array.isArray(data?.data) ? data.data : data?.data ? [data.data] : [];
   // While the query is still loading (data undefined) this must fall back to
   // {}, not to data?.data — that was undefined too, and Object.keys(undefined)
@@ -315,7 +348,19 @@ const FinancialReportDetail = () => {
   return (
     <div className="space-y-5">
       <Link to="/app/accounting/reports" className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1"><ArrowRight className="h-4 w-4" /> العودة للتقارير المالية</Link>
-      <PageHeader title={titleMap[type] ?? 'تقرير مالي'} actions={<Button variant="outline" onClick={printElementOnly}><Printer className="h-4 w-4 me-1" /> طباعة</Button>} />
+      <PageHeader title={titleMap[type] ?? 'تقرير مالي'} actions={<div className="flex flex-wrap gap-2 no-print">
+        {canExport && (
+          <>
+            <Button variant="outline" onClick={() => handleExport('csv')} disabled={!!exportLoading}>
+              {exportLoading === 'csv' ? <Loader2 className="h-4 w-4 animate-spin me-1" /> : <Download className="h-4 w-4 me-1" />} تصدير CSV
+            </Button>
+            <Button variant="outline" onClick={() => handleExport('xlsx')} disabled={!!exportLoading}>
+              {exportLoading === 'xlsx' ? <Loader2 className="h-4 w-4 animate-spin me-1" /> : <Download className="h-4 w-4 me-1" />} تصدير Excel
+            </Button>
+          </>
+        )}
+        <Button variant="outline" onClick={printElementOnly}><Printer className="h-4 w-4 me-1" /> طباعة</Button>
+      </div>} />
       <Card className="p-4 border-border/60">
         <div className="grid sm:grid-cols-3 lg:grid-cols-6 gap-3 items-end">
             <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />

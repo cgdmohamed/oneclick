@@ -1,4 +1,33 @@
 import { Router } from 'express';
+import { buildXlsxBuffer } from '../../utils/spreadsheet.js';
+
+function toCsvRow(fields: unknown[]): string {
+  return fields.map((f) => {
+    const s = String(f ?? '');
+    return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  }).join(',');
+}
+
+// pg returns a `date` column as a JS Date already shifted to local midnight,
+// so `String(d)` gives "Wed Nov 04 2026 ..." (JS Date's default toString),
+// not a usable date string — this always reads the date in ISO form first.
+function formatDateForExport(d: unknown): string {
+  return (d instanceof Date ? d : new Date(d as string)).toISOString().slice(0, 10);
+}
+
+async function sendTable(res: import('express').Response, format: string | undefined, sheetName: string, filenameBase: string, headers: string[], rows: (string | number)[][]) {
+  if (format === 'xlsx') {
+    const buf = await buildXlsxBuffer(sheetName, headers, rows);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${filenameBase}.xlsx"`);
+    res.send(buf);
+    return;
+  }
+  const csv = [toCsvRow(headers), ...rows.map((r) => toCsvRow(r))].join('\r\n');
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="${filenameBase}.csv"`);
+  res.send('﻿' + csv);
+}
 
 const router = Router();
 
@@ -865,6 +894,12 @@ router.get('/account-statement', async (req, res, next) => {
     );
     const debit = rs.rows.reduce((sum: number, row: { debit: string }) => sum + Number(row.debit), 0);
     const credit = rs.rows.reduce((sum: number, row: { credit: string }) => sum + Number(row.credit), 0);
+    if (req.query.format === 'csv' || req.query.format === 'xlsx') {
+      const dataRows = rs.rows.map((r: { entry_date: string; number: string; memo: string | null; description: string | null; debit: string; credit: string; running_balance: string }) => [
+        formatDateForExport(r.entry_date), r.number, r.memo ?? r.description ?? '', r.debit, r.credit, r.running_balance,
+      ]);
+      return sendTable(res, req.query.format, 'كشف حساب', 'account-statement', ['التاريخ', 'رقم القيد', 'البيان', 'مدين', 'دائن', 'الرصيد الجاري'], dataRows);
+    }
     res.json({ data: rs.rows, summary: { debit: debit.toFixed(2), credit: credit.toFixed(2), closing_balance: (debit - credit).toFixed(2) }, warnings: meta.warnings });
   } catch (e) { next(e); }
 });
@@ -1181,6 +1216,12 @@ router.get('/customer-ledger-detail', async (req, res, next) => {
       balance += Number(r.debit) - Number(r.credit);
       return { ...r, running_balance: balance.toFixed(2) };
     });
+    if (req.query.format === 'csv' || req.query.format === 'xlsx') {
+      const dataRows = rows.map((r: { entry_date: string; memo: string | null; description: string | null; reference: string | null; debit: string; credit: string; running_balance: string }) => [
+        formatDateForExport(r.entry_date), r.reference ?? '', r.memo ?? r.description ?? '', r.debit, r.credit, r.running_balance,
+      ]);
+      return sendTable(res, req.query.format, 'كشف حساب العميل', 'customer-statement', ['التاريخ', 'المرجع', 'البيان', 'مدين', 'دائن', 'الرصيد الجاري'], dataRows);
+    }
     res.json({ data: rows, summary: { closing_balance: balance.toFixed(2) }, warnings: meta.warnings });
   } catch (e) { next(e); }
 });
@@ -1219,6 +1260,12 @@ router.get('/supplier-ledger-detail', async (req, res, next) => {
       balance += Number(r.credit) - Number(r.debit);
       return { ...r, running_balance: balance.toFixed(2) };
     });
+    if (req.query.format === 'csv' || req.query.format === 'xlsx') {
+      const dataRows = rows.map((r: { entry_date: string; memo: string | null; description: string | null; reference: string | null; debit: string; credit: string; running_balance: string }) => [
+        formatDateForExport(r.entry_date), r.reference ?? '', r.memo ?? r.description ?? '', r.debit, r.credit, r.running_balance,
+      ]);
+      return sendTable(res, req.query.format, 'كشف حساب المورد', 'supplier-statement', ['التاريخ', 'المرجع', 'البيان', 'مدين', 'دائن', 'الرصيد الجاري'], dataRows);
+    }
     res.json({ data: rows, summary: { closing_balance: balance.toFixed(2) }, warnings: meta.warnings });
   } catch (e) { next(e); }
 });

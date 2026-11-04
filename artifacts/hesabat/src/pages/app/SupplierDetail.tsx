@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { PageHeader } from '@/components/common/PageHeader';
@@ -7,9 +8,10 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { ArrowRight, Truck, Phone, Mail, MapPin, Package, Wallet, FileText, ReceiptText, BookOpen } from 'lucide-react';
-import { api } from '@/lib/api';
+import { ArrowRight, Truck, Phone, Mail, MapPin, Package, Wallet, FileText, ReceiptText, BookOpen, Download, Loader2 } from 'lucide-react';
+import { api, API_URL, getAuthHeaders, isApiConfigured } from '@/lib/api';
 import { formatCurrency, formatDateShort, paymentMethodLabel, invoiceStatusLabel } from '@/lib/format';
+import { toast } from 'sonner';
 
 interface LedgerStatementLine {
   entry_date: string;
@@ -119,6 +121,28 @@ const SupplierDetail = () => {
     },
     enabled: Boolean(id),
   });
+
+  const [ledgerExportLoading, setLedgerExportLoading] = useState<'csv' | 'xlsx' | null>(null);
+  const handleLedgerExport = async (format: 'csv' | 'xlsx') => {
+    if (!isApiConfigured() || !id) return;
+    setLedgerExportLoading(format);
+    try {
+      const res = await fetch(`${API_URL}/api/reports/supplier-ledger-detail?supplier_id=${encodeURIComponent(id)}&format=${format}`, { credentials: 'include', headers: getAuthHeaders() });
+      if (!res.ok) throw new Error('Export failed');
+      const blob = await res.blob();
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `supplier-statement.${format}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(a.href);
+    } catch {
+      toast.error('تعذّر تصدير كشف الحساب');
+    } finally {
+      setLedgerExportLoading(null);
+    }
+  };
 
   if (isLoading) return <div className="p-8 text-center text-muted-foreground">جارٍ التحميل...</div>;
   if (isError || !data) return (
@@ -250,12 +274,24 @@ const SupplierDetail = () => {
                 <p className="text-sm text-muted-foreground">
                   كشف حساب مباشر من دفتر الأستاذ — كل قيد مرحّل يخص حساب المورد بالمدين والدائن والرصيد التراكمي.
                 </p>
-                {ledgerQuery.data?.summary && (
-                  <div className="text-end">
-                    <p className="text-xs text-muted-foreground mb-0.5">الرصيد الحالي</p>
-                    <p className="text-lg font-bold">{formatCurrency(Number(ledgerQuery.data.summary.closing_balance))}</p>
-                  </div>
-                )}
+                <div className="flex items-center gap-3">
+                  {!!ledgerQuery.data?.data.length && (
+                    <div className="flex gap-2 no-print">
+                      <Button variant="outline" size="sm" onClick={() => handleLedgerExport('csv')} disabled={!!ledgerExportLoading}>
+                        {ledgerExportLoading === 'csv' ? <Loader2 className="h-3.5 w-3.5 animate-spin me-1" /> : <Download className="h-3.5 w-3.5 me-1" />} CSV
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => handleLedgerExport('xlsx')} disabled={!!ledgerExportLoading}>
+                        {ledgerExportLoading === 'xlsx' ? <Loader2 className="h-3.5 w-3.5 animate-spin me-1" /> : <Download className="h-3.5 w-3.5 me-1" />} Excel
+                      </Button>
+                    </div>
+                  )}
+                  {ledgerQuery.data?.summary && (
+                    <div className="text-end">
+                      <p className="text-xs text-muted-foreground mb-0.5">الرصيد الحالي</p>
+                      <p className="text-lg font-bold">{formatCurrency(Number(ledgerQuery.data.summary.closing_balance))}</p>
+                    </div>
+                  )}
+                </div>
               </Card>
               {ledgerQuery.isLoading ? (
                 <Card className="p-10 text-center text-muted-foreground border-dashed">جارٍ التحميل…</Card>
