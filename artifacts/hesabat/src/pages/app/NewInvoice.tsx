@@ -132,6 +132,13 @@ const NewInvoice = ({ asModal = false, defaultClientId, onCancel, onCreated }: N
   const saveQuickClient = async (forceDuplicate = false) => {
     const name = newClient.name.trim();
     if (!name) return toast.error('اسم العميل مطلوب');
+    // The label on this field already reads "رقم الهاتف *" — this form was
+    // just never actually enforcing it (unlike Clients.tsx's own create
+    // form), so a user who skipped it got a generic "تعذّر إضافة العميل"
+    // from the backend's own phone-required rejection with no indication
+    // why. Same for the tax-number format check.
+    if (!newClient.phone.trim()) return toast.error('رقم الهاتف مطلوب');
+    if (newClient.tax_number && !/^\d+$/.test(newClient.tax_number)) return toast.error('الرقم الضريبي يجب أن يحتوي على أرقام فقط');
 
     /* Duplicate check */
     if (!forceDuplicate) {
@@ -158,8 +165,8 @@ const NewInvoice = ({ asModal = false, defaultClientId, onCancel, onCreated }: N
       toast.success(`تم إضافة العميل «${res.data.name}»`);
       setClientOpen(false);
       setDupClient(null);
-    } catch {
-      toast.error('تعذّر إضافة العميل');
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : 'تعذّر إضافة العميل');
     } finally {
       setClientSaving(false);
     }
@@ -673,7 +680,7 @@ const NewInvoice = ({ asModal = false, defaultClientId, onCancel, onCreated }: N
               </div>
               <div>
                 <Label>الرقم الضريبي</Label>
-                <Input className="mt-1.5" inputMode="numeric" pattern="[0-9]*" value={newClient.tax_number} onChange={e => setNewClient(p => ({ ...p, tax_number: e.target.value }))} />
+                <Input className="mt-1.5" inputMode="numeric" pattern="[0-9]*" value={newClient.tax_number} onChange={e => setNewClient(p => ({ ...p, tax_number: e.target.value.replace(/\D/g, '') }))} />
               </div>
             </div>
             <div>
