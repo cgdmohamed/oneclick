@@ -9,31 +9,21 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Plus, Trash2, UserPlus, AlertTriangle, Paperclip, Image as ImageIcon, X, Check, ChevronsUpDown, WalletCards } from 'lucide-react';
+import { Plus, Trash2, UserPlus, Paperclip, Image as ImageIcon, X, Check, ChevronsUpDown, WalletCards } from 'lucide-react';
 import { formatCurrency } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { InvoiceSummary } from '@/components/common/InvoiceSummary';
 import { SearchableSelect } from '@/components/common/SearchableSelect';
+import { ClientFormDialog } from '@/components/common/ClientFormDialog';
 import { useClients, useProducts } from '@/hooks/entities';
 import { api, ApiError, isApiConfigured } from '@/lib/api';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { EGP_CURRENCY_CODE } from '@/lib/currency';
 
 interface Item { id: string; name: string; quantity: number; unitPrice: number; discount: number; productId?: string; vatRate?: number }
 interface Account { id: string; name: string; type: string; }
 interface DimensionRow { id: string; code: string | null; name: string; is_active: boolean; }
-
-/* ── Quick-create forms ─────────────────────────────────────────── */
-interface NewClientForm {
-  name: string; phone: string; whatsapp: string; email: string; address: string; tax_number: string; currency: string;
-}
-const emptyClient: NewClientForm = { name: '', phone: '', whatsapp: '', email: '', address: '', tax_number: '', currency: EGP_CURRENCY_CODE };
-
-/* ── Helpers ────────────────────────────────────────────────────── */
-const normalize = (s: string) => s.trim().toLowerCase();
 
 interface NewInvoiceProps {
   asModal?: boolean;
@@ -118,59 +108,12 @@ const NewInvoice = ({ asModal = false, defaultClientId, onCancel, onCreated }: N
   }, [clientId, clients, requestedClientId]);
 
   /* ── Quick client creation ──────────────────────────────────── */
-  const [clientOpen, setClientOpen]       = useState(false);
-  const [newClient, setNewClient]         = useState<NewClientForm>(emptyClient);
-  const [clientSaving, setClientSaving]   = useState(false);
-  const [dupClient, setDupClient]         = useState<{ id: string; name: string } | null>(null);
-
-  const openQuickClient = () => {
-    setNewClient(emptyClient);
-    setDupClient(null);
-    setClientOpen(true);
-  };
-
-  const saveQuickClient = async (forceDuplicate = false) => {
-    const name = newClient.name.trim();
-    if (!name) return toast.error('اسم العميل مطلوب');
-    // The label on this field already reads "رقم الهاتف *" — this form was
-    // just never actually enforcing it (unlike Clients.tsx's own create
-    // form), so a user who skipped it got a generic "تعذّر إضافة العميل"
-    // from the backend's own phone-required rejection with no indication
-    // why. Same for the tax-number format check.
-    if (!newClient.phone.trim()) return toast.error('رقم الهاتف مطلوب');
-    if (newClient.tax_number && !/^\d+$/.test(newClient.tax_number)) return toast.error('الرقم الضريبي يجب أن يحتوي على أرقام فقط');
-
-    /* Duplicate check */
-    if (!forceDuplicate) {
-      const existing = clients.find(c => normalize(c.name) === normalize(name));
-      if (existing) {
-        setDupClient({ id: existing.id, name: existing.name });
-        return; // show confirm dialog
-      }
-    }
-
-    setClientSaving(true);
-    try {
-      const res = await api.post<{ data: { id: string; name: string } }>('/api/clients', {
-        name,
-        phone:      newClient.phone      || null,
-        whatsapp:   newClient.whatsapp   || null,
-        email:      newClient.email      || null,
-        address:    newClient.address    || null,
-        tax_number: newClient.tax_number || null,
-        currency:   EGP_CURRENCY_CODE,
-      });
-      await qc.invalidateQueries({ queryKey: ['clients'] });
-      setClientId(res.data.id);
-      toast.success(`تم إضافة العميل «${res.data.name}»`);
-      setClientOpen(false);
-      setDupClient(null);
-    } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : 'تعذّر إضافة العميل');
-    } finally {
-      setClientSaving(false);
-    }
-  };
+  // Uses the same ClientFormDialog as the Clients page itself, instead of a
+  // separate hand-rolled form, so a validation/UX fix made there (phone
+  // required, tax-number digit stripping, duplicate-phone warning, the
+  // "register as supplier too" switch) reaches this entry point too.
+  const [clientOpen, setClientOpen] = useState(false);
+  const openQuickClient = () => setClientOpen(true);
 
   /* ── Invoice line helpers ───────────────────────────────────── */
   const lineGross = (it: Item) => it.quantity * it.unitPrice;
@@ -643,90 +586,13 @@ const NewInvoice = ({ asModal = false, defaultClientId, onCancel, onCreated }: N
       </div>
 
       {/* ════════════════════════════════════════════════════════
-          QUICK CLIENT CREATION MODAL
+          QUICK CLIENT CREATION — same dialog as the Clients page
       ════════════════════════════════════════════════════════ */}
-      <Dialog open={clientOpen} onOpenChange={setClientOpen}>
-        <DialogContent className="max-w-md" dir="rtl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <UserPlus className="h-5 w-5" /> إضافة عميل جديد
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div>
-              <Label>اسم العميل *</Label>
-              <Input
-                className="mt-1.5"
-                value={newClient.name}
-                onChange={e => setNewClient(p => ({ ...p, name: e.target.value }))}
-                placeholder="الاسم الكامل أو اسم الشركة"
-                autoFocus
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label>رقم الهاتف *</Label>
-                <Input className="mt-1.5" type="tel" value={newClient.phone} onChange={e => setNewClient(p => ({ ...p, phone: e.target.value }))} placeholder="05xxxxxxxx" />
-              </div>
-              <div>
-                <Label>رقم واتساب</Label>
-                <Input className="mt-1.5" type="tel" value={newClient.whatsapp} onChange={e => setNewClient(p => ({ ...p, whatsapp: e.target.value }))} placeholder="05xxxxxxxx" />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label>البريد الإلكتروني</Label>
-                <Input className="mt-1.5" type="email" value={newClient.email} onChange={e => setNewClient(p => ({ ...p, email: e.target.value }))} />
-              </div>
-              <div>
-                <Label>الرقم الضريبي</Label>
-                <Input className="mt-1.5" inputMode="numeric" pattern="[0-9]*" value={newClient.tax_number} onChange={e => setNewClient(p => ({ ...p, tax_number: e.target.value.replace(/\D/g, '') }))} />
-              </div>
-            </div>
-            <div>
-              <Label>العنوان</Label>
-              <Input className="mt-1.5" value={newClient.address} onChange={e => setNewClient(p => ({ ...p, address: e.target.value }))} />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setClientOpen(false)}>إلغاء</Button>
-            <Button onClick={() => saveQuickClient(false)} disabled={clientSaving}>
-              {clientSaving ? 'جارٍ الإضافة...' : 'إضافة العميل'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Duplicate client warning */}
-      <AlertDialog open={Boolean(dupClient)} onOpenChange={v => !v && setDupClient(null)}>
-        <AlertDialogContent dir="rtl">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-warning" /> عميل مشابه موجود
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              يوجد عميل باسم «{dupClient?.name}» مسبقاً. هل تريد اختياره بدلاً من إنشاء عميل جديد؟
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter className="flex-col gap-2 sm:flex-row">
-            <AlertDialogCancel onClick={() => { setDupClient(null); }}>إلغاء</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-secondary text-secondary-foreground hover:bg-secondary/80"
-              onClick={() => {
-                if (dupClient) setClientId(dupClient.id);
-                setClientOpen(false);
-                setDupClient(null);
-                toast.success('تم اختيار العميل الموجود');
-              }}
-            >
-              استخدام الموجود
-            </AlertDialogAction>
-            <AlertDialogAction onClick={() => saveQuickClient(true)}>
-              إنشاء جديد على أي حال
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ClientFormDialog
+        open={clientOpen}
+        onOpenChange={setClientOpen}
+        onSaved={(c) => { setClientId(c.id); toast.success(`تم اختيار العميل «${c.name}» في الفاتورة`); }}
+      />
 
     </div>
   );

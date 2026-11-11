@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
-import { Plus, Pencil, Trash2, Truck, Phone, Mail, ExternalLink, CheckCircle2, XCircle } from 'lucide-react';
+import { Plus, Pencil, Trash2, Truck, Phone, Mail, ExternalLink, CheckCircle2, XCircle, AlertTriangle } from 'lucide-react';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { toast } from 'sonner';
 import { useResource } from '@/hooks/useResource';
@@ -81,6 +81,7 @@ const Suppliers = () => {
   const [saving, setSaving]   = useState(false);
   const [search, setSearch]   = useState('');
   const [alsoClient, setAlsoClient] = useState(false);
+  const [dupReasons, setDupReasons] = useState<string[] | null>(null);
 
   const filtered = list.filter(s =>
     !search ||
@@ -89,13 +90,41 @@ const Suppliers = () => {
     s.email.toLowerCase().includes(search.toLowerCase()),
   );
 
-  const openAdd  = () => { setEditing(empty); setAlsoClient(false); setOpen(true); };
-  const openEdit = (s: Supplier) => { setEditing({ ...s }); setAlsoClient(false); setOpen(true); };
+  const openAdd  = () => { setEditing(empty); setAlsoClient(false); setDupReasons(null); setOpen(true); };
+  const openEdit = (s: Supplier) => { setEditing({ ...s }); setAlsoClient(false); setDupReasons(null); setOpen(true); };
+
+  // Blocks the save on any match against an existing supplier's name,
+  // phone, email, or tax number — the user must explicitly confirm or go
+  // back, rather than silently saving a true duplicate party.
+  const checkDuplicates = (): string[] => {
+    const normName = editing.name.trim().toLowerCase();
+    const normPhone = editing.phone.replace(/\D/g, '');
+    const normEmail = editing.email.trim().toLowerCase();
+    const normTax = editing.taxNumber.trim();
+    const reasons: string[] = [];
+    const dupName = list.find((s) => s.id !== editing.id && s.name.trim().toLowerCase() === normName);
+    if (dupName) reasons.push(`الاسم مطابق لمورد موجود «${dupName.name}»`);
+    const dupPhone = normPhone ? list.find((s) => s.id !== editing.id && s.phone.replace(/\D/g, '') === normPhone) : undefined;
+    if (dupPhone) reasons.push(`رقم الهاتف مطابق لمورد «${dupPhone.name}»`);
+    const dupEmail = normEmail ? list.find((s) => s.id !== editing.id && s.email.trim().toLowerCase() === normEmail) : undefined;
+    if (dupEmail) reasons.push(`البريد الإلكتروني مطابق لمورد «${dupEmail.name}»`);
+    const dupTax = normTax ? list.find((s) => s.id !== editing.id && s.taxNumber.trim() === normTax) : undefined;
+    if (dupTax) reasons.push(`الرقم الضريبي مطابق لمورد «${dupTax.name}»`);
+    return reasons;
+  };
 
   const submit = async () => {
     if (!editing.name.trim()) return toast.error('اسم المورد مطلوب');
+    if (!editing.id && !editing.phone.trim()) return toast.error('رقم الهاتف مطلوب');
     if (editing.taxNumber && !/^\d+$/.test(editing.taxNumber)) return toast.error('الرقم الضريبي يجب أن يحتوي على أرقام فقط');
 
+    const reasons = checkDuplicates();
+    if (reasons.length) { setDupReasons(reasons); return; }
+
+    await doSave();
+  };
+
+  const doSave = async () => {
     if (!editing.id && alsoClient) {
       setSaving(true);
       try {
@@ -227,7 +256,7 @@ const Suppliers = () => {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label>الهاتف</Label>
+                <Label>الهاتف *</Label>
                 <Input className="mt-1.5" type="tel" value={editing.phone} onChange={(e) => setEditing(p => ({ ...p, phone: e.target.value }))} placeholder="05xxxxxxxx" />
               </div>
               <div>
@@ -277,6 +306,28 @@ const Suppliers = () => {
           <AlertDialogFooter>
             <AlertDialogCancel>إلغاء</AlertDialogCancel>
             <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">حذف</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={Boolean(dupReasons)} onOpenChange={(v) => !v && setDupReasons(null)}>
+        <AlertDialogContent dir="rtl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-warning" /> مورد مشابه موجود بالفعل
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2">
+                <ul className="list-disc pr-4 space-y-1">
+                  {dupReasons?.map((r, i) => <li key={i}>{r}</li>)}
+                </ul>
+                <p>هل تريد المتابعة والحفظ رغم ذلك، أم الرجوع لمراجعة البيانات؟</p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setDupReasons(null)}>رجوع</AlertDialogCancel>
+            <AlertDialogAction onClick={async () => { setDupReasons(null); await doSave(); }}>متابعة الحفظ</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

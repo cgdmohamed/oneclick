@@ -10,11 +10,13 @@ import {
 } from '@/data/mock';
 import { useResource, type ResourceConfig } from '@/hooks/useResource';
 import { EGP_CURRENCY_CODE, EGP_CURRENCY_SYMBOL } from '@/lib/currency';
+import { useQuery } from '@tanstack/react-query';
+import { api, isApiConfigured } from '@/lib/api';
 
 /* ---------- Clients ---------- */
 interface ClientRow {
   id: string; company_id: string; name: string;
-  phone: string | null; email: string | null; address: string | null;
+  phone: string | null; whatsapp: string | null; email: string | null; address: string | null;
   tax_number: string | null; currency: string | null; created_at: string;
   linked_supplier_id: string | null;
   chart_account_id: string | null;
@@ -26,7 +28,7 @@ export const clientsCfg: ResourceConfig<Client, ClientRow> = {
   fromRow: (r) => {
     return {
       id: r.id, companyId: r.company_id, name: r.name,
-      phone: r.phone ?? '', email: r.email ?? '', address: r.address ?? '',
+      phone: r.phone ?? '', whatsapp: r.whatsapp ?? '', email: r.email ?? '', address: r.address ?? '',
       taxNumber: r.tax_number ?? '', currency: EGP_CURRENCY_CODE,
       currencySymbol: EGP_CURRENCY_SYMBOL,
       createdAt: r.created_at,
@@ -35,12 +37,27 @@ export const clientsCfg: ResourceConfig<Client, ClientRow> = {
     };
   },
   toRow: (c) => ({
-    name: c.name, phone: c.phone || null, email: c.email || null,
+    name: c.name, phone: c.phone || null, whatsapp: c.whatsapp || null, email: c.email || null,
     address: c.address || null, tax_number: c.taxNumber || null,
     currency: EGP_CURRENCY_CODE, linked_supplier_id: c.linkedSupplierId || null,
   }),
 };
 export const useClients = () => useResource(clientsCfg);
+
+/* ---------- Suppliers (lite — id/name only, for pickers) ---------- */
+// Deliberately NOT the canonical 'suppliers' key Suppliers.tsx's own
+// useResource owns (different, richer camelCase shape) — sharing it would
+// be exactly the stale/wrong-shape cache collision documented elsewhere in
+// this codebase (see products/branches/cost-centers "-picker" keys).
+export interface SupplierLiteOption { id: string; name: string; }
+export const useSuppliersLite = () => {
+  const { data } = useQuery({
+    enabled: isApiConfigured(),
+    queryKey: ['suppliers-lite'],
+    queryFn: async () => (await api.get<{ data: SupplierLiteOption[] }>('/api/suppliers?page_size=200')).data ?? [],
+  });
+  return data ?? [];
+};
 
 /* ---------- Products ---------- */
 interface ProductRow {

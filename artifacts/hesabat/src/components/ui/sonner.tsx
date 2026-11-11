@@ -23,10 +23,10 @@ const Toaster = ({ ...props }: ToasterProps) => {
           // success/destructive/warning/info design tokens for consistency
           // with StatusBadge/StatCard elsewhere) instead of sonner's default
           // near-identical neutral styling for every toast.
-          success: "group-[.toaster]:!bg-success/10 group-[.toaster]:!border-success/40 group-[.toaster]:!text-success [&_svg]:!text-success",
-          error: "group-[.toaster]:!bg-destructive/10 group-[.toaster]:!border-destructive/40 group-[.toaster]:!text-destructive [&_svg]:!text-destructive",
-          warning: "group-[.toaster]:!bg-warning/10 group-[.toaster]:!border-warning/40 group-[.toaster]:!text-warning [&_svg]:!text-warning",
-          info: "group-[.toaster]:!bg-info/10 group-[.toaster]:!border-info/40 group-[.toaster]:!text-info [&_svg]:!text-info",
+          success: "group-[.toaster]:!bg-success group-[.toaster]:!border-success group-[.toaster]:!text-success-foreground [&_svg]:!text-success-foreground",
+          error: "group-[.toaster]:!bg-destructive group-[.toaster]:!border-destructive group-[.toaster]:!text-destructive-foreground [&_svg]:!text-destructive-foreground",
+          warning: "group-[.toaster]:!bg-warning group-[.toaster]:!border-warning group-[.toaster]:!text-warning-foreground [&_svg]:!text-warning-foreground",
+          info: "group-[.toaster]:!bg-info group-[.toaster]:!border-info group-[.toaster]:!text-info-foreground [&_svg]:!text-info-foreground",
         },
       }}
       {...props}
