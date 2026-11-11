@@ -88,21 +88,21 @@ export function useResource<T extends { id: string }, Row = Record<string, unkno
   const list = apiOn ? (query.data ?? []) : mock;
   const isLoading = apiOn ? query.isLoading : false;
 
-  const save = useCallback(async (item: T) => {
+  const save = useCallback(async (item: T): Promise<T | undefined> => {
     if (apiOn) {
       try {
-        if (list.find((x) => x.id === item.id)) {
-          await updateMut.mutateAsync(item);
-        } else {
-          await createMut.mutateAsync(item);
-        }
+        const saved = list.find((x) => x.id === item.id)
+          ? await updateMut.mutateAsync(item)
+          : await createMut.mutateAsync(item);
         toast.success('تم الحفظ');
-      } catch (e) { handleErr(e, 'تعذّر الحفظ'); }
+        return saved;
+      } catch (e) { handleErr(e, 'تعذّر الحفظ'); return undefined; }
     } else {
       setMock((prev) => prev.find((x) => x.id === item.id)
         ? prev.map((x) => x.id === item.id ? item : x)
         : [item, ...prev]);
       toast.success('تم الحفظ');
+      return item;
     }
   }, [apiOn, list, updateMut, createMut]);
 

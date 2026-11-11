@@ -13,6 +13,11 @@ const schema = z.object({
   is_active:  z.boolean().optional().default(true),
 });
 
+// phone is required on create only (used by the POST handler below) — it
+// stays optional/nullable on PATCH via `schema.partial()` so a supplier can
+// still be edited (and its phone cleared) after creation.
+const createSchema = schema.extend({ phone: z.string().min(1, 'رقم الهاتف مطلوب') });
+
 const base = crudRouter({
   table:       'suppliers',
   fields:      ['name', 'phone', 'email', 'address', 'tax_number', 'notes', 'is_active'],
@@ -141,7 +146,7 @@ r.get('/:id/statement', async (req, res, next) => {
 r.post('/', async (req, res, next) => {
   try {
     const t = req.tenant!;
-    const body = schema.parse(req.body);
+    const body = createSchema.parse(req.body);
     const rs = await t.db.query(
       `INSERT INTO suppliers (company_id, name, phone, email, address, tax_number, notes, is_active)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
