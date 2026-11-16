@@ -75,7 +75,20 @@ export async function tenantContext(req: Request, res: Response, next: NextFunct
   // public landing-page hero image from /admin/landing — and the route
   // itself already stores company_id = null for that case (see
   // requireCompanyContext in modules/uploads/routes.ts).
-  const companyAgnostic = req.path.startsWith('/platform') || req.path.startsWith('/plans') || req.path.startsWith('/uploads');
+  //
+  // /subscriptions mixes both: the super-admin "list all subscriptions"
+  // (GET /) and "change a company's plan" (PATCH /:id/plan) routes are
+  // company-agnostic (they never read t.companyId — they list across every
+  // company, or take the target company from the subscription row itself),
+  // but /subscriptions/me, /me/seat-usage, /me/payments and
+  // /me/request-change are for the signed-in company's OWN subscription and
+  // assume t.companyId is always a real UUID — so only the two super-admin
+  // routes are exempted here, not the whole /subscriptions prefix.
+  const companyAgnostic = req.path.startsWith('/platform')
+    || req.path.startsWith('/plans')
+    || req.path.startsWith('/uploads')
+    || req.path === '/subscriptions'
+    || /^\/subscriptions\/[^/]+\/plan$/.test(req.path);
   if (!companyId && isSuperAdmin && !companyAgnostic) {
     return next(badRequest('اختر شركة لعرضها أولاً من شاشة "الشركات والمشتركون".'));
   }
