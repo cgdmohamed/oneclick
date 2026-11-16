@@ -37,7 +37,7 @@ const AdminOverview = () => {
   const smtpStatus = useQuery({
     enabled: apiOn,
     queryKey: ['admin-smtp-status'],
-    queryFn: async () => (await api.get<{ configured: boolean }>('/api/platform/settings/smtp-status')),
+    queryFn: async () => (await api.get<{ configured: boolean }>('/api/platform/smtp-status')),
     staleTime: 5 * 60 * 1000,
   });
 

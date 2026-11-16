@@ -368,7 +368,12 @@ router.get('/audit-log', async (req, res, next) => {
 });
 
 /* ---- SMTP health (returns whether system SMTP is configured) ---- */
-router.get('/settings/smtp-status', (_req, res) => {
+// Deliberately NOT under /settings/ — publicSettingsRouter is mounted at
+// /api/platform/settings BEFORE this (authenticated) router, with a
+// catch-all GET /:key that 404s for any key outside ALLOWED_KEYS. A route
+// here at /settings/smtp-status would never be reached: the earlier
+// wildcard always matches and returns 404 first.
+router.get('/smtp-status', (_req, res) => {
   res.json({ configured: Boolean(env.SMTP_HOST) });
 });
 
