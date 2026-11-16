@@ -71,7 +71,11 @@ export async function tenantContext(req: Request, res: Response, next: NextFunct
   // and an empty string reaching a query raises a confusing low-level
   // "invalid input syntax for uuid" error instead of a clear one. Only
   // platform-level (company-agnostic) routes are exempt.
-  const companyAgnostic = req.path.startsWith('/platform') || req.path.startsWith('/plans');
+  // /uploads is also company-agnostic for a super admin — e.g. uploading the
+  // public landing-page hero image from /admin/landing — and the route
+  // itself already stores company_id = null for that case (see
+  // requireCompanyContext in modules/uploads/routes.ts).
+  const companyAgnostic = req.path.startsWith('/platform') || req.path.startsWith('/plans') || req.path.startsWith('/uploads');
   if (!companyId && isSuperAdmin && !companyAgnostic) {
     return next(badRequest('اختر شركة لعرضها أولاً من شاشة "الشركات والمشتركون".'));
   }
