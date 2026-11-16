@@ -74,8 +74,11 @@ router.post('/', requireCompanyContext, upload.single('file'), async (req, res, 
     const isPublic = PUBLIC_KINDS.has(kind);
     const disk     = req.file.filename;            // random opaque on-disk name
 
-    // Super admins operating at platform level have no company context; use null.
-    const companyId = t.companyId ?? null;
+    // Super admins operating at platform level have no company context —
+    // req.tenant.companyId is '' (not null) in that case, see tenant.ts —
+    // so this must be a falsy check, not a nullish-coalesce, or the empty
+    // string reaches the UUID column below and Postgres rejects it.
+    const companyId = t.companyId || null;
 
     // Insert with placeholder url then patch it once we have the row id.
     const ins = await t.db.query(
